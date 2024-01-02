@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/redis/go-redis/v9"
 )
@@ -22,7 +23,7 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 	// retrieve my latest posts
 	var posts []FetchedPost
 	mySql := `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	WHERE
@@ -45,7 +46,7 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 	// retrieve my following's latest posts
 	var followingPosts []FetchedPost
 	followingSql := `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	INNER JOIN UserFollow uf ON p.poster_id=uf.followee_id
@@ -70,7 +71,7 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 	// retrieve latest posts which mention me
 	var mentionPosts []FetchedPost
 	mentionSql := `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	INNER JOIN PostMention pm ON p.id=pm.post_id
@@ -99,6 +100,13 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 	sort.Slice(posts, func(i, j int) bool {
 		return posts[i].CreatedAt.After(posts[j].CreatedAt)
 	})
+
+	// Add hostname if empty
+	for i := range posts {
+		if posts[i].PosterHost == "" {
+			posts[i].PosterHost = config.MyHostname
+		}
+	}
 
 	return posts, nil
 }

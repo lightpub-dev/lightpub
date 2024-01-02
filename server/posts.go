@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/lightpub-dev/lightpub/utils"
@@ -109,7 +110,9 @@ func postPost(c echo.Context) error {
 
 	// publish to timeline
 	// TODO: this should be done asynchronously
-	if err := posts.RegisterToTimeline(c.Request().Context(), db, rdb, dbPost, posterUsername, hashtags, mentions); err != nil {
+	if err := posts.RegisterToTimeline(c.Request().Context(), db, rdb, dbPost, posterUsername,
+		config.MyHostname, // host should be always local because only local user can post
+		hashtags, mentions); err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
 	}

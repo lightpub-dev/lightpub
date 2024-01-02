@@ -46,6 +46,7 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 			Author: models.UserPostEntryAuthor{
 				ID:       cache.PosterID,
 				Username: cache.PosterUsername,
+				Host:     cache.PosterHost,
 			},
 			Content:   cache.Content,
 			CreatedAt: cache.CreatedAt,

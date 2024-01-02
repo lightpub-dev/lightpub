@@ -421,7 +421,11 @@ components:
           format: uuid
           description: The ID of a user. Typically in uuid format.
         username:
-          $ref: "#/components/schemas/UserSpecifier"
+          type: string
+          example: tinaxd
+        host:
+          type: string
+          example: lightpub.tinax.work
     UserInfoResponse:
       properties:
         id:

@@ -35,6 +35,7 @@ type UserPostEntry struct {
 type UserPostEntryAuthor struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
+	Host     string `json:"host"`
 }
 
 type UserInfoResponse struct {

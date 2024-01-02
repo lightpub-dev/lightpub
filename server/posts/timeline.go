@@ -10,7 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func RegisterToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, post models.Post, posterUsername string, hashtags []string, mentions []string) error {
+func RegisterToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, post models.Post, posterUsername string, posterHost string, hashtags []string, mentions []string) error {
 	loaclReceiverIDs := []string{}
 	remoteReceiverIDs := []string{}
 
@@ -51,6 +51,7 @@ func RegisterToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, po
 		ID:             post.ID,
 		PosterID:       post.PosterID,
 		PosterUsername: posterUsername,
+		PosterHost:     posterHost,
 		Content:        post.Content,
 		CreatedAt:      post.CreatedAt,
 		Privacy:        post.Privacy,
