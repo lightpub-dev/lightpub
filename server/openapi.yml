@@ -100,6 +100,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PostResultResponse"
+  /post/{post_id}:
+    get:
+      tags:
+        - Post
+        - Authorization required
+      description: Fetch a post.
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      responses:
+        400:
+          description: Invalid post_id.
+        404:
+          description: Post not found.
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                properties:
+                  post:
+                    $ref: "#/components/schemas/UserPostEntry"
+                required:
+                  - post
   /post/{post_id}/reply:
     post:
       tags:
@@ -503,11 +526,33 @@ components:
           $ref: "#/components/schemas/UserPostEntryAuthor"
         content:
           type: string
+          description: The content of the post. This property is null if this is a repost.
+          nullable: true
         created_at:
           type: string
           format: date-time
         privacy:
           $ref: "#/components/schemas/PrivacyType"
+        reply_to:
+          oneOf:
+            - type: string
+              format: url
+            - $ref: "#/components/schemas/UserPostEntry"
+          description: If this post is a reply, this property is defined. The value is either the URL or the post itself.
+          example: https://lightpub.tinax.work/post/aaabbbccc
+        repost_of:
+          oneOf:
+            - type: string
+              format: url
+            - $ref: "#/components/schemas/UserPostEntry"
+          description: If this post is a repost or quote, this property is defined. The value is either the URL or the post itself. content is null if this is a repost. content is non-null if this is a quote.
+          example: https://lightpub.tinax.work/post/aaabbbccc
+      required:
+        - id
+        - author
+        - content
+        - created_at
+        - privacy
     UserPostEntryAuthor:
       properties:
         id:
