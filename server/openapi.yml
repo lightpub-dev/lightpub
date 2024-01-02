@@ -494,6 +494,10 @@ components:
             type: string
             description: Choice.
           minLength: 2
+      required:
+        - allow_multiple
+        - due
+        - choices
     UsernameWithoutHost:
       type: string
       pattern: "@[a-zA-Z0-9_-]+"
@@ -501,7 +505,7 @@ components:
     UsernameWithHost:
       type: string
       pattern: "@[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+"
-      example: "@tinaxd@lightpub.tinax.work"
+      example: "@tinaxd@lightpub.example.com"
     UserID:
       type: string
       format: uuid
@@ -516,6 +520,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UserPostEntry"
+      required:
+        - posts
     UserPostEntry:
       properties:
         id:
@@ -539,14 +545,14 @@ components:
               format: url
             - $ref: "#/components/schemas/UserPostEntry"
           description: If this post is a reply, this property is defined. The value is either the URL or the post itself.
-          example: https://lightpub.tinax.work/post/aaabbbccc
+          example: https://lightpub.example.com/post/aaabbbccc
         repost_of:
           oneOf:
             - type: string
               format: url
             - $ref: "#/components/schemas/UserPostEntry"
           description: If this post is a repost or quote, this property is defined. The value is either the URL or the post itself. content is null if this is a repost. content is non-null if this is a quote.
-          example: https://lightpub.tinax.work/post/aaabbbccc
+          example: https://lightpub.example.com/post/aaabbbccc
       required:
         - id
         - author
@@ -564,7 +570,11 @@ components:
           example: tinaxd
         host:
           type: string
-          example: lightpub.tinax.work
+          example: lightpub.example.com
+      required:
+        - id
+        - username
+        - host
     UserInfoResponse:
       properties:
         id:
@@ -575,28 +585,41 @@ components:
           example: tinaxd
         hostname:
           type: string
-          example: lightpub.tinax.work
+          example: lightpub.example.com
         nickname:
           type: string
           example: tinax
         url:
           type: string
           description: URL to the user profile page.
+          example: https://lightpub.example.com/user/tinaxd
+      required:
+        - id
+        - username
+        - hostname
+        - nickname
+        - url
     UserFollowerResponse:
       properties:
         followers:
           type: array
           items:
             $ref: "#/components/schemas/UserInfoResponse"
+      required:
+        - followers
     UserFollowingResponse:
       properties:
         following:
           type: array
           items:
             $ref: "#/components/schemas/UserInfoResponse"
+      required:
+        - following
     PostResultResponse:
       properties:
         id:
           description: The ID of the created post.
           type: string
           format: uuid
+      required:
+        - id
