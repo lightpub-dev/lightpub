@@ -1,9 +1,11 @@
+export type Privacy = "public" | "unlisted" | "follower" | "private";
+
 export interface UserPostEntry {
     id: string;
     author: UserPostEntryAuthor;
     post: UserPostDetail;
     created_at: string;
-    privacy: string;
+    privacy: Privacy;
 }
 
 export interface UserPostDetail {
