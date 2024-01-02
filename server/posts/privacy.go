@@ -12,9 +12,9 @@ type PrivacyType string
 
 const (
 	PrivacyPublic   PrivacyType = "public"
-	PrivacyUnlisted             = "unlisted"
-	PrivacyFollower             = "follower"
-	PrivacyPrivate              = "private"
+	PrivacyUnlisted PrivacyType = "unlisted"
+	PrivacyFollower PrivacyType = "follower"
+	PrivacyPrivate  PrivacyType = "private"
 )
 
 func IsPostVisibleToUser(db *sqlx.DB, postId string, userId string) (bool, error) {

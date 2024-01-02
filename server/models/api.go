@@ -51,15 +51,7 @@ type UserInfoResponse struct {
 }
 
 type TimelineResponse struct {
-	Posts          []TimelinePostResponse `json:"posts"`
-	LatestPostTime *time.Time             `json:"latest_post_time"`
-	OldestPostTime *time.Time             `json:"oldest_post_time"`
-}
-
-type TimelinePostResponse struct {
-	ID        string              `json:"id"`
-	Author    UserPostEntryAuthor `json:"author"`
-	Content   *string             `json:"content"`
-	CreatedAt time.Time           `json:"created_at"`
-	Privacy   string              `json:"privacy"`
+	Posts          []UserPostEntry `json:"posts"`
+	LatestPostTime *time.Time      `json:"latest_post_time"`
+	OldestPostTime *time.Time      `json:"oldest_post_time"`
 }

@@ -18,11 +18,11 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 	}
 
 	// parse timeline
-	posts := make([]models.TimelinePostResponse, 0, len(cached))
+	posts := make([]models.UserPostEntry, 0, len(cached))
 	oldestPost := time.Now()
 	latestPost := time.Time{}
 	for _, cache := range cached {
-		posts = append(posts, models.TimelinePostResponse{
+		posts = append(posts, models.UserPostEntry{
 			ID: cache.ID,
 			Author: models.UserPostEntryAuthor{
 				ID:       cache.PosterID,
