@@ -52,8 +52,8 @@ type UserInfoResponse struct {
 
 type TimelineResponse struct {
 	Posts          []TimelinePostResponse `json:"posts"`
-	LatestPostTime time.Time              `json:"latest_post_time"`
-	OldestPostTime time.Time              `json:"oldest_post_time"`
+	LatestPostTime *time.Time             `json:"latest_post_time"`
+	OldestPostTime *time.Time             `json:"oldest_post_time"`
 }
 
 type TimelinePostResponse struct {

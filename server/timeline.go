@@ -11,7 +11,7 @@ import (
 func getTimeline(c echo.Context) error {
 	userID := c.Get(ContextUserID).(string)
 
-	afterTimeStr := c.QueryParam("after")
+	afterTimeStr := c.QueryParam("after_date")
 	var afterTime *time.Time
 	if afterTimeStr != "" {
 		t, err := time.Parse(time.RFC3339, afterTimeStr)
@@ -21,7 +21,7 @@ func getTimeline(c echo.Context) error {
 		afterTime = &t
 	}
 
-	beforeTimeStr := c.QueryParam("before")
+	beforeTimeStr := c.QueryParam("before_date")
 	var beforeTime *time.Time
 	if beforeTimeStr != "" {
 		t, err := time.Parse(time.RFC3339, beforeTimeStr)

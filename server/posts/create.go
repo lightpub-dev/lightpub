@@ -147,7 +147,7 @@ func CreatePost(ctx context.Context, db *sqlx.DB, rdb *redis.Client, post Create
 	}
 
 	// insert Post
-	_, err = tx.NamedExec("INSERT INTO Post (id,poster_id,content,inserted_at,created_at,privacy,reply_to,repost_of,poll_id) VALUES (UUID_TO_BIN(:id),UUID_TO_BIN(:poster_id),:content,:inserted_at,:created_at,:privacy,:reply_to,:repost_of,:poll_id)", dbPost)
+	_, err = tx.NamedExec("INSERT INTO Post (id,poster_id,content,inserted_at,created_at,privacy,reply_to,repost_of,poll_id) VALUES (UUID_TO_BIN(:id),UUID_TO_BIN(:poster_id),:content,:inserted_at,:created_at,:privacy,UUID_TO_BIN(:reply_to),UUID_TO_BIN(:repost_of),UUID_TO_BIN(:poll_id))", dbPost)
 	if err != nil {
 		return nil, err
 	}

@@ -42,9 +42,15 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 		}
 	}
 
+	var oldestPostPtr, latestPostPtr *time.Time
+	if len(cached) != 0 {
+		oldestPostPtr = &oldestPost
+		latestPostPtr = &latestPost
+	}
+
 	return &models.TimelineResponse{
 		Posts:          posts,
-		OldestPostTime: oldestPost,
-		LatestPostTime: latestPost,
+		OldestPostTime: oldestPostPtr,
+		LatestPostTime: latestPostPtr,
 	}, nil
 }

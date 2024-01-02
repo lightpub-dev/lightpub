@@ -27,7 +27,7 @@ type FetchOptions struct {
 
 func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options FetchOptions) ([]FetchedPost, error) {
 	limit := DefaultTimelineSize
-	if options.Limit >= 0 {
+	if options.Limit > 0 {
 		limit = options.Limit
 	}
 
