@@ -8,6 +8,7 @@ tags:
   - name: Auth
   - name: Post
   - name: User
+  - name: Timeline
   - name: Authorization required
   - name: No authorization
 paths:
@@ -211,10 +212,102 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserPostListResponse"
-          
+  /user/{username}/followers:
+    get:
+      tags:
+        - No authorization
+        - User
+      parameters:
+        - $ref: "#/components/parameters/PathUserSpecifier"
+        - $ref: "#/components/parameters/LimitQuery"
+        - $ref: "#/components/parameters/BeforeDateQuery"
+      responses:
+        400:
+          description: Invalid query.
+        404:
+          description: Invalid user.
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFollowerResponse"
+  /user/{username}/following:
+    get:
+      tags:
+        - No authorization
+        - User
+      parameters:
+        - $ref: "#/components/parameters/PathUserSpecifier"
+        - $ref: "#/components/parameters/LimitQuery"
+        - $ref: "#/components/parameters/BeforeDateQuery"
+      responses:
+        400:
+          description: Invalid query.
+        404:
+          description: Invalid user.
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFollowingResponse"
+  /user/{username}/follow:
+    put:
+      tags:
+        - No authorization
+        - User
+      parameters:
+        - $ref: "#/components/parameters/PathUserSpecifier"
+      responses:
+        404:
+          description: User not found.
+        200:
+          description: Success.
+    delete:
+      tags:
+        - No authorization
+        - User
+      parameters:
+        - $ref: "#/components/parameters/PathUserSpecifier"
+      responses:
+        404:
+          description: User not found.
+        200:
+          description: Success.
+  /timeline:
+    get:
+      tags:
+        - Authorization required
+        - Timeline
+      description: Get the timeline.
+      responses:
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                properties:
+                  posts:
+                    $ref: "#/components/schemas/TimelinePostResponse"
+                  latest_post_time:
+                    type: string
+                    format: date-time
+                    description: The timestamp of the latest post included in `posts`.
+                  oldest_post_time:
+                    type: string
+                    format: date-time
+                    description: The timestamp of the oldest post included in `posts`.
 
 components:
   parameters:
+    BeforeDateQuery:
+      in: query
+      name: before_date
+      schema:
+        type: string
+        format: date-time
+      description: Limit the result to the entities created before that datetime.
     LimitQuery:
       in: query
       name: limit
@@ -328,7 +421,48 @@ components:
           format: uuid
           description: The ID of a user. Typically in uuid format.
         username:
+          $ref: "#/components/schemas/UserSpecifier"
+    UserInfoResponse:
+      properties:
+        id:
           type: string
-          description: A human readable representation of a user.
-          example: "@tinaxd"
-  
+          format: uuid
+        username:
+          type: string
+          example: tinaxd
+        hostname:
+          type: string
+          example: lightpub.tinax.work
+        nickname:
+          type: string
+          example: tinax
+        url:
+          type: string
+          description: URL to the user profile page.
+    UserFollowerResponse:
+      properties:
+        followers:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserInfoResponse"
+    UserFollowingResponse:
+      properties:
+        following:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserInfoResponse"
+    TimelinePostResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The ID of the post.
+        author:
+          $ref: "#/components/schemas/UserPostEntryAuthor"
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        privacy:
+          $ref: "#/components/schemas/PrivacyType"
