@@ -280,6 +280,26 @@ paths:
       tags:
         - Authorization required
         - Timeline
+      parameters:
+        - name: before_date
+          in: query
+          description: Fetch posts before this date
+          schema:
+            type: string
+            format: date-time
+        - name: after_date
+          in: query
+          description: Fetch posts after this date
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          description: Limit the number of fetched posts
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
       description: Get the timeline.
       responses:
         200:

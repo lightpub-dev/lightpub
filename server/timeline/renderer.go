@@ -2,7 +2,6 @@ package timeline
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
@@ -10,24 +9,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string) (*models.TimelineResponse, error) {
-	rkey := timelineRedisKey(userID)
-
-	// check if timeline is cached
-	exists, err := rdb.Exists(ctx, rkey).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	if exists == 0 {
-		// rebuild timeline
-		if err = rebuildTimeline(ctx, tx, rdb, userID); err != nil {
-			return nil, err
-		}
-	}
-
-	// fetch timeline
-	cached, err := rdb.LRange(ctx, rkey, 0, -1).Result()
+func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string, options FetchOptions) (*models.TimelineResponse, error) {
+	// TODO: use timeline cache in redis
+	// TODO: for now, just fetch from db
+	cached, err := fetchPostsFromDB(ctx, tx, userID, options)
 	if err != nil {
 		return nil, err
 	}
@@ -36,11 +21,7 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 	posts := make([]models.TimelinePostResponse, 0, len(cached))
 	oldestPost := time.Now()
 	latestPost := time.Time{}
-	for _, cacheStr := range cached {
-		var cache FetchedPost
-		if err = json.Unmarshal([]byte(cacheStr), &cache); err != nil {
-			return nil, err
-		}
+	for _, cache := range cached {
 		posts = append(posts, models.TimelinePostResponse{
 			ID: cache.ID,
 			Author: models.UserPostEntryAuthor{

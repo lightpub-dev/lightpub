@@ -1,6 +1,9 @@
 package main
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/timeline"
 )
@@ -8,7 +11,41 @@ import (
 func getTimeline(c echo.Context) error {
 	userID := c.Get(ContextUserID).(string)
 
-	tl, err := timeline.FetchTimeline(c.Request().Context(), db, rdb, userID)
+	afterTimeStr := c.QueryParam("after")
+	var afterTime *time.Time
+	if afterTimeStr != "" {
+		t, err := time.Parse(time.RFC3339, afterTimeStr)
+		if err != nil {
+			return c.String(400, "invalid after time")
+		}
+		afterTime = &t
+	}
+
+	beforeTimeStr := c.QueryParam("before")
+	var beforeTime *time.Time
+	if beforeTimeStr != "" {
+		t, err := time.Parse(time.RFC3339, beforeTimeStr)
+		if err != nil {
+			return c.String(400, "invalid before time")
+		}
+		beforeTime = &t
+	}
+
+	limitStr := c.QueryParam("limit")
+	var limit int
+	if limitStr != "" {
+		l, err := strconv.Atoi(limitStr)
+		if err != nil {
+			return c.String(400, "invalid limit")
+		}
+		limit = l
+	}
+
+	tl, err := timeline.FetchTimeline(c.Request().Context(), db, rdb, userID, timeline.FetchOptions{
+		AfterTime:  afterTime,
+		BeforeTime: beforeTime,
+		Limit:      limit,
+	})
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")

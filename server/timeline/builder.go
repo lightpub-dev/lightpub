@@ -19,7 +19,18 @@ func timelineRedisKey(userID string) string {
 	return "timeline:" + userID
 }
 
-func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTime *time.Time) ([]FetchedPost, error) {
+type FetchOptions struct {
+	BeforeTime *time.Time
+	AfterTime  *time.Time
+	Limit      int
+}
+
+func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options FetchOptions) ([]FetchedPost, error) {
+	limit := DefaultTimelineSize
+	if options.Limit >= 0 {
+		limit = options.Limit
+	}
+
 	// retrieve my latest posts
 	var posts []FetchedPost
 	mySql := `
@@ -31,12 +42,16 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 		AND p.scheduled_at IS NULL
 	`
 	myParams := []interface{}{userID}
-	if beforeTime != nil {
+	if options.BeforeTime != nil {
 		mySql += ` AND p.created_at < ?`
-		myParams = append(myParams, beforeTime)
+		myParams = append(myParams, options.BeforeTime)
+	}
+	if options.AfterTime != nil {
+		mySql += ` AND p.created_at > ?`
+		myParams = append(myParams, options.AfterTime)
 	}
 	mySql += ` ORDER BY p.created_at DESC LIMIT ?`
-	myParams = append(myParams, DefaultTimelineSize)
+	myParams = append(myParams, limit)
 
 	err := tx.SelectContext(ctx, &posts, mySql, myParams...)
 	if err != nil {
@@ -56,12 +71,16 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 		AND p.scheduled_at IS NULL
 	`
 	followingParams := []interface{}{userID}
-	if beforeTime != nil {
+	if options.BeforeTime != nil {
 		followingSql += ` AND p.created_at < ?`
-		followingParams = append(followingParams, beforeTime)
+		followingParams = append(followingParams, options.BeforeTime)
+	}
+	if options.AfterTime != nil {
+		followingSql += ` AND p.created_at > ?`
+		followingParams = append(followingParams, options.AfterTime)
 	}
 	followingSql += ` ORDER BY p.created_at DESC LIMIT ?`
-	followingParams = append(followingParams, DefaultTimelineSize)
+	followingParams = append(followingParams, limit)
 
 	err = tx.SelectContext(ctx, &followingPosts, followingSql, followingParams...)
 	if err != nil {
@@ -80,12 +99,16 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 		AND p.scheduled_at IS NULL
 	`
 	mentionParams := []interface{}{userID}
-	if beforeTime != nil {
+	if options.BeforeTime != nil {
 		mentionSql += ` AND p.created_at < ?`
-		mentionParams = append(mentionParams, beforeTime)
+		mentionParams = append(mentionParams, options.BeforeTime)
+	}
+	if options.AfterTime != nil {
+		mentionSql += ` AND p.created_at > ?`
+		mentionParams = append(mentionParams, options.AfterTime)
 	}
 	mentionSql += ` ORDER BY p.created_at DESC LIMIT ?`
-	mentionParams = append(mentionParams, DefaultTimelineSize)
+	mentionParams = append(mentionParams, limit)
 
 	err = tx.SelectContext(ctx, &mentionPosts, mentionSql, mentionParams...)
 	if err != nil {
@@ -112,7 +135,7 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 }
 
 func rebuildTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string) error {
-	posts, err := fetchLatestPosts(ctx, tx, userID, nil)
+	posts, err := fetchPostsFromDB(ctx, tx, userID, FetchOptions{})
 	if err != nil {
 		return err
 	}
