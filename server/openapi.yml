@@ -17,6 +17,7 @@ paths:
       tags:
         - Auth
         - No authorization
+      security: []
       description: Login to to the API
       requestBody:
         content:
@@ -50,6 +51,7 @@ paths:
       tags:
         - Auth
         - No authorization
+      security: []
       description: Register a new account.
       requestBody:
         content:
@@ -417,6 +419,10 @@ paths:
                     nullable: true
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   parameters:
     BeforeDateQuery:
       in: query
@@ -623,3 +629,5 @@ components:
           format: uuid
       required:
         - id
+security:
+  - bearerAuth: []
