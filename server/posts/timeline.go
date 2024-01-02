@@ -19,7 +19,7 @@ func RegisterToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, po
 	// poster is always a receiver
 	loaclReceiverIDs = append(loaclReceiverIDs, post.PosterID)
 
-	switch post.Privacy {
+	switch PrivacyType(post.Privacy) {
 	case PrivacyUnlisted:
 		// receiver is poster only
 		break

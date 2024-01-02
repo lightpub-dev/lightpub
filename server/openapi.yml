@@ -99,11 +99,83 @@ paths:
           content:
             application/json:
               schema:
-                properties:
-                  id:
-                    description: The ID of the created post.
-                    type: string
-                    format: uuid
+                $ref: "#/components/schemas/PostResultResponse"
+  /post/{post_id}/reply:
+    post:
+      tags:
+        - Post
+        - Authorization required
+      description: Reply to a post.
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        400:
+          description: Invalid request body.
+        404:
+          description: Post not found.
+        201:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResultResponse"
+  /post/{post_id}/repost:
+    post:
+      tags:
+        - Post
+        - Authorization required
+      description: Repost a post.
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                privacy:
+                  $ref: "#/components/schemas/PrivacyType"
+              required:
+                - privacy
+      responses:
+        400:
+          description: Invalid request body.
+        404:
+          description: Post not found.
+        201:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResultResponse"
+  /post/{post_id}/quote:
+    post:
+      tags:
+        - Post
+        - Authorization required
+      description: quote a post.
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        400:
+          description: Invalid request body.
+        404:
+          description: Post not found.
+        201:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResultResponse"
   /post/{post_id}/reaction/{reaction}:
     put:
       description: Add a reaction to a post.
@@ -490,3 +562,9 @@ components:
           format: date-time
         privacy:
           $ref: "#/components/schemas/PrivacyType"
+    PostResultResponse:
+      properties:
+        id:
+          description: The ID of the created post.
+          type: string
+          format: uuid

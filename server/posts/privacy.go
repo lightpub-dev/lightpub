@@ -8,11 +8,13 @@ import (
 	"github.com/lightpub-dev/lightpub/users"
 )
 
+type PrivacyType string
+
 const (
-	PrivacyPublic   = "public"
-	PrivacyUnlisted = "unlisted"
-	PrivacyFollower = "follower"
-	PrivacyPrivate  = "private"
+	PrivacyPublic   PrivacyType = "public"
+	PrivacyUnlisted             = "unlisted"
+	PrivacyFollower             = "follower"
+	PrivacyPrivate              = "private"
 )
 
 func IsPostVisibleToUser(db *sqlx.DB, postId string, userId string) (bool, error) {
@@ -22,7 +24,7 @@ func IsPostVisibleToUser(db *sqlx.DB, postId string, userId string) (bool, error
 		return false, err
 	}
 
-	switch post.Privacy {
+	switch PrivacyType(post.Privacy) {
 	case PrivacyPublic:
 		fallthrough
 	case PrivacyUnlisted:

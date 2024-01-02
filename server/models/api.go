@@ -10,6 +10,10 @@ type PostRequest struct {
 	Poll *PostPollRequest `json:"poll"`
 }
 
+type RepostRequest struct {
+	Privacy string `json:"privacy" validate:"oneof=public unlisted follower private"`
+}
+
 type PostPollRequest struct {
 	AllowMultiple bool       `json:"allow_multiple" validate:"required"`
 	Due           *time.Time `json:"due" validate:"required"`
@@ -27,7 +31,7 @@ type UserPostListResponse struct {
 type UserPostEntry struct {
 	ID        string              `json:"id"`
 	Author    UserPostEntryAuthor `json:"author"`
-	Content   string              `json:"content"`
+	Content   *string             `json:"content"`
 	CreatedAt time.Time           `json:"created_at"`
 	Privacy   string              `json:"privacy"`
 }
@@ -55,7 +59,7 @@ type TimelineResponse struct {
 type TimelinePostResponse struct {
 	ID        string              `json:"id"`
 	Author    UserPostEntryAuthor `json:"author"`
-	Content   string              `json:"content"`
+	Content   *string             `json:"content"`
 	CreatedAt time.Time           `json:"created_at"`
 	Privacy   string              `json:"privacy"`
 }

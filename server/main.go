@@ -31,6 +31,9 @@ func main() {
 	// APIs with auth
 	// Posts
 	authed.POST("/post", postPost)
+	authed.POST("/post/:post_id/reply", postReply)
+	authed.POST("/post/:post_id/repost", postRepost)
+	authed.PUT("/post/:post_id/quote", postQuote)
 	authed.PUT("/post/:post_id/reaction/:reaction", putPostReaction)
 	authed.DELETE("/post/:post_id/reaction/:reaction", deletePostReaction)
 	authed.PUT("/post/:post_id/favorite", putPostFavorite)
