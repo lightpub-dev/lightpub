@@ -1,0 +1,334 @@
+openapi: '3.0.2'
+info:
+  title: Lightpub API
+  version: '1.0'
+servers:
+  - url: http://localhost:1323
+tags:
+  - name: Auth
+  - name: Post
+  - name: User
+  - name: Authorization required
+  - name: No authorization
+paths:
+  /login:
+    post:
+      tags:
+        - Auth
+        - No authorization
+      description: Login to to the API
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+              required:
+                - username
+                - password
+      responses:
+        400:
+          description: The request body is invalid.
+        401:
+          description: Wrong username or password.
+        200:
+          description: Successfully logged in.
+          content:
+            application/json:
+              schema:
+                properties:
+                  token:
+                    type: string
+                    description: "Bearer token. Use it in the Authorization header. Authorization: Bearer <token>"
+  /register:
+    post:
+      tags:
+        - Auth
+        - No authorization
+      description: Register a new account.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                username:
+                  type: string
+                  pattern: "[0-9a-zA-Z]{1,60}"
+                  minLength: 1
+                  maxLength: 60
+                nickname:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                password:
+                  type: string
+                  minLength: 4
+                  format: password
+              required:
+                - username
+                - nickname
+                - password
+      responses:
+        400:
+          description: Invalid request body.
+        409:
+          description: Username is already taken.
+        201:
+          description: Success.
+  /post:
+    post:
+      tags:
+        - Post
+        - Authorization required
+      description: Create a new post.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        400:
+          description: Invalid request body.
+        201:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    description: The ID of the created post.
+                    type: string
+                    format: uuid
+  /post/{post_id}/reaction/{reaction}:
+    put:
+      description: Add a reaction to a post.
+      tags:
+        - Authorization required
+        - Post
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+        - $ref: "#/components/parameters/PathReactionName"
+      responses:
+        404:
+          description: The post is not available to the user.
+        400:
+          description: Bad path.
+        200:
+          description: Success.
+    delete:
+      description: Delete a reaction from a post.
+      tags:
+        - Authorization required
+        - Post
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+        - $ref: "#/components/parameters/PathReactionName"
+      responses:
+        404:
+          description: The post is not available to the user.
+        400:
+          description: Bad path.
+        200:
+          description: Success.
+  /post/{post_id}/favorite:
+    put:
+      description: Add a post to my favorite list.
+      tags:
+        - Authorization required
+        - Post
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      responses:
+        404:
+          description: The post is not available to the user.
+        400:
+          description: Bad path.
+        200:
+          description: Success.
+    delete:
+      description: Delete a post to my favorite list.
+      tags:
+        - Authorization required
+        - Post
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      responses:
+        404:
+          description: The post is not available to the user.
+        400:
+          description: Bad path.
+        200:
+          description: Success.
+  /post/{post_id}/bookmark:
+    put:
+      description: Add a post to my bookmark list.
+      tags:
+        - Authorization required
+        - Post
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      responses:
+        404:
+          description: The post is not available to the user.
+        400:
+          description: Bad path.
+        200:
+          description: Success.
+    delete:
+      description: Delete a post to my bookmark list.
+      tags:
+        - Authorization required
+        - Post
+      parameters:
+        - $ref: "#/components/parameters/PathPostID"
+      responses:
+        404:
+          description: The post is not available to the user.
+        400:
+          description: Bad path.
+        200:
+          description: Success.
+  /user/{username}/posts:
+    get:
+      tags:
+        - No authorization
+        - User
+      parameters:
+        - $ref: "#/components/parameters/PathUserSpecifier"
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        404:
+          description: User not found.
+        400:
+          description: Invalid limit.
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPostListResponse"
+          
+
+components:
+  parameters:
+    LimitQuery:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 100
+      description: How many posts do you want to fetch?
+    PathPostID:
+      in: path
+      name: post_id
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PathReactionName:
+      in: path
+      name: reaction
+      required: true
+      schema:
+        type: string
+        example: +1
+    PathUserSpecifier:
+      in: path
+      name: username
+      required: true
+      schema:
+        $ref: "#/components/schemas/UserSpecifier"
+  schemas:
+    PrivacyType:
+      type: string
+      enum:
+        - public
+        - unlisted
+        - follower
+        - private
+    PostRequest:
+      properties:
+        content:
+          type: string
+          description: The body of the post.
+        privacy:
+          $ref: "#/components/schemas/PrivacyType"
+        scheduled_at:
+          type: string
+          format: date-time
+          description: The time when the post is published. Null means that the post is published immediately.
+          example: null
+        poll:
+          $ref: "#/components/schemas/PostPollRequest"
+      required:
+        - content
+        - privacy
+    PostPollRequest:
+      properties:
+        allow_multiple:
+          type: boolean
+          description: Allow multiple choice.
+        due:
+          type: string
+          format: date-time
+          nullable: true
+          description: The deadline of the poll. Null means that no deadline is set.
+        choices:
+          type: array
+          items:
+            type: string
+            description: Choice.
+          minLength: 2
+    UsernameWithoutHost:
+      type: string
+      pattern: "@[a-zA-Z0-9_-]+"
+      example: "@tinaxd"
+    UsernameWithHost:
+      type: string
+      pattern: "@[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+"
+      example: "@tinaxd@lightpub.tinax.work"
+    UserID:
+      type: string
+      format: uuid
+    UserSpecifier:
+      oneOf:
+        - $ref: "#/components/schemas/UsernameWithoutHost"
+        - $ref: "#/components/schemas/UsernameWithHost"
+        - $ref: "#/components/schemas/UserID"
+    UserPostListResponse:
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserPostEntry"
+    UserPostEntry:
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID of the post.
+        author:
+          $ref: "#/components/schemas/UserPostEntryAuthor"
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        privacy:
+          $ref: "#/components/schemas/PrivacyType"
+    UserPostEntryAuthor:
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The ID of a user. Typically in uuid format.
+        username:
+          type: string
+          description: A human readable representation of a user.
+          example: "@tinaxd"
+  
