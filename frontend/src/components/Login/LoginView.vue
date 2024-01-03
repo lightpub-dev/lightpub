@@ -15,6 +15,7 @@ import axios from 'axios';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeLoginToken } from '../../auth';
+import { BASE_URL } from '../../settings';
 
 export default {
   name: "LoginView",
@@ -26,7 +27,13 @@ export default {
 
     const login = async () => {
       try {
-        const response = await axios.post('/login', {
+        const specialAxios = axios.create({
+          baseURL: BASE_URL,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }); // disable auth header for login
+        const response = await specialAxios.post('/login', {
           username: username.value,
           password: password.value,
         });

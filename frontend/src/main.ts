@@ -11,9 +11,19 @@ import MainView from "@/components/Main/MainView.vue";
 import { faBell, faGear, faHeart, faHouse, faInbox, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
 import axios from "axios";
 import { createRouter, createWebHashHistory } from "vue-router";
+import { getLoginToken } from "./auth";
 import { BASE_URL } from "./settings";
 
+// axios setup
 axios.defaults.baseURL = BASE_URL;
+axios.interceptors.request.use((config) => {
+    const token = getLoginToken();
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+});
 
 const routes = [
     {path: "/login", component: LoginView},
