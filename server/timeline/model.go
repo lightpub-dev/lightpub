@@ -10,4 +10,8 @@ type FetchedPost struct {
 	Content        *string   `db:"content" json:"c"`
 	CreatedAt      time.Time `db:"created_at" json:"t"`
 	Privacy        string    `db:"privacy" json:"pv"`
+
+	ReplyTo  *string `db:"reply_to" json:"rt"`
+	RepostOf *string `db:"repost_of" json:"rp"`
+	PollID   *string `db:"poll_id" json:"pl"`
 }
