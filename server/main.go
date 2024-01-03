@@ -20,6 +20,9 @@ func main() {
 	// setup logger
 	e.Use(middleware.Logger())
 
+	// CORS
+	e.Use(middleware.CORS())
+
 	// No Auth APIs
 	e.POST("/login", postLogin)
 	e.POST("/register", postRegister)

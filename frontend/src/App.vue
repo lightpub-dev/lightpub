@@ -1,10 +1,15 @@
 <script lang="ts" setup>
-import MainView from "@/components/Main/MainView.vue";
 </script>
 
 <template>
-    <MainView></MainView>
+    <router-view></router-view>
 </template>
+
+<script lang="ts">
+export default {
+    name: "App",
+};
+</script>
 
 <style scoped>
 </style>
