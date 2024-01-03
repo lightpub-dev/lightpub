@@ -1,12 +1,9 @@
 package main
 
 import (
-	"time"
-
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
-	"github.com/lightpub-dev/lightpub/utils"
 )
 
 func postPost(c echo.Context) error {
@@ -20,102 +17,117 @@ func postPost(c echo.Context) error {
 		return c.String(400, err.Error())
 	}
 
-	postId, err := utils.GenerateUUIDString()
+	post := posts.CreateRequest{
+		PosterID:       c.Get(ContextUserID).(string),
+		PosterUsername: c.Get(ContextUsername).(string),
+		Content:        &body.Content,
+		Privacy:        posts.PrivacyType(body.Privacy),
+		Poll:           body.Poll,
+	}
+
+	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
 	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
-	currentTime := time.Now()
-	dbPost := models.Post{
-		ID:          postId,
-		PosterID:    c.Get(ContextUserID).(string),
-		Content:     body.Content,
-		InsertedAt:  currentTime,
-		CreatedAt:   currentTime,
-		Privacy:     body.Privacy,
-		ScheduledAt: body.ScheduledAt,
-	}
-	posterUsername := c.Get(ContextUsername).(string)
-
-	// insert into db
-	tx, err := db.Beginx()
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-	defer tx.Rollback()
-
-	// insert Post
-	_, err = tx.NamedExec("INSERT INTO Post (id,poster_id,content,inserted_at,created_at,privacy,scheduled_at) VALUES (UUID_TO_BIN(:id),UUID_TO_BIN(:poster_id),:content,:inserted_at,:created_at,:privacy,:scheduled_at)", dbPost)
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
-	// insert Hashtags (if any)
-	hashtags := posts.FindHashtags(body.Content)
-	for _, hashtag := range hashtags {
-		_, err = tx.Exec("INSERT INTO PostHashtag (post_id,hashtag_name) VALUES (UUID_TO_BIN(?),?)", postId, hashtag)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "Internal Server Error")
-		}
-	}
-
-	// insert Poll (if any)
-	if body.Poll != nil {
-		pollId, err := utils.GenerateUUIDString()
-		if err != nil {
-			return c.String(500, "Internal Server Error")
-		}
-		dbPoll := models.PostPoll{
-			ID:            pollId,
-			AllowMultiple: body.Poll.AllowMultiple,
-			Due:           body.Poll.Due,
-		}
-		_, err = tx.NamedExec("INSERT INTO PostPoll (id,allow_multiple,due) VALUES (UUID_TO_BIN(:id),:allow_multiple,:due)", dbPoll)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "Internal Server Error")
-		}
-
-		// insert PollChoices
-		for _, choice := range body.Poll.Choices {
-			_, err = tx.Exec("INSERT INTO PollChoice (poll_id,title,count) VALUES (UUID_TO_BIN(?),?,0)", pollId, choice)
-			if err != nil {
-				c.Logger().Error(err)
-				return c.String(500, "Internal Server Error")
-			}
-		}
-	}
-
-	// insert mentions (if any)
-	mentions := posts.FindMentions(body.Content)
-	for _, mention := range mentions {
-		_, err = tx.Exec("INSERT INTO PostMention (post_id,target_user_id) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?))", postId, mention)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "Internal Server Error")
-		}
-	}
-
-	// commit
-	err = tx.Commit()
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
-	// publish to timeline
-	// TODO: this should be done asynchronously
-	if err := posts.RegisterToTimeline(c.Request().Context(), db, rdb, dbPost, posterUsername, hashtags, mentions); err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
 	}
 
 	return c.JSON(201, map[string]interface{}{
-		"id": postId,
+		"id": result.PostID,
+	})
+}
+
+func postReply(c echo.Context) error {
+	var body models.PostRequest
+	if err := c.Bind(&body); err != nil {
+		return c.String(400, "Bad Request")
+	}
+
+	// validate
+	if err := validate.Struct(body); err != nil {
+		return c.String(400, err.Error())
+	}
+
+	post := posts.CreateRequest{
+		PosterID:       c.Get(ContextUserID).(string),
+		PosterUsername: c.Get(ContextUsername).(string),
+		Content:        &body.Content,
+		Privacy:        posts.PrivacyType(body.Privacy),
+		Poll:           body.Poll,
+
+		ReplyToPostID: c.Param("post_id"),
+	}
+
+	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
+	return c.JSON(201, map[string]interface{}{
+		"id": result.PostID,
+	})
+}
+
+func postRepost(c echo.Context) error {
+	var body models.RepostRequest
+	if err := c.Bind(&body); err != nil {
+		return c.String(400, "Bad Request")
+	}
+
+	// validate
+	if err := validate.Struct(body); err != nil {
+		return c.String(400, err.Error())
+	}
+
+	post := posts.CreateRequest{
+		PosterID:       c.Get(ContextUserID).(string),
+		PosterUsername: c.Get(ContextUsername).(string),
+		Content:        nil,
+		Privacy:        posts.PrivacyType(body.Privacy),
+
+		RepostID: c.Param("post_id"),
+	}
+
+	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
+	return c.JSON(201, map[string]interface{}{
+		"id": result.PostID,
+	})
+}
+
+func postQuote(c echo.Context) error {
+	var body models.PostRequest
+	if err := c.Bind(&body); err != nil {
+		return c.String(400, "Bad Request")
+	}
+
+	// validate
+	if err := validate.Struct(body); err != nil {
+		return c.String(400, err.Error())
+	}
+
+	post := posts.CreateRequest{
+		PosterID:       c.Get(ContextUserID).(string),
+		PosterUsername: c.Get(ContextUsername).(string),
+		Content:        &body.Content,
+		Privacy:        posts.PrivacyType(body.Privacy),
+		Poll:           body.Poll,
+
+		RepostID: c.Param("post_id"),
+	}
+
+	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
+	return c.JSON(201, map[string]interface{}{
+		"id": result.PostID,
 	})
 }
 
@@ -124,7 +136,7 @@ func modPostReaction(c echo.Context, reaction string, isAdd bool) error {
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(db, postId, userId)
+	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), db, postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -177,7 +189,7 @@ func modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(db, postId, userId)
+	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), db, postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -221,4 +233,26 @@ func putPostBookmark(c echo.Context) error {
 
 func deletePostBookmark(c echo.Context) error {
 	return modPostBookmark(c, false, true)
+}
+
+func getPost(c echo.Context) error {
+	viewerUserID := ""
+	if c.Get(ContextAuthed).(bool) {
+		viewerUserID = c.Get(ContextUserID).(string)
+	}
+
+	postID := c.Param("post_id")
+	post, err := posts.FetchSinglePost(c.Request().Context(), db, postID, viewerUserID)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
+	if post == nil {
+		return c.String(404, "Post not found")
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"post": post,
+	})
 }

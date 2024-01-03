@@ -23,13 +23,12 @@ type UserToken struct {
 type Post struct {
 	ID          string     `db:"id" json:"id"`
 	PosterID    string     `db:"poster_id" json:"poster_id"`
-	Content     string     `db:"content" json:"content"`
+	Content     *string    `db:"content" json:"content"` // Null when reposting
 	InsertedAt  time.Time  `db:"inserted_at"`
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 	Privacy     string     `db:"privacy" json:"privacy"` // enum treated as string
 	ReplyTo     *string    `db:"reply_to"`               // Nullable fields as pointers
 	RepostOf    *string    `db:"repost_of"`              // Nullable fields as pointers
-	QuoteOf     *string    `db:"quote_of"`               // Nullable fields as pointers
 	PollID      *string    `db:"poll_id"`                // Nullable fields, assuming same type as ID
 	ScheduledAt *time.Time `db:"scheduled_at"`           // Nullable fields as pointers
 }

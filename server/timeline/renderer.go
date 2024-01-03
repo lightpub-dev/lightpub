@@ -2,54 +2,50 @@ package timeline
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/redis/go-redis/v9"
 )
 
-func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string) (*models.TimelineResponse, error) {
-	rkey := timelineRedisKey(userID)
-
-	// check if timeline is cached
-	exists, err := rdb.Exists(ctx, rkey).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	if exists == 0 {
-		// rebuild timeline
-		if err = rebuildTimeline(ctx, tx, rdb, userID); err != nil {
-			return nil, err
-		}
-	}
-
-	// fetch timeline
-	cached, err := rdb.LRange(ctx, rkey, 0, -1).Result()
+func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string, options FetchOptions) (*models.TimelineResponse, error) {
+	// TODO: use timeline cache in redis
+	// TODO: for now, just fetch from db
+	cached, err := fetchPostsFromDB(ctx, tx, userID, options)
 	if err != nil {
 		return nil, err
 	}
 
 	// parse timeline
-	posts := make([]models.TimelinePostResponse, 0, len(cached))
+	timelinePosts := make([]models.UserPostEntry, 0, len(cached))
 	oldestPost := time.Now()
 	latestPost := time.Time{}
-	for _, cacheStr := range cached {
-		var cache FetchedPost
-		if err = json.Unmarshal([]byte(cacheStr), &cache); err != nil {
-			return nil, err
+	for _, cache := range cached {
+		var replyToURL, repostOfURL interface{}
+		if cache.ReplyTo != nil {
+			replyToURL = posts.CreatePostURL(*cache.ReplyTo)
 		}
-		posts = append(posts, models.TimelinePostResponse{
+		if cache.RepostOf != nil {
+			repostOfURL = posts.CreatePostURL(*cache.RepostOf)
+		}
+
+		// TODO: Poll
+
+		timelinePosts = append(timelinePosts, models.UserPostEntry{
 			ID: cache.ID,
 			Author: models.UserPostEntryAuthor{
 				ID:       cache.PosterID,
 				Username: cache.PosterUsername,
+				Host:     cache.PosterHost,
 			},
 			Content:   cache.Content,
 			CreatedAt: cache.CreatedAt,
 			Privacy:   cache.Privacy,
+
+			ReplyTo:  replyToURL,
+			RepostOf: repostOfURL,
 		})
 
 		if cache.CreatedAt.Before(oldestPost) {
@@ -60,9 +56,15 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 		}
 	}
 
+	var oldestPostPtr, latestPostPtr *time.Time
+	if len(cached) != 0 {
+		oldestPostPtr = &oldestPost
+		latestPostPtr = &latestPost
+	}
+
 	return &models.TimelineResponse{
-		Posts:          posts,
-		OldestPostTime: oldestPost,
-		LatestPostTime: latestPost,
+		Posts:          timelinePosts,
+		OldestPostTime: oldestPostPtr,
+		LatestPostTime: latestPostPtr,
 	}, nil
 }

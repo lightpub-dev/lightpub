@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/redis/go-redis/v9"
 )
@@ -18,11 +19,22 @@ func timelineRedisKey(userID string) string {
 	return "timeline:" + userID
 }
 
-func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTime *time.Time) ([]FetchedPost, error) {
+type FetchOptions struct {
+	BeforeTime *time.Time
+	AfterTime  *time.Time
+	Limit      int
+}
+
+func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options FetchOptions) ([]FetchedPost, error) {
+	limit := DefaultTimelineSize
+	if options.Limit > 0 {
+		limit = options.Limit
+	}
+
 	// retrieve my latest posts
 	var posts []FetchedPost
 	mySql := `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	WHERE
@@ -30,12 +42,16 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 		AND p.scheduled_at IS NULL
 	`
 	myParams := []interface{}{userID}
-	if beforeTime != nil {
+	if options.BeforeTime != nil {
 		mySql += ` AND p.created_at < ?`
-		myParams = append(myParams, beforeTime)
+		myParams = append(myParams, options.BeforeTime)
+	}
+	if options.AfterTime != nil {
+		mySql += ` AND p.created_at > ?`
+		myParams = append(myParams, options.AfterTime)
 	}
 	mySql += ` ORDER BY p.created_at DESC LIMIT ?`
-	myParams = append(myParams, DefaultTimelineSize)
+	myParams = append(myParams, limit)
 
 	err := tx.SelectContext(ctx, &posts, mySql, myParams...)
 	if err != nil {
@@ -45,7 +61,7 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 	// retrieve my following's latest posts
 	var followingPosts []FetchedPost
 	followingSql := `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	INNER JOIN UserFollow uf ON p.poster_id=uf.followee_id
@@ -55,12 +71,16 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 		AND p.scheduled_at IS NULL
 	`
 	followingParams := []interface{}{userID}
-	if beforeTime != nil {
+	if options.BeforeTime != nil {
 		followingSql += ` AND p.created_at < ?`
-		followingParams = append(followingParams, beforeTime)
+		followingParams = append(followingParams, options.BeforeTime)
+	}
+	if options.AfterTime != nil {
+		followingSql += ` AND p.created_at > ?`
+		followingParams = append(followingParams, options.AfterTime)
 	}
 	followingSql += ` ORDER BY p.created_at DESC LIMIT ?`
-	followingParams = append(followingParams, DefaultTimelineSize)
+	followingParams = append(followingParams, limit)
 
 	err = tx.SelectContext(ctx, &followingPosts, followingSql, followingParams...)
 	if err != nil {
@@ -70,7 +90,7 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 	// retrieve latest posts which mention me
 	var mentionPosts []FetchedPost
 	mentionSql := `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	INNER JOIN PostMention pm ON p.id=pm.post_id
@@ -79,12 +99,16 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 		AND p.scheduled_at IS NULL
 	`
 	mentionParams := []interface{}{userID}
-	if beforeTime != nil {
+	if options.BeforeTime != nil {
 		mentionSql += ` AND p.created_at < ?`
-		mentionParams = append(mentionParams, beforeTime)
+		mentionParams = append(mentionParams, options.BeforeTime)
+	}
+	if options.AfterTime != nil {
+		mentionSql += ` AND p.created_at > ?`
+		mentionParams = append(mentionParams, options.AfterTime)
 	}
 	mentionSql += ` ORDER BY p.created_at DESC LIMIT ?`
-	mentionParams = append(mentionParams, DefaultTimelineSize)
+	mentionParams = append(mentionParams, limit)
 
 	err = tx.SelectContext(ctx, &mentionPosts, mentionSql, mentionParams...)
 	if err != nil {
@@ -100,11 +124,18 @@ func fetchLatestPosts(ctx context.Context, tx db.DBOrTx, userID string, beforeTi
 		return posts[i].CreatedAt.After(posts[j].CreatedAt)
 	})
 
+	// Add hostname if empty
+	for i := range posts {
+		if posts[i].PosterHost == "" {
+			posts[i].PosterHost = config.MyHostname
+		}
+	}
+
 	return posts, nil
 }
 
 func rebuildTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string) error {
-	posts, err := fetchLatestPosts(ctx, tx, userID, nil)
+	posts, err := fetchPostsFromDB(ctx, tx, userID, FetchOptions{})
 	if err != nil {
 		return err
 	}

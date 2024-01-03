@@ -10,6 +10,10 @@ type PostRequest struct {
 	Poll *PostPollRequest `json:"poll"`
 }
 
+type RepostRequest struct {
+	Privacy string `json:"privacy" validate:"oneof=public unlisted follower private"`
+}
+
 type PostPollRequest struct {
 	AllowMultiple bool       `json:"allow_multiple" validate:"required"`
 	Due           *time.Time `json:"due" validate:"required"`
@@ -27,14 +31,18 @@ type UserPostListResponse struct {
 type UserPostEntry struct {
 	ID        string              `json:"id"`
 	Author    UserPostEntryAuthor `json:"author"`
-	Content   string              `json:"content"`
+	Content   *string             `json:"content"`
 	CreatedAt time.Time           `json:"created_at"`
 	Privacy   string              `json:"privacy"`
+
+	ReplyTo  interface{} `json:"reply_to,omitempty"`  // string or UserPostEntry
+	RepostOf interface{} `json:"repost_of,omitempty"` // string or UserPostEntry
 }
 
 type UserPostEntryAuthor struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
+	Host     string `json:"host"`
 }
 
 type UserInfoResponse struct {
@@ -46,15 +54,7 @@ type UserInfoResponse struct {
 }
 
 type TimelineResponse struct {
-	Posts          []TimelinePostResponse `json:"posts"`
-	LatestPostTime time.Time              `json:"latest_post_time"`
-	OldestPostTime time.Time              `json:"oldest_post_time"`
-}
-
-type TimelinePostResponse struct {
-	ID        string              `json:"id"`
-	Author    UserPostEntryAuthor `json:"author"`
-	Content   string              `json:"content"`
-	CreatedAt time.Time           `json:"created_at"`
-	Privacy   string              `json:"privacy"`
+	Posts          []UserPostEntry `json:"posts"`
+	LatestPostTime *time.Time      `json:"latest_post_time"`
+	OldestPostTime *time.Time      `json:"oldest_post_time"`
 }

@@ -30,13 +30,13 @@ func authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc 
 					c.Set(ContextAuthed, false)
 					return next(c)
 				}
-				return c.String(401, "Unauthorized")
+				return c.String(401, "Authorization header is missing")
 			}
 
 			// check if bearer
 			// if not, return 401
 			if header[:6] != "Bearer" {
-				return c.String(401, "Unauthorized")
+				return c.String(401, "Authorization must be Bearer token")
 			}
 
 			token := header[7:]
@@ -51,7 +51,7 @@ func authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc 
 
 			// if not found, return 401
 			if len(users) == 0 {
-				return c.String(401, "Unauthorized")
+				return c.String(401, "Invalid auth token")
 			}
 
 			// if found, set user_id in context

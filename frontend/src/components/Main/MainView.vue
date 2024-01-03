@@ -1,34 +1,32 @@
 <script lang="ts" setup>
-import MainAppShell from "@/components/Main/MainAppShell.vue";
-import MainHeader from "@/components/Main/MainHeader.vue";
-import MainLeftMenu from "@/components/Main/MainLeftMenu.vue";
-import MainRightMenu from "@/components/Main/MainRightMenu.vue";
-import MainFeed from "@/components/Main/MainFeed.vue";
+import MainAppShell from '@/components/Main/MainAppShell.vue'
+import MainHeader from '@/components/Main/MainHeader.vue'
+import MainLeftMenu from '@/components/Main/MainLeftMenu.vue'
+import MainRightMenu from '@/components/Main/MainRightMenu.vue'
+import MainFeed from '@/components/Main/MainFeed.vue'
 </script>
 
 <template>
     <MainAppShell>
         <template #header>
-            <MainHeader/>
+            <MainHeader />
         </template>
         <template #left-menu>
-            <MainLeftMenu/>
+            <MainLeftMenu />
         </template>
         <template #right-menu>
-            <MainRightMenu/>
+            <MainRightMenu />
         </template>
         <template #feed>
-            <MainFeed/>
+            <MainFeed />
         </template>
     </MainAppShell>
 </template>
 
 <script lang="ts">
 export default {
-    name: "MainView"
+    name: 'MainView'
 }
 </script>
 
-<style scoped>
-
-</style>
+<style scoped></style>
