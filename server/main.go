@@ -50,5 +50,8 @@ func main() {
 	// Timeline
 	authed.GET("/timeline", getTimeline)
 
+	// webfinger
+	unAuthed.GET("/.well-known/webfinger", getWebfinger)
+
 	e.Logger.Fatal(e.Start(":1323"))
 }
