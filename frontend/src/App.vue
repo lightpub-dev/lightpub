@@ -1,5 +1,4 @@
-<script lang="ts" setup>
-</script>
+<script lang="ts" setup></script>
 
 <template>
     <router-view></router-view>
@@ -7,9 +6,8 @@
 
 <script lang="ts">
 export default {
-    name: "App",
-};
+    name: 'App'
+}
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>
