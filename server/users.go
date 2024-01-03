@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/lightpub-dev/lightpub/users"
 )
 
@@ -53,7 +54,7 @@ func getUserPosts(c echo.Context) error {
 	// first, get all "public" and "unlisted" posts
 	var publicPosts []models.Post
 	err = db.Select(&publicPosts, `
-	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 		FROM Post p
 	WHERE
 		p.poster_id=UUID_TO_BIN(?)
@@ -86,7 +87,7 @@ func getUserPosts(c echo.Context) error {
 		if isFollowed {
 			// fetch "follower" posts
 			err = db.Select(&followerPosts, `
-		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy
+		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 		FROM Post p
 		WHERE
 			p.poster_id=UUID_TO_BIN(?)
@@ -108,7 +109,7 @@ func getUserPosts(c echo.Context) error {
 		if targetUser.ID == viewerUserID {
 			// when viewer is target itself, fetch all private posts
 			err = db.Select(&privatePosts, `
-		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy
+			SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 		FROM Post p
 		WHERE
 			p.poster_id=UUID_TO_BIN(?)
@@ -119,7 +120,7 @@ func getUserPosts(c echo.Context) error {
 		`, targetUser.ID, limit)
 		} else {
 			err = db.Select(&privatePosts, `
-	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy
+	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 	FROM Post p
 	INNER JOIN PostMention pm ON p.id=pm.post_id
 	WHERE
@@ -137,27 +138,36 @@ func getUserPosts(c echo.Context) error {
 		}
 	}
 
-	// merge these posts
-	posts := append(publicPosts, followerPosts...)
-	posts = append(posts, privatePosts...)
+	// merge these allPosts
+	allPosts := append(publicPosts, followerPosts...)
+	allPosts = append(allPosts, privatePosts...)
 	// sort by created_at desc
-	sort.Slice(posts, func(i int, j int) bool {
-		createdAtI := posts[i].CreatedAt
-		createdAtJ := posts[j].CreatedAt
+	sort.Slice(allPosts, func(i int, j int) bool {
+		createdAtI := allPosts[i].CreatedAt
+		createdAtJ := allPosts[j].CreatedAt
 		return createdAtI.After(createdAtJ) // DESC
 	})
 	// limit to limit
-	if len(posts) > limit {
-		posts = posts[:limit]
+	if len(allPosts) > limit {
+		allPosts = allPosts[:limit]
 	}
 
 	// convert to response
 	resp := []models.UserPostEntry{}
-	for _, post := range posts {
+	for _, post := range allPosts {
 		hostname := targetUser.Host
 		if hostname == "" {
 			hostname = config.MyHostname
 		}
+
+		var replyToPostOrURL, repostOfPostOrURL interface{}
+		if post.ReplyTo != nil {
+			replyToPostOrURL = posts.CreatePostURL(*post.ReplyTo)
+		}
+		if post.RepostOf != nil {
+			repostOfPostOrURL = posts.CreatePostURL(*post.RepostOf)
+		}
+
 		resp = append(resp, models.UserPostEntry{
 			ID: post.ID,
 			Author: models.UserPostEntryAuthor{
@@ -168,6 +178,10 @@ func getUserPosts(c echo.Context) error {
 			Content:   post.Content,
 			CreatedAt: post.CreatedAt,
 			Privacy:   post.Privacy,
+
+			ReplyTo:  replyToPostOrURL,
+			RepostOf: repostOfPostOrURL,
+			// TODO: Poll
 		})
 	}
 

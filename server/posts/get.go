@@ -29,7 +29,7 @@ type postWithUser struct {
 	PollID   *string `db:"poll_id"`
 }
 
-func createPostURL(postID string) string {
+func CreatePostURL(postID string) string {
 	return fmt.Sprintf("%s/post/%s", config.BaseURL, postID)
 }
 
@@ -52,26 +52,26 @@ func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 // fetchSinglePostOrURL returns *models.UserPostEntry || string
 func fetchSinglePostOrURL(ctx context.Context, tx db.DBOrTx, postID string, viewerUserID string, currentDepth int) (interface{}, error) {
 	if currentDepth >= MaxPostExpandDepth {
-		return createPostURL(postID), nil
+		return CreatePostURL(postID), nil
 	}
 
-	post, err := fetchSinglePost(ctx, tx, postID, viewerUserID, currentDepth+1)
+	post, err := FetchSinglePostWithDepth(ctx, tx, postID, viewerUserID, currentDepth+1)
 	if err != nil {
 		return nil, err
 	}
 
 	if post == nil {
-		return createPostURL(postID), nil
+		return CreatePostURL(postID), nil
 	}
 
 	return post, nil
 }
 
 func FetchSinglePost(ctx context.Context, tx db.DBOrTx, postID string, viewerUserID string) (*models.UserPostEntry, error) {
-	return fetchSinglePost(ctx, tx, postID, viewerUserID, 0)
+	return FetchSinglePostWithDepth(ctx, tx, postID, viewerUserID, 0)
 }
 
-func fetchSinglePost(ctx context.Context, tx db.DBOrTx, postID string, viewerUserID string, currentDepth int) (*models.UserPostEntry, error) {
+func FetchSinglePostWithDepth(ctx context.Context, tx db.DBOrTx, postID string, viewerUserID string, currentDepth int) (*models.UserPostEntry, error) {
 	var post postWithUser
 	err := tx.GetContext(ctx, &post, `
 	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
