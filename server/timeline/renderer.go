@@ -6,6 +6,7 @@ import (
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -18,11 +19,21 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 	}
 
 	// parse timeline
-	posts := make([]models.TimelinePostResponse, 0, len(cached))
+	timelinePosts := make([]models.UserPostEntry, 0, len(cached))
 	oldestPost := time.Now()
 	latestPost := time.Time{}
 	for _, cache := range cached {
-		posts = append(posts, models.TimelinePostResponse{
+		var replyToURL, repostOfURL interface{}
+		if cache.ReplyTo != nil {
+			replyToURL = posts.CreatePostURL(*cache.ReplyTo)
+		}
+		if cache.RepostOf != nil {
+			repostOfURL = posts.CreatePostURL(*cache.RepostOf)
+		}
+
+		// TODO: Poll
+
+		timelinePosts = append(timelinePosts, models.UserPostEntry{
 			ID: cache.ID,
 			Author: models.UserPostEntryAuthor{
 				ID:       cache.PosterID,
@@ -32,6 +43,9 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 			Content:   cache.Content,
 			CreatedAt: cache.CreatedAt,
 			Privacy:   cache.Privacy,
+
+			ReplyTo:  replyToURL,
+			RepostOf: repostOfURL,
 		})
 
 		if cache.CreatedAt.Before(oldestPost) {
@@ -42,9 +56,15 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 		}
 	}
 
+	var oldestPostPtr, latestPostPtr *time.Time
+	if len(cached) != 0 {
+		oldestPostPtr = &oldestPost
+		latestPostPtr = &latestPost
+	}
+
 	return &models.TimelineResponse{
-		Posts:          posts,
-		OldestPostTime: oldestPost,
-		LatestPostTime: latestPost,
+		Posts:          timelinePosts,
+		OldestPostTime: oldestPostPtr,
+		LatestPostTime: latestPostPtr,
 	}, nil
 }

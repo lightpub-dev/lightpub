@@ -24,13 +24,12 @@ func main() {
 	e.POST("/login", postLogin)
 	e.POST("/register", postRegister)
 
-	authed := e.Group("")
-	authed.Use(authMiddleware(true))
-	unAuthed := e.Group("")
-	unAuthed.Use(authMiddleware(false))
+	authed := e.Group("", authMiddleware(false))
+	unAuthed := e.Group("", authMiddleware(true))
 	// APIs with auth
 	// Posts
 	authed.POST("/post", postPost)
+	unAuthed.GET("/post/:post_id", getPost)
 	authed.POST("/post/:post_id/reply", postReply)
 	authed.POST("/post/:post_id/repost", postRepost)
 	authed.PUT("/post/:post_id/quote", postQuote)
@@ -50,6 +49,9 @@ func main() {
 
 	// Timeline
 	authed.GET("/timeline", getTimeline)
+
+	// webfinger
+	unAuthed.GET("/.well-known/webfinger", getWebfinger)
 
 	e.Logger.Fatal(e.Start(":1323"))
 }

@@ -1,9 +1,10 @@
 package posts
 
 import (
+	"context"
 	"errors"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/users"
 )
@@ -12,16 +13,21 @@ type PrivacyType string
 
 const (
 	PrivacyPublic   PrivacyType = "public"
-	PrivacyUnlisted             = "unlisted"
-	PrivacyFollower             = "follower"
-	PrivacyPrivate              = "private"
+	PrivacyUnlisted PrivacyType = "unlisted"
+	PrivacyFollower PrivacyType = "follower"
+	PrivacyPrivate  PrivacyType = "private"
 )
 
-func IsPostVisibleToUser(db *sqlx.DB, postId string, userId string) (bool, error) {
+func IsPostVisibleToUser(ctx context.Context, tx db.DBOrTx, postId string, userId string) (bool, error) {
 	var post models.Post
-	err := db.Get(&post, "SELECT poster_id,privacy FROM Post WHERE id=UUID_TO_BIN(?)", postId)
+	err := tx.GetContext(ctx, &post, "SELECT BIN_TO_UUID(poster_id) AS poster_id,privacy FROM Post WHERE id=UUID_TO_BIN(?)", postId)
 	if err != nil {
 		return false, err
+	}
+
+	// if poster is the same as viewer, visible
+	if post.PosterID == userId {
+		return true, nil
 	}
 
 	switch PrivacyType(post.Privacy) {
@@ -32,7 +38,7 @@ func IsPostVisibleToUser(db *sqlx.DB, postId string, userId string) (bool, error
 	case PrivacyFollower:
 		// check if user is followed by poster
 		posterID := post.PosterID
-		isFollowedBy, err := users.IsFollowedBy(db, posterID, userId)
+		isFollowedBy, err := users.IsFollowedBy(ctx, tx, posterID, userId)
 		if err != nil {
 			return false, err
 		}
@@ -40,7 +46,7 @@ func IsPostVisibleToUser(db *sqlx.DB, postId string, userId string) (bool, error
 	case PrivacyPrivate:
 		// check if user is in post's mention list
 		var count int
-		err := db.Get(&count, "SELECT COUNT(*) FROM PostMention WHERE post_id=UUID_TO_BIN(?) AND target_user_id=UUID_TO_BIN(?)", postId, userId)
+		err := tx.GetContext(ctx, &count, "SELECT COUNT(*) FROM PostMention WHERE post_id=UUID_TO_BIN(?) AND target_user_id=UUID_TO_BIN(?)", postId, userId)
 		if err != nil {
 			return false, err
 		}

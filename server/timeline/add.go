@@ -1,11 +1,11 @@
-package posts
+package timeline
 
 import (
 	"context"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
-	"github.com/lightpub-dev/lightpub/timeline"
+	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/lightpub-dev/lightpub/users"
 	"github.com/redis/go-redis/v9"
 )
@@ -19,13 +19,13 @@ func RegisterToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, po
 	// poster is always a receiver
 	loaclReceiverIDs = append(loaclReceiverIDs, post.PosterID)
 
-	switch PrivacyType(post.Privacy) {
-	case PrivacyUnlisted:
+	switch posts.PrivacyType(post.Privacy) {
+	case posts.PrivacyUnlisted:
 		// receiver is poster only
 		break
-	case PrivacyPublic:
+	case posts.PrivacyPublic:
 		fallthrough
-	case PrivacyFollower:
+	case posts.PrivacyFollower:
 		// add followers
 		followers, err := users.FindFollowers(ctx, tx, post.PosterID)
 		if err != nil {
@@ -41,13 +41,13 @@ func RegisterToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, po
 			}
 		}
 		break
-	case PrivacyPrivate:
+	case posts.PrivacyPrivate:
 		// receiver is mentioned users only
 		// mentioned users are already registered above.
 		break
 	}
 
-	targetPost := timeline.FetchedPost{
+	targetPost := FetchedPost{
 		ID:             post.ID,
 		PosterID:       post.PosterID,
 		PosterUsername: posterUsername,
@@ -59,7 +59,7 @@ func RegisterToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, po
 
 	// process local receivers
 	for _, receiverID := range loaclReceiverIDs {
-		if err := timeline.AddToTimeline(ctx, tx, rdb, receiverID, targetPost); err != nil {
+		if err := AddToTimeline(ctx, tx, rdb, receiverID, targetPost); err != nil {
 			return err
 		}
 	}

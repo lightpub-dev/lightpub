@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/utils"
 	"github.com/redis/go-redis/v9"
@@ -109,7 +108,7 @@ func CreatePost(ctx context.Context, db *sqlx.DB, rdb *redis.Client, post Create
 	} else if post.ReplyToPostID != "" {
 		// Reply
 		// check if post is visible to poster
-		visible, err := IsPostVisibleToUser(db, post.ReplyToPostID, post.PosterID)
+		visible, err := IsPostVisibleToUser(ctx, db, post.ReplyToPostID, post.PosterID)
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +146,7 @@ func CreatePost(ctx context.Context, db *sqlx.DB, rdb *redis.Client, post Create
 	}
 
 	// insert Post
-	_, err = tx.NamedExec("INSERT INTO Post (id,poster_id,content,inserted_at,created_at,privacy,reply_to,repost_of,poll_id) VALUES (UUID_TO_BIN(:id),UUID_TO_BIN(:poster_id),:content,:inserted_at,:created_at,:privacy,:reply_to,:repost_of,:poll_id)", dbPost)
+	_, err = tx.NamedExec("INSERT INTO Post (id,poster_id,content,inserted_at,created_at,privacy,reply_to,repost_of,poll_id) VALUES (UUID_TO_BIN(:id),UUID_TO_BIN(:poster_id),:content,:inserted_at,:created_at,:privacy,UUID_TO_BIN(:reply_to),UUID_TO_BIN(:repost_of),UUID_TO_BIN(:poll_id))", dbPost)
 	if err != nil {
 		return nil, err
 	}
@@ -207,13 +206,8 @@ func CreatePost(ctx context.Context, db *sqlx.DB, rdb *redis.Client, post Create
 		return nil, err
 	}
 
-	// publish to timeline
+	// TODO: publish to timeline
 	// TODO: this should be done asynchronously
-	if err := RegisterToTimeline(ctx, db, rdb, dbPost, post.PosterUsername,
-		config.MyHostname, // host should be always local because only local user can post
-		hashtags, mentions); err != nil {
-		return nil, err
-	}
 
 	return &CreateResponse{PostID: postID}, nil
 }
