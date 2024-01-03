@@ -24,10 +24,8 @@ func main() {
 	e.POST("/login", postLogin)
 	e.POST("/register", postRegister)
 
-	authed := e.Group("")
-	authed.Use(authMiddleware(true))
-	unAuthed := e.Group("")
-	unAuthed.Use(authMiddleware(false))
+	authed := e.Group("", authMiddleware(false))
+	unAuthed := e.Group("", authMiddleware(true))
 	// APIs with auth
 	// Posts
 	authed.POST("/post", postPost)

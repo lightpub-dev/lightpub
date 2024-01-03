@@ -19,7 +19,11 @@ const (
 )
 
 func getUserPosts(c echo.Context) error {
-	viewerUserId := c.Get(ContextUserID).(string)
+	authed := c.Get(ContextAuthed).(bool)
+	var viewerUserID string
+	if authed {
+		viewerUserID = c.Get(ContextUserID).(string)
+	}
 	username := c.Param("username")
 
 	targetUser, err := users.FindIDByUsername(c.Request().Context(), db, username)
@@ -64,23 +68,24 @@ func getUserPosts(c echo.Context) error {
 	}
 
 	// "follower" posts...
-	isFollowed := false
-	if viewerUserId == targetUser.ID {
-		// when viewer is target itself...
-		isFollowed = true
-	}
-	if !isFollowed {
-		// check if user is followed by target
-		isFollowed, err = users.IsFollowedBy(db, viewerUserId, targetUser.ID)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "internal server error")
-		}
-	}
 	var followerPosts []models.Post
-	if isFollowed {
-		// fetch "follower" posts
-		err = db.Select(&followerPosts, `
+	if viewerUserID != "" {
+		isFollowed := false
+		if viewerUserID == targetUser.ID {
+			// when viewer is target itself...
+			isFollowed = true
+		}
+		if !isFollowed {
+			// check if user is followed by target
+			isFollowed, err = users.IsFollowedBy(db, viewerUserID, targetUser.ID)
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(500, "internal server error")
+			}
+		}
+		if isFollowed {
+			// fetch "follower" posts
+			err = db.Select(&followerPosts, `
 		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy
 		FROM Post p
 		WHERE
@@ -90,17 +95,19 @@ func getUserPosts(c echo.Context) error {
 		ORDER BY p.created_at DESC
 		LIMIT ?
 		`, targetUser.ID, limit)
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "internal server error")
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(500, "internal server error")
+			}
 		}
 	}
 
 	// fetch "private" posts
 	var privatePosts []models.Post
-	if targetUser.ID == viewerUserId {
-		// when viewer is target itself, fetch all private posts
-		err = db.Select(&privatePosts, `
+	if viewerUserID != "" {
+		if targetUser.ID == viewerUserID {
+			// when viewer is target itself, fetch all private posts
+			err = db.Select(&privatePosts, `
 		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy
 		FROM Post p
 		WHERE
@@ -110,8 +117,8 @@ func getUserPosts(c echo.Context) error {
 		ORDER BY p.created_at DESC
 		LIMIT ?
 		`, targetUser.ID, limit)
-	} else {
-		err = db.Select(&privatePosts, `
+		} else {
+			err = db.Select(&privatePosts, `
 	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy
 	FROM Post p
 	INNER JOIN PostMention pm ON p.id=pm.post_id
@@ -122,11 +129,12 @@ func getUserPosts(c echo.Context) error {
 		AND pm.target_user_id=UUID_TO_BIN(?)
 	ORDER BY p.created_at DESC
 	LIMIT ?
-	`, targetUser.ID, viewerUserId, limit)
-	}
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "internal server error")
+	`, targetUser.ID, viewerUserID, limit)
+		}
+		if err != nil {
+			c.Logger().Error(err)
+			return c.String(500, "internal server error")
+		}
 	}
 
 	// merge these posts
