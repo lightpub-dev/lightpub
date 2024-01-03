@@ -34,6 +34,9 @@ type UserPostEntry struct {
 	Content   *string             `json:"content"`
 	CreatedAt time.Time           `json:"created_at"`
 	Privacy   string              `json:"privacy"`
+
+	ReplyTo  interface{} `json:"reply_to,omitempty"`  // string or UserPostEntry
+	RepostOf interface{} `json:"repost_of,omitempty"` // string or UserPostEntry
 }
 
 type UserPostEntryAuthor struct {

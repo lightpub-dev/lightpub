@@ -109,7 +109,7 @@ func CreatePost(ctx context.Context, db *sqlx.DB, rdb *redis.Client, post Create
 	} else if post.ReplyToPostID != "" {
 		// Reply
 		// check if post is visible to poster
-		visible, err := IsPostVisibleToUser(db, post.ReplyToPostID, post.PosterID)
+		visible, err := IsPostVisibleToUser(ctx, db, post.ReplyToPostID, post.PosterID)
 		if err != nil {
 			return nil, err
 		}

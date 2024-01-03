@@ -136,7 +136,7 @@ func modPostReaction(c echo.Context, reaction string, isAdd bool) error {
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(db, postId, userId)
+	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), db, postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -189,7 +189,7 @@ func modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(db, postId, userId)
+	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), db, postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -233,4 +233,26 @@ func putPostBookmark(c echo.Context) error {
 
 func deletePostBookmark(c echo.Context) error {
 	return modPostBookmark(c, false, true)
+}
+
+func getPost(c echo.Context) error {
+	viewerUserID := ""
+	if c.Get(ContextAuthed).(bool) {
+		viewerUserID = c.Get(ContextUserID).(string)
+	}
+
+	postID := c.Param("post_id")
+	post, err := posts.FetchSinglePost(c.Request().Context(), db, postID, viewerUserID)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
+	if post == nil {
+		return c.String(404, "Post not found")
+	}
+
+	return c.JSON(200, map[string]interface{}{
+		"post": post,
+	})
 }

@@ -77,7 +77,7 @@ func getUserPosts(c echo.Context) error {
 		}
 		if !isFollowed {
 			// check if user is followed by target
-			isFollowed, err = users.IsFollowedBy(db, viewerUserID, targetUser.ID)
+			isFollowed, err = users.IsFollowedBy(c.Request().Context(), db, viewerUserID, targetUser.ID)
 			if err != nil {
 				c.Logger().Error(err)
 				return c.String(500, "internal server error")

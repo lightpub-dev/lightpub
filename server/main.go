@@ -29,6 +29,7 @@ func main() {
 	// APIs with auth
 	// Posts
 	authed.POST("/post", postPost)
+	unAuthed.GET("/post/:post_id", getPost)
 	authed.POST("/post/:post_id/reply", postReply)
 	authed.POST("/post/:post_id/repost", postRepost)
 	authed.PUT("/post/:post_id/quote", postQuote)
