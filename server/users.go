@@ -154,11 +154,16 @@ func getUserPosts(c echo.Context) error {
 	// convert to response
 	resp := []models.UserPostEntry{}
 	for _, post := range posts {
+		hostname := targetUser.Host
+		if hostname == "" {
+			hostname = config.MyHostname
+		}
 		resp = append(resp, models.UserPostEntry{
 			ID: post.ID,
 			Author: models.UserPostEntryAuthor{
 				ID:       targetUser.ID,
 				Username: targetUser.Username,
+				Host:     hostname,
 			},
 			Content:   post.Content,
 			CreatedAt: post.CreatedAt,
