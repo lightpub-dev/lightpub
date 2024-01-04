@@ -149,7 +149,7 @@ func modPostReaction(c echo.Context, reaction string, isAdd bool) error {
 
 	if isAdd {
 		// add a reaction
-		_, err = db.Exec("INSERT INTO PostReaction (post_id,reaction,user_id) VALUES (UUID_TO_BIN(?),?,UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE reaction=reaction", postId, reaction, userId, reaction)
+		_, err = db.Exec("INSERT INTO PostReaction (post_id,reaction,user_id) VALUES (UUID_TO_BIN(?),?,UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE reaction=reaction", postId, reaction, userId)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")

@@ -49,6 +49,7 @@ func FetchTimeline(dbio *db.DBIO, userID string, options FetchOptions) (*models.
 			RepostCount:   cache.RepostCount,
 			FavoriteCount: cache.FavoriteCount,
 			QuoteCount:    cache.QuoteCount,
+			Reactions:     cache.Reactions,
 		})
 
 		if cache.CreatedAt.Before(oldestPost) {

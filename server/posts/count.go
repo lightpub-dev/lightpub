@@ -1,6 +1,9 @@
 package posts
 
-import "github.com/lightpub-dev/lightpub/db"
+import (
+	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
+)
 
 func CountReply(dbio *db.DBIO, postID string) (int64, error) {
 	var count int64
@@ -56,9 +59,34 @@ func CountQuote(dbio *db.DBIO, postID string) (int64, error) {
 	return count, nil
 }
 
+type reactionCountRow struct {
+	Reaction string `db:"reaction"`
+	Count    int64  `db:"count"`
+}
+
+func CountReactions(dbio *db.DBIO, postID string) (models.ReactionCountMap, error) {
+	var rows []reactionCountRow
+	err := dbio.SelectContext(dbio.Ctx, &rows, `
+	SELECT pr.reaction, count(pr.user_id) AS count
+	FROM PostReaction pr
+	WHERE
+		pr.post_id=UUID_TO_BIN(?)
+	GROUP BY pr.reaction;
+	`, postID)
+	if err != nil {
+		return nil, err
+	}
+
+	reactions := make(models.ReactionCountMap)
+	for _, row := range rows {
+		reactions[row.Reaction] = row.Count
+	}
+	return reactions, nil
+}
+
 type CountFillable interface {
 	PostID() string
-	UpdateCounts(reply, favorite, repost, quote int64)
+	UpdateCounts(reply, favorite, repost, quote int64, reactions models.ReactionCountMap)
 }
 
 func FillCounts(dbio *db.DBIO, fillable CountFillable) error {
@@ -79,6 +107,10 @@ func FillCounts(dbio *db.DBIO, fillable CountFillable) error {
 	if err != nil {
 		return err
 	}
-	fillable.UpdateCounts(reply, favorite, repost, quote)
+	reactions, err := CountReactions(dbio, postID)
+	if err != nil {
+		return err
+	}
+	fillable.UpdateCounts(reply, favorite, repost, quote, reactions)
 	return nil
 }
