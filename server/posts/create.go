@@ -1,6 +1,7 @@
 package posts
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -40,10 +41,10 @@ type CreateResponse struct {
 	PostID string
 }
 
-func checkRepostable(dbio *db.DBIO, postId string) (bool, error) {
+func checkRepostable(ctx context.Context, conn db.DBConn, postId string) (bool, error) {
 	// check if post is public or unlisted
 	var privacy string
-	err := dbio.GetDefaultContext(&privacy, "SELECT privacy FROM Post WHERE id=UUID_TO_BIN(?)", postId)
+	err := conn.DB().GetContext(ctx, &privacy, "SELECT privacy FROM Post WHERE id=UUID_TO_BIN(?)", postId)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, ErrReplyOrRepostTargetNotFound
@@ -57,7 +58,7 @@ func checkRepostable(dbio *db.DBIO, postId string) (bool, error) {
 	return true, nil
 }
 
-func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
+func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*CreateResponse, error) {
 	postID, err := utils.GenerateUUIDString()
 	if err != nil {
 		return nil, err
@@ -75,7 +76,7 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 
 	if post.RepostID != "" && post.Content == nil {
 		// Repost
-		repostable, err := checkRepostable(dbio, post.RepostID)
+		repostable, err := checkRepostable(ctx, conn, post.RepostID)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +91,7 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 		postType = PostTypeRepost
 	} else if post.RepostID != "" && post.Content != nil {
 		// Quote
-		quotable, err := checkRepostable(dbio, post.RepostID) // condition is same as repost
+		quotable, err := checkRepostable(ctx, conn, post.RepostID) // condition is same as repost
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +107,7 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 	} else if post.ReplyToPostID != "" {
 		// Reply
 		// check if post is visible to poster
-		visible, err := IsPostVisibleToUser(dbio, post.ReplyToPostID, post.PosterID)
+		visible, err := IsPostVisibleToUser(ctx, conn, post.ReplyToPostID, post.PosterID)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +128,7 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 	}
 
 	// insert into db
-	tx, err := dbio.Beginx()
+	tx, err := conn.DB().Beginx()
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +145,7 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 	}
 
 	// insert Post
-	_, err = tx.NamedExecDefaultContext("INSERT INTO Post (id,poster_id,content,inserted_at,created_at,privacy,reply_to,repost_of,poll_id) VALUES (UUID_TO_BIN(:id),UUID_TO_BIN(:poster_id),:content,:inserted_at,:created_at,:privacy,UUID_TO_BIN(:reply_to),UUID_TO_BIN(:repost_of),UUID_TO_BIN(:poll_id))", dbPost)
+	_, err = tx.NamedExecContext(ctx, "INSERT INTO Post (id,poster_id,content,inserted_at,created_at,privacy,reply_to,repost_of,poll_id) VALUES (UUID_TO_BIN(:id),UUID_TO_BIN(:poster_id),:content,:inserted_at,:created_at,:privacy,UUID_TO_BIN(:reply_to),UUID_TO_BIN(:repost_of),UUID_TO_BIN(:poll_id))", dbPost)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +155,7 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 	if post.Content != nil {
 		hashtags = FindHashtags(*post.Content)
 		for _, hashtag := range hashtags {
-			_, err = tx.ExecDefaultContext("INSERT INTO PostHashtag (post_id,hashtag_name) VALUES (UUID_TO_BIN(?),?)", postID, hashtag)
+			_, err = tx.ExecContext(ctx, "INSERT INTO PostHashtag (post_id,hashtag_name) VALUES (UUID_TO_BIN(?),?)", postID, hashtag)
 			if err != nil {
 				return nil, err
 			}
@@ -172,14 +173,14 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 			AllowMultiple: post.Poll.AllowMultiple,
 			Due:           post.Poll.Due,
 		}
-		_, err = tx.NamedExecDefaultContext("INSERT INTO PostPoll (id,allow_multiple,due) VALUES (UUID_TO_BIN(:id),:allow_multiple,:due)", dbPoll)
+		_, err = tx.NamedExecContext(ctx, "INSERT INTO PostPoll (id,allow_multiple,due) VALUES (UUID_TO_BIN(:id),:allow_multiple,:due)", dbPoll)
 		if err != nil {
 			return nil, err
 		}
 
 		// insert PollChoices
 		for _, choice := range post.Poll.Choices {
-			_, err = tx.ExecDefaultContext("INSERT INTO PollChoice (poll_id,title,count) VALUES (UUID_TO_BIN(?),?,0)", pollID, choice)
+			_, err = tx.ExecContext(ctx, "INSERT INTO PollChoice (poll_id,title,count) VALUES (UUID_TO_BIN(?),?,0)", pollID, choice)
 			if err != nil {
 				return nil, err
 			}
@@ -191,7 +192,7 @@ func CreatePost(dbio *db.DBIO, post CreateRequest) (*CreateResponse, error) {
 	if post.Content != nil {
 		mentions = FindMentions(*post.Content)
 		for _, mention := range mentions {
-			_, err = tx.ExecDefaultContext("INSERT INTO PostMention (post_id,target_user_id) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?))", postID, mention)
+			_, err = tx.ExecContext(ctx, "INSERT INTO PostMention (post_id,target_user_id) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?))", postID, mention)
 			if err != nil {
 				return nil, err
 			}

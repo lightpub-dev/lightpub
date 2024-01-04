@@ -2,58 +2,67 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/labstack/echo/v4"
-	d "github.com/lightpub-dev/lightpub/db"
 	"github.com/redis/go-redis/v9"
 )
 
-var (
-	db  *sqlx.DB
-	rdb *redis.Client
-)
-
-func mustConnectDB() {
-	// connect to mysql
-	var err error
-	db, err = sqlx.Connect("mysql", "lightpub:lightpub@tcp(localhost:3306)/lightpub?parseTime=true")
-	if err != nil {
-		panic(err)
-	}
+type Handler struct {
+	DB  *sqlx.DB
+	RDB *redis.Client
 }
 
-func mustConnectRedis() {
-	rdb = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+type dbconn struct {
+	*Handler
+}
+
+func (c *dbconn) DB() *sqlx.DB {
+	return c.Handler.DB
+}
+
+func (h *Handler) MakeDB() *dbconn {
+	return &dbconn{h}
+}
+
+type dbConnectionInfo struct {
+	Host      string
+	Port      string
+	Username  string
+	Password  string
+	Database  string
+	RedisHost string
+	RedisPort string
+}
+
+func connectDB(connectDB dbConnectionInfo) (*Handler, error) {
+	var err error
+	db, err := sqlx.Connect("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", connectDB.Username, connectDB.Password, connectDB.Host, connectDB.Port, connectDB.Database))
+	if err != nil {
+		return nil, err
+	}
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", connectDB.RedisHost, connectDB.RedisPort),
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
 
 	// ping
-	_, err := rdb.Ping(context.Background()).Result()
+	_, err = rdb.Ping(context.Background()).Result()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// flush all
 	// TODO: remove this in production
 	_, err = rdb.FlushAll(context.Background()).Result()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-}
 
-func makeDBIO(c echo.Context) *d.DBIO {
-	return &d.DBIO{
-		DBOrTx: &d.DBWrapper{DB: db},
-		Ctx:    c.Request().Context(),
-	}
-}
-
-func makeDBIOTx(c echo.Context, tx *sqlx.Tx) *d.DBIO {
-	return &d.DBIO{
-		DBOrTx: &d.TxWrapper{Tx: tx},
-		Ctx:    c.Request().Context(),
-	}
+	return &Handler{
+		DB:  db,
+		RDB: rdb,
+	}, nil
 }

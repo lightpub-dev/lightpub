@@ -17,7 +17,7 @@ const (
 )
 
 // echo auth middleware
-func authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc {
+func (h *Handler) authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			// read Authorization header
@@ -43,7 +43,7 @@ func authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc 
 
 			// validate it
 			var users []models.User
-			err := db.Select(&users, "SELECT BIN_TO_UUID(u.id) AS id,u.username FROM User u INNER JOIN UserToken ut ON u.id=ut.user_id WHERE ut.token=? AND u.is_local=1", token)
+			err := h.DB.Select(&users, "SELECT BIN_TO_UUID(u.id) AS id,u.username FROM User u INNER JOIN UserToken ut ON u.id=ut.user_id WHERE ut.token=? AND u.is_local=1", token)
 			if err != nil {
 				c.Logger().Error(err)
 				return c.String(500, "Internal Server Error")
@@ -65,7 +65,7 @@ func authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc 
 	}
 }
 
-func postLogin(c echo.Context) error {
+func (h *Handler) postLogin(c echo.Context) error {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -78,7 +78,7 @@ func postLogin(c echo.Context) error {
 	}
 
 	var user models.User
-	err = db.Get(&user, "SELECT * FROM User WHERE username=? AND is_local=1", req.Username)
+	err = h.DB.Get(&user, "SELECT * FROM User WHERE username=? AND is_local=1", req.Username)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.String(401, "bad auth")
@@ -100,7 +100,7 @@ func postLogin(c echo.Context) error {
 	}
 
 	// insert token
-	_, err = db.Exec("INSERT INTO UserToken (user_id, token) VALUES (?, ?)", user.ID, token)
+	_, err = h.DB.Exec("INSERT INTO UserToken (user_id, token) VALUES (?, ?)", user.ID, token)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -112,7 +112,7 @@ func postLogin(c echo.Context) error {
 	})
 }
 
-func postRegister(c echo.Context) error {
+func (h *Handler) postRegister(c echo.Context) error {
 	var req struct {
 		Username string `json:"username" validate:"alphanum,max=60,min=1"`
 		Nickname string `json:"nickname" validate:"max=200,min=1"`
@@ -126,7 +126,7 @@ func postRegister(c echo.Context) error {
 	}
 
 	// check if username is taken
-	tx, err := db.Beginx()
+	tx, err := h.DB.Beginx()
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")

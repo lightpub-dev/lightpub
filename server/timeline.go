@@ -8,7 +8,7 @@ import (
 	"github.com/lightpub-dev/lightpub/timeline"
 )
 
-func getTimeline(c echo.Context) error {
+func (h *Handler) getTimeline(c echo.Context) error {
 	userID := c.Get(ContextUserID).(string)
 
 	afterTimeStr := c.QueryParam("after_date")
@@ -41,7 +41,7 @@ func getTimeline(c echo.Context) error {
 		limit = l
 	}
 
-	tl, err := timeline.FetchTimeline(makeDBIO(c), userID, timeline.FetchOptions{
+	tl, err := timeline.FetchTimeline(c.Request().Context(), h.MakeDB(), userID, timeline.FetchOptions{
 		AfterTime:  afterTime,
 		BeforeTime: beforeTime,
 		Limit:      limit,
