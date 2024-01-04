@@ -64,6 +64,14 @@ func createAdminUser(t *testing.T) loginInfo {
 	})
 }
 
+func createAdminUser2(t *testing.T) loginInfo {
+	return createUser(t, createUserInfo{
+		Username: "useruser",
+		Password: "1234user",
+		Nickname: "user dayo",
+	})
+}
+
 type loginResult struct {
 	Token string `json:"token" validate:"required,uuid"`
 }

@@ -59,6 +59,9 @@ func (h *Handler) PostReply(c echo.Context) error {
 
 	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
 	if err != nil {
+		if err == posts.ErrReplyOrRepostTargetNotFound {
+			return c.String(404, "Post not Found")
+		}
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
 	}
