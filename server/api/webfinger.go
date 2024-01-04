@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"net/http"
@@ -7,14 +7,14 @@ import (
 	"github.com/lightpub-dev/lightpub/webfinger"
 )
 
-func getWebfinger(c echo.Context) error {
+func (h *Handler) GetWebfinger(c echo.Context) error {
 	// get resource parameter
 	resource := c.QueryParam("resource")
 	if resource == "" {
 		return c.String(400, "invalid resource")
 	}
 
-	jsonResponse, err := webfinger.HandleWebfinger(c.Request().Context(), db, resource)
+	jsonResponse, err := webfinger.HandleWebfinger(c.Request().Context(), h.DB, resource)
 	if err != nil {
 		if err == webfinger.ErrBadFormat {
 			return c.String(http.StatusBadRequest, "bad format")

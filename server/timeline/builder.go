@@ -1,6 +1,7 @@
 package timeline
 
 import (
+	"context"
 	"sort"
 	"time"
 
@@ -23,7 +24,7 @@ type FetchOptions struct {
 	Limit      int
 }
 
-func fetchPostsFromDB(dbio *db.DBIO, userID string, options FetchOptions) ([]FetchedPost, error) {
+func fetchPostsFromDB(ctx context.Context, conn db.DBConn, userID string, options FetchOptions) ([]FetchedPost, error) {
 	limit := DefaultTimelineSize
 	if options.Limit > 0 {
 		limit = options.Limit
@@ -51,7 +52,7 @@ func fetchPostsFromDB(dbio *db.DBIO, userID string, options FetchOptions) ([]Fet
 	mySql += ` ORDER BY p.created_at DESC LIMIT ?`
 	myParams = append(myParams, limit)
 
-	err := dbio.SelectDefaultContext(&posts, mySql, myParams...)
+	err := conn.DB().SelectContext(ctx, &posts, mySql, myParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func fetchPostsFromDB(dbio *db.DBIO, userID string, options FetchOptions) ([]Fet
 	followingSql += ` ORDER BY p.created_at DESC LIMIT ?`
 	followingParams = append(followingParams, limit)
 
-	err = dbio.SelectDefaultContext(&followingPosts, followingSql, followingParams...)
+	err = conn.DB().SelectContext(ctx, &followingPosts, followingSql, followingParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +109,7 @@ func fetchPostsFromDB(dbio *db.DBIO, userID string, options FetchOptions) ([]Fet
 	mentionSql += ` ORDER BY p.created_at DESC LIMIT ?`
 	mentionParams = append(mentionParams, limit)
 
-	err = dbio.SelectDefaultContext(&mentionPosts, mentionSql, mentionParams...)
+	err = conn.DB().SelectContext(ctx, &mentionPosts, mentionSql, mentionParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +131,7 @@ func fetchPostsFromDB(dbio *db.DBIO, userID string, options FetchOptions) ([]Fet
 		}
 
 		// Fill in count fields
-		if err := pts.FillCounts(dbio, &posts[i]); err != nil {
+		if err := pts.FillCounts(ctx, conn, &posts[i]); err != nil {
 			return nil, err
 		}
 	}

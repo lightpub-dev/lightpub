@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"github.com/labstack/echo/v4"
@@ -6,7 +6,7 @@ import (
 	"github.com/lightpub-dev/lightpub/posts"
 )
 
-func postPost(c echo.Context) error {
+func (h *Handler) PostPost(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -25,7 +25,7 @@ func postPost(c echo.Context) error {
 		Poll:           body.Poll,
 	}
 
-	result, err := posts.CreatePost(makeDBIO(c), post)
+	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -36,7 +36,7 @@ func postPost(c echo.Context) error {
 	})
 }
 
-func postReply(c echo.Context) error {
+func (h *Handler) PostReply(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -57,8 +57,11 @@ func postReply(c echo.Context) error {
 		ReplyToPostID: c.Param("post_id"),
 	}
 
-	result, err := posts.CreatePost(makeDBIO(c), post)
+	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
 	if err != nil {
+		if err == posts.ErrReplyOrRepostTargetNotFound {
+			return c.String(404, "Post not Found")
+		}
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
 	}
@@ -68,7 +71,7 @@ func postReply(c echo.Context) error {
 	})
 }
 
-func postRepost(c echo.Context) error {
+func (h *Handler) PostRepost(c echo.Context) error {
 	var body models.RepostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -88,7 +91,7 @@ func postRepost(c echo.Context) error {
 		RepostID: c.Param("post_id"),
 	}
 
-	result, err := posts.CreatePost(makeDBIO(c), post)
+	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -99,7 +102,7 @@ func postRepost(c echo.Context) error {
 	})
 }
 
-func postQuote(c echo.Context) error {
+func (h *Handler) PostQuote(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -120,7 +123,7 @@ func postQuote(c echo.Context) error {
 		RepostID: c.Param("post_id"),
 	}
 
-	result, err := posts.CreatePost(makeDBIO(c), post)
+	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -131,12 +134,12 @@ func postQuote(c echo.Context) error {
 	})
 }
 
-func modPostReaction(c echo.Context, reaction string, isAdd bool) error {
+func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) error {
 	postId := c.Param("post_id")
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(makeDBIO(c), postId, userId)
+	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), h.MakeDB(), postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -149,14 +152,14 @@ func modPostReaction(c echo.Context, reaction string, isAdd bool) error {
 
 	if isAdd {
 		// add a reaction
-		_, err = db.Exec("INSERT INTO PostReaction (post_id,reaction,user_id) VALUES (UUID_TO_BIN(?),?,UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE reaction=reaction", postId, reaction, userId)
+		_, err = h.DB.Exec("INSERT INTO PostReaction (post_id,reaction,user_id) VALUES (UUID_TO_BIN(?),?,UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE reaction=reaction", postId, reaction, userId)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
 		}
 	} else {
 		// delete a reaction
-		_, err = db.Exec("DELETE FROM PostReaction WHERE post_id=UUID_TO_BIN(?) AND user_id=UUID_TO_BIN(?) AND reaction=?", postId, userId, reaction)
+		_, err = h.DB.Exec("DELETE FROM PostReaction WHERE post_id=UUID_TO_BIN(?) AND user_id=UUID_TO_BIN(?) AND reaction=?", postId, userId, reaction)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
@@ -166,30 +169,30 @@ func modPostReaction(c echo.Context, reaction string, isAdd bool) error {
 	return c.NoContent(200)
 }
 
-func putPostReaction(c echo.Context) error {
+func (h *Handler) PutPostReaction(c echo.Context) error {
 	reaction := c.Param("reaction")
 	if reaction == "" {
 		return c.String(400, "Bad Request")
 	}
 
-	return modPostReaction(c, reaction, true)
+	return h.modPostReaction(c, reaction, true)
 }
 
-func deletePostReaction(c echo.Context) error {
+func (h *Handler) DeletePostReaction(c echo.Context) error {
 	reaction := c.Param("reaction")
 	if reaction == "" {
 		return c.String(400, "Bad Request")
 	}
 
-	return modPostReaction(c, reaction, false)
+	return h.modPostReaction(c, reaction, false)
 }
 
-func modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
+func (h *Handler) modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
 	postId := c.Param("post_id")
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(makeDBIO(c), postId, userId)
+	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), h.MakeDB(), postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -202,14 +205,14 @@ func modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
 
 	if isAdd {
 		// add a reaction
-		_, err = db.Exec("INSERT INTO PostFavorite (post_id,user_id,is_bookmark) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),?) ON DUPLICATE KEY UPDATE post_id=post_id", postId, userId, isBookmark)
+		_, err = h.DB.Exec("INSERT INTO PostFavorite (post_id,user_id,is_bookmark) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),?) ON DUPLICATE KEY UPDATE post_id=post_id", postId, userId, isBookmark)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
 		}
 	} else {
 		// delete a reaction
-		_, err = db.Exec("DELETE FROM PostFavorite WHERE post_id=UUID_TO_BIN(?) AND user_id=UUID_TO_BIN(?) AND is_bookmark=?", postId, userId, isBookmark)
+		_, err = h.DB.Exec("DELETE FROM PostFavorite WHERE post_id=UUID_TO_BIN(?) AND user_id=UUID_TO_BIN(?) AND is_bookmark=?", postId, userId, isBookmark)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
@@ -219,30 +222,30 @@ func modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
 	return c.NoContent(200)
 }
 
-func putPostFavorite(c echo.Context) error {
-	return modPostBookmark(c, true, false)
+func (h *Handler) PutPostFavorite(c echo.Context) error {
+	return h.modPostBookmark(c, true, false)
 }
 
-func deletePostFavorite(c echo.Context) error {
-	return modPostBookmark(c, false, false)
+func (h *Handler) DeletePostFavorite(c echo.Context) error {
+	return h.modPostBookmark(c, false, false)
 }
 
-func putPostBookmark(c echo.Context) error {
-	return modPostBookmark(c, true, true)
+func (h *Handler) PutPostBookmark(c echo.Context) error {
+	return h.modPostBookmark(c, true, true)
 }
 
-func deletePostBookmark(c echo.Context) error {
-	return modPostBookmark(c, false, true)
+func (h *Handler) DeletePostBookmark(c echo.Context) error {
+	return h.modPostBookmark(c, false, true)
 }
 
-func getPost(c echo.Context) error {
+func (h *Handler) GetPost(c echo.Context) error {
 	viewerUserID := ""
 	if c.Get(ContextAuthed).(bool) {
 		viewerUserID = c.Get(ContextUserID).(string)
 	}
 
 	postID := c.Param("post_id")
-	post, err := posts.FetchSinglePost(makeDBIO(c), postID, viewerUserID)
+	post, err := posts.FetchSinglePost(c.Request().Context(), h.MakeDB(), postID, viewerUserID)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")

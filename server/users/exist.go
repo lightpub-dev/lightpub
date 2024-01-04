@@ -15,9 +15,9 @@ var (
 	ErrInvalidUsername = errors.New("invalid username")
 )
 
-func ExistsByID(ctx context.Context, db db.DBOrTx, userID string) (bool, error) {
+func ExistsByID(ctx context.Context, conn db.DBConn, userID string) (bool, error) {
 	var count int
-	err := db.GetContext(ctx, &count, "SELECT COUNT(*) FROM User WHERE id=UUID_TO_BIN(?)", userID)
+	err := conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM User WHERE id=UUID_TO_BIN(?)", userID)
 	if err != nil {
 		return false, err
 	}
@@ -72,7 +72,7 @@ func parseUsername(username string) (parsedUsername, error) {
 	}
 }
 
-func FindIDByUsername(dbio *db.DBIO, username string) (*models.User, error) {
+func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*models.User, error) {
 	parsedUsernameOrID, err := parseUsernameOrID(username)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func FindIDByUsername(dbio *db.DBIO, username string) (*models.User, error) {
 	}
 
 	var user models.User
-	err = dbio.GetDefaultContext(&user, stmt, params...)
+	err = conn.DB().GetContext(ctx, &user, stmt, params...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

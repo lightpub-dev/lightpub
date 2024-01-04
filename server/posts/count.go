@@ -1,13 +1,15 @@
 package posts
 
 import (
+	"context"
+
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 )
 
-func CountReply(dbio *db.DBIO, postID string) (int64, error) {
+func CountReply(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
 	var count int64
-	err := dbio.GetContext(dbio.Ctx, &count, `
+	err := conn.DB().GetContext(ctx, &count, `
 		SELECT COUNT(*) FROM Post
 		WHERE reply_to=UUID_TO_BIN(?)
 		  AND scheduled_at IS NULL
@@ -18,9 +20,9 @@ func CountReply(dbio *db.DBIO, postID string) (int64, error) {
 	return count, nil
 }
 
-func CountFavorite(dbio *db.DBIO, postID string) (int64, error) {
+func CountFavorite(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
 	var count int64
-	err := dbio.GetContext(dbio.Ctx, &count, `
+	err := conn.DB().GetContext(ctx, &count, `
 		SELECT COUNT(*) FROM PostFavorite
 		WHERE post_id=UUID_TO_BIN(?)
 		  AND is_bookmark=0
@@ -31,9 +33,9 @@ func CountFavorite(dbio *db.DBIO, postID string) (int64, error) {
 	return count, nil
 }
 
-func CountRepost(dbio *db.DBIO, postID string) (int64, error) {
+func CountRepost(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
 	var count int64
-	err := dbio.GetContext(dbio.Ctx, &count, `
+	err := conn.DB().GetContext(ctx, &count, `
 		SELECT COUNT(*) FROM Post
 		WHERE repost_of=UUID_TO_BIN(?)
 		  AND content IS NULL
@@ -45,9 +47,9 @@ func CountRepost(dbio *db.DBIO, postID string) (int64, error) {
 	return count, nil
 }
 
-func CountQuote(dbio *db.DBIO, postID string) (int64, error) {
+func CountQuote(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
 	var count int64
-	err := dbio.GetContext(dbio.Ctx, &count, `
+	err := conn.DB().GetContext(ctx, &count, `
 		SELECT COUNT(*) FROM Post
 		WHERE repost_of=UUID_TO_BIN(?)
 		  AND content IS NOT NULL
@@ -64,9 +66,9 @@ type reactionCountRow struct {
 	Count    int64  `db:"count"`
 }
 
-func CountReactions(dbio *db.DBIO, postID string) (models.ReactionCountMap, error) {
+func CountReactions(ctx context.Context, conn db.DBConn, postID string) (models.ReactionCountMap, error) {
 	var rows []reactionCountRow
-	err := dbio.SelectContext(dbio.Ctx, &rows, `
+	err := conn.DB().SelectContext(ctx, &rows, `
 	SELECT pr.reaction, count(pr.user_id) AS count
 	FROM PostReaction pr
 	WHERE
@@ -89,25 +91,25 @@ type CountFillable interface {
 	UpdateCounts(reply, favorite, repost, quote int64, reactions models.ReactionCountMap)
 }
 
-func FillCounts(dbio *db.DBIO, fillable CountFillable) error {
+func FillCounts(ctx context.Context, conn db.DBConn, fillable CountFillable) error {
 	postID := fillable.PostID()
-	reply, err := CountReply(dbio, postID)
+	reply, err := CountReply(ctx, conn, postID)
 	if err != nil {
 		return err
 	}
-	favorite, err := CountFavorite(dbio, postID)
+	favorite, err := CountFavorite(ctx, conn, postID)
 	if err != nil {
 		return err
 	}
-	repost, err := CountRepost(dbio, postID)
+	repost, err := CountRepost(ctx, conn, postID)
 	if err != nil {
 		return err
 	}
-	quote, err := CountQuote(dbio, postID)
+	quote, err := CountQuote(ctx, conn, postID)
 	if err != nil {
 		return err
 	}
-	reactions, err := CountReactions(dbio, postID)
+	reactions, err := CountReactions(ctx, conn, postID)
 	if err != nil {
 		return err
 	}

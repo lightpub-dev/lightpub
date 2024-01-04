@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ const (
 	DefaultFollowViewLimit = 10
 )
 
-func getUserPosts(c echo.Context) error {
+func (h *Handler) GetUserPosts(c echo.Context) error {
 	authed := c.Get(ContextAuthed).(bool)
 	var viewerUserID string
 	if authed {
@@ -27,7 +27,7 @@ func getUserPosts(c echo.Context) error {
 	}
 	username := c.Param("username")
 
-	targetUser, err := users.FindIDByUsername(makeDBIO(c), username)
+	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), username)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -53,7 +53,7 @@ func getUserPosts(c echo.Context) error {
 
 	// first, get all "public" and "unlisted" posts
 	var publicPosts []models.Post
-	err = db.Select(&publicPosts, `
+	err = h.DB.Select(&publicPosts, `
 	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 		FROM Post p
 	WHERE
@@ -78,7 +78,7 @@ func getUserPosts(c echo.Context) error {
 		}
 		if !isFollowed {
 			// check if user is followed by target
-			isFollowed, err = users.IsFollowedBy(makeDBIO(c), viewerUserID, targetUser.ID)
+			isFollowed, err = users.IsFollowedBy(c.Request().Context(), h.MakeDB(), viewerUserID, targetUser.ID)
 			if err != nil {
 				c.Logger().Error(err)
 				return c.String(500, "internal server error")
@@ -86,7 +86,7 @@ func getUserPosts(c echo.Context) error {
 		}
 		if isFollowed {
 			// fetch "follower" posts
-			err = db.Select(&followerPosts, `
+			err = h.DB.Select(&followerPosts, `
 		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 		FROM Post p
 		WHERE
@@ -108,7 +108,7 @@ func getUserPosts(c echo.Context) error {
 	if viewerUserID != "" {
 		if targetUser.ID == viewerUserID {
 			// when viewer is target itself, fetch all private posts
-			err = db.Select(&privatePosts, `
+			err = h.DB.Select(&privatePosts, `
 			SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 		FROM Post p
 		WHERE
@@ -119,7 +119,7 @@ func getUserPosts(c echo.Context) error {
 		LIMIT ?
 		`, targetUser.ID, limit)
 		} else {
-			err = db.Select(&privatePosts, `
+			err = h.DB.Select(&privatePosts, `
 	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 	FROM Post p
 	INNER JOIN PostMention pm ON p.id=pm.post_id
@@ -187,7 +187,7 @@ func getUserPosts(c echo.Context) error {
 
 	for i := range resp {
 		// add counts
-		if err := posts.FillCounts(makeDBIO(c), &resp[i]); err != nil {
+		if err := posts.FillCounts(c.Request().Context(), h.MakeDB(), &resp[i]); err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "internal server error")
 		}
@@ -203,7 +203,7 @@ func createLocalUserURL(username string) string {
 	return fmt.Sprintf("%s/user/%s", config.BaseURL, username)
 }
 
-func getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
+func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
 	username := c.Param("username")
 
 	limitStr := c.QueryParam("limit")
@@ -228,7 +228,7 @@ func getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
 		afterDate = &afterDateParsed
 	}
 
-	targetUser, err := users.FindIDByUsername(makeDBIO(c), username)
+	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), username)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -258,7 +258,7 @@ func getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
 	sql += ` LIMIT ?`
 
 	var followDB []models.User
-	err = db.Select(&followDB, sql, targetUser.ID, limit)
+	err = h.DB.Select(&followDB, sql, targetUser.ID, limit)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -296,27 +296,22 @@ func getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
 	})
 }
 
-func getUserFollowers(c echo.Context) error {
-	return getUserFollowerOrFollowing(c, true)
+func (h *Handler) GetUserFollowers(c echo.Context) error {
+	return h.getUserFollowerOrFollowing(c, true)
 }
 
-func getUserFollowing(c echo.Context) error {
-	return getUserFollowerOrFollowing(c, false)
+func (h *Handler) GetUserFollowing(c echo.Context) error {
+	return h.getUserFollowerOrFollowing(c, false)
 }
 
-func modifyFollow(c echo.Context, isFollow bool) error {
+func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	myUserId := c.Get(ContextUserID).(string)
 	targetUsername := c.Param("username")
 
-	tx, err := db.Beginx()
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "internal server error")
-	}
-	defer tx.Rollback()
+	// TODO: transaction
 
 	// existence check
-	targetUser, err := users.FindIDByUsername(makeDBIOTx(c, tx), targetUsername)
+	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), targetUsername)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -326,32 +321,26 @@ func modifyFollow(c echo.Context, isFollow bool) error {
 	}
 
 	if isFollow {
-		_, err := tx.Exec("INSERT INTO UserFollow (follower_id, followee_id) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE id=id", myUserId, targetUser.ID)
+		_, err := h.DB.Exec("INSERT INTO UserFollow (follower_id, followee_id) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE id=id", myUserId, targetUser.ID)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "internal server error")
 		}
 	} else {
-		_, err := tx.Exec("DELETE FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?)", myUserId, targetUser.ID)
+		_, err := h.DB.Exec("DELETE FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?)", myUserId, targetUser.ID)
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "internal server error")
 		}
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "internal server error")
-	}
-
 	return c.NoContent(http.StatusOK)
 }
 
-func followAUser(c echo.Context) error {
-	return modifyFollow(c, true)
+func (h *Handler) FollowAUser(c echo.Context) error {
+	return h.modifyFollow(c, true)
 }
 
-func unfollowAUser(c echo.Context) error {
-	return modifyFollow(c, false)
+func (h *Handler) UnfollowAUser(c echo.Context) error {
+	return h.modifyFollow(c, false)
 }
