@@ -25,7 +25,7 @@ func postPost(c echo.Context) error {
 		Poll:           body.Poll,
 	}
 
-	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
+	result, err := posts.CreatePost(makeDBIO(c), post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -57,7 +57,7 @@ func postReply(c echo.Context) error {
 		ReplyToPostID: c.Param("post_id"),
 	}
 
-	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
+	result, err := posts.CreatePost(makeDBIO(c), post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -88,7 +88,7 @@ func postRepost(c echo.Context) error {
 		RepostID: c.Param("post_id"),
 	}
 
-	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
+	result, err := posts.CreatePost(makeDBIO(c), post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -120,7 +120,7 @@ func postQuote(c echo.Context) error {
 		RepostID: c.Param("post_id"),
 	}
 
-	result, err := posts.CreatePost(c.Request().Context(), db, rdb, post)
+	result, err := posts.CreatePost(makeDBIO(c), post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -136,7 +136,7 @@ func modPostReaction(c echo.Context, reaction string, isAdd bool) error {
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), db, postId, userId)
+	visible, err := posts.IsPostVisibleToUser(makeDBIO(c), postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -189,7 +189,7 @@ func modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
 	userId := c.Get(ContextUserID).(string)
 
 	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), db, postId, userId)
+	visible, err := posts.IsPostVisibleToUser(makeDBIO(c), postId, userId)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -242,7 +242,7 @@ func getPost(c echo.Context) error {
 	}
 
 	postID := c.Param("post_id")
-	post, err := posts.FetchSinglePost(c.Request().Context(), db, postID, viewerUserID)
+	post, err := posts.FetchSinglePost(makeDBIO(c), postID, viewerUserID)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")

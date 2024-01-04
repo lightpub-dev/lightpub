@@ -72,7 +72,7 @@ func parseUsername(username string) (parsedUsername, error) {
 	}
 }
 
-func FindIDByUsername(ctx context.Context, db db.DBOrTx, username string) (*models.User, error) {
+func FindIDByUsername(dbio *db.DBIO, username string) (*models.User, error) {
 	parsedUsernameOrID, err := parseUsernameOrID(username)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func FindIDByUsername(ctx context.Context, db db.DBOrTx, username string) (*mode
 	}
 
 	var user models.User
-	err = db.GetContext(ctx, &user, stmt, params...)
+	err = dbio.GetDefaultContext(&user, stmt, params...)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

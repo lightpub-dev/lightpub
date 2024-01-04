@@ -1,19 +1,17 @@
 package timeline
 
 import (
-	"context"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
-	"github.com/redis/go-redis/v9"
 )
 
-func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string, options FetchOptions) (*models.TimelineResponse, error) {
+func FetchTimeline(dbio *db.DBIO, userID string, options FetchOptions) (*models.TimelineResponse, error) {
 	// TODO: use timeline cache in redis
 	// TODO: for now, just fetch from db
-	cached, err := fetchPostsFromDB(ctx, tx, userID, options)
+	cached, err := fetchPostsFromDB(dbio, userID, options)
 	if err != nil {
 		return nil, err
 	}
@@ -46,6 +44,11 @@ func FetchTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID 
 
 			ReplyTo:  replyToURL,
 			RepostOf: repostOfURL,
+
+			ReplyCount:    cache.ReplyCount,
+			RepostCount:   cache.RepostCount,
+			FavoriteCount: cache.FavoriteCount,
+			QuoteCount:    cache.QuoteCount,
 		})
 
 		if cache.CreatedAt.Before(oldestPost) {

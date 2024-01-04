@@ -37,6 +37,22 @@ type UserPostEntry struct {
 
 	ReplyTo  interface{} `json:"reply_to,omitempty"`  // string or UserPostEntry
 	RepostOf interface{} `json:"repost_of,omitempty"` // string or UserPostEntry
+
+	RepostCount   int64 `json:"repost_count"`
+	FavoriteCount int64 `json:"favorite_count"`
+	ReplyCount    int64 `json:"reply_count"`
+	QuoteCount    int64 `json:"quote_count"`
+}
+
+func (u *UserPostEntry) UpdateCounts(reply, favorite, repost, quote int64) {
+	u.ReplyCount = reply
+	u.FavoriteCount = favorite
+	u.RepostCount = repost
+	u.QuoteCount = quote
+}
+
+func (u *UserPostEntry) PostID() string {
+	return u.ID
 }
 
 type UserPostEntryAuthor struct {
