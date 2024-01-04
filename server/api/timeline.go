@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"strconv"
@@ -8,7 +8,7 @@ import (
 	"github.com/lightpub-dev/lightpub/timeline"
 )
 
-func (h *Handler) getTimeline(c echo.Context) error {
+func (h *Handler) GetTimeline(c echo.Context) error {
 	userID := c.Get(ContextUserID).(string)
 
 	afterTimeStr := c.QueryParam("after_date")

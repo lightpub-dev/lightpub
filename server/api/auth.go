@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"database/sql"
@@ -17,7 +17,7 @@ const (
 )
 
 // echo auth middleware
-func (h *Handler) authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc {
+func (h *Handler) AuthMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo.HandlerFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			// read Authorization header
@@ -65,7 +65,7 @@ func (h *Handler) authMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo
 	}
 }
 
-func (h *Handler) postLogin(c echo.Context) error {
+func (h *Handler) PostLogin(c echo.Context) error {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -112,7 +112,7 @@ func (h *Handler) postLogin(c echo.Context) error {
 	})
 }
 
-func (h *Handler) postRegister(c echo.Context) error {
+func (h *Handler) PostRegister(c echo.Context) error {
 	var req struct {
 		Username string `json:"username" validate:"alphanum,max=60,min=1"`
 		Nickname string `json:"nickname" validate:"max=200,min=1"`

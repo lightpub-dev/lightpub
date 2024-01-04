@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ const (
 	DefaultFollowViewLimit = 10
 )
 
-func (h *Handler) getUserPosts(c echo.Context) error {
+func (h *Handler) GetUserPosts(c echo.Context) error {
 	authed := c.Get(ContextAuthed).(bool)
 	var viewerUserID string
 	if authed {
@@ -296,11 +296,11 @@ func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool)
 	})
 }
 
-func (h *Handler) getUserFollowers(c echo.Context) error {
+func (h *Handler) GetUserFollowers(c echo.Context) error {
 	return h.getUserFollowerOrFollowing(c, true)
 }
 
-func (h *Handler) getUserFollowing(c echo.Context) error {
+func (h *Handler) GetUserFollowing(c echo.Context) error {
 	return h.getUserFollowerOrFollowing(c, false)
 }
 
@@ -337,10 +337,10 @@ func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	return c.NoContent(http.StatusOK)
 }
 
-func (h *Handler) followAUser(c echo.Context) error {
+func (h *Handler) FollowAUser(c echo.Context) error {
 	return h.modifyFollow(c, true)
 }
 
-func (h *Handler) unfollowAUser(c echo.Context) error {
+func (h *Handler) UnfollowAUser(c echo.Context) error {
 	return h.modifyFollow(c, false)
 }

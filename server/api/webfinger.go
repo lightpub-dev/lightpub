@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"github.com/lightpub-dev/lightpub/webfinger"
 )
 
-func (h *Handler) getWebfinger(c echo.Context) error {
+func (h *Handler) GetWebfinger(c echo.Context) error {
 	// get resource parameter
 	resource := c.QueryParam("resource")
 	if resource == "" {

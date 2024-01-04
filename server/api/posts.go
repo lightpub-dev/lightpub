@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"github.com/labstack/echo/v4"
@@ -6,7 +6,7 @@ import (
 	"github.com/lightpub-dev/lightpub/posts"
 )
 
-func (h *Handler) postPost(c echo.Context) error {
+func (h *Handler) PostPost(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -36,7 +36,7 @@ func (h *Handler) postPost(c echo.Context) error {
 	})
 }
 
-func (h *Handler) postReply(c echo.Context) error {
+func (h *Handler) PostReply(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -68,7 +68,7 @@ func (h *Handler) postReply(c echo.Context) error {
 	})
 }
 
-func (h *Handler) postRepost(c echo.Context) error {
+func (h *Handler) PostRepost(c echo.Context) error {
 	var body models.RepostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -99,7 +99,7 @@ func (h *Handler) postRepost(c echo.Context) error {
 	})
 }
 
-func (h *Handler) postQuote(c echo.Context) error {
+func (h *Handler) PostQuote(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
 		return c.String(400, "Bad Request")
@@ -166,7 +166,7 @@ func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) e
 	return c.NoContent(200)
 }
 
-func (h *Handler) putPostReaction(c echo.Context) error {
+func (h *Handler) PutPostReaction(c echo.Context) error {
 	reaction := c.Param("reaction")
 	if reaction == "" {
 		return c.String(400, "Bad Request")
@@ -175,7 +175,7 @@ func (h *Handler) putPostReaction(c echo.Context) error {
 	return h.modPostReaction(c, reaction, true)
 }
 
-func (h *Handler) deletePostReaction(c echo.Context) error {
+func (h *Handler) DeletePostReaction(c echo.Context) error {
 	reaction := c.Param("reaction")
 	if reaction == "" {
 		return c.String(400, "Bad Request")
@@ -219,23 +219,23 @@ func (h *Handler) modPostBookmark(c echo.Context, isAdd, isBookmark bool) error 
 	return c.NoContent(200)
 }
 
-func (h *Handler) putPostFavorite(c echo.Context) error {
+func (h *Handler) PutPostFavorite(c echo.Context) error {
 	return h.modPostBookmark(c, true, false)
 }
 
-func (h *Handler) deletePostFavorite(c echo.Context) error {
+func (h *Handler) DeletePostFavorite(c echo.Context) error {
 	return h.modPostBookmark(c, false, false)
 }
 
-func (h *Handler) putPostBookmark(c echo.Context) error {
+func (h *Handler) PutPostBookmark(c echo.Context) error {
 	return h.modPostBookmark(c, true, true)
 }
 
-func (h *Handler) deletePostBookmark(c echo.Context) error {
+func (h *Handler) DeletePostBookmark(c echo.Context) error {
 	return h.modPostBookmark(c, false, true)
 }
 
-func (h *Handler) getPost(c echo.Context) error {
+func (h *Handler) GetPost(c echo.Context) error {
 	viewerUserID := ""
 	if c.Get(ContextAuthed).(bool) {
 		viewerUserID = c.Get(ContextUserID).(string)

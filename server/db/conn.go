@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"context"
@@ -8,24 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type Handler struct {
-	DB  *sqlx.DB
-	RDB *redis.Client
-}
-
-type dbconn struct {
-	*Handler
-}
-
-func (c *dbconn) DB() *sqlx.DB {
-	return c.Handler.DB
-}
-
-func (h *Handler) MakeDB() *dbconn {
-	return &dbconn{h}
-}
-
-type dbConnectionInfo struct {
+type DBConnectionInfo struct {
 	Host      string
 	Port      string
 	Username  string
@@ -35,7 +18,12 @@ type dbConnectionInfo struct {
 	RedisPort string
 }
 
-func connectDB(connectDB dbConnectionInfo) (*Handler, error) {
+type DBConnectResult struct {
+	DB  *sqlx.DB
+	RDB *redis.Client
+}
+
+func ConnectDB(connectDB DBConnectionInfo) (*DBConnectResult, error) {
 	var err error
 	db, err := sqlx.Connect("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", connectDB.Username, connectDB.Password, connectDB.Host, connectDB.Port, connectDB.Database))
 	if err != nil {
@@ -61,7 +49,7 @@ func connectDB(connectDB dbConnectionInfo) (*Handler, error) {
 		return nil, err
 	}
 
-	return &Handler{
+	return &DBConnectResult{
 		DB:  db,
 		RDB: rdb,
 	}, nil
