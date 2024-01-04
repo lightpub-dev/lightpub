@@ -27,7 +27,7 @@ func getUserPosts(c echo.Context) error {
 	}
 	username := c.Param("username")
 
-	targetUser, err := users.FindIDByUsername(c.Request().Context(), db, username)
+	targetUser, err := users.FindIDByUsername(makeDBIO(c), username)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -78,7 +78,7 @@ func getUserPosts(c echo.Context) error {
 		}
 		if !isFollowed {
 			// check if user is followed by target
-			isFollowed, err = users.IsFollowedBy(c.Request().Context(), db, viewerUserID, targetUser.ID)
+			isFollowed, err = users.IsFollowedBy(makeDBIO(c), viewerUserID, targetUser.ID)
 			if err != nil {
 				c.Logger().Error(err)
 				return c.String(500, "internal server error")
@@ -185,6 +185,14 @@ func getUserPosts(c echo.Context) error {
 		})
 	}
 
+	for i := range resp {
+		// add counts
+		if err := posts.FillCounts(makeDBIO(c), &resp[i]); err != nil {
+			c.Logger().Error(err)
+			return c.String(500, "internal server error")
+		}
+	}
+
 	return c.JSON(http.StatusOK,
 		models.UserPostListResponse{
 			Posts: resp,
@@ -220,7 +228,7 @@ func getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
 		afterDate = &afterDateParsed
 	}
 
-	targetUser, err := users.FindIDByUsername(c.Request().Context(), db, username)
+	targetUser, err := users.FindIDByUsername(makeDBIO(c), username)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -308,7 +316,7 @@ func modifyFollow(c echo.Context, isFollow bool) error {
 	defer tx.Rollback()
 
 	// existence check
-	targetUser, err := users.FindIDByUsername(c.Request().Context(), tx, targetUsername)
+	targetUser, err := users.FindIDByUsername(makeDBIOTx(c, tx), targetUsername)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")

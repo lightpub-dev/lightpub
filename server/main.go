@@ -5,6 +5,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 var (
@@ -19,6 +20,9 @@ func main() {
 
 	// setup logger
 	e.Use(middleware.Logger())
+
+	// CORS
+	e.Use(middleware.CORS())
 
 	// No Auth APIs
 	e.POST("/login", postLogin)
@@ -52,6 +56,14 @@ func main() {
 
 	// webfinger
 	unAuthed.GET("/.well-known/webfinger", getWebfinger)
+
+	// swagger
+	e.GET("/docs/*", echo.WrapHandler(httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:1323/openapi.yml"), //The url pointing to API definition"
+	)))
+	e.GET("/openapi.yml", func(c echo.Context) error {
+		return c.File("./openapi.yml")
+	})
 
 	e.Logger.Fatal(e.Start(":1323"))
 }

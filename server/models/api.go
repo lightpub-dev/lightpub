@@ -28,6 +28,8 @@ type UserPostListResponse struct {
 	Posts []UserPostEntry `json:"posts"`
 }
 
+type ReactionCountMap map[string]int64
+
 type UserPostEntry struct {
 	ID        string              `json:"id"`
 	Author    UserPostEntryAuthor `json:"author"`
@@ -37,6 +39,24 @@ type UserPostEntry struct {
 
 	ReplyTo  interface{} `json:"reply_to,omitempty"`  // string or UserPostEntry
 	RepostOf interface{} `json:"repost_of,omitempty"` // string or UserPostEntry
+
+	RepostCount   int64            `json:"repost_count"`
+	FavoriteCount int64            `json:"favorite_count"`
+	ReplyCount    int64            `json:"reply_count"`
+	QuoteCount    int64            `json:"quote_count"`
+	Reactions     ReactionCountMap `json:"reactions"`
+}
+
+func (u *UserPostEntry) UpdateCounts(reply, favorite, repost, quote int64, reactions ReactionCountMap) {
+	u.ReplyCount = reply
+	u.FavoriteCount = favorite
+	u.RepostCount = repost
+	u.QuoteCount = quote
+	u.Reactions = reactions
+}
+
+func (u *UserPostEntry) PostID() string {
+	return u.ID
 }
 
 type UserPostEntryAuthor struct {

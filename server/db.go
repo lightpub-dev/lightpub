@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/labstack/echo/v4"
+	d "github.com/lightpub-dev/lightpub/db"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -39,5 +41,19 @@ func mustConnectRedis() {
 	_, err = rdb.FlushAll(context.Background()).Result()
 	if err != nil {
 		panic(err)
+	}
+}
+
+func makeDBIO(c echo.Context) *d.DBIO {
+	return &d.DBIO{
+		DBOrTx: &d.DBWrapper{DB: db},
+		Ctx:    c.Request().Context(),
+	}
+}
+
+func makeDBIOTx(c echo.Context, tx *sqlx.Tx) *d.DBIO {
+	return &d.DBIO{
+		DBOrTx: &d.TxWrapper{Tx: tx},
+		Ctx:    c.Request().Context(),
 	}
 }

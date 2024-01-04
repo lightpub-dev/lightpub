@@ -1,14 +1,12 @@
 package timeline
 
 import (
-	"context"
-	"encoding/json"
 	"sort"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
-	"github.com/redis/go-redis/v9"
+	pts "github.com/lightpub-dev/lightpub/posts"
 )
 
 const (
@@ -25,7 +23,7 @@ type FetchOptions struct {
 	Limit      int
 }
 
-func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options FetchOptions) ([]FetchedPost, error) {
+func fetchPostsFromDB(dbio *db.DBIO, userID string, options FetchOptions) ([]FetchedPost, error) {
 	limit := DefaultTimelineSize
 	if options.Limit > 0 {
 		limit = options.Limit
@@ -53,7 +51,7 @@ func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options 
 	mySql += ` ORDER BY p.created_at DESC LIMIT ?`
 	myParams = append(myParams, limit)
 
-	err := tx.SelectContext(ctx, &posts, mySql, myParams...)
+	err := dbio.SelectDefaultContext(&posts, mySql, myParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +80,7 @@ func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options 
 	followingSql += ` ORDER BY p.created_at DESC LIMIT ?`
 	followingParams = append(followingParams, limit)
 
-	err = tx.SelectContext(ctx, &followingPosts, followingSql, followingParams...)
+	err = dbio.SelectDefaultContext(&followingPosts, followingSql, followingParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +108,7 @@ func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options 
 	mentionSql += ` ORDER BY p.created_at DESC LIMIT ?`
 	mentionParams = append(mentionParams, limit)
 
-	err = tx.SelectContext(ctx, &mentionPosts, mentionSql, mentionParams...)
+	err = dbio.SelectDefaultContext(&mentionPosts, mentionSql, mentionParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,78 +122,84 @@ func fetchPostsFromDB(ctx context.Context, tx db.DBOrTx, userID string, options 
 		return posts[i].CreatedAt.After(posts[j].CreatedAt)
 	})
 
-	// Add hostname if empty
+	// add additional info to each post
 	for i := range posts {
+		// Add hostname if empty
 		if posts[i].PosterHost == "" {
 			posts[i].PosterHost = config.MyHostname
+		}
+
+		// Fill in count fields
+		if err := pts.FillCounts(dbio, &posts[i]); err != nil {
+			return nil, err
 		}
 	}
 
 	return posts, nil
 }
 
-func rebuildTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, userID string) error {
-	posts, err := fetchPostsFromDB(ctx, tx, userID, FetchOptions{})
-	if err != nil {
-		return err
-	}
+// func rebuildTimeline(dbio *db.DBIO, userID string) error {
+// 	posts, err := fetchPostsFromDB(dbio, userID, FetchOptions{})
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// reset timeline
-	pipe := rdb.Pipeline()
-	rkey := timelineRedisKey(userID)
-	_, err = pipe.Del(ctx, rkey).Result()
-	if err != nil {
-		return err
-	}
+// 	// reset timeline
+// 	pipe := rdb.Pipeline()
+// 	rkey := timelineRedisKey(userID)
+// 	_, err = pipe.Del(dbio.Ctx, rkey).Result()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// add posts to timeline
-	// newer left <---> right older
-	for _, post := range posts {
-		postJson, err := json.Marshal(post)
-		if err != nil {
-			return err
-		}
-		if _, err = pipe.RPush(ctx, rkey, postJson).Result(); err != nil {
-			return err
-		}
-	}
+// 	// add posts to timeline
+// 	// newer left <---> right older
+// 	for _, post := range posts {
+// 		postJson, err := json.Marshal(post)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if _, err = pipe.RPush(ctx, rkey, postJson).Result(); err != nil {
+// 			return err
+// 		}
+// 	}
 
-	// exec
-	_, err = pipe.Exec(ctx)
-	return err
-}
+// 	// exec
+// 	_, err = pipe.Exec(ctx)
+// 	return err
+// }
 
-func AddToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, targetUserID string, post FetchedPost) error {
-	// add post to timeline
-	postJson, err := json.Marshal(post)
-	if err != nil {
-		return err
-	}
-	rkey := timelineRedisKey(targetUserID)
+// func AddToTimeline(ctx context.Context, tx db.DBOrTx, rdb *redis.Client, targetUserID string, post FetchedPost) error {
+// 	// add post to timeline
+// 	postJson, err := json.Marshal(post)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	rkey := timelineRedisKey(targetUserID)
 
-	// check existence
-	exists, err := rdb.Exists(ctx, rkey).Result()
-	if err != nil {
-		return err
-	}
+// 	// check existence
+// 	exists, err := rdb.Exists(ctx, rkey).Result()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// if not exists, rebuild timeline
-	if exists == 0 {
-		if err = rebuildTimeline(ctx, tx, rdb, targetUserID); err != nil {
-			return err
-		}
-	}
+// 	// if not exists, rebuild timeline
+// 	if exists == 0 {
+// 		if err = rebuildTimeline(ctx, tx, rdb, targetUserID); err != nil {
+// 			return err
+// 		}
+// 	}
 
-	_, err = rdb.LPush(ctx, rkey, postJson).Result()
-	if err != nil {
-		return err
-	}
+// 	_, err = rdb.LPush(ctx, rkey, postJson).Result()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-func ClearTimeline(ctx context.Context, rdb *redis.Client, userID string) error {
-	rkey := timelineRedisKey(userID)
-	_, err := rdb.Del(ctx, rkey).Result()
-	return err
-}
+// func ClearTimeline(ctx context.Context, rdb *redis.Client, userID string) error {
+// 	rkey := timelineRedisKey(userID)
+// 	_, err := rdb.Del(ctx, rkey).Result()
+// 	return err
+// }

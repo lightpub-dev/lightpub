@@ -559,12 +559,42 @@ components:
             - $ref: "#/components/schemas/UserPostEntry"
           description: If this post is a repost or quote, this property is defined. The value is either the URL or the post itself. content is null if this is a repost. content is non-null if this is a quote.
           example: https://lightpub.example.com/post/aaabbbccc
+        repost_count:
+          type: integer
+          description: The number of reposts of this post.
+          minimum: 0
+        favorite_count:
+          type: integer
+          description: The number of favorites of this post.
+          minimum: 0
+        reply_count:
+          type: integer
+          description: The number of replies of this post.
+          minimum: 0
+        quote_count:
+          type: integer
+          description: The number of quotes of this post.
+          minimum: 0
+        reactions:
+          type: object
+          description: The reactions of this post.
+          additionalProperties:
+            type: integer
+            minimum: 0
+            example:
+              "+1": 3,
+              "heart": 2
       required:
         - id
         - author
         - content
         - created_at
         - privacy
+        - repost_count
+        - favorite_count
+        - reply_count
+        - quote_count
+        - reactions
     UserPostEntryAuthor:
       properties:
         id:

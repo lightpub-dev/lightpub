@@ -6,9 +6,9 @@ import (
 	"github.com/lightpub-dev/lightpub/db"
 )
 
-func IsFollowedBy(ctx context.Context, tx db.DBOrTx, followerID string, followeeID string) (bool, error) {
+func IsFollowedBy(dbio *db.DBIO, followerID string, followeeID string) (bool, error) {
 	var count int
-	err := tx.GetContext(ctx, &count, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?)", followerID, followeeID)
+	err := dbio.GetContext(dbio.Ctx, &count, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?)", followerID, followeeID)
 	if err != nil {
 		return false, err
 	}
