@@ -1,7 +1,13 @@
 <script lang="ts" setup>
-import { reactive } from 'vue'
-import { Posts } from '../Post/processFeedPosts.ts'
-const feedPosts = reactive(Posts)
+import { computed } from 'vue'
+import { useTimeline } from '../Post/processFeedPosts.ts'
+const timeline = useTimeline()
+const feedPosts = computed(() => {
+    if (timeline.posts.value === null) {
+        return []
+    }
+    return timeline.posts.value.posts
+})
 </script>
 
 <template>

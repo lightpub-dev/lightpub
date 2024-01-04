@@ -3,9 +3,11 @@ export type Privacy = 'public' | 'unlisted' | 'follower' | 'private'
 export interface UserPostEntry {
     id: string
     author: UserPostEntryAuthor
-    post: UserPostDetail
+    content: string | null
     created_at: string
     privacy: Privacy
+    reply_to?: string | UserPostEntry
+    repost_of?: string | UserPostEntry
 }
 
 export interface UserPostDetail {
@@ -17,4 +19,9 @@ export interface UserPostDetail {
 export interface UserPostEntryAuthor {
     id: string
     username: string
+    host: string
+}
+
+export interface TimelineResponse {
+    posts: UserPostEntry[]
 }

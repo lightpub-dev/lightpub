@@ -1,12 +1,24 @@
-import { UserPostEntry } from './post.ts'
+import { inject, ref } from 'vue'
+import { AUTH_AXIOS } from '../../consts.ts'
+import { TimelineResponse, UserPostEntry } from './post.ts'
 
-export const Posts: UserPostEntry[] = [
+interface ExampleUserPostEntry extends UserPostEntry {
+    post: {
+        text: string
+        pictures_url: string[]
+        reactions: string[]
+    }
+}
+
+export const Posts: ExampleUserPostEntry[] = [
     {
         id: '0',
         author: {
             id: 'das08',
-            username: 'Das08'
+            username: 'Das08',
+            host: 'localhost:1323'
         },
+        content: 'test',
         post: {
             text: 'test',
             pictures_url: [
@@ -21,8 +33,10 @@ export const Posts: UserPostEntry[] = [
         id: '1',
         author: {
             id: 'das08',
-            username: 'Das08'
+            username: 'Das08',
+            host: 'localhost:1323'
         },
+        content: 'I am a test post',
         post: {
             text: 'I am a test post',
             pictures_url: [],
@@ -32,3 +46,25 @@ export const Posts: UserPostEntry[] = [
         privacy: 'public'
     }
 ]
+
+export function useTimeline() {
+    const authAxios = inject(AUTH_AXIOS)!
+
+    const posts = ref<TimelineResponse | null>(null)
+
+    const reloadTimeline = async () => {
+        try {
+            const response = await authAxios.get('/timeline')
+            posts.value = response.data
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    reloadTimeline()
+
+    return {
+        posts,
+        reloadTimeline
+    }
+}

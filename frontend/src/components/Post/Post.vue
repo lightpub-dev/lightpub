@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { defineProps, PropType } from 'vue'
+import { format } from 'timeago.js'
+import { PropType, computed } from 'vue'
 import { UserPostEntry } from './post.ts'
 
 const props = defineProps({
@@ -7,6 +8,10 @@ const props = defineProps({
         type: Object as PropType<UserPostEntry>,
         required: true
     }
+})
+
+const createdTime = computed(() => {
+    return format(props.user_post.created_at)
 })
 </script>
 <template>
@@ -31,7 +36,7 @@ const props = defineProps({
                     <p class="text-sm text-gray-800 mr-2">
                         @{{ props.user_post.author.id }}
                     </p>
-                    <p class="text-sm text-gray-500">1h</p>
+                    <p class="text-sm text-gray-500">{{ createdTime }}</p>
                 </div>
             </div>
             <button class="active:scale-95 transform transition-transform">
@@ -51,10 +56,10 @@ const props = defineProps({
         </div>
 
         <p class="pt-5 text-gray-600 dark:text-gray-100 text-lg mb-4">
-            {{ props.user_post?.post.text }}
+            {{ props.user_post.content }}
         </p>
 
-        <div
+        <!-- <div
             v-if="props.user_post?.post.pictures_url.length > 0"
             :class="`images w-full h-70 bg-ll-neutral dark:bg-ld-neutral rounded-xl my-4 overflow-hidden grid ${
                 props.user_post?.post.pictures_url.length > 1
@@ -129,7 +134,7 @@ const props = defineProps({
                     alt=""
                 />
             </div>
-        </div>
+        </div> -->
 
         <div
             class="flex justify-between pt-4 border-t border-ll-border dark:border-ld-border mt-4"
