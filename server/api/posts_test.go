@@ -69,4 +69,13 @@ func TestReplyPost(t *testing.T) {
 
 		assert.Equal(t, 404, failedReplyPost.Rec.Code)
 	})
+
+	t.Run("Reply to private post by original poster", func(t *testing.T) {
+		failedReplyPost := setupRequestAuth(t, "POST", "/post/"+resultP.ID+"/reply", login.Token, map[string]interface{}{
+			"content": "this is reply by original poster",
+			"privacy": "public",
+		})
+
+		assert.Equal(t, 201, failedReplyPost.Rec.Code)
+	})
 }
