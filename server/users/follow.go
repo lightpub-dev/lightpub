@@ -6,9 +6,9 @@ import (
 	"github.com/lightpub-dev/lightpub/db"
 )
 
-func IsFollowedBy(dbio *db.DBIO, followerID string, followeeID string) (bool, error) {
+func IsFollowedBy(ctx context.Context, conn db.DBConn, followerID string, followeeID string) (bool, error) {
 	var count int
-	err := dbio.GetContext(dbio.Ctx, &count, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?)", followerID, followeeID)
+	err := conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?)", followerID, followeeID)
 	if err != nil {
 		return false, err
 	}
@@ -23,9 +23,9 @@ type FollowerInfo struct {
 	URL      *string `json:"url"`
 }
 
-func FindFollowers(ctx context.Context, tx db.DBOrTx, followeeID string) ([]FollowerInfo, error) {
+func FindFollowers(ctx context.Context, conn db.DBConn, followeeID string) ([]FollowerInfo, error) {
 	var followers []FollowerInfo
-	err := tx.SelectContext(ctx, &followers, `
+	err := conn.DB().SelectContext(ctx, &followers, `
 	SELECT BIN_TO_UUID(u.id) AS id,u.username,u.host,u.url
 	FROM User u
 	INNER JOIN UserFollow uf ON u.id=uf.follower_id

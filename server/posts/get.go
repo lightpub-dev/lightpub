@@ -1,6 +1,7 @@
 package posts
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -49,12 +50,12 @@ func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 }
 
 // fetchSinglePostOrURL returns *models.UserPostEntry || string
-func fetchSinglePostOrURL(dbio *db.DBIO, postID string, viewerUserID string, currentDepth int) (interface{}, error) {
+func fetchSinglePostOrURL(ctx context.Context, conn db.DBConn, postID string, viewerUserID string, currentDepth int) (interface{}, error) {
 	if currentDepth >= MaxPostExpandDepth {
 		return CreatePostURL(postID), nil
 	}
 
-	post, err := FetchSinglePostWithDepth(dbio, postID, viewerUserID, currentDepth+1)
+	post, err := FetchSinglePostWithDepth(ctx, conn, postID, viewerUserID, currentDepth+1)
 	if err != nil {
 		return nil, err
 	}
@@ -66,13 +67,13 @@ func fetchSinglePostOrURL(dbio *db.DBIO, postID string, viewerUserID string, cur
 	return post, nil
 }
 
-func FetchSinglePost(dbio *db.DBIO, postID string, viewerUserID string) (*models.UserPostEntry, error) {
-	return FetchSinglePostWithDepth(dbio, postID, viewerUserID, 0)
+func FetchSinglePost(ctx context.Context, conn db.DBConn, postID string, viewerUserID string) (*models.UserPostEntry, error) {
+	return FetchSinglePostWithDepth(ctx, conn, postID, viewerUserID, 0)
 }
 
-func FetchSinglePostWithDepth(dbio *db.DBIO, postID string, viewerUserID string, currentDepth int) (*models.UserPostEntry, error) {
+func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string, viewerUserID string, currentDepth int) (*models.UserPostEntry, error) {
 	var post postWithUser
-	err := dbio.GetContext(dbio.Ctx, &post, `
+	err := conn.DB().GetContext(ctx, &post, `
 	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
@@ -99,7 +100,7 @@ func FetchSinglePostWithDepth(dbio *db.DBIO, postID string, viewerUserID string,
 			return nil, nil
 		}
 	} else {
-		visible, err := IsPostVisibleToUser(dbio, postID, viewerUserID)
+		visible, err := IsPostVisibleToUser(ctx, conn, postID, viewerUserID)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +115,7 @@ func FetchSinglePostWithDepth(dbio *db.DBIO, postID string, viewerUserID string,
 	var replyToPost interface{}
 	if post.ReplyTo != nil {
 		var err error
-		replyToPost, err = fetchSinglePostOrURL(dbio, *post.ReplyTo, viewerUserID, currentDepth)
+		replyToPost, err = fetchSinglePostOrURL(ctx, conn, *post.ReplyTo, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +125,7 @@ func FetchSinglePostWithDepth(dbio *db.DBIO, postID string, viewerUserID string,
 	var repostOfPost interface{}
 	if post.RepostOf != nil {
 		var err error
-		repostOfPost, err = fetchSinglePostOrURL(dbio, *post.RepostOf, viewerUserID, currentDepth)
+		repostOfPost, err = fetchSinglePostOrURL(ctx, conn, *post.RepostOf, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +134,7 @@ func FetchSinglePostWithDepth(dbio *db.DBIO, postID string, viewerUserID string,
 	result := &models.UserPostEntry{}
 	fillUserPostEntry(result, post, replyToPost, repostOfPost)
 
-	FillCounts(dbio, result)
+	FillCounts(ctx, conn, result)
 
 	return result, nil
 }

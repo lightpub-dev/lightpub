@@ -1,6 +1,7 @@
 package posts
 
 import (
+	"context"
 	"errors"
 
 	"github.com/lightpub-dev/lightpub/db"
@@ -17,9 +18,9 @@ const (
 	PrivacyPrivate  PrivacyType = "private"
 )
 
-func IsPostVisibleToUser(dbio *db.DBIO, postId string, userId string) (bool, error) {
+func IsPostVisibleToUser(ctx context.Context, conn db.DBConn, postId string, userId string) (bool, error) {
 	var post models.Post
-	err := dbio.GetContext(dbio.Ctx, &post, "SELECT BIN_TO_UUID(poster_id) AS poster_id,privacy FROM Post WHERE id=UUID_TO_BIN(?)", postId)
+	err := conn.DB().GetContext(ctx, &post, "SELECT BIN_TO_UUID(poster_id) AS poster_id,privacy FROM Post WHERE id=UUID_TO_BIN(?)", postId)
 	if err != nil {
 		return false, err
 	}
@@ -37,7 +38,7 @@ func IsPostVisibleToUser(dbio *db.DBIO, postId string, userId string) (bool, err
 	case PrivacyFollower:
 		// check if user is followed by poster
 		posterID := post.PosterID
-		isFollowedBy, err := users.IsFollowedBy(dbio, posterID, userId)
+		isFollowedBy, err := users.IsFollowedBy(ctx, conn, posterID, userId)
 		if err != nil {
 			return false, err
 		}
@@ -45,7 +46,7 @@ func IsPostVisibleToUser(dbio *db.DBIO, postId string, userId string) (bool, err
 	case PrivacyPrivate:
 		// check if user is in post's mention list
 		var count int
-		err := dbio.GetContext(dbio.Ctx, &count, "SELECT COUNT(*) FROM PostMention WHERE post_id=UUID_TO_BIN(?) AND target_user_id=UUID_TO_BIN(?)", postId, userId)
+		err := conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM PostMention WHERE post_id=UUID_TO_BIN(?) AND target_user_id=UUID_TO_BIN(?)", postId, userId)
 		if err != nil {
 			return false, err
 		}
