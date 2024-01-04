@@ -1,10 +1,15 @@
 package testutils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/gommon/log"
 	"github.com/lightpub-dev/lightpub/api"
 	"github.com/lightpub-dev/lightpub/db"
 )
@@ -56,7 +61,7 @@ func TruncateAll(conn db.DBConnectionInfo) error {
 func DefaultDBConnection() db.DBConnectionInfo {
 	return db.DBConnectionInfo{
 		Host:      "localhost",
-		Port:      "3306",
+		Port:      "3307",
 		Username:  "lightpub",
 		Password:  "lightpub",
 		Database:  "lightpub",
@@ -65,12 +70,23 @@ func DefaultDBConnection() db.DBConnectionInfo {
 	}
 }
 
-func DefaultEcho() *echo.Echo {
+func DefaultEcho() (*echo.Echo, *api.Handler) {
 	conn := DefaultDBConnection()
 	db, err := db.ConnectDB(conn)
 	if err != nil {
 		panic(err)
 	}
 
-	return api.BuildEcho(api.NewHandler(db.DB, db.RDB))
+	h := api.NewHandler(db.DB, db.RDB)
+	return api.BuildEcho(h, api.EchoOptions{
+		LogLevel: log.WARN,
+	}), h
+}
+
+func NewJSONBody(s interface{}) io.Reader {
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return bytes.NewReader(b)
 }

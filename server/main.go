@@ -4,8 +4,9 @@ import (
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/labstack/gommon/log"
 	api "github.com/lightpub-dev/lightpub/api"
-	"github.com/lightpub-dev/lightpub/db"
+	d "github.com/lightpub-dev/lightpub/db"
 )
 
 func getEnv(key, fallback string) string {
@@ -24,7 +25,7 @@ func main() {
 	dbName := getEnv("DB_NAME", "lightpub")
 	redisHost := getEnv("REDIS_HOST", "localhost")
 	redisPort := getEnv("REDIS_PORT", "6379")
-	conn := db.DBConnectionInfo{
+	conn := d.DBConnectionInfo{
 		Host:      dbHost,
 		Port:      dbPort,
 		Username:  dbUsername,
@@ -33,12 +34,17 @@ func main() {
 		RedisHost: redisHost,
 		RedisPort: redisPort,
 	}
-	db, err := db.ConnectDB(conn)
+	db, err := d.ConnectDB(conn)
 	if err != nil {
 		panic(err)
 	}
 
-	e := api.BuildEcho(api.NewHandler(db.DB, db.RDB))
+	// migrate
+	if err := d.MigrateToLatest(conn, "./migrations", true); err != nil {
+		panic(err)
+	}
+
+	e := api.BuildEcho(api.NewHandler(db.DB, db.RDB), api.EchoOptions{LogLevel: log.INFO})
 
 	e.Logger.Fatal(e.Start(":1323"))
 }

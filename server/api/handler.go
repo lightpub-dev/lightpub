@@ -5,6 +5,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"github.com/redis/go-redis/v9"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
@@ -39,11 +40,16 @@ func (d *dbconn) DB() *sqlx.DB {
 	return d.D
 }
 
-func BuildEcho(h *Handler) *echo.Echo {
+type EchoOptions struct {
+	LogLevel log.Lvl
+}
+
+func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	e := echo.New()
 
 	// setup logger
 	e.Use(middleware.Logger())
+	e.Logger.SetLevel(options.LogLevel)
 
 	// CORS
 	e.Use(middleware.CORS())
