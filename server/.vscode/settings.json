@@ -9,5 +9,5 @@
     "coveredGutterStyle": "blockgreen",
     "uncoveredGutterStyle": "blockred"
   },
-  "go.coverOnSave": true,
+  "go.testOnSave": true
 }
