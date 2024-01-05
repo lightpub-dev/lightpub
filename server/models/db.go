@@ -14,6 +14,18 @@ type User struct {
 	IsLocal  bool    `db:"is_local"`
 }
 
+type FullUser struct {
+	User
+	Bio    string `db:"bio"`
+	Labels []UserLabelDB
+}
+
+type UserLabelDB struct {
+	Order int    `db:"order"`
+	Key   string `db:"key"`
+	Value string `db:"value"`
+}
+
 type UserToken struct {
 	ID     int64  `db:"id"`
 	UserID string `db:"user_id"`

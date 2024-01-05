@@ -361,3 +361,46 @@ func (h *Handler) PutUser(c echo.Context) error {
 
 	return c.NoContent(http.StatusOK)
 }
+
+func (h *Handler) GetUser(c echo.Context) error {
+	userspec := c.Param("username")
+
+	user, err := users.GetProfile(c.Request().Context(), h.MakeDB(), userspec)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(http.StatusInternalServerError, "internal server error")
+	}
+
+	if user == nil {
+		return c.String(http.StatusNotFound, "user not found")
+	}
+
+	var userURL string
+	if user.URL == nil {
+		userURL = createLocalUserURL(user.Username)
+	} else {
+		userURL = *user.URL
+	}
+
+	labels := []models.UserLabel{}
+	for _, label := range user.Labels {
+		labels = append(labels, models.UserLabel{
+			Key:   label.Key,
+			Value: label.Value,
+		})
+	}
+
+	response := models.UserFullInfoResponse{
+		UserInfoResponse: models.UserInfoResponse{
+			ID:       user.ID,
+			Username: user.Username,
+			Hostname: user.Host,
+			Nickname: user.Nickname,
+			URL:      userURL,
+		},
+		Bio:    user.Bio,
+		Labels: labels,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}

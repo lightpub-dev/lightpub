@@ -73,6 +73,12 @@ type UserInfoResponse struct {
 	URL      string `json:"url"`
 }
 
+type UserFullInfoResponse struct {
+	UserInfoResponse
+	Bio    string      `json:"bio"`
+	Labels []UserLabel `json:"labels"`
+}
+
 type TimelineResponse struct {
 	Posts          []UserPostEntry `json:"posts"`
 	LatestPostTime *time.Time      `json:"latest_post_time"`

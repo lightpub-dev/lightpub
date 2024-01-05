@@ -171,6 +171,12 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		return c.String(500, "Internal Server Error")
 	}
 
+	_, err = tx.Exec("INSERT INTO UserProfile (user_id,bio) VALUES(UUID_TO_BIN(?), '')", user.ID)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
 	// commit
 	err = tx.Commit()
 	if err != nil {

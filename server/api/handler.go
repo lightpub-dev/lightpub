@@ -81,6 +81,7 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	authed.PUT("/user/:username/follow", h.FollowAUser)
 	authed.DELETE("/user/:username/follow", h.UnfollowAUser)
 	authed.PUT("/user", h.PutUser)
+	unAuthed.GET("/user/:username", h.GetUser)
 
 	// Timeline
 	authed.GET("/timeline", h.GetTimeline)

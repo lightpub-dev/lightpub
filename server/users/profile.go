@@ -39,3 +39,33 @@ func UpdateProfile(ctx context.Context, conn db.DBConn, userID string, req *mode
 
 	return tx.Commit()
 }
+
+func GetProfile(ctx context.Context, conn db.DBConn, userSpec string) (*models.FullUser, error) {
+	basicUser, err := FindIDByUsername(ctx, conn, userSpec)
+	if err != nil {
+		return nil, err
+	}
+
+	if basicUser == nil {
+		return nil, nil
+	}
+
+	var profile models.FullUser
+	profile.User = *basicUser
+
+	// fetch Bio
+	err = conn.DB().GetContext(ctx, &profile.Bio, "SELECT bio FROM UserProfile WHERE user_id=UUID_TO_BIN(?)", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch labels
+	var labels []models.UserLabelDB
+	err = conn.DB().SelectContext(ctx, &labels, "SELECT `order`,`key`,`value` FROM UserLabel WHERE user_id=UUID_TO_BIN(?) ORDER BY `order` ASC", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
+	profile.Labels = labels
+
+	return &profile, nil
+}
