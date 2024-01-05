@@ -30,7 +30,7 @@ func UpdateProfile(ctx context.Context, conn db.DBConn, userID string, req *mode
 		}
 
 		for i, label := range req.Labels {
-			_, err = tx.ExecContext(ctx, "INSERT INTO UserLabel(user_id, order, key, value) VALUES (UUID_TO_BIN(?), ?, ?, ?)", userID, i, label.Key, label.Value)
+			_, err = tx.ExecContext(ctx, "INSERT INTO UserLabel(user_id, `order`, `key`, `value`) VALUES (UUID_TO_BIN(?), ?, ?, ?)", userID, i, label.Key, label.Value)
 			if err != nil {
 				return err
 			}

@@ -86,8 +86,8 @@ type TimelineResponse struct {
 }
 
 type UserProfileUpdate struct {
-	Bio    *string     `json:"bio" validate:"max=2000"`
-	Labels []UserLabel `json:"labels" validate:"max=4"`
+	Bio    *string     `json:"bio" validate:"omitempty,max=2000"`
+	Labels []UserLabel `json:"labels" validate:"omitempty,max=4"`
 }
 
 type UserLabel struct {

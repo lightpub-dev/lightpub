@@ -357,7 +357,11 @@ func (h *Handler) PutUser(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "invalid request body")
 	}
 
-	users.UpdateProfile(c.Request().Context(), h.MakeDB(), myUserID, &update)
+	err := users.UpdateProfile(c.Request().Context(), h.MakeDB(), myUserID, &update)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(http.StatusInternalServerError, "internal server error")
+	}
 
 	return c.NoContent(http.StatusOK)
 }
