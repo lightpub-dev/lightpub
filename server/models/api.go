@@ -78,3 +78,13 @@ type TimelineResponse struct {
 	LatestPostTime *time.Time      `json:"latest_post_time"`
 	OldestPostTime *time.Time      `json:"oldest_post_time"`
 }
+
+type UserProfileUpdate struct {
+	Bio    *string     `json:"bio" validate:"max=2000"`
+	Labels []UserLabel `json:"labels" validate:"max=4"`
+}
+
+type UserLabel struct {
+	Key   string `json:"key" validate:"required,max=2000"`
+	Value string `json:"value" validate:"required,max=2000"`
+}

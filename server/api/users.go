@@ -344,3 +344,20 @@ func (h *Handler) FollowAUser(c echo.Context) error {
 func (h *Handler) UnfollowAUser(c echo.Context) error {
 	return h.modifyFollow(c, false)
 }
+
+func (h *Handler) PutUser(c echo.Context) error {
+	myUserID := c.Get(ContextUserID).(string)
+
+	var update models.UserProfileUpdate
+	if err := c.Bind(&update); err != nil {
+		return c.String(http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := validate.Struct(update); err != nil {
+		return c.String(http.StatusBadRequest, "invalid request body")
+	}
+
+	users.UpdateProfile(c.Request().Context(), h.MakeDB(), myUserID, &update)
+
+	return c.NoContent(http.StatusOK)
+}
