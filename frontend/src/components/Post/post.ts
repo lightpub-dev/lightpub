@@ -8,6 +8,11 @@ export interface UserPostEntry {
     privacy: Privacy
     reply_to?: string | UserPostEntry
     repost_of?: string | UserPostEntry
+    repost_count: number
+    reply_count: number
+    quote_count: number
+    favorite_count: number
+    reactions: Record<string, number>
 }
 
 export interface UserPostDetail {

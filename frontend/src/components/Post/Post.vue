@@ -13,6 +13,18 @@ const props = defineProps({
 const createdTime = computed(() => {
     return format(props.user_post.created_at)
 })
+
+const replyCount = computed(() => {
+    return props.user_post.reply_count
+})
+
+const repostCount = computed(() => {
+    return props.user_post.repost_count + props.user_post.quote_count
+})
+
+const favoriteCount = computed(() => {
+    return props.user_post.favorite_count
+})
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
@@ -156,7 +168,7 @@ const createdTime = computed(() => {
                         stroke-linejoin="round"
                     />
                 </svg>
-                <p class="ml-2">2.8k</p>
+                <p class="ml-2">{{ replyCount }}</p>
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
@@ -176,7 +188,7 @@ const createdTime = computed(() => {
                     />
                 </svg>
 
-                <p class="ml-2">1.2k</p>
+                <p class="ml-2">{{ repostCount }}</p>
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
@@ -196,7 +208,7 @@ const createdTime = computed(() => {
                     />
                 </svg>
 
-                <p class="ml-2">20.17k</p>
+                <p class="ml-2">{{ favoriteCount }}</p>
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
