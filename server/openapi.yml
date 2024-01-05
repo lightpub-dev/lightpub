@@ -18,7 +18,7 @@ paths:
         - Auth
         - No authorization
       security: []
-      description: Login to to the API
+      summary: Login to to the API
       requestBody:
         content:
           application/json:
@@ -52,7 +52,7 @@ paths:
         - Auth
         - No authorization
       security: []
-      description: Register a new account.
+      summary: Register a new account.
       requestBody:
         content:
           application/json:
@@ -87,7 +87,7 @@ paths:
       tags:
         - Post
         - Authorization required
-      description: Create a new post.
+      summary: Create a new post.
       requestBody:
         content:
           application/json:
@@ -107,7 +107,7 @@ paths:
       tags:
         - Post
         - Authorization required
-      description: Fetch a post.
+      summary: Fetch a post.
       parameters:
         - $ref: "#/components/parameters/PathPostID"
       responses:
@@ -130,7 +130,7 @@ paths:
       tags:
         - Post
         - Authorization required
-      description: Reply to a post.
+      summary: Reply to a post.
       parameters:
         - $ref: "#/components/parameters/PathPostID"
       requestBody:
@@ -154,7 +154,7 @@ paths:
       tags:
         - Post
         - Authorization required
-      description: Repost a post.
+      summary: Repost a post.
       parameters:
         - $ref: "#/components/parameters/PathPostID"
       requestBody:
@@ -182,7 +182,7 @@ paths:
       tags:
         - Post
         - Authorization required
-      description: quote a post.
+      summary: quote a post.
       parameters:
         - $ref: "#/components/parameters/PathPostID"
       requestBody:
@@ -203,7 +203,7 @@ paths:
                 $ref: "#/components/schemas/PostResultResponse"
   /post/{post_id}/reaction/{reaction}:
     put:
-      description: Add a reaction to a post.
+      summary: Add a reaction to a post.
       tags:
         - Authorization required
         - Post
@@ -218,7 +218,7 @@ paths:
         200:
           description: Success.
     delete:
-      description: Delete a reaction from a post.
+      summary: Delete a reaction from a post.
       tags:
         - Authorization required
         - Post
@@ -234,7 +234,7 @@ paths:
           description: Success.
   /post/{post_id}/favorite:
     put:
-      description: Add a post to my favorite list.
+      summary: Add a post to my favorite list.
       tags:
         - Authorization required
         - Post
@@ -248,7 +248,7 @@ paths:
         200:
           description: Success.
     delete:
-      description: Delete a post to my favorite list.
+      summary: Delete a post to my favorite list.
       tags:
         - Authorization required
         - Post
@@ -263,7 +263,7 @@ paths:
           description: Success.
   /post/{post_id}/bookmark:
     put:
-      description: Add a post to my bookmark list.
+      summary: Add a post to my bookmark list.
       tags:
         - Authorization required
         - Post
@@ -277,7 +277,7 @@ paths:
         200:
           description: Success.
     delete:
-      description: Delete a post to my bookmark list.
+      summary: Delete a post to my bookmark list.
       tags:
         - Authorization required
         - Post
@@ -397,7 +397,7 @@ paths:
             type: integer
             minimum: 0
             maximum: 100
-      description: Get the timeline.
+      summary: Get the timeline.
       responses:
         200:
           description: Success.
@@ -417,6 +417,39 @@ paths:
                     format: date-time
                     description: The timestamp of the oldest post included in `posts`. Null if posts.length==0.
                     nullable: true
+  /user:
+    put:
+      tags: [Authorization required, User]
+      summary: Update user profile.
+      description: Update user profile. Only the fields in the request body are updated.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileRequest"
+      responses:
+        200:
+          description: OK.
+        401:
+          description: Unauthorized.
+  
+  /user/{username}:
+    get:
+      summary: Get user profile.
+      tags:
+        - No authorization
+        - User
+      parameters:
+        - $ref: "#/components/parameters/PathUserSpecifier"
+      responses:
+        404:
+          description: User not found.
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFullInfoResponse"
 
 components:
   securitySchemes:
@@ -659,5 +692,64 @@ components:
           format: uuid
       required:
         - id
+    UserLabels:
+      type: array
+      description: The labels of the user.
+      minLength: 0
+      maxLength: 4
+      items:
+        type: object
+        properties:
+          key:
+            type: string
+            maxLength: 2000
+            example: "Favorite language"
+          value:
+            type: string
+            maxLength: 2000
+            example: "Java"
+        required:
+          - key
+          - value
+    UserProfileRequest:
+      properties:
+        bio:
+          type: string
+          description: The bio of the user.
+          maxLength: 2000
+          example: "I am a circuit designer."
+        labels:
+          $ref: "#/components/schemas/UserLabels"
+    UserFullInfoResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+          example: tinaxd
+        hostname:
+          type: string
+          example: lightpub.example.com
+        nickname:
+          type: string
+          example: tinax
+        url:
+          type: string
+          description: URL to the user profile page.
+          example: https://lightpub.example.com/user/tinaxd
+        bio:
+          type: string
+        labels:
+          $ref: "#/components/schemas/UserLabels"
+      required:
+        - id
+        - username
+        - hostname
+        - nickname
+        - url
+        - bio
+        - labels
+        
 security:
   - bearerAuth: []
