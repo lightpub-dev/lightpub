@@ -614,9 +614,9 @@ components:
           additionalProperties:
             type: integer
             minimum: 0
-            example:
-              "+1": 3,
-              "heart": 2
+          example:
+            "+1": 3
+            "heart": 2
       required:
         - id
         - author
