@@ -31,6 +31,7 @@ const postTweet = () => {
     alert("NO, IT'S NOT ACTUALLY POSTED!")
     tweetText.value = ''
     selectedImage.value = null
+    closePostMenu()
 }
 
 const closePostMenu = () => {
@@ -39,9 +40,10 @@ const closePostMenu = () => {
 </script>
 
 <template>
+    <transition name="transit">
     <div
         v-if="showPostMenu"
-        class="w-full p-6 mx-auto border border-gray-300 rounded-xl shadow-lg bg-white dark:bg-gray-800"
+        class="w-full p-6 mx-auto border border-gray-300 rounded-xl shadow-lg bg-white"
     >
         <textarea
             v-model="tweetText"
@@ -81,6 +83,17 @@ const closePostMenu = () => {
             </div>
         </div>
     </div>
+    </transition>
 </template>
 
-<style scoped></style>
+<style scoped>
+.transit-enter-active,
+.transit-leave-active {
+    transition: opacity 0.2s ease-in-out;
+}
+.transit-enter-from,
+.transit-leave-to {
+    opacity: 0;
+}
+
+</style>
