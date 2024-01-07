@@ -85,6 +85,7 @@ const menus = reactive({
         <!-- Post Button -->
         <button
             class="w-full py-3 px-4 flex items-center justify-center mb-2 cursor-pointer select-none bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 rounded-xl shadow-md hover:shadow-lg transition duration-300 ease-in-out"
+            @click="toggleCreatePost"
         >
             <font-awesome-icon
                 :icon="['fa-solid', 'fa-plus']"
@@ -96,5 +97,11 @@ const menus = reactive({
 </template>
 
 <script lang="ts">
-export default {}
+export default {
+    methods: {
+        toggleCreatePost() {
+            this.$emit('create-post')
+        }
+    }
+}
 </script>

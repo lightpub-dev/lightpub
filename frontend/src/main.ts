@@ -13,6 +13,7 @@ import {
     faGear,
     faHeart,
     faHouse,
+    faImage,
     faInbox,
     faMagnifyingGlass,
     faPlus
@@ -36,7 +37,8 @@ library.add(
     faInbox,
     faGear,
     faMagnifyingGlass,
-    faPlus
+    faPlus,
+    faImage
 )
 createApp(App)
     .component('font-awesome-icon', FontAwesomeIcon)
