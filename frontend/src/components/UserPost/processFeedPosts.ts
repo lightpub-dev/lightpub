@@ -1,6 +1,6 @@
 import { inject, ref } from 'vue'
 import { AUTH_AXIOS } from '../../consts.ts'
-import { TimelineResponse, UserPostEntry } from './post.ts'
+import { TimelineResponse, UserPostEntry } from './userpost.model.ts'
 
 interface ExampleUserPostEntry extends UserPostEntry {
     post: {

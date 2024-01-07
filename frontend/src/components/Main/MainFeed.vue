@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { useTimeline } from '../Post/processFeedPosts.ts'
+import { useTimeline } from '../UserPost/processFeedPosts.ts'
 const timeline = useTimeline()
 const feedPosts = computed(() => {
     if (timeline.posts.value === null) {
@@ -15,19 +15,19 @@ const feedPosts = computed(() => {
         class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-gray-100"
     >
         <div class="flex flex-col p-2">
-            <Post
+            <UserPost
                 v-for="(post, index) in feedPosts"
                 :key="index"
                 :user_post="post"
-            ></Post>
+            ></UserPost>
         </div>
     </div>
 </template>
 
 <script lang="ts">
-import Post from '@/components/Post/Post.vue'
+import UserPost from '@/components/UserPost/UserPost.vue'
 
 export default {
-    components: { Post }
+    components: { UserPost }
 }
 </script>
