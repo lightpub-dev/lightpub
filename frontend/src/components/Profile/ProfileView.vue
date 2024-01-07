@@ -2,8 +2,8 @@
 import { Ref, computed, inject, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import { AUTH_AXIOS } from '../../consts'
-import Post from '../Post/Post.vue'
 import { useUserPosts } from './userPosts'
+import UserPost from '@/components/UserPost/UserPost.vue'
 
 const route = useRoute()
 const id = computed(() => route.params.id)
@@ -107,11 +107,11 @@ const posts = computed(() => {
         class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-[rgb(219,234,254)]"
     >
         <div class="flex flex-col p-2">
-            <Post
+            <UserPost
                 v-for="(post, index) in posts"
                 :key="index"
                 :user_post="post"
-            ></Post>
+            ></UserPost>
         </div>
     </div>
 </template>

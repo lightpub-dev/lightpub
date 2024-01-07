@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { format } from 'timeago.js'
 import { PropType, computed } from 'vue'
-import { UserPostEntry } from './post.ts'
+import { UserPostEntry } from './userpost.model.ts'
 
 const props = defineProps({
     user_post: {

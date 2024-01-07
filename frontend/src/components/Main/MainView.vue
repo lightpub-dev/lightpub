@@ -5,6 +5,7 @@ import MainHeader from '@/components/Main/MainHeader.vue'
 import MainLeftMenu from '@/components/Main/MainLeftMenu.vue'
 import MainRightMenu from '@/components/Main/MainRightMenu.vue'
 import ProfileView from '@/components/Profile/ProfileView.vue'
+import CreatePostView from '@/components/Main/CreatePostView.vue'
 
 import axios from 'axios'
 import { provide } from 'vue'
@@ -41,10 +42,13 @@ provide(CURRENT_USERNAME, username)
             <MainHeader />
         </template>
         <template #left-menu>
-            <MainLeftMenu />
+            <MainLeftMenu @create-post="handleToggleCreatePost" />
         </template>
         <template #right-menu>
             <MainRightMenu />
+        </template>
+        <template #create-post>
+            <CreatePostView :showPostMenu="isCreatePostOpen" />
         </template>
         <template #feed>
             <MainFeed v-if="props.mode === 'feed'" />
@@ -55,7 +59,18 @@ provide(CURRENT_USERNAME, username)
 
 <script lang="ts">
 export default {
-    name: 'MainView'
+    name: 'MainView',
+    data() {
+        return {
+            isCreatePostOpen: false
+        }
+    },
+    methods: {
+        // Toggle Create Post
+        handleToggleCreatePost() {
+            this.isCreatePostOpen = !this.isCreatePostOpen
+        }
+    }
 }
 </script>
 

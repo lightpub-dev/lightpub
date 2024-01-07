@@ -18,6 +18,7 @@
                         <slot name="header"></slot>
                     </div>
                     <div class="flex flex-col w-full h-full overflow-auto">
+                        <slot name="create-post"></slot>
                         <slot name="feed"></slot>
                     </div>
                 </div>
