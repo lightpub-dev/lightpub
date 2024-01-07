@@ -8,8 +8,8 @@ import ProfileView from '@/components/Profile/ProfileView.vue'
 
 import axios from 'axios'
 import { provide } from 'vue'
-import { getLoginToken } from '../../auth'
-import { AUTH_AXIOS } from '../../consts'
+import { getLoginToken, getUsername } from '../../auth'
+import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
 import { BASE_URL } from '../../settings'
 
 // axios setup
@@ -29,7 +29,10 @@ const props = defineProps<{
     mode: 'feed' | 'profile'
 }>()
 
+const username = getUsername()!
+
 provide(AUTH_AXIOS, authAxios)
+provide(CURRENT_USERNAME, username)
 </script>
 
 <template>

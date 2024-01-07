@@ -1,10 +1,12 @@
 <script lang="ts" setup>
-import { computed, inject, ref } from 'vue'
+import { Ref, computed, inject, ref, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import { AUTH_AXIOS } from '../../consts'
+import Post from '../Post/Post.vue'
+import { useUserPosts } from './userPosts'
 
 const route = useRoute()
-const id = route.params.id
+const id = computed(() => route.params.id)
 const axios = inject(AUTH_AXIOS)!
 
 const username = ref('')
@@ -22,16 +24,14 @@ const nPosts = ref(100)
 const nFollowers = ref(50)
 const nFollowings = ref(51)
 
-const fetchProfile = async () => {
-    const res = await axios.get(`/user/${id}`)
+watchEffect(async () => {
+    const res = await axios.get(`/user/${id.value}`)
     username.value = res.data.username
     nickname.value = res.data.nickname
     hostname.value = res.data.hostname
     bio.value = res.data.bio
     labels.value = res.data.labels
-}
-
-fetchProfile()
+})
 
 const atHostname = computed(() => {
     if (hostname.value) {
@@ -40,12 +40,18 @@ const atHostname = computed(() => {
         return ''
     }
 })
+
+const userPosts = useUserPosts(id as Ref<string>)
+const posts = computed(() => {
+    if (userPosts.posts.value === null) {
+        return []
+    }
+    return userPosts.posts.value.posts
+})
 </script>
 
 <template>
-    <div
-        class="min-h-screen bg-[rgb(219,234,254)] flex items-start justify-center pt-10"
-    >
+    <div class="bg-[rgb(219,234,254)] flex items-start justify-center pt-10">
         <div class="bg-white p-6 rounded-lg shadow-lg w-64">
             <div class="mb-4">
                 <img
@@ -95,6 +101,17 @@ const atHostname = computed(() => {
                     <p class="font-semibold text-gray-700">{{ nFollowings }}</p>
                 </div>
             </div>
+        </div>
+    </div>
+    <div
+        class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-[rgb(219,234,254)]"
+    >
+        <div class="flex flex-col p-2">
+            <Post
+                v-for="(post, index) in posts"
+                :key="index"
+                :user_post="post"
+            ></Post>
         </div>
     </div>
 </template>
