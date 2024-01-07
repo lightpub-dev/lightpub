@@ -29,7 +29,7 @@
 import axios from 'axios'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { storeLoginToken } from '../../auth'
+import { storeLoginToken, storeUsername } from '../../auth'
 import { BASE_URL } from '../../settings'
 
 export default {
@@ -58,6 +58,7 @@ export default {
                 const token = response.data.token
                 // set to localStorage
                 storeLoginToken(token)
+                storeUsername(username.value)
 
                 // move to "/"
                 router.push('/') // Use the router object to navigate to the home page

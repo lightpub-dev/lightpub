@@ -1,5 +1,42 @@
 <script lang="ts" setup>
+import { computed, inject, ref } from 'vue'
+import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
+
 import { reactive } from 'vue'
+
+const axios = inject(AUTH_AXIOS)!
+const currentUsername = inject(CURRENT_USERNAME)!
+const atUsername = computed(() => {
+    if (currentUsername) {
+        return `@${currentUsername}`
+    } else {
+        console.error('currentUsername is null')
+        return ''
+    }
+})
+
+const username = ref('')
+const nickname = ref('')
+
+const nPosts = ref(100)
+const nFollowers = ref(50)
+const nFollowings = ref(51)
+
+const fetchProfile = async () => {
+    const res = await axios.get(`/user/${atUsername.value}`)
+    username.value = res.data.username
+    nickname.value = res.data.nickname
+}
+
+fetchProfile()
+
+const userURL = computed(() => {
+    if (username.value) {
+        return `/user/${atUsername.value}`
+    } else {
+        return ''
+    }
+})
 
 const menus = reactive({
     active: 0,
@@ -37,15 +74,25 @@ const menus = reactive({
     >
         <!-- Profile Section -->
         <div class="profile flex flex-col justify-center items-center">
-            <img
-                alt=""
-                class="inline-block h-20 w-20 rounded-full ring-2 ring-white"
-                src="https://avatars.githubusercontent.com/u/41512077"
-            />
+            <router-link :to="userURL">
+                <img
+                    alt=""
+                    class="inline-block h-20 w-20 rounded-full ring-2 ring-white"
+                    src="https://avatars.githubusercontent.com/u/41512077"
+                />
+            </router-link>
             <div class="flex flex-col justify-center items-center">
-                <p class="text-xl font-bold text-gray-800">Das08</p>
-                <p class="text-sm text-gray-700">@Das08</p>
-                <p class="text-sm text-gray-700">Joined May 2021</p>
+                <router-link :to="userURL">
+                    <p class="text-xl font-bold text-gray-800">
+                        {{ nickname }}
+                    </p></router-link
+                >
+                <router-link :to="userURL">
+                    <p class="text-sm text-gray-700">
+                        {{ atUsername }}
+                    </p></router-link
+                >
+                <!-- <p class="text-sm text-gray-700">Joined May 2021</p> -->
             </div>
         </div>
 
@@ -56,17 +103,17 @@ const menus = reactive({
             <!-- Repeated Structure for Posts, Followers, Following -->
             <div class="flex flex-col justify-center items-center">
                 <p class="-mt-1 text-xs text-gray-600">Posts</p>
-                <p class="text-lg font-bold text-gray-800">255</p>
+                <p class="text-lg font-bold text-gray-800">{{ nPosts }}</p>
             </div>
             <div class="self-center bg-gray-300 w-px h-12"></div>
             <div class="flex flex-col justify-center items-center">
                 <p class="-mt-1 text-xs text-gray-600">Followers</p>
-                <p class="text-lg font-bold text-gray-800">2</p>
+                <p class="text-lg font-bold text-gray-800">{{ nFollowers }}</p>
             </div>
             <div class="self-center bg-gray-300 w-px h-12"></div>
             <div class="flex flex-col justify-center items-center">
                 <p class="-mt-1 text-xs text-gray-600">Following</p>
-                <p class="text-lg font-bold text-gray-800">3</p>
+                <p class="text-lg font-bold text-gray-800">{{ nFollowings }}</p>
             </div>
         </div>
 

@@ -25,29 +25,39 @@ const repostCount = computed(() => {
 const favoriteCount = computed(() => {
     return props.user_post.favorite_count
 })
+
+const userPageURL = computed(() => {
+    return `#/user/${props.user_post.author.id}`
+})
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
         <div class="flex justify-between items-center">
             <div class="flex items-center">
                 <!-- Avatar -->
-                <div
-                    class="avatar rounded-full bg-ll-base dark:bg-ld-base w-10 h-10 border-2 border-ll-border dark:border-ld-border mr-3 flex items-center justify-center"
-                >
-                    <img
-                        alt=""
-                        class="h-full w-full rounded-full"
-                        src="https://avatars.githubusercontent.com/u/41512077"
-                    />
-                </div>
+                <router-link :to="userPageURL">
+                    <div
+                        class="avatar rounded-full bg-ll-base dark:bg-ld-base w-10 h-10 border-2 border-ll-border dark:border-ld-border mr-3 flex items-center justify-center"
+                    >
+                        <img
+                            alt=""
+                            class="h-full w-full rounded-full"
+                            src="https://avatars.githubusercontent.com/u/41512077"
+                        />
+                    </div>
+                </router-link>
                 <!-- User Details -->
                 <div class="flex items-center">
-                    <p class="text-lg font-bold text-gray-800 mr-2">
-                        {{ props.user_post.author.username }}
-                    </p>
-                    <p class="text-sm text-gray-800 mr-2">
-                        @{{ props.user_post.author.id }}
-                    </p>
+                    <router-link :to="userPageURL">
+                        <p class="text-lg font-bold text-gray-800 mr-2">
+                            {{ props.user_post.author.username }}
+                        </p>
+                    </router-link>
+                    <router-link :to="userPageURL">
+                        <p class="text-sm text-gray-800 mr-2">
+                            @{{ props.user_post.author.id }}
+                        </p></router-link
+                    >
                     <p class="text-sm text-gray-500">{{ createdTime }}</p>
                 </div>
             </div>

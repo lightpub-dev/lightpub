@@ -4,11 +4,12 @@ import MainFeed from '@/components/Main/MainFeed.vue'
 import MainHeader from '@/components/Main/MainHeader.vue'
 import MainLeftMenu from '@/components/Main/MainLeftMenu.vue'
 import MainRightMenu from '@/components/Main/MainRightMenu.vue'
+import ProfileView from '@/components/Profile/ProfileView.vue'
 
 import axios from 'axios'
 import { provide } from 'vue'
-import { getLoginToken } from '../../auth'
-import { AUTH_AXIOS } from '../../consts'
+import { getLoginToken, getUsername } from '../../auth'
+import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
 import { BASE_URL } from '../../settings'
 
 // axios setup
@@ -24,7 +25,14 @@ authAxios.interceptors.request.use(config => {
     return config
 })
 
+const props = defineProps<{
+    mode: 'feed' | 'profile'
+}>()
+
+const username = getUsername()!
+
 provide(AUTH_AXIOS, authAxios)
+provide(CURRENT_USERNAME, username)
 </script>
 
 <template>
@@ -39,7 +47,8 @@ provide(AUTH_AXIOS, authAxios)
             <MainRightMenu />
         </template>
         <template #feed>
-            <MainFeed />
+            <MainFeed v-if="props.mode === 'feed'" />
+            <ProfileView v-else-if="props.mode === 'profile'" />
         </template>
     </MainAppShell>
 </template>
