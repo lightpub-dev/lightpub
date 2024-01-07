@@ -14,7 +14,8 @@ import {
     faHeart,
     faHouse,
     faInbox,
-    faMagnifyingGlass
+    faMagnifyingGlass,
+    faPlus
 } from '@fortawesome/free-solid-svg-icons'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
@@ -28,7 +29,15 @@ const router = createRouter({
     routes
 })
 
-library.add(faHouse, faBell, faHeart, faInbox, faGear, faMagnifyingGlass)
+library.add(
+    faHouse,
+    faBell,
+    faHeart,
+    faInbox,
+    faGear,
+    faMagnifyingGlass,
+    faPlus
+)
 createApp(App)
     .component('font-awesome-icon', FontAwesomeIcon)
     .use(router)

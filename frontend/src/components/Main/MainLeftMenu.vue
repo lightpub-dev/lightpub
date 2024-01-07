@@ -71,7 +71,7 @@ const menus = reactive({
         </div>
 
         <!-- Menu Items -->
-        <ul class="flex flex-col w-full pt-5">
+        <ul class="flex-grow flex flex-col w-full pt-5">
             <li
                 v-for="menu in menus.menusList"
                 :key="menu.name"
@@ -81,6 +81,17 @@ const menus = reactive({
                 <p class="ml-5 text-gray-800 font-medium">{{ menu.name }}</p>
             </li>
         </ul>
+
+        <!-- Post Button -->
+        <button
+            class="w-full py-3 px-4 flex items-center justify-center mb-2 cursor-pointer select-none bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 rounded-xl shadow-md hover:shadow-lg transition duration-300 ease-in-out"
+        >
+            <font-awesome-icon
+                :icon="['fa-solid', 'fa-plus']"
+                class="text-white"
+            />
+            <p class="ml-3 text-white font-medium">Post</p>
+        </button>
     </div>
 </template>
 
