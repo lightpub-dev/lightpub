@@ -20,7 +20,20 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
     { path: '/login', component: LoginView },
-    { path: '/', component: MainView }
+    {
+        path: '/',
+        component: MainView,
+        props: {
+            mode: 'feed'
+        }
+    },
+    {
+        path: '/user/:id',
+        component: MainView,
+        props: {
+            mode: 'profile'
+        }
+    }
 ]
 
 const router = createRouter({
