@@ -43,7 +43,8 @@ const menus = reactive({
     menusList: [
         {
             name: 'Home',
-            icon: ['fa-solid', 'fa-house']
+            icon: ['fa-solid', 'fa-house'],
+            url: '/'
         },
         {
             name: 'Search',
@@ -119,14 +120,34 @@ const menus = reactive({
 
         <!-- Menu Items -->
         <ul class="flex-grow flex flex-col w-full pt-5">
-            <li
-                v-for="menu in menus.menusList"
-                :key="menu.name"
-                class="w-full px-4 py-2 flex items-center mb-2 cursor-pointer hover:bg-blue-200 hover:rounded-xl select-none"
-            >
-                <font-awesome-icon :icon="menu.icon" class="text-blue-600" />
-                <p class="ml-5 text-gray-800 font-medium">{{ menu.name }}</p>
-            </li>
+            <template v-for="menu in menus.menusList" :key="menu.name">
+                <router-link v-if="menu.url" :to="menu.url"
+                    ><li
+                        class="w-full px-4 py-2 flex items-center mb-2 cursor-pointer hover:bg-blue-200 hover:rounded-xl select-none"
+                    >
+                        <font-awesome-icon
+                            :icon="menu.icon"
+                            class="text-blue-600"
+                        />
+                        <p class="ml-5 text-gray-800 font-medium">
+                            {{ menu.name }}
+                        </p>
+                    </li>
+                </router-link>
+                <template v-else>
+                    <li
+                        class="w-full px-4 py-2 flex items-center mb-2 cursor-pointer hover:bg-blue-200 hover:rounded-xl select-none"
+                    >
+                        <font-awesome-icon
+                            :icon="menu.icon"
+                            class="text-blue-600"
+                        />
+                        <p class="ml-5 text-gray-800 font-medium">
+                            {{ menu.name }}
+                        </p>
+                    </li>
+                </template>
+            </template>
         </ul>
 
         <!-- Post Button -->

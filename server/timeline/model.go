@@ -11,6 +11,7 @@ type FetchedPost struct {
 	PosterID       string    `db:"poster_id" json:"pi"`
 	PosterUsername string    `db:"poster_username" json:"pu"`
 	PosterHost     string    `db:"poster_host" json:"ph"`
+	PosterNickname string    `db:"poster_nickname" json:"pn"`
 	Content        *string   `db:"content" json:"c"`
 	CreatedAt      time.Time `db:"created_at" json:"t"`
 	Privacy        string    `db:"privacy" json:"pv"`

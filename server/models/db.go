@@ -16,8 +16,9 @@ type User struct {
 
 type FullUser struct {
 	User
-	Bio    string `db:"bio"`
-	Labels []UserLabelDB
+	Bio                 string `db:"bio"`
+	Labels              []UserLabelDB
+	IsFollowingByViewer bool
 }
 
 type UserLabelDB struct {

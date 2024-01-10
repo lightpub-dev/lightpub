@@ -432,7 +432,7 @@ paths:
           description: OK.
         401:
           description: Unauthorized.
-  
+
   /user/{username}:
     get:
       summary: Get user profile.
@@ -640,10 +640,14 @@ components:
         host:
           type: string
           example: lightpub.example.com
+        nickname:
+          type: string
+          example: tinax
       required:
         - id
         - username
         - host
+        - nickname
     UserInfoResponse:
       properties:
         id:
@@ -662,12 +666,18 @@ components:
           type: string
           description: URL to the user profile page.
           example: https://lightpub.example.com/user/tinaxd
+        bio:
+          type: string
+        is_following:
+          type: boolean
+          description: Whether you are following this user. Not defined if you are not authenticated.
       required:
         - id
         - username
         - hostname
         - nickname
         - url
+        - bio
     UserFollowerResponse:
       properties:
         followers:
@@ -742,6 +752,9 @@ components:
           type: string
         labels:
           $ref: "#/components/schemas/UserLabels"
+        is_following:
+          type: boolean
+          description: Whether you are following this user. Not defined if you are not authenticated.
       required:
         - id
         - username
@@ -750,6 +763,6 @@ components:
         - url
         - bio
         - labels
-        
+
 security:
   - bearerAuth: []

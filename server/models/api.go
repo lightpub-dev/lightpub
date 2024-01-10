@@ -63,19 +63,21 @@ type UserPostEntryAuthor struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	Host     string `json:"host"`
+	Nickname string `json:"nickname"`
 }
 
 type UserInfoResponse struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Hostname string `json:"hostname"`
-	Nickname string `json:"nickname"`
-	URL      string `json:"url"`
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	Hostname    string `json:"hostname"`
+	Nickname    string `json:"nickname"`
+	URL         string `json:"url"`
+	Bio         string `json:"bio"`
+	IsFollowing *bool  `json:"is_following,omitempty"`
 }
 
 type UserFullInfoResponse struct {
 	UserInfoResponse
-	Bio    string      `json:"bio"`
 	Labels []UserLabel `json:"labels"`
 }
 

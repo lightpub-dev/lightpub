@@ -27,7 +27,14 @@ const favoriteCount = computed(() => {
 })
 
 const userPageURL = computed(() => {
-    return `#/user/${props.user_post.author.id}`
+    return `/user/${props.user_post.author.id}`
+})
+
+const atHostname = computed(() => {
+    if (props.user_post.author.host === null) {
+        return ''
+    }
+    return `@${props.user_post.author.host}`
 })
 </script>
 <template>
@@ -50,12 +57,13 @@ const userPageURL = computed(() => {
                 <div class="flex items-center">
                     <router-link :to="userPageURL">
                         <p class="text-lg font-bold text-gray-800 mr-2">
-                            {{ props.user_post.author.username }}
+                            {{ props.user_post.author.nickname }}
                         </p>
                     </router-link>
                     <router-link :to="userPageURL">
                         <p class="text-sm text-gray-800 mr-2">
-                            @{{ props.user_post.author.id }}
+                            @{{ props.user_post.author.username
+                            }}{{ atHostname }}
                         </p></router-link
                     >
                     <p class="text-sm text-gray-500">{{ createdTime }}</p>
@@ -77,7 +85,7 @@ const userPageURL = computed(() => {
             </button>
         </div>
 
-        <p class="pt-5 text-gray-600 dark:text-gray-100 text-lg mb-4">
+        <p class="pt-5 text-gray-600 text-lg mb-4">
             {{ props.user_post.content }}
         </p>
 
@@ -99,7 +107,7 @@ const userPageURL = computed(() => {
             <div
                 v-if="props.user_post?.post.pictures_url.length > 1"
                 :class="`
-            
+
             h-70 grid ${
                 props.user_post?.post.pictures_url.length == 2
                     ? 'grid-cols-1 grid-rows-1'
@@ -115,7 +123,7 @@ const userPageURL = computed(() => {
                     ? 'grid-cols-2 grid-rows-2'
                     : ''
             }
-            
+
 
             gap-2`"
             >
