@@ -24,13 +24,23 @@ const nPosts = ref(100)
 const nFollowers = ref(50)
 const nFollowings = ref(51)
 
-watchEffect(async () => {
+const isFollowing = ref<boolean | null>(null)
+
+const fetchProfile = async () => {
     const res = await axios.get(`/user/${id.value}`)
     username.value = res.data.username
     nickname.value = res.data.nickname
     hostname.value = res.data.hostname
     bio.value = res.data.bio
     labels.value = res.data.labels
+    isFollowing.value = res.data.is_following
+    nPosts.value = res.data.counters.posts
+    nFollowers.value = res.data.counters.followers
+    nFollowings.value = res.data.counters.following
+}
+
+watchEffect(() => {
+    fetchProfile()
 })
 
 const atHostname = computed(() => {
@@ -48,6 +58,21 @@ const posts = computed(() => {
     }
     return userPosts.posts.value.posts
 })
+
+// follow button
+const toggleFollow = async () => {
+    if (isFollowing.value === null) {
+        return
+    }
+    if (isFollowing.value) {
+        await axios.delete(`/user/${id.value}/follow`)
+    } else {
+        await axios.put(`/user/${id.value}/follow`)
+    }
+    isFollowing.value = null
+
+    fetchProfile()
+}
 </script>
 
 <template>
@@ -61,14 +86,37 @@ const posts = computed(() => {
                 />
             </div>
             <div class="text-center">
-                <h2 class="text-xl font-semibold text-gray-700 mb-2">
-                    {{ nickname }}
-                </h2>
-                <h3 class="text-gray-500 mb-3">
-                    @{{ username }}{{ atHostname }}
-                </h3>
+                <div class="flex items-center justify-center mb-2">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-700">
+                            {{ nickname }}
+                        </h2>
+                        <h3 class="text-gray-500 mb-3">
+                            @{{ username }}{{ atHostname }}
+                        </h3>
+                    </div>
+                    <button
+                        :class="{
+                            'ml-2 px-2 py-1': true,
+                            'bg-blue-500 text-white': isFollowing,
+                            'bg-transparent text-blue-500 border border-blue-500':
+                                !isFollowing
+                        }"
+                        @click="toggleFollow"
+                    >
+                        {{
+                            isFollowing === null
+                                ? 'Loading...'
+                                : isFollowing
+                                  ? 'Following'
+                                  : 'Follow'
+                        }}
+                    </button>
+                </div>
+
                 <p class="text-gray-600">{{ bio }}</p>
             </div>
+
             <!-- Specification Table -->
             <div class="mt-4">
                 <table class="w-full text-sm text-center text-gray-500">

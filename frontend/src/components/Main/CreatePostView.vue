@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { inject, ref, watch } from 'vue'
+import { AUTH_AXIOS } from '../../consts'
+
+const emit = defineEmits<{
+    (e: 'created'): void
+}>()
 
 const props = defineProps({
     showPostMenu: {
@@ -26,12 +31,26 @@ const selectImage = (event: Event) => {
     }
 }
 
-const postTweet = () => {
-    alert('Tweet Posted!')
-    alert("NO, IT'S NOT ACTUALLY POSTED!")
-    tweetText.value = ''
-    selectedImage.value = null
-    closePostMenu()
+const authedAxios = inject(AUTH_AXIOS)!
+
+const postTweet = async () => {
+    const content = tweetText.value
+    const privacy = 'public' // TODO
+
+    try {
+        authedAxios.post('/post', {
+            content,
+            privacy
+        })
+
+        tweetText.value = ''
+        selectedImage.value = null
+        closePostMenu()
+
+        emit('created')
+    } catch (ex) {
+        console.error(ex)
+    }
 }
 
 const closePostMenu = () => {
@@ -48,7 +67,7 @@ const closePostMenu = () => {
             <textarea
                 v-model="tweetText"
                 placeholder="What's happening?"
-                class="w-full h-32 p-4 mb-4 text-lg border-0 rounded-lg resize-none bg-gray-100 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                class="w-full h-32 p-4 mb-4 text-lg border-0 rounded-lg resize-none bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
             ></textarea>
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2">

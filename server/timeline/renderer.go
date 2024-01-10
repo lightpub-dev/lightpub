@@ -38,6 +38,7 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 				ID:       cache.PosterID,
 				Username: cache.PosterUsername,
 				Host:     cache.PosterHost,
+				Nickname: cache.PosterNickname,
 			},
 			Content:   cache.Content,
 			CreatedAt: cache.CreatedAt,

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -174,6 +173,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 				ID:       targetUser.ID,
 				Username: targetUser.Username,
 				Host:     hostname,
+				Nickname: targetUser.Nickname,
 			},
 			Content:   post.Content,
 			CreatedAt: post.CreatedAt,
@@ -199,33 +199,29 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 		})
 }
 
-func createLocalUserURL(username string) string {
-	return fmt.Sprintf("%s/user/%s", config.BaseURL, username)
-}
-
 func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
 	username := c.Param("username")
 
 	limitStr := c.QueryParam("limit")
-	limit := DefaultFollowViewLimit
+	limit := int64(DefaultFollowViewLimit)
 	if limitStr != "" {
-		limit64, err := strconv.ParseInt(limitStr, 10, 32)
+		limit64, err := strconv.ParseInt(limitStr, 10, 64)
 		if err != nil {
 			return c.String(400, "invalid limit")
 		}
 		if limit64 < 0 {
 			return c.String(400, "invalid limit")
 		}
-		limit = int(limit64)
+		limit = limit64
 	}
-	afterDateStr := c.QueryParam("after_date")
-	var afterDate *time.Time
-	if afterDateStr != "" {
-		afterDateParsed, err := time.Parse(time.RFC3339, afterDateStr)
+	beforeDateStr := c.QueryParam("before_date")
+	var beforeDate *time.Time
+	if beforeDateStr != "" {
+		beforeDateParsed, err := time.Parse(time.RFC3339, beforeDateStr)
 		if err != nil {
-			return c.String(400, "invalid after_date")
+			return c.String(400, "invalid before_date")
 		}
-		afterDate = &afterDateParsed
+		beforeDate = &beforeDateParsed
 	}
 
 	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), username)
@@ -237,52 +233,37 @@ func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool)
 		return c.String(404, "user not found")
 	}
 
-	var sql string
-	if fetchFollower {
-		sql += `
-	SELECT BIN_TO_UUID(u.id) AS id,u.username,u.host,u.nickname,u.url
-	FROM User u
-	INNER JOIN UserFollow uf ON u.id=uf.follower_id
-	WHERE uf.followee_id=UUID_TO_BIN(?)`
-	} else {
-		sql += `
-	SELECT BIN_TO_UUID(u.id) AS id,u.username,u.host,u.nickname,u.url
-	FROM User u
-	INNER JOIN UserFollow uf ON u.id=uf.followee_id
-	WHERE uf.follower_id=UUID_TO_BIN(?)`
+	var viewerID string
+	if c.Get(ContextAuthed).(bool) {
+		viewerID = c.Get(ContextUserID).(string)
 	}
-	if afterDate != nil {
-		sql += ` AND uf.created_at > ?`
-	}
-	sql += ` ORDER BY uf.created_at DESC`
-	sql += ` LIMIT ?`
 
-	var followDB []models.User
-	err = h.DB.Select(&followDB, sql, targetUser.ID, limit)
+	var followDB []users.FollowerInfo
+	if fetchFollower {
+		followDB, err = users.FindFollowers(c.Request().Context(), h.MakeDB(), targetUser.ID, viewerID, beforeDate, limit)
+	} else {
+		followDB, err = users.FindFollowing(c.Request().Context(), h.MakeDB(), targetUser.ID, viewerID, beforeDate, limit)
+	}
+
 	if err != nil {
 		c.Logger().Error(err)
-		return c.String(500, "internal server error")
+		return c.String(http.StatusInternalServerError, "internal server error")
 	}
 
 	follows := []models.UserInfoResponse{}
 	for _, follow := range followDB {
-		hostname := config.MyHostname
-		if follow.Host != "" {
-			hostname = follow.Host
-		}
-		var userURL string
-		if follow.URL == nil {
-			userURL = createLocalUserURL(follow.Username)
-		} else {
-			userURL = *follow.URL
-		}
-		follows = append(follows, models.UserInfoResponse{
+		res := models.UserInfoResponse{
 			ID:       follow.ID,
 			Username: follow.Username,
-			Hostname: hostname,
+			Hostname: follow.Host,
 			Nickname: follow.Nickname,
-			URL:      userURL,
-		})
+			URL:      follow.URL,
+			Bio:      follow.Bio,
+		}
+		if viewerID != "" {
+			res.IsFollowing = &follow.IsFollowing
+		}
+		follows = append(follows, res)
 	}
 
 	var jsonKey string
@@ -369,7 +350,12 @@ func (h *Handler) PutUser(c echo.Context) error {
 func (h *Handler) GetUser(c echo.Context) error {
 	userspec := c.Param("username")
 
-	user, err := users.GetProfile(c.Request().Context(), h.MakeDB(), userspec)
+	var viewerID string
+	if c.Get(ContextAuthed).(bool) {
+		viewerID = c.Get(ContextUserID).(string)
+	}
+
+	user, err := users.GetProfile(c.Request().Context(), h.MakeDB(), userspec, viewerID)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(http.StatusInternalServerError, "internal server error")
@@ -381,7 +367,7 @@ func (h *Handler) GetUser(c echo.Context) error {
 
 	var userURL string
 	if user.URL == nil {
-		userURL = createLocalUserURL(user.Username)
+		userURL = users.CreateLocalUserURL(user.Username)
 	} else {
 		userURL = *user.URL
 	}
@@ -401,9 +387,18 @@ func (h *Handler) GetUser(c echo.Context) error {
 			Hostname: user.Host,
 			Nickname: user.Nickname,
 			URL:      userURL,
+			Bio:      user.Bio,
+			Counters: models.UserInfoCounterResponse{
+				Following: user.Following,
+				Followers: user.Followers,
+				Posts:     user.PostCount,
+			},
 		},
-		Bio:    user.Bio,
 		Labels: labels,
+	}
+
+	if viewerID != "" {
+		response.IsFollowing = &user.IsFollowingByViewer
 	}
 
 	return c.JSON(http.StatusOK, response)

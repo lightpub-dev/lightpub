@@ -20,6 +20,7 @@ type postWithUser struct {
 	PosterID       string    `db:"poster_id"`
 	PosterUsername string    `db:"poster_username"`
 	PosterHost     string    `db:"poster_host"`
+	PosterNickname string    `db:"poster_nickname"`
 	Content        *string   `db:"content"`
 	CreatedAt      time.Time `db:"created_at"`
 	Privacy        string    `db:"privacy"`
@@ -74,7 +75,7 @@ func FetchSinglePost(ctx context.Context, conn db.DBConn, postID string, viewerU
 func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string, viewerUserID string, currentDepth int) (*models.UserPostEntry, error) {
 	var post postWithUser
 	err := conn.DB().GetContext(ctx, &post, `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	WHERE

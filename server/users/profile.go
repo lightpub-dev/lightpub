@@ -40,7 +40,7 @@ func UpdateProfile(ctx context.Context, conn db.DBConn, userID string, req *mode
 	return tx.Commit()
 }
 
-func GetProfile(ctx context.Context, conn db.DBConn, userSpec string) (*models.FullUser, error) {
+func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID string) (*models.FullUser, error) {
 	basicUser, err := FindIDByUsername(ctx, conn, userSpec)
 	if err != nil {
 		return nil, err
@@ -66,6 +66,31 @@ func GetProfile(ctx context.Context, conn db.DBConn, userSpec string) (*models.F
 		return nil, err
 	}
 	profile.Labels = labels
+
+	// fetch is_following
+	if viewerID != "" {
+		err = conn.DB().GetContext(ctx, &profile.IsFollowingByViewer, "SELECT COUNT(*)>0 FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?) LIMIT 1", viewerID, basicUser.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// follower count
+	err = conn.DB().GetContext(ctx, &profile.Followers, "SELECT COUNT(*) FROM UserFollow WHERE followee_id=UUID_TO_BIN(?)", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = conn.DB().GetContext(ctx, &profile.Following, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?)", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// post count
+	err = conn.DB().GetContext(ctx, &profile.PostCount, "SELECT COUNT(*) FROM Post WHERE poster_id=UUID_TO_BIN(?)", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
 
 	return &profile, nil
 }
