@@ -75,5 +75,22 @@ func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID s
 		}
 	}
 
+	// follower count
+	err = conn.DB().GetContext(ctx, &profile.Followers, "SELECT COUNT(*) FROM UserFollow WHERE followee_id=UUID_TO_BIN(?)", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = conn.DB().GetContext(ctx, &profile.Following, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?)", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// post count
+	err = conn.DB().GetContext(ctx, &profile.PostCount, "SELECT COUNT(*) FROM Post WHERE poster_id=UUID_TO_BIN(?)", basicUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &profile, nil
 }

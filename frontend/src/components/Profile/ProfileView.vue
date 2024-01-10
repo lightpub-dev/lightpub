@@ -34,6 +34,9 @@ const fetchProfile = async () => {
     bio.value = res.data.bio
     labels.value = res.data.labels
     isFollowing.value = res.data.is_following
+    nPosts.value = res.data.counters.posts
+    nFollowers.value = res.data.counters.followers
+    nFollowings.value = res.data.counters.following
 }
 
 watchEffect(() => {

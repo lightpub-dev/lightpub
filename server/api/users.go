@@ -388,6 +388,11 @@ func (h *Handler) GetUser(c echo.Context) error {
 			Nickname: user.Nickname,
 			URL:      userURL,
 			Bio:      user.Bio,
+			Counters: models.UserInfoCounterResponse{
+				Following: user.Following,
+				Followers: user.Followers,
+				Posts:     user.PostCount,
+			},
 		},
 		Labels: labels,
 	}

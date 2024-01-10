@@ -19,6 +19,9 @@ type FullUser struct {
 	Bio                 string `db:"bio"`
 	Labels              []UserLabelDB
 	IsFollowingByViewer bool
+	Following           int64 `db:"n_following"`
+	Followers           int64 `db:"n_followers"`
+	PostCount           int64 `db:"n_posts"`
 }
 
 type UserLabelDB struct {
