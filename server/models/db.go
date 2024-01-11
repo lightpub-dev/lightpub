@@ -3,15 +3,16 @@ package models
 import "time"
 
 type User struct {
-	ID       string  `db:"id"`
-	Username string  `db:"username"`
-	Host     string  `db:"host"`
-	Bpasswd  string  `db:"bpassword"`
-	Nickname string  `db:"nickname"`
-	URL      *string `db:"url"`
-	Inbox    *string `db:"inbox"`
-	Outbox   *string `db:"outbox"`
-	IsLocal  bool    `db:"is_local"`
+	ID        string    `db:"id"`
+	Username  string    `db:"username"`
+	Host      string    `db:"host"`
+	Bpasswd   string    `db:"bpassword"`
+	Nickname  string    `db:"nickname"`
+	URL       *string   `db:"url"`
+	Inbox     *string   `db:"inbox"`
+	Outbox    *string   `db:"outbox"`
+	CreatedAt time.Time `db:"created_at"`
+	IsLocal   bool      `db:"is_local"`
 }
 
 type FullUser struct {

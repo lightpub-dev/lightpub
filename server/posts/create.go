@@ -151,9 +151,8 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 	}
 
 	// insert Hashtags (if any)
-	hashtags := []string{}
 	if post.Content != nil {
-		hashtags = FindHashtags(*post.Content)
+		hashtags := FindHashtags(*post.Content)
 		for _, hashtag := range hashtags {
 			_, err = tx.ExecContext(ctx, "INSERT INTO PostHashtag (post_id,hashtag_name) VALUES (UUID_TO_BIN(?),?)", postID, hashtag)
 			if err != nil {
