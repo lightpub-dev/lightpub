@@ -1,32 +1,33 @@
 <script lang="ts" setup>
-import { reactive } from 'vue'
+import { inject, ref, watchEffect } from 'vue'
+import { AUTH_AXIOS } from '../../consts'
 
-const trendings = reactive([
-    {
-        index: 0,
-        gender: 'Software',
-        label: '#GitHub',
-        stats: '10 Posts'
-    },
-    {
-        index: 0,
-        gender: 'Entertainment',
-        label: '#OpenAirInterface',
-        stats: '8 Posts'
-    },
-    {
-        index: 0,
-        gender: 'Music',
-        label: '#IjimeDameZettai',
-        stats: '2 Posts'
-    },
-    {
-        index: 0,
-        gender: 'Technology',
-        label: '#React',
-        stats: '1 Posts'
+const authedAxios = inject(AUTH_AXIOS)!
+
+const trendings = ref<
+    Array<{
+        index: number
+        hashtag: string
+        post_count: number
+    }>
+>([])
+
+watchEffect(async () => {
+    try {
+        const res = await authedAxios.get('/trend')
+        for (let i = 0; i < res.data.trends.length; i++) {
+            const trend = res.data.trends[i]
+            trendings.value.push({
+                index: i + 1,
+                hashtag: trend.hashtag,
+                post_count: trend.post_count
+            })
+        }
+    } catch (err) {
+        console.log(err)
+        trendings.value = []
     }
-])
+})
 </script>
 <template>
     <div
@@ -40,16 +41,16 @@ const trendings = reactive([
             <li
                 v-for="(trending, index) in trendings"
                 :key="index"
-                class="px-2 py-2 last:mb-0 hover:bg-green-300 rounded-md transition-colors duration-200"
+                class="px-2 py-2 last:mb-0 hover:bg-green-300 rounded-md transition-colors duration-200 cursor-pointer"
             >
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+                <!-- <p class="text-xs text-gray-500 dark:text-gray-400">
                     {{ index + 1 }} - {{ trending.gender }}
-                </p>
-                <p class="text-lg dark:text-gray-100 text-gray-800 font-bold">
-                    {{ trending.label }}
+                </p> -->
+                <p class="text-lg text-gray-800 font-bold">
+                    {{ trending.hashtag }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ trending.stats }}
+                    {{ trending.post_count }} posts
                 </p>
             </li>
         </ul>
