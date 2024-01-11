@@ -103,3 +103,12 @@ type UserLabel struct {
 	Key   string `json:"key" validate:"required,max=2000"`
 	Value string `json:"value" validate:"required,max=2000"`
 }
+
+type TrendOverviewResponse struct {
+	Trends []TrendResponse `json:"trends"`
+}
+
+type TrendResponse struct {
+	Hashtag   string `json:"hashtag"`
+	PostCount int64  `json:"post_count"`
+}

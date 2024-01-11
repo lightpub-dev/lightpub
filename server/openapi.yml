@@ -9,6 +9,7 @@ tags:
   - name: Post
   - name: User
   - name: Timeline
+  - name: Trend
   - name: Authorization required
   - name: No authorization
 paths:
@@ -451,6 +452,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserFullInfoResponse"
 
+  /trend:
+    get:
+      summary: Get the trending hashtags.
+      tags:
+        - No authorization
+        - Trend
+      responses:
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendOverviewResponse"
+  /trend/posts:
+    get:
+      summary: Get the posts of a hashtag.
+      tags:
+        - No authorization
+        - Trend
+      parameters:
+        - name: hashtag
+          in: query
+          description: The hashtag to search for.
+          schema:
+            type: string
+            example: "#lightpub"
+        - $ref: "#/components/parameters/LimitQuery"
+        - $ref: "#/components/parameters/BeforeDateQuery"
+      responses:
+        400:
+          description: Invalid query.
+        200:
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPostListResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -493,6 +532,24 @@ components:
       schema:
         $ref: "#/components/schemas/UserSpecifier"
   schemas:
+    TrendOverviewResponse:
+      properties:
+        trends:
+          type: array
+          items:
+            properties:
+              hashtag:
+                type: string
+                example: "#lightpub"
+              post_count:
+                type: integer
+                minimum: 0
+                example: 123
+            required:
+              - hashtag
+              - post_count
+      required:
+        - trends
     PrivacyType:
       type: string
       enum:

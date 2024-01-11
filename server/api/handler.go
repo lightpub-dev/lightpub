@@ -86,6 +86,10 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	// Timeline
 	authed.GET("/timeline", h.GetTimeline)
 
+	// Trend
+	unAuthed.GET("/trend", h.GetTrend)
+	unAuthed.GET("/trend/posts", h.GetTrendPosts)
+
 	// webfinger
 	unAuthed.GET("/.well-known/webfinger", h.GetWebfinger)
 
