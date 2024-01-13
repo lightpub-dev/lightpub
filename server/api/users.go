@@ -18,6 +18,11 @@ const (
 	DefaultFollowViewLimit = 10
 )
 
+type postWithRepostedByMe struct {
+	models.Post
+	RepostedByMe *bool `db:"reposted_by_me"`
+}
+
 func (h *Handler) GetUserPosts(c echo.Context) error {
 	authed := c.Get(ContextAuthed).(bool)
 	var viewerUserID string
@@ -51,9 +56,10 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 	}
 
 	// first, get all "public" and "unlisted" posts
-	var publicPosts []models.Post
+	var publicPosts []postWithRepostedByMe
 	err = h.DB.Select(&publicPosts, `
-	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
+	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
 		FROM Post p
 	WHERE
 		p.poster_id=UUID_TO_BIN(?)
@@ -61,14 +67,14 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 		AND p.scheduled_at IS NULL
 	ORDER BY p.created_at DESC
 	LIMIT ?
-	`, targetUser.ID, limit)
+	`, viewerUserID, viewerUserID, targetUser.ID, limit)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
 	}
 
 	// "follower" posts...
-	var followerPosts []models.Post
+	var followerPosts []postWithRepostedByMe
 	if viewerUserID != "" {
 		isFollowed := false
 		if viewerUserID == targetUser.ID {
@@ -86,7 +92,8 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 		if isFollowed {
 			// fetch "follower" posts
 			err = h.DB.Select(&followerPosts, `
-		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
+		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
+		IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
 		FROM Post p
 		WHERE
 			p.poster_id=UUID_TO_BIN(?)
@@ -94,7 +101,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			AND p.scheduled_at IS NULL
 		ORDER BY p.created_at DESC
 		LIMIT ?
-		`, targetUser.ID, limit)
+		`, viewerUserID, viewerUserID, targetUser.ID, limit)
 			if err != nil {
 				c.Logger().Error(err)
 				return c.String(500, "internal server error")
@@ -103,12 +110,13 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 	}
 
 	// fetch "private" posts
-	var privatePosts []models.Post
+	var privatePosts []postWithRepostedByMe
 	if viewerUserID != "" {
 		if targetUser.ID == viewerUserID {
 			// when viewer is target itself, fetch all private posts
 			err = h.DB.Select(&privatePosts, `
-			SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
+			SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
+			IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
 		FROM Post p
 		WHERE
 			p.poster_id=UUID_TO_BIN(?)
@@ -116,10 +124,11 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			AND p.scheduled_at IS NULL
 		ORDER BY p.created_at DESC
 		LIMIT ?
-		`, targetUser.ID, limit)
+		`, viewerUserID, viewerUserID, targetUser.ID, limit)
 		} else {
 			err = h.DB.Select(&privatePosts, `
-	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
+	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
 	FROM Post p
 	INNER JOIN PostMention pm ON p.id=pm.post_id
 	WHERE
@@ -129,7 +138,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 		AND pm.target_user_id=UUID_TO_BIN(?)
 	ORDER BY p.created_at DESC
 	LIMIT ?
-	`, targetUser.ID, viewerUserID, limit)
+	`, viewerUserID, viewerUserID, targetUser.ID, viewerUserID, limit)
 		}
 		if err != nil {
 			c.Logger().Error(err)
@@ -164,7 +173,11 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			replyToPostOrURL = posts.CreatePostURL(*post.ReplyTo)
 		}
 		if post.RepostOf != nil {
-			repostOfPostOrURL = posts.CreatePostURL(*post.RepostOf)
+			repostOfPostOrURL, err = posts.FetchSinglePostWithDepth(c.Request().Context(), h.MakeDB(), *post.RepostOf, "", 0)
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(500, "internal server error")
+			}
 		}
 
 		resp = append(resp, models.UserPostEntry{
@@ -182,6 +195,8 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			ReplyTo:  replyToPostOrURL,
 			RepostOf: repostOfPostOrURL,
 			// TODO: Poll
+
+			RepostedByMe: post.RepostedByMe,
 		})
 	}
 

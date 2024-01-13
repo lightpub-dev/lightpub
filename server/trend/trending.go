@@ -36,7 +36,7 @@ func GetCurrentTrend(ctx context.Context, conn db.DBConn) (*models.TrendOverview
 SELECT ph.hashtag_name, COUNT(p.id) AS post_count
 FROM PostHashtag ph
 INNER JOIN Post p ON ph.post_id=p.id
-WHERE p.created_at >= DATE_SUB(NOW(), INTERVAL 3 HOUR)
+WHERE p.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
   AND p.scheduled_at IS NULL
   AND p.privacy='public'
 GROUP BY ph.hashtag_name
@@ -44,7 +44,7 @@ ORDER BY post_count DESC
 LIMIT 5;
 `
 
-	var result []trendList
+	result := []trendList{}
 	err := conn.DB().SelectContext(ctx, &result, sql)
 	if err != nil {
 		return nil, err

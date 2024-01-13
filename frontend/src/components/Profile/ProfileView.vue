@@ -76,7 +76,7 @@ const toggleFollow = async () => {
 </script>
 
 <template>
-    <div class="bg-[rgb(219,234,254)] flex items-start justify-center pt-10">
+    <div class="bg-gray-100 flex items-start justify-center pt-10">
         <div class="bg-white p-6 rounded-lg shadow-lg w-64">
             <div class="mb-4">
                 <img
@@ -152,7 +152,7 @@ const toggleFollow = async () => {
         </div>
     </div>
     <div
-        class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-[rgb(219,234,254)]"
+        class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-gray-100"
     >
         <div class="flex flex-col p-2">
             <UserPost

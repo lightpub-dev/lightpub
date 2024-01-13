@@ -478,6 +478,7 @@ paths:
           schema:
             type: string
             example: "#lightpub"
+          required: true
         - $ref: "#/components/parameters/LimitQuery"
         - $ref: "#/components/parameters/BeforeDateQuery"
       responses:
@@ -649,6 +650,9 @@ components:
             - $ref: "#/components/schemas/UserPostEntry"
           description: If this post is a repost or quote, this property is defined. The value is either the URL or the post itself. content is null if this is a repost. content is non-null if this is a quote.
           example: https://lightpub.example.com/post/aaabbbccc
+        reposted_by_me:
+          type: boolean
+          description: Whether the authenticated user has reposted this post. Not defined if you are not authenticated.
         repost_count:
           type: integer
           description: The number of reposts of this post.

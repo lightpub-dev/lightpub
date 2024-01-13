@@ -22,12 +22,16 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 	oldestPost := time.Now()
 	latestPost := time.Time{}
 	for _, cache := range cached {
-		var replyToURL, repostOfURL interface{}
+		var replyToURL, repostContent interface{}
 		if cache.ReplyTo != nil {
 			replyToURL = posts.CreatePostURL(*cache.ReplyTo)
 		}
 		if cache.RepostOf != nil {
-			repostOfURL = posts.CreatePostURL(*cache.RepostOf)
+			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, *cache.RepostOf, "", 0)
+			if err != nil {
+				return nil, err
+			}
+			repostContent = repost
 		}
 
 		// TODO: Poll
@@ -45,7 +49,7 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 			Privacy:   cache.Privacy,
 
 			ReplyTo:  replyToURL,
-			RepostOf: repostOfURL,
+			RepostOf: repostContent,
 
 			ReplyCount:    cache.ReplyCount,
 			RepostCount:   cache.RepostCount,

@@ -35,6 +35,13 @@ const routes = [
         props: {
             mode: 'profile'
         }
+    },
+    {
+        path: '/trend/posts',
+        component: MainView,
+        props: {
+            mode: 'trend-search'
+        }
     }
 ]
 

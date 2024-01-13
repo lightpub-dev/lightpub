@@ -6,6 +6,7 @@ import MainLeftMenu from '@/components/Main/MainLeftMenu.vue'
 import MainRightMenu from '@/components/Main/MainRightMenu.vue'
 import ProfileView from '@/components/Profile/ProfileView.vue'
 import CreatePostView from '@/components/Main/CreatePostView.vue'
+import TrendPostView from '@/components/Trend/TrendPostList.vue'
 
 import axios from 'axios'
 import { provide } from 'vue'
@@ -27,7 +28,7 @@ authAxios.interceptors.request.use(config => {
 })
 
 const props = defineProps<{
-    mode: 'feed' | 'profile'
+    mode: 'feed' | 'profile' | 'trend-search'
 }>()
 
 const username = getUsername()!
@@ -53,6 +54,7 @@ provide(CURRENT_USERNAME, username)
         <template #feed>
             <MainFeed v-if="props.mode === 'feed'" />
             <ProfileView v-else-if="props.mode === 'profile'" />
+            <TrendPostView v-else-if="props.mode === 'trend-search'" />
         </template>
     </MainAppShell>
 </template>

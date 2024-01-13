@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import { format } from 'timeago.js'
-import { PropType, computed } from 'vue'
+import { PropType, computed, inject } from 'vue'
 import { UserPostEntry } from './userpost.model.ts'
+import { AUTH_AXIOS } from '../../consts'
 
 const props = defineProps({
     user_post: {
@@ -10,19 +11,100 @@ const props = defineProps({
     }
 })
 
+const axios = inject(AUTH_AXIOS)!
+
+const content = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return props.user_post.repost_of.content
+    }
+    return props.user_post.content
+})
+
+const nickname = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return props.user_post.repost_of.author.nickname
+    }
+    return props.user_post.author.nickname
+})
+
+const username = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return props.user_post.repost_of.author.username
+    }
+    return props.user_post.author.username
+})
+
+const hostname = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return props.user_post.repost_of.author.host
+    }
+    return props.user_post.author.host
+})
+
+const atHostname = computed(() => {
+    if (hostname.value === null) {
+        return ''
+    }
+    return `@${hostname.value}`
+})
+
 const createdTime = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return format(props.user_post.repost_of.created_at)
+    }
     return format(props.user_post.created_at)
 })
 
 const replyCount = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return props.user_post.repost_of.reply_count
+    }
     return props.user_post.reply_count
 })
 
 const repostCount = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return props.user_post.repost_of.repost_count
+    }
     return props.user_post.repost_count + props.user_post.quote_count
 })
 
 const favoriteCount = computed(() => {
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        return props.user_post.repost_of.favorite_count
+    }
     return props.user_post.favorite_count
 })
 
@@ -30,15 +112,26 @@ const userPageURL = computed(() => {
     return `/user/${props.user_post.author.id}`
 })
 
-const atHostname = computed(() => {
-    if (props.user_post.author.host === null) {
-        return ''
-    }
-    return `@${props.user_post.author.host}`
-})
+const onRepost = async () => {
+    await axios.post(`/post/${props.user_post.id}/repost`, {
+        privacy: 'public'
+    })
+}
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
+        <!-- Add this div to display repost information -->
+        <div
+            v-if="
+                props.user_post.repost_of !== undefined &&
+                props.user_post.repost_of !== null
+            "
+            class="mb-2"
+        >
+            <p class="text-sm text-gray-500">
+                Reposted by {{ props.user_post.author.nickname }}
+            </p>
+        </div>
         <div class="flex justify-between items-center">
             <div class="flex items-center">
                 <!-- Avatar -->
@@ -57,13 +150,12 @@ const atHostname = computed(() => {
                 <div class="flex items-center">
                     <router-link :to="userPageURL">
                         <p class="text-lg font-bold text-gray-800 mr-2">
-                            {{ props.user_post.author.nickname }}
+                            {{ nickname }}
                         </p>
                     </router-link>
                     <router-link :to="userPageURL">
                         <p class="text-sm text-gray-800 mr-2">
-                            @{{ props.user_post.author.username
-                            }}{{ atHostname }}
+                            @{{ username }}{{ atHostname }}
                         </p></router-link
                     >
                     <p class="text-sm text-gray-500">{{ createdTime }}</p>
@@ -86,7 +178,7 @@ const atHostname = computed(() => {
         </div>
 
         <p class="pt-5 text-gray-600 text-lg mb-4">
-            {{ props.user_post.content }}
+            {{ content }}
         </p>
 
         <!-- <div
@@ -190,6 +282,7 @@ const atHostname = computed(() => {
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                @click="onRepost"
             >
                 <svg
                     class="w-6 h-6"

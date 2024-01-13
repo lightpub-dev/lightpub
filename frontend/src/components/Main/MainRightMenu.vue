@@ -9,6 +9,7 @@ const trendings = ref<
         index: number
         hashtag: string
         post_count: number
+        url: string
     }>
 >([])
 
@@ -20,7 +21,8 @@ watchEffect(async () => {
             trendings.value.push({
                 index: i + 1,
                 hashtag: trend.hashtag,
-                post_count: trend.post_count
+                post_count: trend.post_count,
+                url: `/trend/posts?hashtag=${encodeURIComponent(trend.hashtag)}`
             })
         }
     } catch (err) {
@@ -38,21 +40,25 @@ watchEffect(async () => {
                 <p>Trends</p>
             </li>
             <div class="my-2 border-b border-green-600 w-full"></div>
-            <li
+            <router-link
                 v-for="(trending, index) in trendings"
                 :key="index"
-                class="px-2 py-2 last:mb-0 hover:bg-green-300 rounded-md transition-colors duration-200 cursor-pointer"
+                :to="trending.url"
             >
-                <!-- <p class="text-xs text-gray-500 dark:text-gray-400">
+                <li
+                    class="px-2 py-2 last:mb-0 hover:bg-green-300 rounded-md transition-colors duration-200 cursor-pointer"
+                >
+                    <!-- <p class="text-xs text-gray-500 dark:text-gray-400">
                     {{ index + 1 }} - {{ trending.gender }}
                 </p> -->
-                <p class="text-lg text-gray-800 font-bold">
-                    {{ trending.hashtag }}
-                </p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ trending.post_count }} posts
-                </p>
-            </li>
+                    <p class="text-lg text-gray-800 font-bold">
+                        {{ trending.hashtag }}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ trending.post_count }} posts
+                    </p>
+                </li>
+            </router-link>
         </ul>
     </div>
 </template>

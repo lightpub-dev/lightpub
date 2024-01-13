@@ -45,6 +45,8 @@ type UserPostEntry struct {
 	ReplyCount    int64            `json:"reply_count"`
 	QuoteCount    int64            `json:"quote_count"`
 	Reactions     ReactionCountMap `json:"reactions"`
+
+	RepostedByMe *bool `json:"reposted_by_me,omitempty"`
 }
 
 func (u *UserPostEntry) UpdateCounts(reply, favorite, repost, quote int64, reactions ReactionCountMap) {
