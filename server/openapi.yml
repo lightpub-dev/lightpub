@@ -617,6 +617,15 @@ components:
           example:
             "+1": 3
             "heart": 2
+        is_reposted:
+          type: boolean
+          description: Whether the authenticated user has reposted this post. Not defined if the user is not authenticated.
+        is_favorited:
+          type: boolean
+          description: Whether the authenticated user has favorited this post. Not defined if the user is not authenticated.
+        is_bookmarked:
+          type: boolean
+          description: Whether the authenticated user has bookmarked this post. Not defined if the user is not authenticated.
       required:
         - id
         - author
