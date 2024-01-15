@@ -14,6 +14,8 @@ export interface UserPostEntry {
     favorite_count: number
     reactions: Record<string, number>
     reposted_by_me?: boolean
+    favorited_by_me?: boolean
+    bookmarked_by_me?: boolean
 }
 
 export interface UserPostDetail {

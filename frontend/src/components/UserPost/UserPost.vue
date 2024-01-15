@@ -13,48 +13,31 @@ const props = defineProps({
 
 const axios = inject(AUTH_AXIOS)!
 
-const content = computed(() => {
+const actualPost = computed(() => {
     if (
         props.user_post.repost_of !== undefined &&
         props.user_post.repost_of !== null &&
         typeof props.user_post.repost_of !== 'string'
     ) {
-        return props.user_post.repost_of.content
+        return props.user_post.repost_of
     }
-    return props.user_post.content
+    return props.user_post
+})
+
+const content = computed(() => {
+    return actualPost.value.content
 })
 
 const nickname = computed(() => {
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        return props.user_post.repost_of.author.nickname
-    }
-    return props.user_post.author.nickname
+    return actualPost.value.author.nickname
 })
 
 const username = computed(() => {
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        return props.user_post.repost_of.author.username
-    }
-    return props.user_post.author.username
+    return actualPost.value.author.username
 })
 
 const hostname = computed(() => {
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        return props.user_post.repost_of.author.host
-    }
-    return props.user_post.author.host
+    return actualPost.value.author.host
 })
 
 const atHostname = computed(() => {
@@ -65,80 +48,29 @@ const atHostname = computed(() => {
 })
 
 const createdTime = computed(() => {
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        return format(props.user_post.repost_of.created_at)
-    }
-    return format(props.user_post.created_at)
+    return format(actualPost.value.created_at)
 })
 
 const replyCount = computed(() => {
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        return props.user_post.repost_of.reply_count
-    }
-    return props.user_post.reply_count
+    return actualPost.value.reply_count
 })
 
 const repostCount = computed(() => {
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        return props.user_post.repost_of.repost_count
-    }
-    return props.user_post.repost_count + props.user_post.quote_count
+    return actualPost.value.repost_count + actualPost.value.quote_count
 })
 
 const favoriteCount = computed(() => {
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        return props.user_post.repost_of.favorite_count
-    }
-    return props.user_post.favorite_count
+    return actualPost.value.favorite_count
 })
 
 const userPageURL = computed(() => {
-    let id = props.user_post.author.id
-
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        id = props.user_post.repost_of.author.id
-    }
+    const id = actualPost.value.author.id
 
     return `/user/${id}`
 })
 
 const isRepostedByMe = computed(() => {
-    let b = false
-    if (
-        props.user_post.repost_of !== undefined &&
-        props.user_post.repost_of !== null &&
-        typeof props.user_post.repost_of !== 'string'
-    ) {
-        if (props.user_post.repost_of.reposted_by_me) {
-            b = true
-        }
-    }
-
-    if (props.user_post.reposted_by_me) {
-        b = true
-    }
-
-    return b
+    return actualPost.value.reposted_by_me ?? false
 })
 
 const onRepost = async () => {
@@ -146,6 +78,22 @@ const onRepost = async () => {
         privacy: 'public'
     })
 }
+
+const isFavoritedByMe = computed(() => {
+    return actualPost.value.favorited_by_me ?? false
+})
+
+const onFavorite = async () => {
+    if (isFavoritedByMe.value) {
+        await axios.delete(`/post/${props.user_post.id}/favorite`)
+    } else {
+        await axios.put(`/post/${props.user_post.id}/favorite`)
+    }
+}
+
+const isBookmarkedByMe = computed(() => {
+    return actualPost.value.bookmarked_by_me ?? false
+})
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
@@ -334,11 +282,12 @@ const onRepost = async () => {
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                @click="onFavorite"
             >
                 <svg
                     class="w-6 h-6"
                     fill="none"
-                    stroke="currentColor"
+                    :stroke="isFavoritedByMe ? 'blue' : 'currentColor'"
                     stroke-width="1.5"
                     viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -350,7 +299,9 @@ const onRepost = async () => {
                     />
                 </svg>
 
-                <p class="ml-2">{{ favoriteCount }}</p>
+                <p class="ml-2" :class="{ 'text-blue-500': isFavoritedByMe }">
+                    {{ favoriteCount }}
+                </p>
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"

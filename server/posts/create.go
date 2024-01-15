@@ -77,6 +77,10 @@ func findOriginalPostID(ctx context.Context, conn db.DBConn, postID string) (str
 	return findOriginalPostID(ctx, conn, *originalPostID.RepostOf)
 }
 
+func FindOriginalPostID(ctx context.Context, conn db.DBConn, postID string) (string, error) {
+	return findOriginalPostID(ctx, conn, postID)
+}
+
 // checkIfReposted checks if a post is reposted by a user
 func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID string, reposterID string) (bool, error) {
 	// first, check if repostedID is a repost

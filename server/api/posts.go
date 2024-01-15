@@ -155,6 +155,13 @@ func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) e
 		return c.String(404, "Not Found")
 	}
 
+	// find original post if repost
+	postId, err = posts.FindOriginalPostID(c.Request().Context(), h.MakeDB(), postId)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
 	if isAdd {
 		// add a reaction
 		_, err = h.DB.Exec("INSERT INTO PostReaction (post_id,reaction,user_id) VALUES (UUID_TO_BIN(?),?,UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE reaction=reaction", postId, reaction, userId)
@@ -206,6 +213,13 @@ func (h *Handler) modPostBookmark(c echo.Context, isAdd, isBookmark bool) error 
 	if !visible {
 		// 404 for privacy reasons
 		return c.String(404, "Not Found")
+	}
+
+	// find original post if repost
+	postId, err = posts.FindOriginalPostID(c.Request().Context(), h.MakeDB(), postId)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
 	}
 
 	if isAdd {
