@@ -81,13 +81,13 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string
 	var post postWithUser
 	err := conn.DB().GetContext(ctx, &post, `
 	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?) AND p2.content IS NULL)) AS reposted_by_me
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	WHERE
 		p.id=UUID_TO_BIN(?)
 		AND p.scheduled_at IS NULL
-	`, viewerUserID, viewerUserID, postID)
+	`, viewerUserID, viewerUserID, viewerUserID, postID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

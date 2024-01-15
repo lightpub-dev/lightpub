@@ -59,7 +59,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 	var publicPosts []postWithRepostedByMe
 	err = h.DB.Select(&publicPosts, `
 	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
 		FROM Post p
 	WHERE
 		p.poster_id=UUID_TO_BIN(?)
@@ -67,7 +67,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 		AND p.scheduled_at IS NULL
 	ORDER BY p.created_at DESC
 	LIMIT ?
-	`, viewerUserID, viewerUserID, targetUser.ID, limit)
+	`, viewerUserID, viewerUserID, viewerUserID, targetUser.ID, limit)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -93,7 +93,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			// fetch "follower" posts
 			err = h.DB.Select(&followerPosts, `
 		SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-		IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
+		IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
 		FROM Post p
 		WHERE
 			p.poster_id=UUID_TO_BIN(?)
@@ -101,7 +101,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			AND p.scheduled_at IS NULL
 		ORDER BY p.created_at DESC
 		LIMIT ?
-		`, viewerUserID, viewerUserID, targetUser.ID, limit)
+		`, viewerUserID, viewerUserID, viewerUserID, targetUser.ID, limit)
 			if err != nil {
 				c.Logger().Error(err)
 				return c.String(500, "internal server error")
@@ -116,7 +116,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			// when viewer is target itself, fetch all private posts
 			err = h.DB.Select(&privatePosts, `
 			SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-			IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
+			IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
 		FROM Post p
 		WHERE
 			p.poster_id=UUID_TO_BIN(?)
@@ -124,11 +124,11 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			AND p.scheduled_at IS NULL
 		ORDER BY p.created_at DESC
 		LIMIT ?
-		`, viewerUserID, viewerUserID, targetUser.ID, limit)
+		`, viewerUserID, viewerUserID, viewerUserID, targetUser.ID, limit)
 		} else {
 			err = h.DB.Select(&privatePosts, `
 	SELECT BIN_TO_UUID(p.id) AS id,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(?))) AS reposted_by_me
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
 	FROM Post p
 	INNER JOIN PostMention pm ON p.id=pm.post_id
 	WHERE
@@ -138,7 +138,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 		AND pm.target_user_id=UUID_TO_BIN(?)
 	ORDER BY p.created_at DESC
 	LIMIT ?
-	`, viewerUserID, viewerUserID, targetUser.ID, viewerUserID, limit)
+	`, viewerUserID, viewerUserID, viewerUserID, targetUser.ID, viewerUserID, limit)
 		}
 		if err != nil {
 			c.Logger().Error(err)

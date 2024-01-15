@@ -112,6 +112,25 @@ const userPageURL = computed(() => {
     return `/user/${props.user_post.author.id}`
 })
 
+const isRepostedByMe = computed(() => {
+    let b = false
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        if (props.user_post.repost_of.reposted_by_me) {
+            b = true
+        }
+    }
+
+    if (props.user_post.reposted_by_me) {
+        b = true
+    }
+
+    return b
+})
+
 const onRepost = async () => {
     await axios.post(`/post/${props.user_post.id}/repost`, {
         privacy: 'public'
@@ -287,7 +306,7 @@ const onRepost = async () => {
                 <svg
                     class="w-6 h-6"
                     fill="none"
-                    stroke="currentColor"
+                    :stroke="isRepostedByMe ? 'blue' : 'currentColor'"
                     stroke-width="1.5"
                     viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
@@ -299,7 +318,9 @@ const onRepost = async () => {
                     />
                 </svg>
 
-                <p class="ml-2">{{ repostCount }}</p>
+                <p class="ml-2" :class="{ 'text-blue-500': isRepostedByMe }">
+                    {{ repostCount }}
+                </p>
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"

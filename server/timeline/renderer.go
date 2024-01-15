@@ -27,7 +27,7 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 			replyToURL = posts.CreatePostURL(*cache.ReplyTo)
 		}
 		if cache.RepostOf != nil {
-			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, *cache.RepostOf, "", 0)
+			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, *cache.RepostOf, userID, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -56,6 +56,8 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 			FavoriteCount: cache.FavoriteCount,
 			QuoteCount:    cache.QuoteCount,
 			Reactions:     cache.Reactions,
+
+			RepostedByMe: cache.RepostedByMe,
 		})
 
 		if cache.CreatedAt.Before(oldestPost) {

@@ -13,6 +13,7 @@ export interface UserPostEntry {
     quote_count: number
     favorite_count: number
     reactions: Record<string, number>
+    reposted_by_me?: boolean
 }
 
 export interface UserPostDetail {
