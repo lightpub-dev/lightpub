@@ -20,7 +20,9 @@ const (
 
 type postWithRepostedByMe struct {
 	models.Post
-	RepostedByMe *bool `db:"reposted_by_me"`
+	RepostedByMe   *bool `db:"reposted_by_me"`
+	FavoritedByMe  *bool `db:"favorited_by_me"`
+	BookmarkedByMe *bool `db:"bookmarked_by_me"`
 }
 
 func (h *Handler) GetUserPosts(c echo.Context) error {
