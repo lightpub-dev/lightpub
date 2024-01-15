@@ -73,6 +73,9 @@ const toggleFollow = async () => {
 
     fetchProfile()
 }
+
+const followerLink = computed(() => `/user/${id.value}/followers`)
+const followingLink = computed(() => `/user/${id.value}/followings`)
 </script>
 
 <template>
@@ -141,12 +144,20 @@ const toggleFollow = async () => {
                     <p class="font-semibold text-gray-700">{{ nPosts }}</p>
                 </div>
                 <div class="text-center">
-                    <p class="text-sm text-gray-600">Followers</p>
-                    <p class="font-semibold text-gray-700">{{ nFollowers }}</p>
+                    <router-link :to="followerLink">
+                        <p class="text-sm text-gray-600">Followers</p>
+                        <p class="font-semibold text-gray-700">
+                            {{ nFollowers }}
+                        </p>
+                    </router-link>
                 </div>
                 <div class="text-center">
-                    <p class="text-sm text-gray-600">Following</p>
-                    <p class="font-semibold text-gray-700">{{ nFollowings }}</p>
+                    <router-link :to="followingLink"
+                        ><p class="text-sm text-gray-600">Following</p>
+                        <p class="font-semibold text-gray-700">
+                            {{ nFollowings }}
+                        </p>
+                    </router-link>
                 </div>
             </div>
         </div>

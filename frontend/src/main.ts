@@ -51,10 +51,10 @@ const routes = [
         }
     },
     {
-        path: '/user/:id/following',
+        path: '/user/:id/followings',
         component: MainView,
         props: {
-            mode: 'following'
+            mode: 'followings'
         }
     }
 ]

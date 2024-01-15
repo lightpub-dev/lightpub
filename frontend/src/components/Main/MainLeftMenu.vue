@@ -3,6 +3,7 @@ import { computed, inject, ref } from 'vue'
 import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
 
 import { reactive } from 'vue'
+import { useRouter } from 'vue-router'
 
 const axios = inject(AUTH_AXIOS)!
 const currentUsername = inject(CURRENT_USERNAME)!
@@ -18,9 +19,9 @@ const atUsername = computed(() => {
 const username = ref('')
 const nickname = ref('')
 
-const nPosts = ref(100)
-const nFollowers = ref(50)
-const nFollowings = ref(51)
+const nPosts = ref(0)
+const nFollowers = ref(0)
+const nFollowings = ref(0)
 
 const fetchProfile = async () => {
     const res = await axios.get(`/user/${atUsername.value}`)
@@ -40,6 +41,16 @@ const userURL = computed(() => {
         return ''
     }
 })
+
+const router = useRouter()
+
+const onFollowingJump = () => {
+    router.push(`/user/${atUsername.value}/followings`)
+}
+
+const onFollowerJump = () => {
+    router.push(`/user/${atUsername.value}/followers`)
+}
 
 const menus = reactive({
     active: 0,
@@ -111,13 +122,33 @@ const menus = reactive({
             </div>
             <div class="self-center bg-gray-300 w-px h-12"></div>
             <div class="flex flex-col justify-center items-center">
-                <p class="-mt-1 text-xs text-gray-600">Followers</p>
-                <p class="text-lg font-bold text-gray-800">{{ nFollowers }}</p>
+                <p
+                    class="-mt-1 text-xs text-gray-600 cursor-pointer"
+                    @click="onFollowerJump"
+                >
+                    Followers
+                </p>
+                <p
+                    class="text-lg font-bold text-gray-800 cursor-pointer"
+                    @click="onFollowerJump"
+                >
+                    {{ nFollowers }}
+                </p>
             </div>
             <div class="self-center bg-gray-300 w-px h-12"></div>
             <div class="flex flex-col justify-center items-center">
-                <p class="-mt-1 text-xs text-gray-600">Following</p>
-                <p class="text-lg font-bold text-gray-800">{{ nFollowings }}</p>
+                <p
+                    class="-mt-1 text-xs text-gray-600 cursor-pointer"
+                    @click="onFollowingJump"
+                >
+                    Following
+                </p>
+                <p
+                    class="text-lg font-bold text-gray-800 cursor-pointer"
+                    @click="onFollowingJump"
+                >
+                    {{ nFollowings }}
+                </p>
             </div>
         </div>
 

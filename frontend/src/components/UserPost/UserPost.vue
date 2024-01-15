@@ -109,7 +109,17 @@ const favoriteCount = computed(() => {
 })
 
 const userPageURL = computed(() => {
-    return `/user/${props.user_post.author.id}`
+    let id = props.user_post.author.id
+
+    if (
+        props.user_post.repost_of !== undefined &&
+        props.user_post.repost_of !== null &&
+        typeof props.user_post.repost_of !== 'string'
+    ) {
+        id = props.user_post.repost_of.author.id
+    }
+
+    return `/user/${id}`
 })
 
 const isRepostedByMe = computed(() => {

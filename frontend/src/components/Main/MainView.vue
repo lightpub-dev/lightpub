@@ -29,7 +29,7 @@ authAxios.interceptors.request.use(config => {
 })
 
 const props = defineProps<{
-    mode: 'feed' | 'profile' | 'trend-search' | 'followers' | 'following'
+    mode: 'feed' | 'profile' | 'trend-search' | 'followers' | 'followings'
 }>()
 
 const username = getUsername()!
@@ -57,7 +57,10 @@ provide(CURRENT_USERNAME, username)
             <ProfileView v-else-if="props.mode === 'profile'" />
             <TrendPostView v-else-if="props.mode === 'trend-search'" />
             <UserList v-else-if="props.mode === 'followers'" mode="followers" />
-            <UserList v-else-if="props.mode === 'following'" mode="following" />
+            <UserList
+                v-else-if="props.mode === 'followings'"
+                mode="followings"
+            />
         </template>
     </MainAppShell>
 </template>
