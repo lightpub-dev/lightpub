@@ -23,6 +23,7 @@ const (
 var (
 	ErrReplyOrRepostTargetNotFound = errors.New("reply or repost target not found")
 	ErrRepostHasBody               = errors.New("repost has body")
+	ErrAlreadyReposted             = errors.New("already reposted")
 )
 
 type CreateRequest struct {
@@ -58,6 +59,32 @@ func checkRepostable(ctx context.Context, conn db.DBConn, postId string) (bool, 
 	return true, nil
 }
 
+// checkIfReposted checks if a post is reposted by a user
+// it also traverses repost chain and returns the original post id
+func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID string, reposterID string) (bool, string, error) {
+	// first, check if repostedID is a repost
+	var repostOf models.Post
+	err := conn.DB().GetContext(ctx, &repostOf, "SELECT BIN_TO_UUID(repost_of) AS repost_of, content FROM Post WHERE id=UUID_TO_BIN(?)", repostedID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, "", ErrReplyOrRepostTargetNotFound
+		}
+		return false, "", err
+	}
+
+	if repostOf.RepostOf != nil && repostOf.Content == nil {
+		// repostOf is a repost
+		return checkIfReposted(ctx, conn, *repostOf.RepostOf, reposterID)
+	}
+
+	var count int
+	err = conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM Post WHERE repost_of=UUID_TO_BIN(?) AND poster_id=UUID_TO_BIN(?) AND content IS NULL", repostedID, reposterID)
+	if err != nil {
+		return false, "", err
+	}
+	return count > 0, repostedID, nil
+}
+
 func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*CreateResponse, error) {
 	postID, err := utils.GenerateUUIDString()
 	if err != nil {
@@ -85,8 +112,17 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 			return nil, ErrReplyOrRepostTargetNotFound
 		}
 
+		// check if already reposted
+		reposted, originalPostID, err := checkIfReposted(ctx, conn, post.RepostID, post.PosterID)
+		if err != nil {
+			return nil, err
+		}
+		if reposted {
+			return nil, ErrAlreadyReposted
+		}
+
 		dbPost.Content = nil
-		dbPost.RepostOf = &post.RepostID
+		dbPost.RepostOf = &originalPostID
 
 		postType = PostTypeRepost
 	} else if post.RepostID != "" && post.Content != nil {
