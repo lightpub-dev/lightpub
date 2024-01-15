@@ -653,6 +653,12 @@ components:
         reposted_by_me:
           type: boolean
           description: Whether the authenticated user has reposted this post. Not defined if you are not authenticated.
+        favorited_by_me:
+          type: boolean
+          description: Whether the authenticated user has favorited this post. Not defined if you are not authenticated.
+        bookmarked_by_me:
+          type: boolean
+          description: Whether the authenticated user has bookmarked this post. Not defined if you are not authenticated.
         repost_count:
           type: integer
           description: The number of reposts of this post.

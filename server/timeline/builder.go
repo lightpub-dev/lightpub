@@ -34,14 +34,16 @@ func fetchPostsFromDB(ctx context.Context, conn db.DBConn, userID string, option
 	var posts []FetchedPost
 	mySql := `
 	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=0)) AS favorited_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=1)) AS bookmarked_by_me
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	WHERE
 		p.poster_id=UUID_TO_BIN(?)
 		AND p.scheduled_at IS NULL
 	`
-	myParams := []interface{}{userID, userID, userID, userID}
+	myParams := []interface{}{userID, userID, userID, userID, userID, userID, userID, userID, userID, userID}
 	if options.BeforeTime != nil {
 		mySql += ` AND p.created_at < ?`
 		myParams = append(myParams, options.BeforeTime)
@@ -62,7 +64,9 @@ func fetchPostsFromDB(ctx context.Context, conn db.DBConn, userID string, option
 	var followingPosts []FetchedPost
 	followingSql := `
 	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=0)) AS favorited_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=1)) AS bookmarked_by_me
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	INNER JOIN UserFollow uf ON p.poster_id=uf.followee_id
@@ -71,7 +75,7 @@ func fetchPostsFromDB(ctx context.Context, conn db.DBConn, userID string, option
 		AND p.privacy IN ('public','follower')
 		AND p.scheduled_at IS NULL
 	`
-	followingParams := []interface{}{userID, userID, userID, userID}
+	followingParams := []interface{}{userID, userID, userID, userID, userID, userID, userID, userID, userID, userID}
 	if options.BeforeTime != nil {
 		followingSql += ` AND p.created_at < ?`
 		followingParams = append(followingParams, options.BeforeTime)
@@ -92,7 +96,9 @@ func fetchPostsFromDB(ctx context.Context, conn db.DBConn, userID string, option
 	var mentionPosts []FetchedPost
 	mentionSql := `
 	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=0)) AS favorited_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=1)) AS bookmarked_by_me
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	INNER JOIN PostMention pm ON p.id=pm.post_id
@@ -100,7 +106,7 @@ func fetchPostsFromDB(ctx context.Context, conn db.DBConn, userID string, option
 		pm.target_user_id=UUID_TO_BIN(?)
 		AND p.scheduled_at IS NULL
 	`
-	mentionParams := []interface{}{userID, userID, userID, userID}
+	mentionParams := []interface{}{userID, userID, userID, userID, userID, userID, userID, userID, userID, userID}
 	if options.BeforeTime != nil {
 		mentionSql += ` AND p.created_at < ?`
 		mentionParams = append(mentionParams, options.BeforeTime)

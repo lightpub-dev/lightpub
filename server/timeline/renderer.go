@@ -57,7 +57,9 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 			QuoteCount:    cache.QuoteCount,
 			Reactions:     cache.Reactions,
 
-			RepostedByMe: cache.RepostedByMe,
+			RepostedByMe:   cache.RepostedByMe,
+			FavoritedByMe:  cache.FavoritedByMe,
+			BookmarkedByMe: cache.BookmarkedByMe,
 		})
 
 		if cache.CreatedAt.Before(oldestPost) {
