@@ -59,17 +59,34 @@ func checkRepostable(ctx context.Context, conn db.DBConn, postId string) (bool, 
 	return true, nil
 }
 
+func findOriginalPostID(ctx context.Context, conn db.DBConn, postID string) (string, error) {
+	var originalPostID models.Post
+	err := conn.DB().GetContext(ctx, &originalPostID, "SELECT BIN_TO_UUID(repost_of) AS repost_of, content FROM Post WHERE id=UUID_TO_BIN(?)", postID)
+	if err != nil {
+		return "", err
+	}
+
+	if originalPostID.RepostOf == nil {
+		return postID, nil
+	}
+
+	if originalPostID.Content != nil {
+		return postID, nil
+	}
+
+	return findOriginalPostID(ctx, conn, *originalPostID.RepostOf)
+}
+
 // checkIfReposted checks if a post is reposted by a user
-// it also traverses repost chain and returns the original post id
-func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID string, reposterID string) (bool, string, error) {
+func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID string, reposterID string) (bool, error) {
 	// first, check if repostedID is a repost
 	var repostOf models.Post
 	err := conn.DB().GetContext(ctx, &repostOf, "SELECT BIN_TO_UUID(repost_of) AS repost_of, content FROM Post WHERE id=UUID_TO_BIN(?)", repostedID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return false, "", ErrReplyOrRepostTargetNotFound
+			return false, ErrReplyOrRepostTargetNotFound
 		}
-		return false, "", err
+		return false, err
 	}
 
 	if repostOf.RepostOf != nil && repostOf.Content == nil {
@@ -80,9 +97,9 @@ func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID string, rep
 	var count int
 	err = conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM Post WHERE repost_of=UUID_TO_BIN(?) AND poster_id=UUID_TO_BIN(?) AND content IS NULL", repostedID, reposterID)
 	if err != nil {
-		return false, "", err
+		return false, err
 	}
-	return count > 0, repostedID, nil
+	return count > 0, nil
 }
 
 func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*CreateResponse, error) {
@@ -101,6 +118,20 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 
 	var postType PostType
 
+	if post.RepostID != "" {
+		post.RepostID, err = findOriginalPostID(ctx, conn, post.RepostID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if post.ReplyToPostID != "" {
+		post.ReplyToPostID, err = findOriginalPostID(ctx, conn, post.ReplyToPostID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if post.RepostID != "" && post.Content == nil {
 		// Repost
 		repostable, err := checkRepostable(ctx, conn, post.RepostID)
@@ -113,7 +144,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 		}
 
 		// check if already reposted
-		reposted, originalPostID, err := checkIfReposted(ctx, conn, post.RepostID, post.PosterID)
+		reposted, err := checkIfReposted(ctx, conn, post.RepostID, post.PosterID)
 		if err != nil {
 			return nil, err
 		}
@@ -122,7 +153,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 		}
 
 		dbPost.Content = nil
-		dbPost.RepostOf = &originalPostID
+		dbPost.RepostOf = &post.RepostID
 
 		postType = PostTypeRepost
 	} else if post.RepostID != "" && post.Content != nil {
