@@ -3,7 +3,8 @@ import { inject, ref, watch } from 'vue'
 import { AUTH_AXIOS } from '../../consts'
 
 const emit = defineEmits<{
-    (e: 'created'): void
+    (e: 'created'): void,
+    (e: 'on-close'): void
 }>()
 
 const props = defineProps({
@@ -55,6 +56,7 @@ const postTweet = async () => {
 
 const closePostMenu = () => {
     showPostMenu.value = false
+    emit('on-close')
 }
 </script>
 

@@ -1,76 +1,67 @@
 <script lang="ts" setup>
-import MainAppShell from '@/components/Main/MainAppShell.vue'
-import MainFeed from '@/components/Main/MainFeed.vue'
-import MainHeader from '@/components/Main/MainHeader.vue'
-import MainLeftMenu from '@/components/Main/MainLeftMenu.vue'
-import MainRightMenu from '@/components/Main/MainRightMenu.vue'
-import ProfileView from '@/components/Profile/ProfileView.vue'
-import CreatePostView from '@/components/Main/CreatePostView.vue'
 
 import axios from 'axios'
-import { provide } from 'vue'
+import { provide, ref } from 'vue'
 import { getLoginToken, getUsername } from '../../auth'
-import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
+import { AUTH_AXIOS, CURRENT_USERNAME, DEVICE_TYPE } from '../../consts'
 import { BASE_URL } from '../../settings'
+
+import MainViewMobile from '@/components/Main/MainViewMobile.vue';
+import MainViewDesktop from '@/components/Main/MainViewDesktop.vue';
 
 // axios setup
 const authAxios = axios.create({
     baseURL: BASE_URL
 })
 authAxios.interceptors.request.use(config => {
-    const token = getLoginToken()
+    const token = getLoginToken();
     if (token) {
-        config.headers.Authorization = `Bearer ${token}`
+        config.headers.Authorization = `Bearer ${token}`;
     }
 
-    return config
+    return config;
 })
 
 const props = defineProps<{
-    mode: 'feed' | 'profile'
+    mode: 'feed' | 'profile',
 }>()
 
-const username = getUsername()!
+const username = getUsername()!;
 
-provide(AUTH_AXIOS, authAxios)
-provide(CURRENT_USERNAME, username)
+const deviceType = ref('mobile');
+
+const checkDevice = () => {
+    if (window.innerWidth < 768) {
+        deviceType.value = 'mobile';
+    } else {
+        deviceType.value = 'desktop';
+    }
+}
+
+window.addEventListener('resize', checkDevice);
+
+checkDevice();
+
+// provides deviceType to children
+provide(AUTH_AXIOS, authAxios);
+provide(CURRENT_USERNAME, username);
+provide(DEVICE_TYPE, deviceType);
+
 </script>
 
 <template>
-    <MainAppShell>
-        <template #header>
-            <MainHeader />
-        </template>
-        <template #left-menu>
-            <MainLeftMenu @create-post="handleToggleCreatePost" />
-        </template>
-        <template #right-menu>
-            <MainRightMenu />
-        </template>
-        <template #create-post>
-            <CreatePostView :showPostMenu="isCreatePostOpen" />
-        </template>
-        <template #feed>
-            <MainFeed v-if="props.mode === 'feed'" />
-            <ProfileView v-else-if="props.mode === 'profile'" />
-        </template>
-    </MainAppShell>
+    <MainViewMobile
+        v-if="deviceType === 'mobile'"
+        :mode="props.mode"
+    />
+    <MainViewDesktop
+        v-else
+        :mode="props.mode"
+    />
 </template>
 
 <script lang="ts">
 export default {
-    name: 'MainView',
-    data() {
-        return {
-            isCreatePostOpen: false
-        }
-    },
-    methods: {
-        // Toggle Create Post
-        handleToggleCreatePost() {
-            this.isCreatePostOpen = !this.isCreatePostOpen
-        }
-    }
 }
 </script>
 
