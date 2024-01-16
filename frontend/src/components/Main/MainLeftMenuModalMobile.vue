@@ -6,11 +6,9 @@ import MainLeftMenu from './MainLeftMenu.vue';
     <Transition name="from-left">
         <div v-if="isOpen" class="drawer-menu-wrapper-left">
             <div class="main-left-menu-modal-mobile
-                fixed inset-0
-                z-20
                 flex flex-col
                 overflow-hidden
-                w-9/12 h-full
+                w-full h-full
             ">
                 <div class="main-left-menu-modal-mobile-content
                     bg-light-base dark:bg-dark-base
@@ -91,7 +89,7 @@ export default {
     z-index: 20;
     top: 0;
     left: 0; /*左に出す場合*/
-    width: 50%;
+    width: 75%;
     height: 100%;
     background-color: white;
 }
