@@ -35,6 +35,27 @@ const routes = [
         props: {
             mode: 'profile'
         }
+    },
+    {
+        path: '/trend/posts',
+        component: MainView,
+        props: {
+            mode: 'trend-search'
+        }
+    },
+    {
+        path: '/user/:id/followers',
+        component: MainView,
+        props: {
+            mode: 'followers'
+        }
+    },
+    {
+        path: '/user/:id/followings',
+        component: MainView,
+        props: {
+            mode: 'followings'
+        }
     }
 ]
 

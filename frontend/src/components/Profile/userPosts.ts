@@ -1,6 +1,6 @@
 import { Ref, inject, ref, watchEffect } from 'vue'
 import { AUTH_AXIOS } from '../../consts.ts'
-import { UserPostEntry } from '../Post//post.ts'
+import { UserPostEntry } from '../UserPost/userpost.model.ts'
 
 export interface UserPostsResponse {
     posts: UserPostEntry[]

@@ -23,6 +23,7 @@ const (
 var (
 	ErrReplyOrRepostTargetNotFound = errors.New("reply or repost target not found")
 	ErrRepostHasBody               = errors.New("repost has body")
+	ErrAlreadyReposted             = errors.New("already reposted")
 )
 
 type CreateRequest struct {
@@ -58,6 +59,53 @@ func checkRepostable(ctx context.Context, conn db.DBConn, postId string) (bool, 
 	return true, nil
 }
 
+func findOriginalPostID(ctx context.Context, conn db.DBConn, postID string) (string, error) {
+	var originalPostID models.Post
+	err := conn.DB().GetContext(ctx, &originalPostID, "SELECT BIN_TO_UUID(repost_of) AS repost_of, content FROM Post WHERE id=UUID_TO_BIN(?)", postID)
+	if err != nil {
+		return "", err
+	}
+
+	if originalPostID.RepostOf == nil {
+		return postID, nil
+	}
+
+	if originalPostID.Content != nil {
+		return postID, nil
+	}
+
+	return findOriginalPostID(ctx, conn, *originalPostID.RepostOf)
+}
+
+func FindOriginalPostID(ctx context.Context, conn db.DBConn, postID string) (string, error) {
+	return findOriginalPostID(ctx, conn, postID)
+}
+
+// checkIfReposted checks if a post is reposted by a user
+func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID string, reposterID string) (bool, error) {
+	// first, check if repostedID is a repost
+	var repostOf models.Post
+	err := conn.DB().GetContext(ctx, &repostOf, "SELECT BIN_TO_UUID(repost_of) AS repost_of, content FROM Post WHERE id=UUID_TO_BIN(?)", repostedID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, ErrReplyOrRepostTargetNotFound
+		}
+		return false, err
+	}
+
+	if repostOf.RepostOf != nil && repostOf.Content == nil {
+		// repostOf is a repost
+		return checkIfReposted(ctx, conn, *repostOf.RepostOf, reposterID)
+	}
+
+	var count int
+	err = conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM Post WHERE repost_of=UUID_TO_BIN(?) AND poster_id=UUID_TO_BIN(?) AND content IS NULL", repostedID, reposterID)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*CreateResponse, error) {
 	postID, err := utils.GenerateUUIDString()
 	if err != nil {
@@ -74,6 +122,20 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 
 	var postType PostType
 
+	if post.RepostID != "" {
+		post.RepostID, err = findOriginalPostID(ctx, conn, post.RepostID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if post.ReplyToPostID != "" {
+		post.ReplyToPostID, err = findOriginalPostID(ctx, conn, post.ReplyToPostID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if post.RepostID != "" && post.Content == nil {
 		// Repost
 		repostable, err := checkRepostable(ctx, conn, post.RepostID)
@@ -83,6 +145,15 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 		if !repostable {
 			// hide existence of post
 			return nil, ErrReplyOrRepostTargetNotFound
+		}
+
+		// check if already reposted
+		reposted, err := checkIfReposted(ctx, conn, post.RepostID, post.PosterID)
+		if err != nil {
+			return nil, err
+		}
+		if reposted {
+			return nil, ErrAlreadyReposted
 		}
 
 		dbPost.Content = nil
@@ -151,9 +222,8 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 	}
 
 	// insert Hashtags (if any)
-	hashtags := []string{}
 	if post.Content != nil {
-		hashtags = FindHashtags(*post.Content)
+		hashtags := FindHashtags(*post.Content)
 		for _, hashtag := range hashtags {
 			_, err = tx.ExecContext(ctx, "INSERT INTO PostHashtag (post_id,hashtag_name) VALUES (UUID_TO_BIN(?),?)", postID, hashtag)
 			if err != nil {

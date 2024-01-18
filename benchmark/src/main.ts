@@ -22,6 +22,21 @@ function fakeUsers(): RegisterRequest[] {
   return users;
 }
 
+const HashTagPoolCount = 100;
+const HashTagPool: string[] = [];
+for (let i = 0; i < HashTagPoolCount; i++) {
+  HashTagPool.push(faker.lorem.word());
+}
+
+function fakeHashtags(): string[] {
+  const count = Math.floor(Math.random() * 5);
+  const hashtags: string[] = [];
+  for (let i = 0; i < count; i++) {
+    hashtags.push(chooseRandom(HashTagPool));
+  }
+  return hashtags;
+}
+
 function chooseRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -72,7 +87,11 @@ async function main() {
   for (let i = 0; i < postCount; i++) {
     const user = chooseRandom(loginUsers);
     const privacy = chooseRandom(["public", "unlisted"] as const);
-    const content = faker.lorem.sentence();
+    let content = faker.lorem.sentence();
+    const hashtags = fakeHashtags();
+    for (const hashtag of hashtags) {
+      content += ` #${hashtag}`;
+    }
     const postReq = {
       token: user.token,
       content,

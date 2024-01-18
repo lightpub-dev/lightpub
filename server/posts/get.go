@@ -28,6 +28,10 @@ type postWithUser struct {
 	ReplyTo  *string `db:"reply_to"`
 	RepostOf *string `db:"repost_of"`
 	PollID   *string `db:"poll_id"`
+
+	RepostedByMe   *bool `db:"reposted_by_me"`
+	FavoritedByMe  *bool `db:"favorited_by_me"`
+	BookmarkedByMe *bool `db:"bookmarked_by_me"`
 }
 
 func CreatePostURL(postID string) string {
@@ -42,12 +46,17 @@ func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 	result.Author.ID = post.PosterID
 	result.Author.Username = post.PosterUsername
 	result.Author.Host = post.PosterHost
+	result.Author.Nickname = post.PosterNickname
 	result.Content = post.Content
 	result.CreatedAt = post.CreatedAt
 	result.Privacy = post.Privacy
 
 	result.ReplyTo = replyTo
 	result.RepostOf = repostOf
+
+	result.RepostedByMe = post.RepostedByMe
+	result.FavoritedByMe = post.FavoritedByMe
+	result.BookmarkedByMe = post.BookmarkedByMe
 }
 
 // fetchSinglePostOrURL returns *models.UserPostEntry || string
@@ -75,13 +84,16 @@ func FetchSinglePost(ctx context.Context, conn db.DBConn, postID string, viewerU
 func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string, viewerUserID string, currentDepth int) (*models.UserPostEntry, error) {
 	var post postWithUser
 	err := conn.DB().GetContext(ctx, &post, `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
+	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=0)) AS favorited_by_me,
+	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=1)) AS bookmarked_by_me
 	FROM Post p
 	INNER JOIN User u ON p.poster_id=u.id
 	WHERE
 		p.id=UUID_TO_BIN(?)
 		AND p.scheduled_at IS NULL
-	`, postID)
+	`, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, postID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

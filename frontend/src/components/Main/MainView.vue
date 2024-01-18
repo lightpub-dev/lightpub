@@ -1,11 +1,13 @@
 <script lang="ts" setup>
+import CreatePostView from '@/components/Main/CreatePostView.vue'
 import MainAppShell from '@/components/Main/MainAppShell.vue'
 import MainFeed from '@/components/Main/MainFeed.vue'
 import MainHeader from '@/components/Main/MainHeader.vue'
 import MainLeftMenu from '@/components/Main/MainLeftMenu.vue'
 import MainRightMenu from '@/components/Main/MainRightMenu.vue'
 import ProfileView from '@/components/Profile/ProfileView.vue'
-import CreatePostView from '@/components/Main/CreatePostView.vue'
+import UserList from '@/components/Profile/UserList.vue'
+import TrendPostView from '@/components/Trend/TrendPostList.vue'
 
 import axios from 'axios'
 import { provide } from 'vue'
@@ -27,7 +29,7 @@ authAxios.interceptors.request.use(config => {
 })
 
 const props = defineProps<{
-    mode: 'feed' | 'profile'
+    mode: 'feed' | 'profile' | 'trend-search' | 'followers' | 'followings'
 }>()
 
 const username = getUsername()!
@@ -53,6 +55,12 @@ provide(CURRENT_USERNAME, username)
         <template #feed>
             <MainFeed v-if="props.mode === 'feed'" />
             <ProfileView v-else-if="props.mode === 'profile'" />
+            <TrendPostView v-else-if="props.mode === 'trend-search'" />
+            <UserList v-else-if="props.mode === 'followers'" mode="followers" />
+            <UserList
+                v-else-if="props.mode === 'followings'"
+                mode="followings"
+            />
         </template>
     </MainAppShell>
 </template>

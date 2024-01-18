@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { AUTH_AXIOS } from '../../consts'
 import { useUserPosts } from './userPosts'
 import UserPost from '@/components/UserPost/UserPost.vue'
+import { getUsername } from '../../auth'
 
 const route = useRoute()
 const id = computed(() => route.params.id)
@@ -73,10 +74,18 @@ const toggleFollow = async () => {
 
     fetchProfile()
 }
+
+const followerLink = computed(() => `/user/${id.value}/followers`)
+const followingLink = computed(() => `/user/${id.value}/followings`)
+
+const isMe = computed(() => {
+    const myUsername = getUsername()
+    return myUsername === username.value
+})
 </script>
 
 <template>
-    <div class="bg-[rgb(219,234,254)] flex items-start justify-center pt-10">
+    <div class="bg-gray-100 flex items-start justify-center pt-10">
         <div class="bg-white p-6 rounded-lg shadow-lg w-64">
             <div class="mb-4">
                 <img
@@ -103,6 +112,7 @@ const toggleFollow = async () => {
                                 !isFollowing
                         }"
                         @click="toggleFollow"
+                        v-if="!isMe"
                     >
                         {{
                             isFollowing === null
@@ -141,18 +151,26 @@ const toggleFollow = async () => {
                     <p class="font-semibold text-gray-700">{{ nPosts }}</p>
                 </div>
                 <div class="text-center">
-                    <p class="text-sm text-gray-600">Followers</p>
-                    <p class="font-semibold text-gray-700">{{ nFollowers }}</p>
+                    <router-link :to="followerLink">
+                        <p class="text-sm text-gray-600">Followers</p>
+                        <p class="font-semibold text-gray-700">
+                            {{ nFollowers }}
+                        </p>
+                    </router-link>
                 </div>
                 <div class="text-center">
-                    <p class="text-sm text-gray-600">Following</p>
-                    <p class="font-semibold text-gray-700">{{ nFollowings }}</p>
+                    <router-link :to="followingLink"
+                        ><p class="text-sm text-gray-600">Following</p>
+                        <p class="font-semibold text-gray-700">
+                            {{ nFollowings }}
+                        </p>
+                    </router-link>
                 </div>
             </div>
         </div>
     </div>
     <div
-        class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-[rgb(219,234,254)]"
+        class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-gray-100"
     >
         <div class="flex flex-col p-2">
             <UserPost

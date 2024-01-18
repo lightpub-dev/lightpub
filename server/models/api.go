@@ -45,6 +45,10 @@ type UserPostEntry struct {
 	ReplyCount    int64            `json:"reply_count"`
 	QuoteCount    int64            `json:"quote_count"`
 	Reactions     ReactionCountMap `json:"reactions"`
+
+	RepostedByMe   *bool `json:"reposted_by_me,omitempty"`
+	FavoritedByMe  *bool `json:"favorited_by_me,omitempty"`
+	BookmarkedByMe *bool `json:"bookmarked_by_me,omitempty"`
 }
 
 func (u *UserPostEntry) UpdateCounts(reply, favorite, repost, quote int64, reactions ReactionCountMap) {
@@ -102,4 +106,13 @@ type UserProfileUpdate struct {
 type UserLabel struct {
 	Key   string `json:"key" validate:"required,max=2000"`
 	Value string `json:"value" validate:"required,max=2000"`
+}
+
+type TrendOverviewResponse struct {
+	Trends []TrendResponse `json:"trends"`
+}
+
+type TrendResponse struct {
+	Hashtag   string `json:"hashtag"`
+	PostCount int64  `json:"post_count"`
 }

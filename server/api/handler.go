@@ -77,7 +77,7 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	// Users
 	unAuthed.GET("/user/:username/posts", h.GetUserPosts)
 	unAuthed.GET("/user/:username/followers", h.GetUserFollowers)
-	unAuthed.GET("/user/:username/following", h.GetUserFollowing)
+	unAuthed.GET("/user/:username/followings", h.GetUserFollowing)
 	authed.PUT("/user/:username/follow", h.FollowAUser)
 	authed.DELETE("/user/:username/follow", h.UnfollowAUser)
 	authed.PUT("/user", h.PutUser)
@@ -85,6 +85,10 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 
 	// Timeline
 	authed.GET("/timeline", h.GetTimeline)
+
+	// Trend
+	unAuthed.GET("/trend", h.GetTrend)
+	unAuthed.GET("/trend/posts", h.GetTrendPosts)
 
 	// webfinger
 	unAuthed.GET("/.well-known/webfinger", h.GetWebfinger)

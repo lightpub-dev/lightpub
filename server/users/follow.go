@@ -20,13 +20,13 @@ func IsFollowedBy(ctx context.Context, conn db.DBConn, followerID string, follow
 }
 
 type FollowerInfo struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	Host        string `json:"host"`
-	URL         string `json:"url"`
-	Nickname    string `json:"nickname"`
-	Bio         string `json:"bio"`
-	IsFollowing bool   `json:"is_following"`
+	ID          string `json:"id" db:"id"`
+	Username    string `json:"username" db:"username"`
+	Host        string `json:"host" db:"host"`
+	URL         string `json:"url" db:"url"`
+	Nickname    string `json:"nickname" db:"nickname"`
+	Bio         string `json:"bio" db:"bio"`
+	IsFollowing bool   `json:"is_following" db:"is_following"`
 }
 
 func CreateLocalUserURL(username string) string {
@@ -69,11 +69,11 @@ WHERE uf.followee_id=UUID_TO_BIN(?)
 	}
 
 	if beforeDate != nil {
-		sql += " AND up.created_at < ?"
+		sql += " AND u.created_at < ?"
 		params = append(params, beforeDate)
 	}
 
-	sql += " ORDER BY up.created_at DESC LIMIT ?"
+	sql += " ORDER BY u.created_at DESC LIMIT ?"
 	params = append(params, limit)
 
 	err := conn.DB().SelectContext(ctx, &followers, sql, params...)
@@ -119,11 +119,11 @@ WHERE uf.follower_id=UUID_TO_BIN(?)
 	}
 
 	if beforeDate != nil {
-		sql += " AND up.created_at < ?"
+		sql += " AND u.created_at < ?"
 		params = append(params, beforeDate)
 	}
 
-	sql += " ORDER BY up.created_at DESC LIMIT ?"
+	sql += " ORDER BY u.created_at DESC LIMIT ?"
 	params = append(params, limit)
 
 	err := conn.DB().SelectContext(ctx, &following, sql, params...)

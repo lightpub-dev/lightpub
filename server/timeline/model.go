@@ -25,6 +25,10 @@ type FetchedPost struct {
 	ReplyCount    int64                   `json:"r"`
 	QuoteCount    int64                   `json:"q"`
 	Reactions     models.ReactionCountMap `json:"rcs"`
+
+	RepostedByMe   *bool `db:"reposted_by_me" json:"rbm"`
+	FavoritedByMe  *bool `db:"favorited_by_me" json:"fbm"`
+	BookmarkedByMe *bool `db:"bookmarked_by_me" json:"bbm"`
 }
 
 func (fp *FetchedPost) PostID() string {
