@@ -91,9 +91,9 @@ const onFavorite = async () => {
     }
 }
 
-const isBookmarkedByMe = computed(() => {
-    return actualPost.value.bookmarked_by_me ?? false
-})
+// const isBookmarkedByMe = computed(() => {
+//     return actualPost.value.bookmarked_by_me ?? false
+// })
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
