@@ -41,7 +41,7 @@ const hostname = computed(() => {
 })
 
 const atHostname = computed(() => {
-    if (hostname.value === null) {
+    if (hostname.value === '') {
         return ''
     }
     return `@${hostname.value}`

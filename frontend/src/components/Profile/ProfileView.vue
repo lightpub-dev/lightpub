@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { AUTH_AXIOS } from '../../consts'
 import { useUserPosts } from './userPosts'
 import UserPost from '@/components/UserPost/UserPost.vue'
+import { getUsername } from '../../auth'
 
 const route = useRoute()
 const id = computed(() => route.params.id)
@@ -76,6 +77,11 @@ const toggleFollow = async () => {
 
 const followerLink = computed(() => `/user/${id.value}/followers`)
 const followingLink = computed(() => `/user/${id.value}/followings`)
+
+const isMe = computed(() => {
+    const myUsername = getUsername()
+    return myUsername === username.value
+})
 </script>
 
 <template>
@@ -106,6 +112,7 @@ const followingLink = computed(() => `/user/${id.value}/followings`)
                                 !isFollowing
                         }"
                         @click="toggleFollow"
+                        v-if="!isMe"
                     >
                         {{
                             isFollowing === null
