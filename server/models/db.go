@@ -3,51 +3,51 @@ package models
 import "time"
 
 type User struct {
-	ID        string    `db:"id"`
-	Username  string    `db:"username"`
-	Host      string    `db:"host"`
-	Bpasswd   string    `db:"bpassword"`
-	Nickname  string    `db:"nickname"`
-	URL       *string   `db:"url"`
-	Inbox     *string   `db:"inbox"`
-	Outbox    *string   `db:"outbox"`
-	CreatedAt time.Time `db:"created_at"`
-	IsLocal   bool      `db:"is_local"`
+	ID        []byte    `gorm:"primaryKey;type=BINARY(16)"`
+	Username  string    `gorm:"size:64"`
+	Host      string    `gorm:"size:128"`
+	Bpasswd   string    `gorm:"size:60"`
+	Nickname  string    `gorm:"size:255"`
+	URL       *string   `gorm:"size:512"`
+	Inbox     *string   `gorm:"size:512"`
+	Outbox    *string   `gorm:"size:512"`
+	CreatedAt time.Time `gorm:"autoCreateTime:nano;type=DATETIME(6)"`
 }
 
 type FullUser struct {
 	User
-	Bio                 string `db:"bio"`
+	Bio                 string
 	Labels              []UserLabelDB
 	IsFollowingByViewer bool
-	Following           int64 `db:"n_following"`
-	Followers           int64 `db:"n_followers"`
-	PostCount           int64 `db:"n_posts"`
+	Following           int64
+	Followers           int64
+	PostCount           int64
 }
 
 type UserLabelDB struct {
-	Order int    `db:"order"`
-	Key   string `db:"key"`
-	Value string `db:"value"`
+	ID    uint64 `gorm:"primaryKey;type=BINARY(16)"`
+	Order int
+	Key   string
+	Value string
 }
 
 type UserToken struct {
-	ID     int64  `db:"id"`
-	UserID string `db:"user_id"`
-	Token  string `db:"token"`
+	ID     uint64 `gorm:"primaryKey"`
+	UserID []byte `gorm:"type:BINARY(16)"`
+	Token  string `gorm:"type:VARCHAR(64)"`
 }
 
 type Post struct {
-	ID          string     `db:"id" json:"id"`
-	PosterID    string     `db:"poster_id" json:"poster_id"`
-	Content     *string    `db:"content" json:"content"` // Null when reposting
-	InsertedAt  time.Time  `db:"inserted_at"`
-	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
-	Privacy     string     `db:"privacy" json:"privacy"` // enum treated as string
-	ReplyTo     *string    `db:"reply_to"`               // Nullable fields as pointers
-	RepostOf    *string    `db:"repost_of"`              // Nullable fields as pointers
-	PollID      *string    `db:"poll_id"`                // Nullable fields, assuming same type as ID
-	ScheduledAt *time.Time `db:"scheduled_at"`           // Nullable fields as pointers
+	ID          []byte     `gorm:"primaryKey;type:BINARY(16)"`
+	PosterID    []byte     `gorm:"type:BINARY(16)"`
+	Content     *string    `gorm:"type:LONGTEXT"` // Null when reposting
+	InsertedAt  time.Time  `gorm:"autoCreateTime:nano;type=DATETIME(6)"`
+	CreatedAt   time.Time  `gorm:"autoCreateTime:nano;type=DATETIME(6)"`
+	Privacy     string     `gorm:"type:ENUM('public','unlisted','follower','private')"` // enum treated as string
+	ReplyTo     []byte     `gorm:"type:BINARY(16)"`                                     // Nullable fields as pointers
+	RepostOf    *string    `db:"repost_of"`                                             // Nullable fields as pointers
+	PollID      *string    `db:"poll_id"`                                               // Nullable fields, assuming same type as ID
+	ScheduledAt *time.Time `db:"scheduled_at"`                                          // Nullable fields as pointers
 }
 
 type PostAttachment struct {
