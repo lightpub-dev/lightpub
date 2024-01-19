@@ -1,13 +1,14 @@
 package api
 
 import (
-	"database/sql"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/utils"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 const (
@@ -42,22 +43,17 @@ func (h *Handler) AuthMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo
 			token := header[7:]
 
 			// validate it
-			var users []models.User
-			err := h.DB.Select(&users, "SELECT BIN_TO_UUID(u.id) AS id,u.username FROM User u INNER JOIN UserToken ut ON u.id=ut.user_id WHERE ut.token=? AND u.is_local=1", token)
-			if err != nil {
-				c.Logger().Error(err)
-				return c.String(500, "Internal Server Error")
-			}
-
+			var user db.User
+			result := h.DB.First(&user).Joins("UserToken").Where("UserToken.token = ?", token).Where("User.is_local = 1")
 			// if not found, return 401
-			if len(users) == 0 {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return c.String(401, "Invalid auth token")
 			}
 
 			// if found, set user_id in context
 			c.Set(ContextAuthed, true)
-			c.Set(ContextUserID, users[0].ID)
-			c.Set(ContextUsername, users[0].Username)
+			c.Set(ContextUserID, user.ID)
+			c.Set(ContextUsername, user.Username)
 
 			// call next handler
 			return next(c)
@@ -77,10 +73,11 @@ func (h *Handler) PostLogin(c echo.Context) error {
 		return c.String(400, "Bad Request")
 	}
 
-	var user models.User
-	err = h.DB.Get(&user, "SELECT * FROM User WHERE username=? AND is_local=1", req.Username)
+	var user db.User
+	result := h.DB.First(&user, "username = ? AND is_local = 1", req.Username)
+	err = result.Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.String(401, "bad auth")
 		}
 		c.Logger().Error(err)
@@ -100,7 +97,11 @@ func (h *Handler) PostLogin(c echo.Context) error {
 	}
 
 	// insert token
-	_, err = h.DB.Exec("INSERT INTO UserToken (user_id, token) VALUES (?, ?)", user.ID, token)
+	result = h.DB.Create(&db.UserToken{
+		UserID: user.ID,
+		Token:  token.String(),
+	})
+	err = result.Error
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -126,15 +127,12 @@ func (h *Handler) PostRegister(c echo.Context) error {
 	}
 
 	// check if username is taken
-	tx, err := h.DB.Beginx()
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
+	tx := h.DB.Begin()
 	defer tx.Rollback()
 
-	var count int
-	err = tx.Get(&count, "SELECT COUNT(*) FROM User WHERE username=? FOR UPDATE", req.Username)
+	var count int64
+	result := tx.Model(&db.User{}).Where("username = ?", req.Username).Count(&count)
+	err = result.Error
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -151,26 +149,28 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		return c.String(500, "Internal Server Error")
 	}
 
-	userId, err := utils.GenerateUUIDString()
+	userId, err := utils.GenerateUUID()
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
 	}
 
-	user := models.User{
-		ID:       userId,
+	user := db.User{
+		ID:       db.UUID(userId),
 		Username: req.Username,
 		Nickname: req.Nickname,
 		Bpasswd:  string(hashedPassword),
 		Host:     "",
 	}
 
-	_, err = tx.NamedExec("INSERT INTO User (id,username,nickname,bpassword,host) VALUES (UUID_TO_BIN(:id),:username,:nickname,:bpassword,:host)", user)
+	result = tx.Create(&user)
+	err = result.Error
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
 	}
 
+	userProfile := 
 	_, err = tx.Exec("INSERT INTO UserProfile (user_id,bio) VALUES(UUID_TO_BIN(?), '')", user.ID)
 	if err != nil {
 		c.Logger().Error(err)

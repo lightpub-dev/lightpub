@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 type DBConnectionInfo struct {
@@ -19,13 +20,14 @@ type DBConnectionInfo struct {
 }
 
 type DBConnectResult struct {
-	DB  *sqlx.DB
+	DB  *gorm.DB
 	RDB *redis.Client
 }
 
 func ConnectDB(connectDB DBConnectionInfo) (*DBConnectResult, error) {
 	var err error
-	db, err := sqlx.Connect("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", connectDB.Username, connectDB.Password, connectDB.Host, connectDB.Port, connectDB.Database))
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", connectDB.Username, connectDB.Password, connectDB.Host, connectDB.Port, connectDB.Database)
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
@@ -53,4 +55,22 @@ func ConnectDB(connectDB DBConnectionInfo) (*DBConnectResult, error) {
 		DB:  db,
 		RDB: rdb,
 	}, nil
+}
+
+func (d *DBConnectResult) MigrateToLatest() error {
+	return d.DB.AutoMigrate(
+		&User{},
+		&UserLabelDB{},
+		&UserToken{},
+		&Post{},
+		&PostAttachment{},
+		&PostFavorite{},
+		&PostHashtag{},
+		&PostPoll{},
+		&PostReaction{},
+		&PollChoice{},
+		&PollVote{},
+		&PostMention{},
+		&UserFollow{},
+	)
 }

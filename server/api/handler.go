@@ -2,12 +2,12 @@ package api
 
 import (
 	"github.com/go-playground/validator/v10"
-	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/redis/go-redis/v9"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"gorm.io/gorm"
 )
 
 var (
@@ -15,11 +15,11 @@ var (
 )
 
 type Handler struct {
-	DB  *sqlx.DB
+	DB  *gorm.DB
 	RDB *redis.Client
 }
 
-func NewHandler(db *sqlx.DB, rdb *redis.Client) *Handler {
+func NewHandler(db *gorm.DB, rdb *redis.Client) *Handler {
 	return &Handler{
 		DB:  db,
 		RDB: rdb,
@@ -27,7 +27,7 @@ func NewHandler(db *sqlx.DB, rdb *redis.Client) *Handler {
 }
 
 type dbconn struct {
-	D *sqlx.DB
+	D *gorm.DB
 }
 
 func (h *Handler) MakeDB() *dbconn {
@@ -36,7 +36,7 @@ func (h *Handler) MakeDB() *dbconn {
 	}
 }
 
-func (d *dbconn) DB() *sqlx.DB {
+func (d *dbconn) DB() *gorm.DB {
 	return d.D
 }
 

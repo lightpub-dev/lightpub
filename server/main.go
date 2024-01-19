@@ -40,7 +40,7 @@ func main2() {
 	}
 
 	// migrate
-	if err := d.MigrateToLatest(conn, "./migrations", true); err != nil {
+	if err := db.MigrateToLatest(); err != nil {
 		panic(err)
 	}
 

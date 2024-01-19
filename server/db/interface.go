@@ -1,9 +1,9 @@
 package db
 
 import (
-	"github.com/jmoiron/sqlx"
+	"gorm.io/gorm"
 )
 
 type DBConn interface {
-	DB() *sqlx.DB
+	DB() *gorm.DB
 }

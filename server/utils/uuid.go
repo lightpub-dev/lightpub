@@ -2,6 +2,10 @@ package utils
 
 import "github.com/google/uuid"
 
+func GenerateUUID() (uuid.UUID, error) {
+	return uuid.NewRandom()
+}
+
 func GenerateUUIDString() (string, error) {
 	uuid, err := uuid.NewRandom()
 	if err != nil {
