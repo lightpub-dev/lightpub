@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/lightpub-dev/lightpub/config"
-	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/db"
+	"gorm.io/gorm"
 )
 
 var (
@@ -17,9 +17,9 @@ var (
 	ErrNotFound    = errors.New("not found")
 )
 
-func fetchUser(ctx context.Context, db *sqlx.DB, username string) (*models.User, error) {
-	var user models.User
-	err := db.GetContext(ctx, &user, "SELECT BIN_TO_UUID(id) AS id,username FROM User WHERE username = ?", username)
+func fetchUser(ctx context.Context, conn *gorm.DB, username string) (*db.User, error) {
+	var user db.User
+	err := conn.Find(&user, "username = ?", username).Error
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -37,7 +37,7 @@ func createPersonURL(userID string) string {
 	return fmt.Sprintf("%s/user/%s", config.MyHostname, userID)
 }
 
-func handleAcct(ctx context.Context, db *sqlx.DB, specifier string) (interface{}, error) {
+func handleAcct(ctx context.Context, conn *gorm.DB, specifier string) (interface{}, error) {
 	// split by @
 	parts := strings.SplitN(specifier, "@", 2)
 
@@ -56,7 +56,7 @@ func handleAcct(ctx context.Context, db *sqlx.DB, specifier string) (interface{}
 		return nil, ErrBadFormat
 	}
 
-	user, err := fetchUser(ctx, db, username)
+	user, err := fetchUser(ctx, conn, username)
 	if err != nil {
 		return nil, err
 	}

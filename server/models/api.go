@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/lightpub-dev/lightpub/db"
+)
 
 type PostRequest struct {
 	Content     string     `json:"content"`
@@ -31,6 +35,7 @@ type UserPostListResponse struct {
 type ReactionCountMap map[string]int64
 
 type UserPostEntry struct {
+	IDUUID    db.UUID             `json:"-"` // for internal use only
 	ID        string              `json:"id"`
 	Author    UserPostEntryAuthor `json:"author"`
 	Content   *string             `json:"content"`
@@ -59,8 +64,8 @@ func (u *UserPostEntry) UpdateCounts(reply, favorite, repost, quote int64, react
 	u.Reactions = reactions
 }
 
-func (u *UserPostEntry) PostID() string {
-	return u.ID
+func (u *UserPostEntry) PostID() db.UUID {
+	return u.IDUUID
 }
 
 type UserPostEntryAuthor struct {

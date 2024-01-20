@@ -7,54 +7,36 @@ import (
 	"github.com/lightpub-dev/lightpub/models"
 )
 
-func CountReply(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
+func CountReply(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().GetContext(ctx, &count, `
-		SELECT COUNT(*) FROM Post
-		WHERE reply_to=UUID_TO_BIN(?)
-		  AND scheduled_at IS NULL
-	`, postID)
+	err := conn.DB().Model(&db.Post{}).Where("reply_to_id = ?").Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func CountFavorite(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
+func CountFavorite(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().GetContext(ctx, &count, `
-		SELECT COUNT(*) FROM PostFavorite
-		WHERE post_id=UUID_TO_BIN(?)
-		  AND is_bookmark=0
-	`, postID)
+	err := conn.DB().Model(&db.PostFavorite{}).Where("post_id = ? AND is_bookmark = 0", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func CountRepost(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
+func CountRepost(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().GetContext(ctx, &count, `
-		SELECT COUNT(*) FROM Post
-		WHERE repost_of=UUID_TO_BIN(?)
-		  AND content IS NULL
-		  AND scheduled_at IS NULL
-	`, postID)
+	err := conn.DB().Model(&db.Post{}).Where("repost_of_id = ? AND content IS NULL", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func CountQuote(ctx context.Context, conn db.DBConn, postID string) (int64, error) {
+func CountQuote(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().GetContext(ctx, &count, `
-		SELECT COUNT(*) FROM Post
-		WHERE repost_of=UUID_TO_BIN(?)
-		  AND content IS NOT NULL
-		  AND scheduled_at IS NULL
-	`, postID)
+	err := conn.DB().Model(&db.Post{}).Where("repost_of_id = ? AND content IS NOT NULL", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
@@ -62,19 +44,13 @@ func CountQuote(ctx context.Context, conn db.DBConn, postID string) (int64, erro
 }
 
 type reactionCountRow struct {
-	Reaction string `db:"reaction"`
-	Count    int64  `db:"count"`
+	Reaction string
+	Count    int64
 }
 
-func CountReactions(ctx context.Context, conn db.DBConn, postID string) (models.ReactionCountMap, error) {
+func CountReactions(ctx context.Context, conn db.DBConn, postID db.UUID) (models.ReactionCountMap, error) {
 	var rows []reactionCountRow
-	err := conn.DB().SelectContext(ctx, &rows, `
-	SELECT pr.reaction, count(pr.user_id) AS count
-	FROM PostReaction pr
-	WHERE
-		pr.post_id=UUID_TO_BIN(?)
-	GROUP BY pr.reaction;
-	`, postID)
+	err := conn.DB().Find(&rows, "post_id = ?", postID).Select("reaction", "COUNT(user_id) AS count").Group("reaction").Error
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +63,7 @@ func CountReactions(ctx context.Context, conn db.DBConn, postID string) (models.
 }
 
 type CountFillable interface {
-	PostID() string
+	PostID() db.UUID
 	UpdateCounts(reply, favorite, repost, quote int64, reactions models.ReactionCountMap)
 }
 

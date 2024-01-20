@@ -151,8 +151,11 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 		}
 	}
 
-	result := &models.UserPostEntry{}
+	result := &models.UserPostEntry{
+		IDUUID: post.ID,
+	}
 	fillUserPostEntry(result, postWithUser{
+
 		Post:           post,
 		RepostedByMe:   repostedByMe,
 		FavoritedByMe:  favoritedByMe,

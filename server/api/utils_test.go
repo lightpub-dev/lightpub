@@ -13,17 +13,17 @@ import (
 
 func dbInit(t *testing.T, conn db.DBConnectionInfo) {
 	t.Helper()
-	if err := db.MigrateToLatest(conn, "../migrations", false); err != nil {
-		t.Fatal(err)
-	}
+	// if err := db.MigrateToLatest(conn, "../migrations", false); err != nil {
+	// 	t.Fatal(err)
+	// }
 
 	if err := testutils.TruncateAll(conn); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := db.MigrateToLatest(conn, "../migrations", false); err != nil {
-		t.Fatal(err)
-	}
+	// if err := db.MigrateToLatest(conn, "../migrations", false); err != nil {
+	// 	t.Fatal(err)
+	// }
 }
 
 type request struct {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/jmoiron/sqlx"
+	"gorm.io/gorm"
 )
 
 var (
@@ -24,7 +24,7 @@ func extractResourceType(resource string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func HandleWebfinger(ctx context.Context, db *sqlx.DB, resource string) (interface{}, error) {
+func HandleWebfinger(ctx context.Context, conn *gorm.DB, resource string) (interface{}, error) {
 	resourceType, specifier, err := extractResourceType(resource)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func HandleWebfinger(ctx context.Context, db *sqlx.DB, resource string) (interfa
 
 	switch resourceType {
 	case "acct":
-		return handleAcct(ctx, db, specifier)
+		return handleAcct(ctx, conn, specifier)
 	default:
 		return nil, ErrUnknown
 	}
