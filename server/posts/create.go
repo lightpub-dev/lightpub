@@ -59,25 +59,25 @@ func checkRepostable(ctx context.Context, conn db.DBConn, postId string) (bool, 
 	return true, nil
 }
 
-func findOriginalPostID(ctx context.Context, conn db.DBConn, postID string) (string, error) {
-	var originalPostID models.Post
-	err := conn.DB().GetContext(ctx, &originalPostID, "SELECT BIN_TO_UUID(repost_of) AS repost_of, content FROM Post WHERE id=UUID_TO_BIN(?)", postID)
+func findOriginalPostID(ctx context.Context, conn db.DBConn, postID db.UUID) (db.UUID, error) {
+	var originalPost db.Post
+	err := conn.DB().Model(&db.Post{}).Select("repost_of", "content").Where("id=UUID_TO_BIN(?)", postID).First(&originalPost).Error
 	if err != nil {
-		return "", err
+		return db.UUID{}, err
 	}
 
-	if originalPostID.RepostOf == nil {
+	if originalPost.RepostOfID == nil {
 		return postID, nil
 	}
 
-	if originalPostID.Content != nil {
+	if originalPost.Content != nil {
 		return postID, nil
 	}
 
-	return findOriginalPostID(ctx, conn, *originalPostID.RepostOf)
+	return findOriginalPostID(ctx, conn, *originalPost.RepostOfID)
 }
 
-func FindOriginalPostID(ctx context.Context, conn db.DBConn, postID string) (string, error) {
+func FindOriginalPostID(ctx context.Context, conn db.DBConn, postID db.UUID) (db.UUID, error) {
 	return findOriginalPostID(ctx, conn, postID)
 }
 

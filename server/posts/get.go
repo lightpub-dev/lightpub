@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
+	"github.com/google/uuid"
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
@@ -16,37 +16,26 @@ const (
 )
 
 type postWithUser struct {
-	ID             string    `db:"id"`
-	PosterID       string    `db:"poster_id"`
-	PosterUsername string    `db:"poster_username"`
-	PosterHost     string    `db:"poster_host"`
-	PosterNickname string    `db:"poster_nickname"`
-	Content        *string   `db:"content"`
-	CreatedAt      time.Time `db:"created_at"`
-	Privacy        string    `db:"privacy"`
+	db.Post
 
-	ReplyTo  *string `db:"reply_to"`
-	RepostOf *string `db:"repost_of"`
-	PollID   *string `db:"poll_id"`
-
-	RepostedByMe   *bool `db:"reposted_by_me"`
-	FavoritedByMe  *bool `db:"favorited_by_me"`
-	BookmarkedByMe *bool `db:"bookmarked_by_me"`
+	RepostedByMe   *bool
+	FavoritedByMe  *bool
+	BookmarkedByMe *bool
 }
 
-func CreatePostURL(postID string) string {
-	return fmt.Sprintf("%s/post/%s", config.BaseURL, postID)
+func CreatePostURL(postID db.UUID) string {
+	return fmt.Sprintf("%s/post/%s", config.BaseURL, uuid.UUID(postID).String())
 }
 
 func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 	replyTo interface{}, // *models.UserPostEntry || string || nil
 	repostOf interface{}, // *models.UserPostEntry || string || nil
 ) {
-	result.ID = post.ID
-	result.Author.ID = post.PosterID
-	result.Author.Username = post.PosterUsername
-	result.Author.Host = post.PosterHost
-	result.Author.Nickname = post.PosterNickname
+	result.ID = post.ID.String()
+	result.Author.ID = post.Poster.ID.String()
+	result.Author.Username = post.Poster.Username
+	result.Author.Host = post.Poster.Host
+	result.Author.Nickname = post.Poster.Nickname
 	result.Content = post.Content
 	result.CreatedAt = post.CreatedAt
 	result.Privacy = post.Privacy
@@ -60,7 +49,7 @@ func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 }
 
 // fetchSinglePostOrURL returns *models.UserPostEntry || string
-func fetchSinglePostOrURL(ctx context.Context, conn db.DBConn, postID string, viewerUserID string, currentDepth int) (interface{}, error) {
+func fetchSinglePostOrURL(ctx context.Context, conn db.DBConn, postID db.UUID, viewerUserID db.UUID, currentDepth int) (interface{}, error) {
 	if currentDepth >= MaxPostExpandDepth {
 		return CreatePostURL(postID), nil
 	}
@@ -77,23 +66,13 @@ func fetchSinglePostOrURL(ctx context.Context, conn db.DBConn, postID string, vi
 	return post, nil
 }
 
-func FetchSinglePost(ctx context.Context, conn db.DBConn, postID string, viewerUserID string) (*models.UserPostEntry, error) {
+func FetchSinglePost(ctx context.Context, conn db.DBConn, postID db.UUID, viewerUserID db.UUID) (*models.UserPostEntry, error) {
 	return FetchSinglePostWithDepth(ctx, conn, postID, viewerUserID, 0)
 }
 
-func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string, viewerUserID string, currentDepth int) (*models.UserPostEntry, error) {
-	var post postWithUser
-	err := conn.DB().GetContext(ctx, &post, `
-	SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM Post p2 WHERE p2.repost_of=p.id AND p2.poster_id=UUID_TO_BIN(IF(?='',NULL,?)) AND p2.content IS NULL)) AS reposted_by_me,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=0)) AS favorited_by_me,
-	IF(?='', NULL, (SELECT COUNT(*) > 0 FROM PostFavorite pf WHERE pf.post_id=p.id AND pf.user_id=UUID_TO_BIN(IF(?='',NULL,?)) AND pf.is_bookmark=1)) AS bookmarked_by_me
-	FROM Post p
-	INNER JOIN User u ON p.poster_id=u.id
-	WHERE
-		p.id=UUID_TO_BIN(?)
-		AND p.scheduled_at IS NULL
-	`, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, viewerUserID, postID)
+func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUID, viewerUserID db.UUID, currentDepth int) (*models.UserPostEntry, error) {
+	var post db.Post
+	err := conn.DB().Find(&post, "id = ?", postID).Joins("JOIN users ON users.id = posts.poster_id").Error
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -101,8 +80,36 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string
 		return nil, err
 	}
 
+	var (
+		repostedByMe, favoritedByMe, bookmarkedByMe *bool
+	)
+
+	if viewerUserID != (db.UUID{}) {
+		var repostedByMeCount, favoritedByMeCount, bookmarkedByMeCount int64
+		err := conn.DB().Model(&db.Post{}).Where("repost_of_id = ? AND poster_id = ? AND content IS NULL", postID, viewerUserID).Count(&repostedByMeCount).Error
+		if err != nil {
+			return nil, err
+		}
+		repostedByMe = new(bool)
+		*repostedByMe = repostedByMeCount > 0
+
+		err = conn.DB().Model(&db.PostFavorite{}).Where("post_id = ? AND user_id = ? AND is_bookmark = 0", postID, viewerUserID).Count(&favoritedByMeCount).Error
+		if err != nil {
+			return nil, err
+		}
+		favoritedByMe = new(bool)
+		*favoritedByMe = favoritedByMeCount > 0
+
+		err = conn.DB().Model(&db.PostFavorite{}).Where("post_id = ? AND user_id = ? AND is_bookmark = 1", postID, viewerUserID).Count(&bookmarkedByMeCount).Error
+		if err != nil {
+			return nil, err
+		}
+		bookmarkedByMe = new(bool)
+		*bookmarkedByMe = bookmarkedByMeCount > 0
+	}
+
 	// check if viewer can see this post
-	if viewerUserID == "" {
+	if viewerUserID == (db.UUID{}) {
 		// visible if privacy is public or unlisted
 		switch post.Privacy {
 		case string(PrivacyPublic):
@@ -128,7 +135,7 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string
 	var replyToPost interface{}
 	if post.ReplyTo != nil {
 		var err error
-		replyToPost, err = fetchSinglePostOrURL(ctx, conn, *post.ReplyTo, viewerUserID, currentDepth)
+		replyToPost, err = fetchSinglePostOrURL(ctx, conn, *post.ReplyToID, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -138,14 +145,19 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID string
 	var repostOfPost interface{}
 	if post.RepostOf != nil {
 		var err error
-		repostOfPost, err = fetchSinglePostOrURL(ctx, conn, *post.RepostOf, viewerUserID, currentDepth)
+		repostOfPost, err = fetchSinglePostOrURL(ctx, conn, *post.RepostOfID, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	result := &models.UserPostEntry{}
-	fillUserPostEntry(result, post, replyToPost, repostOfPost)
+	fillUserPostEntry(result, postWithUser{
+		Post:           post,
+		RepostedByMe:   repostedByMe,
+		FavoritedByMe:  favoritedByMe,
+		BookmarkedByMe: bookmarkedByMe,
+	}, replyToPost, repostOfPost)
 
 	FillCounts(ctx, conn, result)
 

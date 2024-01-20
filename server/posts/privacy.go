@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/lightpub-dev/lightpub/db"
-	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/users"
 )
 
@@ -18,9 +17,9 @@ const (
 	PrivacyPrivate  PrivacyType = "private"
 )
 
-func IsPostVisibleToUser(ctx context.Context, conn db.DBConn, postId string, userId string) (bool, error) {
-	var post models.Post
-	err := conn.DB().GetContext(ctx, &post, "SELECT BIN_TO_UUID(poster_id) AS poster_id,privacy FROM Post WHERE id=UUID_TO_BIN(?)", postId)
+func IsPostVisibleToUser(ctx context.Context, conn db.DBConn, postId db.UUID, userId db.UUID) (bool, error) {
+	var post db.Post
+	err := conn.DB().Model(&db.Post{}).Select("poster_id", "privacy").Where("id = ?", postId).First(&post).Error
 	if err != nil {
 		return false, err
 	}
@@ -45,8 +44,8 @@ func IsPostVisibleToUser(ctx context.Context, conn db.DBConn, postId string, use
 		return isFollowedBy, nil
 	case PrivacyPrivate:
 		// check if user is in post's mention list
-		var count int
-		err := conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM PostMention WHERE post_id=UUID_TO_BIN(?) AND target_user_id=UUID_TO_BIN(?)", postId, userId)
+		var count int64
+		err := conn.DB().Model(&db.PostMention{}).Where("post_id = ? AND target_user_id = ?", postId, userId).Count(&count).Error
 		if err != nil {
 			return false, err
 		}

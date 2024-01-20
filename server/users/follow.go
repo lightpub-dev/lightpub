@@ -9,9 +9,9 @@ import (
 	"github.com/lightpub-dev/lightpub/db"
 )
 
-func IsFollowedBy(ctx context.Context, conn db.DBConn, followerID string, followeeID string) (bool, error) {
-	var count int
-	err := conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?)", followerID, followeeID)
+func IsFollowedBy(ctx context.Context, conn db.DBConn, followerID db.UUID, followeeID db.UUID) (bool, error) {
+	var count int64
+	err := conn.DB().Model(&db.UserFollow{}).Where("follower_id = ? AND followee_id = ?", followerID, followeeID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}

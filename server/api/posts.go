@@ -3,7 +3,9 @@ package api
 import (
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
 )
@@ -140,8 +142,14 @@ func (h *Handler) PostQuote(c echo.Context) error {
 }
 
 func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) error {
-	postId := c.Param("post_id")
-	userId := c.Get(ContextUserID).(string)
+	postIdStr := c.Param("post_id")
+	userId := c.Get(ContextUserID).(db.UUID)
+
+	postIdUUID, err := uuid.Parse(postIdStr)
+	if err != nil {
+		return c.String(400, "Bad Request")
+	}
+	postId := db.UUID(postIdUUID)
 
 	// check if post is available to user
 	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), h.MakeDB(), postId, userId)
@@ -164,14 +172,18 @@ func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) e
 
 	if isAdd {
 		// add a reaction
-		_, err = h.DB.Exec("INSERT INTO PostReaction (post_id,reaction,user_id) VALUES (UUID_TO_BIN(?),?,UUID_TO_BIN(?)) ON DUPLICATE KEY UPDATE reaction=reaction", postId, reaction, userId)
+		var postReaction db.PostReaction
+		postReaction.PostID = postId
+		postReaction.Reaction = reaction
+		postReaction.UserID = userId
+		err := h.DB.Create(&postReaction).Error
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
 		}
 	} else {
 		// delete a reaction
-		_, err = h.DB.Exec("DELETE FROM PostReaction WHERE post_id=UUID_TO_BIN(?) AND user_id=UUID_TO_BIN(?) AND reaction=?", postId, userId, reaction)
+		err := h.DB.Delete(&db.PostReaction{}, "post_id = ? AND user_id = ? AND reaction = ?", postId, userId, reaction).Error
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
@@ -200,8 +212,14 @@ func (h *Handler) DeletePostReaction(c echo.Context) error {
 }
 
 func (h *Handler) modPostBookmark(c echo.Context, isAdd, isBookmark bool) error {
-	postId := c.Param("post_id")
-	userId := c.Get(ContextUserID).(string)
+	postIdStr := c.Param("post_id")
+	userId := c.Get(ContextUserID).(db.UUID)
+
+	postIdUUID, err := uuid.Parse(postIdStr)
+	if err != nil {
+		return c.String(400, "Bad Request")
+	}
+	postId := db.UUID(postIdUUID)
 
 	// check if post is available to user
 	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), h.MakeDB(), postId, userId)
@@ -223,15 +241,20 @@ func (h *Handler) modPostBookmark(c echo.Context, isAdd, isBookmark bool) error 
 	}
 
 	if isAdd {
-		// add a reaction
-		_, err = h.DB.Exec("INSERT INTO PostFavorite (post_id,user_id,is_bookmark) VALUES (UUID_TO_BIN(?),UUID_TO_BIN(?),?) ON DUPLICATE KEY UPDATE post_id=post_id", postId, userId, isBookmark)
+		// add to favorite
+		favorite := db.PostFavorite{
+			PostID:     postId,
+			UserID:     userId,
+			IsBookmark: isBookmark,
+		}
+		err := h.DB.Create(&favorite).Error
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
 		}
 	} else {
-		// delete a reaction
-		_, err = h.DB.Exec("DELETE FROM PostFavorite WHERE post_id=UUID_TO_BIN(?) AND user_id=UUID_TO_BIN(?) AND is_bookmark=?", postId, userId, isBookmark)
+		// delete from favorite
+		err := h.DB.Delete(&db.PostFavorite{}, "post_id = ? AND user_id = ? AND is_bookmark", postId, userId, isBookmark).Error
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")
@@ -258,12 +281,18 @@ func (h *Handler) DeletePostBookmark(c echo.Context) error {
 }
 
 func (h *Handler) GetPost(c echo.Context) error {
-	viewerUserID := ""
+	var viewerUserID db.UUID
 	if c.Get(ContextAuthed).(bool) {
-		viewerUserID = c.Get(ContextUserID).(string)
+		viewerUserID = c.Get(ContextUserID).(db.UUID)
 	}
 
-	postID := c.Param("post_id")
+	postIDStr := c.Param("post_id")
+	postIDUUID, err := uuid.Parse(postIDStr)
+	if err != nil {
+		return c.String(400, "Bad Request")
+	}
+	postID := db.UUID(postIDUUID)
+
 	post, err := posts.FetchSinglePost(c.Request().Context(), h.MakeDB(), postID, viewerUserID)
 	if err != nil {
 		c.Logger().Error(err)

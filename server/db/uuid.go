@@ -32,3 +32,7 @@ func (us UUID) Value(ctx context.Context, field *schema.Field, dst reflect.Value
 func (UUID) GormDataType() string {
 	return "BINARY(16)"
 }
+
+func (us UUID) String() string {
+	return uuid.UUID(us).String()
+}
