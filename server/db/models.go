@@ -75,6 +75,7 @@ type Post struct {
 	RepostOf *Post
 	Poll     *PostPoll
 	Hashtags []PostHashtag `gorm:"foreignKey:PostID"`
+	Mentions []PostMention `gorm:"foreignKey:PostID"`
 }
 
 type PostAttachment struct {

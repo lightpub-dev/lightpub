@@ -8,15 +8,22 @@ import (
 type FetchedPost struct {
 	db.Post
 
-	RepostCount   int64                   `json:"rc"`
-	FavoriteCount int64                   `json:"fc"`
-	ReplyCount    int64                   `json:"r"`
-	QuoteCount    int64                   `json:"q"`
-	Reactions     models.ReactionCountMap `json:"rcs"`
+	RepostCount   int64                   `json:"rc" gorm:"-"`
+	FavoriteCount int64                   `json:"fc" gorm:"-"`
+	ReplyCount    int64                   `json:"r" gorm:"-"`
+	QuoteCount    int64                   `json:"q" gorm:"-"`
+	Reactions     models.ReactionCountMap `json:"rcs" gorm:"-"`
 
-	RepostedByMe   *bool `db:"reposted_by_me" json:"rbm"`
-	FavoritedByMe  *bool `db:"favorited_by_me" json:"fbm"`
-	BookmarkedByMe *bool `db:"bookmarked_by_me" json:"bbm"`
+	RepostedByMe   *bool `json:"rbm" gorm:"-"`
+	FavoritedByMe  *bool `json:"fbm" gorm:"-"`
+	BookmarkedByMe *bool `json:"bbm" gorm:"-"`
+}
+
+// FillInteractions implements posts.InteractionFillable.
+func (fp *FetchedPost) FillInteractions(repostedByMe bool, favoritedByMe bool, bookmarkedByMe bool) {
+	fp.RepostedByMe = &repostedByMe
+	fp.FavoritedByMe = &favoritedByMe
+	fp.BookmarkedByMe = &bookmarkedByMe
 }
 
 func (fp *FetchedPost) PostID() db.UUID {

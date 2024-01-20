@@ -42,6 +42,10 @@ func (h *Handler) GetTimeline(c echo.Context) error {
 		limit = l
 	}
 
+	if limit == 0 {
+		return c.String(400, "limit must be greater than 0")
+	}
+
 	tl, err := timeline.FetchTimeline(c.Request().Context(), h.MakeDB(), userID, timeline.FetchOptions{
 		AfterTime:  afterTime,
 		BeforeTime: beforeTime,
