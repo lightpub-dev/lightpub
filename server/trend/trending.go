@@ -11,14 +11,15 @@ import (
 )
 
 type trendList struct {
-	HashtagName string `db:"hashtag_name"`
-	PostCount   int64  `db:"post_count"`
+	HashtagName string
+	PostCount   int64
 }
 
 // GetCurrentTrend fetches the most posted hashtags within the last 3 hours
 func GetCurrentTrend(ctx context.Context, conn db.DBConn) (*models.TrendOverviewResponse, error) {
 	result := []trendList{}
-	err := conn.DB().Model(&db.PostHashtag{}).Joins("Post p").Where("p.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND p.privacy='public'").Group("post_hashtags.hashtag_name").Order("post_count DESC").Limit(5).Select("post_hashtags.hashtag_name, COUNT(p.id) AS post_count").Scan(&result).Error
+	hashtagAndCounts := conn.DB().Model(&db.PostHashtag{}).InnerJoins("Post").Where("Post.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND Post.privacy='public'").Select("post_hashtags.hashtag_name, Post.id AS post_id")
+	err := conn.DB().Table("(?) AS hc", hashtagAndCounts).Select("hc.hashtag_name, COUNT(hc.post_id) AS post_count").Group("hashtag_name").Order("post_count DESC").Limit(5).Find(&result).Error
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +43,9 @@ func GetCurrentTrend(ctx context.Context, conn db.DBConn) (*models.TrendOverview
 func GetTrendPosts(ctx context.Context, conn db.DBConn, hashtag string, viewerID db.UUID, beforeDate *time.Time, limit int) ([]models.UserPostEntry, error) {
 	// get 'public' posts
 	var publicPosts []db.Post
-	publicQuery := conn.DB().Model(&db.Post{}).Joins("Poster").Joins("Hashtags").Where("post_hashtags.hashtag_name = ? AND posts.privacy = 'public'", hashtag).Order("posts.created_at DESC").Limit(limit)
+	publicQuery := conn.DB().Model(&db.Post{}).Joins("Poster").Joins("Hashtags").Where("Hashtags.hashtag_name = ? AND posts.privacy = 'public'", hashtag).Order("posts.created_at DESC").Limit(limit)
 	if beforeDate != nil {
-		publicQuery = publicQuery.Where("posts.created_at < ?", beforeDate)
+		publicQuery = publicQuery.Where("posts.created_at < ?", *beforeDate)
 	}
 	err := publicQuery.Find(&publicPosts).Error
 	if err != nil {
@@ -54,31 +55,10 @@ func GetTrendPosts(ctx context.Context, conn db.DBConn, hashtag string, viewerID
 	// get 'follower' posts
 	var followerPosts []db.Post
 	if viewerID != (db.UUID{}) {
-		// TODO:
-		// 		sql = `
-		// SELECT BIN_TO_UUID(p.id) AS id,BIN_TO_UUID(p.poster_id) AS poster_id,u.username AS poster_username,u.host AS poster_host,u.nickname AS poster_nickname,p.content,p.created_at,p.privacy,BIN_TO_UUID(p.reply_to) AS reply_to,BIN_TO_UUID(p.repost_of) AS repost_of,BIN_TO_UUID(p.poll_id) AS poll_id
-		// FROM Post p
-		// INNER JOIN User u ON p.poster_id=u.id
-		// INNER JOIN PostHashtag ph ON ph.post_id=p.id
-		// INNER JOIN UserFollow uf ON p.poster_id=uf.followee_id
-		// WHERE
-		//   ph.hashtag_name=?
-		//   AND p.scheduled_at IS NULL
-		//   AND p.privacy='follower'
-		//   AND uf.follower_id=UUID_TO_BIN(?)
-		//   `
-		// 		params = []interface{}{hashtag, viewerID}
-		// 		if beforeDate != nil {
-		// 			sql += " AND p.created_at < ?"
-		// 			params = append(params, beforeDate)
-		// 		}
-		// 		sql += " ORDER BY p.created_at DESC LIMIT ?"
-		// 		params = append(params, limit)
-
-		// 		err = conn.DB().SelectContext(ctx, &followerPosts, sql, params...)
-		// 		if err != nil {
-		// 			return nil, err
-		// 		}
+		err := conn.DB().Model(&db.Post{}).Joins("Poster").Joins("Hashtags").Joins("INNER JOIN user_follows uf ON uf.followee_id=Poster.id").Where("posts.privacy = 'follower'").Where("Hashtags.hashtag_name = ?", hashtag).Where("uf.follower_id = ?", viewerID).Order("posts.created_at DESC").Limit(limit).Find(&followerPosts).Error
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// get 'private' posts

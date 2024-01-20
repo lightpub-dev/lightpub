@@ -43,7 +43,7 @@ func (h *Handler) GetTimeline(c echo.Context) error {
 	}
 
 	if limit == 0 {
-		return c.String(400, "limit must be greater than 0")
+		limit = timeline.DefaultTimelineSize
 	}
 
 	tl, err := timeline.FetchTimeline(c.Request().Context(), h.MakeDB(), userID, timeline.FetchOptions{
