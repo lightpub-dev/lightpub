@@ -27,6 +27,16 @@ type postWithRepostedByMe struct {
 	BookmarkedByMe *bool
 }
 
+func (p *postWithRepostedByMe) PostID() db.UUID {
+	return p.ID
+}
+
+func (p *postWithRepostedByMe) FillInteractions(repostedByMe, favoritedByMe, bookmarkedByMe bool) {
+	p.RepostedByMe = &repostedByMe
+	p.FavoritedByMe = &favoritedByMe
+	p.BookmarkedByMe = &bookmarkedByMe
+}
+
 func (h *Handler) GetUserPosts(c echo.Context) error {
 	authed := c.Get(ContextAuthed).(bool)
 	var viewerUserID db.UUID
@@ -61,20 +71,20 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 
 	// first, get all "public" and "unlisted" posts
 	var publicPosts []postWithRepostedByMe
-	publicPostsQuery := h.DB.Table("posts p").Where("p.poster_id = ? AND p.privacy IN ('public','unlisted')", targetUser.ID).Order("p.created_at DESC").Limit(limit)
-	if viewerUserID != (db.UUID{}) {
-		publicPostsQuery = publicPostsQuery.Select([]interface{}{
-			"p.id", "p.content", "p.created_at", "p.privacy", "p.reply_to", "p.repost_of", "p.poll_id",
-			h.DB.Table("posts as p2").Select("COUNT(p2.*) > 0 AS reposted_by_me").Where("p2.repost_of_id = p.id AND p2.poster_id = ?", viewerUserID),
-			h.DB.Table("post_favorites as pf").Select("COUNT(pf.*) > 0 AS favorited_by_me").Where("pf.post_id = p.id AND pf.user_id = ? AND pf.is_bookmark = 0", viewerUserID),
-			h.DB.Table("post_favorites as pf").Select("COUNT(pf.*) > 0 AS favorited_by_me").Where("pf.post_id = p.id AND pf.user_id = ? AND pf.is_bookmark = 1", viewerUserID),
-		})
-	} else {
-		publicPostsQuery = publicPostsQuery.Select("p.id, p.content, p.created_at, p.privacy, p.reply_to, p.repost_of, p.poll_id, NULL AS reposted_by_me, NULL AS favorited_by_me, NULL AS bookmarked_by_me")
-	}
+	publicPostsQuery := h.DB.Table("posts p").Where("p.poster_id = ? AND p.privacy IN ('public','unlisted')", targetUser.ID).Order("p.created_at DESC").Limit(limit).Select("p.id, p.content, p.created_at, p.privacy, p.reply_to_id, p.repost_of_id, p.poll_id, NULL AS reposted_by_me, NULL AS favorited_by_me, NULL AS bookmarked_by_me")
+	err = publicPostsQuery.Scan(&publicPosts).Error
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
+	}
+	if viewerUserID != (db.UUID{}) {
+		for i := range publicPosts {
+			err := posts.FillInteraction(h.MakeDB(), viewerUserID, &publicPosts[i])
+			if err != nil {
+				c.Logger().Error(err)
+				return c.String(500, "internal server error")
+			}
+		}
 	}
 
 	// "follower" posts...
@@ -183,10 +193,10 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 
 		var replyToPostOrURL, repostOfPostOrURL interface{}
 		if post.ReplyTo != nil {
-			replyToPostOrURL = posts.CreatePostURL(*post.ReplyToID)
+			replyToPostOrURL = posts.CreatePostURL(post.ReplyToID.UUID)
 		}
 		if post.RepostOf != nil {
-			repostOfPostOrURL, err = posts.FetchSinglePostWithDepth(c.Request().Context(), h.MakeDB(), *post.RepostOfID, viewerUserID, 0)
+			repostOfPostOrURL, err = posts.FetchSinglePostWithDepth(c.Request().Context(), h.MakeDB(), post.RepostOfID.UUID, viewerUserID, 0)
 			if err != nil {
 				c.Logger().Error(err)
 				return c.String(500, "internal server error")

@@ -1,24 +1,26 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 )
 
 type User struct {
 	ID        UUID      `gorm:"primaryKey"`
-	Username  string    `gorm:"size:64;uniqueIndex"`
-	Host      string    `gorm:"size:128"`
-	Bpasswd   string    `gorm:"size:60"`
-	Nickname  string    `gorm:"size:255"`
+	Username  string    `gorm:"size:64;uniqueIndex;not null"`
+	Host      string    `gorm:"size:128;not null"`
+	Bpasswd   string    `gorm:"size:60;not null"`
+	Nickname  string    `gorm:"size:255;not null"`
 	URL       *string   `gorm:"size:512"`
 	Inbox     *string   `gorm:"size:512"`
 	Outbox    *string   `gorm:"size:512"`
-	CreatedAt time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
+	CreatedAt time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6);not null"`
 
 	UserLabels []UserLabelDB `gorm:"foreignKey:UserID"`
 	Profile    *UserProfile  `gorm:"foreignKey:UserID"`
 	Followers  []UserFollow  `gorm:"foreignKey:FolloweeID"`
 	Following  []UserFollow  `gorm:"foreignKey:FollowerID"`
+	UserTokens []UserToken   `gorm:"foreignKey:UserID"`
 }
 
 type FullUser struct {
@@ -34,9 +36,9 @@ type FullUser struct {
 type UserLabelDB struct {
 	UserID UUID `gorm:"primaryKey"`
 	User   User
-	Order  int `gorm:"primaryKey"`
-	Key    string
-	Value  string
+	Order  int    `gorm:"primaryKey;not null"`
+	Key    string `gorm:"type:TEXT;not null"`
+	Value  string `gorm:"type:TEXT;not null"`
 }
 
 func (UserLabelDB) TableName() string {
@@ -47,26 +49,26 @@ type UserProfile struct {
 	UserID UUID `gorm:"primaryKey"`
 	User   User
 
-	Bio string `gorm:"type:TEXT"`
+	Bio string `gorm:"type:TEXT;not null"`
 }
 
 type UserToken struct {
 	ID     uint64 `gorm:"primaryKey"`
 	UserID UUID
 	User   User
-	Token  string `gorm:"type:VARCHAR(64)"`
+	Token  string `gorm:"type:VARCHAR(64);not null"`
 }
 
 type Post struct {
 	ID         UUID `gorm:"primaryKey"`
 	PosterID   UUID
 	Content    *string   `gorm:"type:LONGTEXT"` // Null when reposting
-	InsertedAt time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
-	CreatedAt  time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
-	Privacy    string    `gorm:"type:ENUM('public','unlisted','follower','private')"` // enum treated as string
-	ReplyToID  *UUID     // Nullable fields as pointers
-	RepostOfID *UUID     // Nullable fields as pointers
-	PollID     *UUID     // Nullable fields, assuming same type as ID
+	InsertedAt time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6);not null"`
+	CreatedAt  time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6);not null"`
+	Privacy    string    `gorm:"type:ENUM('public','unlisted','follower','private');not null"` // enum treated as string
+	ReplyToID  NullUUID  // Nullable fields as pointers
+	RepostOfID NullUUID  // Nullable fields as pointers
+	PollID     NullUUID  // Nullable fields, assuming same type as ID
 
 	Poster   User
 	ReplyTo  *Post
@@ -78,16 +80,16 @@ type Post struct {
 type PostAttachment struct {
 	ID      UUID
 	PostID  UUID
-	FileExt string `gorm:"size:128"`
+	FileExt string `gorm:"size:128;not null"`
 
 	Post Post
 }
 
 type PostFavorite struct {
 	ID         uint64 `gorm:"primaryKey"`
-	PostID     UUID
-	UserID     UUID
-	IsBookmark bool
+	PostID     UUID   `gorm:"uniqueIndex:idx_post_favorite_unique;not null"`
+	UserID     UUID   `gorm:"uniqueIndex:idx_post_favorite_unique;not null"`
+	IsBookmark bool   `gorm:"uniqueIndex:idx_post_favorite_unique;not null"`
 
 	Post Post
 	User User
@@ -95,23 +97,23 @@ type PostFavorite struct {
 
 type PostHashtag struct {
 	ID          uint64 `gorm:"primaryKey"`
-	PostID      UUID
-	HashtagName string `gorm:"size:255,index"`
+	PostID      UUID   `gorm:"not null"`
+	HashtagName string `gorm:"size:255,index;not null"`
 
 	Post Post
 }
 
 type PostPoll struct {
-	ID            UUID `gorm:"primaryKey"`
-	AllowMultiple bool
-	Due           *time.Time `gorm:"type:DATETIME(6)"`
+	ID            UUID         `gorm:"primaryKey"`
+	AllowMultiple bool         `gorm:"not null"`
+	Due           sql.NullTime `gorm:"type:DATETIME(6)"`
 }
 
 type PostReaction struct {
 	ID       uint64 `gorm:"primaryKey"`
-	PostID   UUID
-	Reaction string `gorm:"size:128"`
-	UserID   UUID
+	PostID   UUID   `gorm:"not null"`
+	Reaction string `gorm:"size:128;not null"`
+	UserID   UUID   `gorm:"not null"`
 
 	Post Post
 	User User
@@ -119,17 +121,17 @@ type PostReaction struct {
 
 type PollChoice struct {
 	ID     uint64 `gorm:"primaryKey"`
-	PollID UUID
-	Title  string `gorm:"type:TEXT"`
-	Count  int64  `gorm:"default:0"`
+	PollID UUID   `gorm:"not null"`
+	Title  string `gorm:"type:TEXT;not null"`
+	Count  int64  `gorm:"default:0;not null"`
 
 	Poll PostPoll
 }
 
 type PollVote struct {
 	ID     uint64 `gorm:"primaryKey"`
-	PollID UUID
-	UserID UUID
+	PollID UUID   `gorm:"not null"`
+	UserID UUID   `gorm:"not null"`
 
 	Poll PostPoll
 	User User
@@ -137,18 +139,18 @@ type PollVote struct {
 
 type PostMention struct {
 	ID           uint64 `gorm:"primaryKey"`
-	PostID       UUID
-	TargetUserID UUID
+	PostID       UUID   `gorm:"not null"`
+	TargetUserID UUID   `gorm:"not null"`
 
 	Post       Post
 	TargetUser User `gorm:"foreignKey:TargetUserID"`
 }
 
 type UserFollow struct {
-	ID         uint64     `gorm:"primaryKey"`
-	FollowerID UUID       `gorm:"uniqueIndex:idx_follower_followee"`
-	FolloweeID UUID       `gorm:"uniqueIndex:idx_follower_followee"`
-	CreatedAt  *time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
+	ID         uint64    `gorm:"primaryKey"`
+	FollowerID UUID      `gorm:"uniqueIndex:idx_follower_followee;not null"`
+	FolloweeID UUID      `gorm:"uniqueIndex:idx_follower_followee;not null"`
+	CreatedAt  time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
 
 	Follower User `gorm:"foreignKey:FollowerID"`
 	Followee User `gorm:"foreignKey:FolloweeID"`

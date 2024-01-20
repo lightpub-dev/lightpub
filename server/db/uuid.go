@@ -1,17 +1,15 @@
 package db
 
 import (
-	"context"
+	"database/sql/driver"
 	"fmt"
-	"reflect"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm/schema"
 )
 
 type UUID uuid.UUID
 
-func (us *UUID) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
+func (us *UUID) Scan(dbValue interface{}) error {
 	switch value := dbValue.(type) {
 	case []byte:
 		u, err := uuid.FromBytes(value)
@@ -25,18 +23,10 @@ func (us *UUID) Scan(ctx context.Context, field *schema.Field, dst reflect.Value
 	}
 }
 
-// func (us *UUID) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
-// 	if us == nil {
-// 		return nil, nil
-// 	}
-
-// 	bs := [16]byte(uuid.UUID(*us))
-// 	return bs[:], nil
-// }
-
-func (us UUID) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
+func (us UUID) Value() (driver.Value, error) {
 	bs := [16]byte(uuid.UUID(us))
-	return bs[:], nil
+	slice := bs[:]
+	return slice, nil
 }
 
 func (UUID) GormDataType() string {
@@ -45,4 +35,44 @@ func (UUID) GormDataType() string {
 
 func (us UUID) String() string {
 	return uuid.UUID(us).String()
+}
+
+func (us UUID) AsNullable() NullUUID {
+	return NullUUID{
+		UUID:  us,
+		Valid: true,
+	}
+}
+
+type NullUUID struct {
+	UUID  UUID
+	Valid bool
+}
+
+func (us *NullUUID) Scan(dbValue interface{}) error {
+	if dbValue == nil {
+		us.UUID, us.Valid = UUID{}, false
+		return nil
+	}
+
+	switch value := dbValue.(type) {
+	case []byte:
+		u, err := uuid.FromBytes(value)
+		if err != nil {
+			return err
+		}
+		us.UUID = UUID(u)
+		us.Valid = true
+		return nil
+	default:
+		return fmt.Errorf("unsupported type for UUIDString: %T", dbValue)
+	}
+}
+
+func (us NullUUID) Value() (driver.Value, error) {
+	if !us.Valid {
+		return nil, nil
+	}
+
+	return us.UUID.Value()
 }

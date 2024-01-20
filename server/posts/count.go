@@ -9,7 +9,7 @@ import (
 
 func CountReply(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().Model(&db.Post{}).Where("reply_to_id = ?").Count(&count).Error
+	err := conn.DB().Model(&db.Post{}).Where("reply_to_id = ?", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
@@ -50,7 +50,7 @@ type reactionCountRow struct {
 
 func CountReactions(ctx context.Context, conn db.DBConn, postID db.UUID) (models.ReactionCountMap, error) {
 	var rows []reactionCountRow
-	err := conn.DB().Find(&rows, "post_id = ?", postID).Select("reaction", "COUNT(user_id) AS count").Group("reaction").Error
+	err := conn.DB().Model(&db.PostReaction{}).Select("reaction", "COUNT(user_id) AS count").Where("post_id = ?", postID).Group("reaction").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}

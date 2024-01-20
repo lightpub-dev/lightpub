@@ -43,17 +43,21 @@ func (h *Handler) AuthMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo
 			token := header[7:]
 
 			// validate it
-			var user db.User
-			result := h.DB.First(&user).Joins("UserToken").Where("UserToken.token = ?", token).Where("User.is_local = 1")
+			var user db.UserToken
+			result := h.DB.Model(&db.UserToken{}).Where("token = ?", token).Joins("User").Where("User.host = ''").First(&user)
 			// if not found, return 401
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return c.String(401, "Invalid auth token")
 			}
+			if result.Error != nil {
+				c.Logger().Error(result.Error)
+				return c.String(500, "Internal Server Error")
+			}
 
 			// if found, set user_id in context
 			c.Set(ContextAuthed, true)
-			c.Set(ContextUserID, user.ID)
-			c.Set(ContextUsername, user.Username)
+			c.Set(ContextUserID, user.User.ID)
+			c.Set(ContextUsername, user.User.Username)
 
 			// call next handler
 			return next(c)

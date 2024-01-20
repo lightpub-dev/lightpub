@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"gorm.io/gorm"
@@ -25,7 +26,7 @@ func ExistsByID(ctx context.Context, conn db.DBConn, userID string) (bool, error
 }
 
 type parsedUsernameOrID struct {
-	ID       string
+	ID       db.UUID
 	Username parsedUsername
 }
 
@@ -44,8 +45,12 @@ func parseUsernameOrID(usernameOrID string) (parsedUsernameOrID, error) {
 		return parsedUsernameOrID{Username: pu}, nil
 	} else {
 		// otherwise, it's an ID
+		parsedID, err := uuid.Parse(usernameOrID)
+		if err != nil {
+			return parsedUsernameOrID{}, err
+		}
 		return parsedUsernameOrID{
-			ID: usernameOrID,
+			ID: db.UUID(parsedID),
 		}, nil
 	}
 }
@@ -81,7 +86,7 @@ func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db
 		user db.User
 	)
 	selectColumns := "id, username, host, nickname, url, inbox, outbox, (host='') AS is_local"
-	if parsedUsernameOrID.ID != "" {
+	if parsedUsernameOrID.ID != (db.UUID{}) {
 		// parsed ID
 		parsedID := parsedUsernameOrID.ID
 		err = conn.DB().Select(selectColumns).First(&user, "id = ?", parsedID).Error

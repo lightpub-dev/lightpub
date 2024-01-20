@@ -23,11 +23,11 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID db.UUID, options 
 	latestPost := time.Time{}
 	for _, cache := range cached {
 		var replyToURL, repostContent interface{}
-		if cache.ReplyTo != nil {
-			replyToURL = posts.CreatePostURL(*cache.ReplyToID)
+		if cache.ReplyToID.Valid {
+			replyToURL = posts.CreatePostURL(cache.ReplyToID.UUID)
 		}
-		if cache.RepostOf != nil {
-			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, *cache.RepostOfID, userID, 0)
+		if cache.RepostOfID.Valid {
+			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, cache.RepostOfID.UUID, userID, 0)
 			if err != nil {
 				return nil, err
 			}

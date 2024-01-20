@@ -133,9 +133,9 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 
 	// fetch replied post
 	var replyToPost interface{}
-	if post.ReplyTo != nil {
+	if post.ReplyToID.Valid {
 		var err error
-		replyToPost, err = fetchSinglePostOrURL(ctx, conn, *post.ReplyToID, viewerUserID, currentDepth)
+		replyToPost, err = fetchSinglePostOrURL(ctx, conn, post.ReplyToID.UUID, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -143,9 +143,9 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 
 	// fetch reposted post
 	var repostOfPost interface{}
-	if post.RepostOf != nil {
+	if post.RepostOfID.Valid {
 		var err error
-		repostOfPost, err = fetchSinglePostOrURL(ctx, conn, *post.RepostOfID, viewerUserID, currentDepth)
+		repostOfPost, err = fetchSinglePostOrURL(ctx, conn, post.RepostOfID.UUID, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
