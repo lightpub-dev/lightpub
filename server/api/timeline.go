@@ -5,11 +5,12 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/timeline"
 )
 
 func (h *Handler) GetTimeline(c echo.Context) error {
-	userID := c.Get(ContextUserID).(string)
+	userID := c.Get(ContextUserID).(db.UUID)
 
 	afterTimeStr := c.QueryParam("after_date")
 	var afterTime *time.Time

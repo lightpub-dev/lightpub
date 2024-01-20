@@ -16,7 +16,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func main2() {
+func main() {
 	// get config from env
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbPort := (getEnv("DB_PORT", "3306"))

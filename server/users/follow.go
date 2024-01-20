@@ -24,7 +24,7 @@ type FollowerInfo struct {
 	ID          string  `json:"id"`
 	Username    string  `json:"username"`
 	Host        string  `json:"host"`
-	URL         *string `json:"url"`
+	URL         *string `json:"url"` // always non-nil after fillInLocalURL
 	Nickname    string  `json:"nickname"`
 	Bio         string  `json:"bio"`
 	IsFollowing bool    `json:"is_following"`

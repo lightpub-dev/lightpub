@@ -2,13 +2,11 @@ package db
 
 import (
 	"time"
-
-	"github.com/lightpub-dev/lightpub/db"
 )
 
 type User struct {
 	ID        UUID      `gorm:"primaryKey"`
-	Username  string    `gorm:"size:64"`
+	Username  string    `gorm:"size:64;uniqueIndex"`
 	Host      string    `gorm:"size:128"`
 	Bpasswd   string    `gorm:"size:60"`
 	Nickname  string    `gorm:"size:255"`
@@ -34,7 +32,7 @@ type FullUser struct {
 }
 
 type UserLabelDB struct {
-	UserID db.UUID `gorm:"primaryKey"`
+	UserID UUID `gorm:"primaryKey"`
 	User   User
 	Order  int `gorm:"primaryKey"`
 	Key    string
@@ -74,6 +72,7 @@ type Post struct {
 	ReplyTo  *Post
 	RepostOf *Post
 	Poll     *PostPoll
+	Hashtags []PostHashtag `gorm:"foreignKey:PostID"`
 }
 
 type PostAttachment struct {

@@ -80,7 +80,7 @@ func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db
 	var (
 		user db.User
 	)
-	selectColumns := "id, username, host, nickname, url, inbox, outbox, is_local"
+	selectColumns := "id, username, host, nickname, url, inbox, outbox, (host='') AS is_local"
 	if parsedUsernameOrID.ID != "" {
 		// parsed ID
 		parsedID := parsedUsernameOrID.ID

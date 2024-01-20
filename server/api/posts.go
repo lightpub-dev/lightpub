@@ -22,7 +22,7 @@ func (h *Handler) PostPost(c echo.Context) error {
 	}
 
 	post := posts.CreateRequest{
-		PosterID:       c.Get(ContextUserID).(string),
+		PosterID:       c.Get(ContextUserID).(db.UUID),
 		PosterUsername: c.Get(ContextUsername).(string),
 		Content:        &body.Content,
 		Privacy:        posts.PrivacyType(body.Privacy),
@@ -51,14 +51,20 @@ func (h *Handler) PostReply(c echo.Context) error {
 		return c.String(400, err.Error())
 	}
 
+	replyToPostIDStr := c.Param("post_id")
+	replyToPostIDUUID, err := uuid.Parse(replyToPostIDStr)
+	if err != nil {
+		return c.String(400, "Bad Request")
+	}
+	replyToPostID := db.UUID(replyToPostIDUUID)
 	post := posts.CreateRequest{
-		PosterID:       c.Get(ContextUserID).(string),
+		PosterID:       c.Get(ContextUserID).(db.UUID),
 		PosterUsername: c.Get(ContextUsername).(string),
 		Content:        &body.Content,
 		Privacy:        posts.PrivacyType(body.Privacy),
 		Poll:           body.Poll,
 
-		ReplyToPostID: c.Param("post_id"),
+		ReplyToPostID: &replyToPostID,
 	}
 
 	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
@@ -86,13 +92,19 @@ func (h *Handler) PostRepost(c echo.Context) error {
 		return c.String(400, err.Error())
 	}
 
+	repostIDStr := c.Param("post_id")
+	repostIDUUID, err := uuid.Parse(repostIDStr)
+	if err != nil {
+		return c.String(400, "Bad Request")
+	}
+	repostID := db.UUID(repostIDUUID)
 	post := posts.CreateRequest{
-		PosterID:       c.Get(ContextUserID).(string),
+		PosterID:       c.Get(ContextUserID).(db.UUID),
 		PosterUsername: c.Get(ContextUsername).(string),
 		Content:        nil,
 		Privacy:        posts.PrivacyType(body.Privacy),
 
-		RepostID: c.Param("post_id"),
+		RepostID: &repostID,
 	}
 
 	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
@@ -120,14 +132,20 @@ func (h *Handler) PostQuote(c echo.Context) error {
 		return c.String(400, err.Error())
 	}
 
+	repostIDStr := c.Param("post_id")
+	repostIDUUID, err := uuid.Parse(repostIDStr)
+	if err != nil {
+		return c.String(400, "Bad Request")
+	}
+	repostID := db.UUID(repostIDUUID)
 	post := posts.CreateRequest{
-		PosterID:       c.Get(ContextUserID).(string),
+		PosterID:       c.Get(ContextUserID).(db.UUID),
 		PosterUsername: c.Get(ContextUsername).(string),
 		Content:        &body.Content,
 		Privacy:        posts.PrivacyType(body.Privacy),
 		Poll:           body.Poll,
 
-		RepostID: c.Param("post_id"),
+		RepostID: &repostID,
 	}
 
 	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)

@@ -25,8 +25,18 @@ func (us *UUID) Scan(ctx context.Context, field *schema.Field, dst reflect.Value
 	}
 }
 
+// func (us *UUID) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
+// 	if us == nil {
+// 		return nil, nil
+// 	}
+
+// 	bs := [16]byte(uuid.UUID(*us))
+// 	return bs[:], nil
+// }
+
 func (us UUID) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
-	return [16]byte(uuid.UUID(us)), nil
+	bs := [16]byte(uuid.UUID(us))
+	return bs[:], nil
 }
 
 func (UUID) GormDataType() string {

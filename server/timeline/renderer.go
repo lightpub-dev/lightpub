@@ -9,7 +9,7 @@ import (
 	"github.com/lightpub-dev/lightpub/posts"
 )
 
-func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options FetchOptions) (*models.TimelineResponse, error) {
+func FetchTimeline(ctx context.Context, conn db.DBConn, userID db.UUID, options FetchOptions) (*models.TimelineResponse, error) {
 	// TODO: use timeline cache in redis
 	// TODO: for now, just fetch from db
 	cached, err := fetchPostsFromDB(ctx, conn, userID, options)
@@ -24,10 +24,10 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 	for _, cache := range cached {
 		var replyToURL, repostContent interface{}
 		if cache.ReplyTo != nil {
-			replyToURL = posts.CreatePostURL(*cache.ReplyTo)
+			replyToURL = posts.CreatePostURL(*cache.ReplyToID)
 		}
 		if cache.RepostOf != nil {
-			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, *cache.RepostOf, userID, 0)
+			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, *cache.RepostOfID, userID, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -37,12 +37,12 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID string, options F
 		// TODO: Poll
 
 		timelinePosts = append(timelinePosts, models.UserPostEntry{
-			ID: cache.ID,
+			ID: cache.ID.String(),
 			Author: models.UserPostEntryAuthor{
-				ID:       cache.PosterID,
-				Username: cache.PosterUsername,
-				Host:     cache.PosterHost,
-				Nickname: cache.PosterNickname,
+				ID:       cache.Poster.ID.String(),
+				Username: cache.Poster.Username,
+				Host:     cache.Poster.Host,
+				Nickname: cache.Poster.Nickname,
 			},
 			Content:   cache.Content,
 			CreatedAt: cache.CreatedAt,

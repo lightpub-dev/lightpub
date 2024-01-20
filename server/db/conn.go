@@ -7,6 +7,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type DBConnectionInfo struct {
@@ -27,7 +28,9 @@ type DBConnectResult struct {
 func ConnectDB(connectDB DBConnectionInfo) (*DBConnectResult, error) {
 	var err error
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", connectDB.Username, connectDB.Password, connectDB.Host, connectDB.Port, connectDB.Database)
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -72,5 +75,6 @@ func (d *DBConnectResult) MigrateToLatest() error {
 		&PollVote{},
 		&PostMention{},
 		&UserFollow{},
+		&UserProfile{},
 	)
 }

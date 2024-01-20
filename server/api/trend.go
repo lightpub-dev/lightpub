@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/trend"
 )
 
@@ -19,9 +20,9 @@ func (h *Handler) GetTrend(c echo.Context) error {
 }
 
 func (h *Handler) GetTrendPosts(c echo.Context) error {
-	var viewerID string
+	var viewerID db.UUID
 	if c.Get(ContextAuthed).(bool) {
-		viewerID = c.Get(ContextUserID).(string)
+		viewerID = c.Get(ContextUserID).(db.UUID)
 	}
 
 	hashtag := c.QueryParam("hashtag")
@@ -33,10 +34,11 @@ func (h *Handler) GetTrendPosts(c echo.Context) error {
 	if limitStr == "" {
 		limitStr = "10"
 	}
-	limit, err := strconv.ParseInt(limitStr, 10, 64)
+	limit64, err := strconv.ParseInt(limitStr, 10, 64)
 	if err != nil {
 		return c.String(400, "invalid limit")
 	}
+	limit := int(limit64)
 
 	var beforeDate *time.Time
 	beforeDateStr := c.QueryParam("before_date")

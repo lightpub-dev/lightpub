@@ -74,7 +74,7 @@ func (h *Handler) PostLogin(c echo.Context) error {
 	}
 
 	var user db.User
-	result := h.DB.First(&user, "username = ? AND is_local = 1", req.Username)
+	result := h.DB.First(&user, "username = ? AND host = ''", req.Username)
 	err = result.Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
