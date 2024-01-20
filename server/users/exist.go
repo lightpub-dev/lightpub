@@ -2,13 +2,12 @@ package users
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
-	"github.com/lightpub-dev/lightpub/models"
+	"gorm.io/gorm"
 )
 
 var (
@@ -16,8 +15,8 @@ var (
 )
 
 func ExistsByID(ctx context.Context, conn db.DBConn, userID string) (bool, error) {
-	var count int
-	err := conn.DB().GetContext(ctx, &count, "SELECT COUNT(*) FROM User WHERE id=UUID_TO_BIN(?)", userID)
+	var count int64
+	err := conn.DB().Model(&db.User{}).Where("id = ?", userID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
@@ -72,37 +71,34 @@ func parseUsername(username string) (parsedUsername, error) {
 	}
 }
 
-func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*models.User, error) {
+func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db.User, error) {
 	parsedUsernameOrID, err := parseUsernameOrID(username)
 	if err != nil {
 		return nil, err
 	}
 
-	var stmt string
-	params := make([]interface{}, 0, 2)
+	var (
+		user db.User
+	)
+	selectColumns := "id, username, host, nickname, url, inbox, outbox, is_local"
 	if parsedUsernameOrID.ID != "" {
 		// parsed ID
 		parsedID := parsedUsernameOrID.ID
-		stmt = "SELECT BIN_TO_UUID(id) AS id,username,host,nickname,url,inbox,outbox,is_local FROM User WHERE id=UUID_TO_BIN(?)"
-		params = append(params, parsedID)
+		err = conn.DB().Select(selectColumns).First(&user, "id = ?", parsedID).Error
 	} else {
 		// parsed Username
 		parsedUsername := parsedUsernameOrID.Username
 		if parsedUsername.Host == "" {
 			// local user
-			stmt = "SELECT BIN_TO_UUID(id) AS id,username,host,nickname,url,inbox,outbox,is_local FROM User WHERE username=?"
-			params = append(params, parsedUsername.Username)
+			err = conn.DB().Select(selectColumns).First(&user, "username = ?", parsedUsername.Username).Error
 		} else {
 			// remote user
-			stmt = "SELECT BIN_TO_UUID(id) AS id,username,host,nickname,url,inbox,outbox,is_local FROM User WHERE username=? AND host=?"
-			params = append(params, parsedUsername.Username, parsedUsername.Host)
+			err = conn.DB().Select(selectColumns).First(&user, "username = ? AND host = ?", parsedUsername.Username, parsedUsername.Host).Error
 		}
 	}
 
-	var user models.User
-	err = conn.DB().GetContext(ctx, &user, stmt, params...)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err

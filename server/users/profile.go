@@ -5,18 +5,26 @@ import (
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
+	"gorm.io/gorm"
 )
 
-func UpdateProfile(ctx context.Context, conn db.DBConn, userID string, req *models.UserProfileUpdate) error {
-	db := conn.DB()
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
+func UpdateProfile(ctx context.Context, conn db.DBConn, userID db.UUID, req *models.UserProfileUpdate) error {
+	dbconn := conn.DB()
+	tx := dbconn.Begin()
 	defer tx.Rollback()
 
 	if req.Bio != nil {
-		_, err = tx.ExecContext(ctx, "UPDATE UserProfile SET bio=? WHERE user_id=UUID_TO_BIN(?)", *req.Bio, userID)
+		var profile db.UserProfile
+		err := tx.First(&profile, "user_id = ?", userID).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// TODO: return custom error
+				return err
+			}
+			return err
+		}
+		profile.Bio = *req.Bio
+		err = tx.Save(&profile).Error
 		if err != nil {
 			return err
 		}
@@ -24,23 +32,26 @@ func UpdateProfile(ctx context.Context, conn db.DBConn, userID string, req *mode
 
 	if req.Labels != nil {
 		// delete all existing labels
-		_, err = tx.ExecContext(ctx, "DELETE FROM UserLabel WHERE user_id=UUID_TO_BIN(?)", userID)
-		if err != nil {
-			return err
-		}
+		tx.Delete(&db.UserLabelDB{}, "user_id = ?", userID)
 
 		for i, label := range req.Labels {
-			_, err = tx.ExecContext(ctx, "INSERT INTO UserLabel(user_id, `order`, `key`, `value`) VALUES (UUID_TO_BIN(?), ?, ?, ?)", userID, i, label.Key, label.Value)
+			data := db.UserLabelDB{
+				UserID: userID,
+				Order:  i,
+				Key:    label.Key,
+				Value:  label.Value,
+			}
+			err := tx.Create(&data).Error
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	return tx.Commit()
+	return tx.Commit().Error
 }
 
-func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID string) (*models.FullUser, error) {
+func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID db.UUID) (*db.FullUser, error) {
 	basicUser, err := FindIDByUsername(ctx, conn, userSpec)
 	if err != nil {
 		return nil, err
@@ -50,44 +61,48 @@ func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID s
 		return nil, nil
 	}
 
-	var profile models.FullUser
+	var profile db.FullUser
 	profile.User = *basicUser
 
 	// fetch Bio
-	err = conn.DB().GetContext(ctx, &profile.Bio, "SELECT bio FROM UserProfile WHERE user_id=UUID_TO_BIN(?)", basicUser.ID)
+	var userProfile db.UserProfile
+	err = conn.DB().First(&userProfile, "user_id = ?", basicUser.ID).Error
 	if err != nil {
 		return nil, err
 	}
+	profile.Bio = userProfile.Bio
 
 	// fetch labels
-	var labels []models.UserLabelDB
-	err = conn.DB().SelectContext(ctx, &labels, "SELECT `order`,`key`,`value` FROM UserLabel WHERE user_id=UUID_TO_BIN(?) ORDER BY `order` ASC", basicUser.ID)
+	var labels []db.UserLabelDB
+	err = conn.DB().Find(&labels, "user_id = ?", basicUser.ID).Order("order ASC").Error
 	if err != nil {
 		return nil, err
 	}
 	profile.Labels = labels
 
 	// fetch is_following
-	if viewerID != "" {
-		err = conn.DB().GetContext(ctx, &profile.IsFollowingByViewer, "SELECT COUNT(*)>0 FROM UserFollow WHERE follower_id=UUID_TO_BIN(?) AND followee_id=UUID_TO_BIN(?) LIMIT 1", viewerID, basicUser.ID)
+	if viewerID != (db.UUID{}) {
+		var isFollowingCount int64
+		err = conn.DB().Model(&db.UserFollow{}).Where("follower_id = ? AND followee_id = ?", viewerID, basicUser.ID).Count(&isFollowingCount).Error
 		if err != nil {
 			return nil, err
 		}
+		profile.IsFollowingByViewer = isFollowingCount > 0
 	}
 
 	// follower count
-	err = conn.DB().GetContext(ctx, &profile.Followers, "SELECT COUNT(*) FROM UserFollow WHERE followee_id=UUID_TO_BIN(?)", basicUser.ID)
+	err = conn.DB().Model(&db.UserFollow{}).Where("followee_id = ?", basicUser.ID).Count(&profile.Followers).Error
 	if err != nil {
 		return nil, err
 	}
 
-	err = conn.DB().GetContext(ctx, &profile.Following, "SELECT COUNT(*) FROM UserFollow WHERE follower_id=UUID_TO_BIN(?)", basicUser.ID)
+	err = conn.DB().Model(&db.UserFollow{}).Where("follower_id = ?", basicUser.ID).Count(&profile.Following).Error
 	if err != nil {
 		return nil, err
 	}
 
 	// post count
-	err = conn.DB().GetContext(ctx, &profile.PostCount, "SELECT COUNT(*) FROM Post WHERE poster_id=UUID_TO_BIN(?)", basicUser.ID)
+	err = conn.DB().Model(&db.Post{}).Where("poster_id = ?", basicUser.ID).Count(&profile.PostCount).Error
 	if err != nil {
 		return nil, err
 	}

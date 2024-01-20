@@ -1,6 +1,10 @@
 package db
 
-import "time"
+import (
+	"time"
+
+	"github.com/lightpub-dev/lightpub/db"
+)
 
 type User struct {
 	ID        UUID      `gorm:"primaryKey"`
@@ -14,10 +18,14 @@ type User struct {
 	CreatedAt time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
 
 	UserLabels []UserLabelDB `gorm:"foreignKey:UserID"`
+	Profile    *UserProfile  `gorm:"foreignKey:UserID"`
+	Followers  []UserFollow  `gorm:"foreignKey:FolloweeID"`
+	Following  []UserFollow  `gorm:"foreignKey:FollowerID"`
 }
 
 type FullUser struct {
 	User
+	Bio                 string
 	Labels              []UserLabelDB
 	IsFollowingByViewer bool
 	Following           int64
@@ -26,7 +34,7 @@ type FullUser struct {
 }
 
 type UserLabelDB struct {
-	UserID uint64 `gorm:"primaryKey"`
+	UserID db.UUID `gorm:"primaryKey"`
 	User   User
 	Order  int `gorm:"primaryKey"`
 	Key    string

@@ -7,6 +7,7 @@ import (
 
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
+	"gorm.io/gorm"
 )
 
 func IsFollowedBy(ctx context.Context, conn db.DBConn, followerID db.UUID, followeeID db.UUID) (bool, error) {
@@ -20,13 +21,13 @@ func IsFollowedBy(ctx context.Context, conn db.DBConn, followerID db.UUID, follo
 }
 
 type FollowerInfo struct {
-	ID          string `json:"id" db:"id"`
-	Username    string `json:"username" db:"username"`
-	Host        string `json:"host" db:"host"`
-	URL         string `json:"url" db:"url"`
-	Nickname    string `json:"nickname" db:"nickname"`
-	Bio         string `json:"bio" db:"bio"`
-	IsFollowing bool   `json:"is_following" db:"is_following"`
+	ID          string  `json:"id"`
+	Username    string  `json:"username"`
+	Host        string  `json:"host"`
+	URL         *string `json:"url"`
+	Nickname    string  `json:"nickname"`
+	Bio         string  `json:"bio"`
+	IsFollowing bool    `json:"is_following"`
 }
 
 func CreateLocalUserURL(username string) string {
@@ -34,49 +35,30 @@ func CreateLocalUserURL(username string) string {
 }
 
 func fillInLocalURL(follower *FollowerInfo) {
-	if follower.URL == "" {
-		follower.URL = CreateLocalUserURL(follower.Username)
+	if follower.URL == nil {
+		localUrl := CreateLocalUserURL(follower.Username)
+		follower.URL = &localUrl
 	}
 }
 
-func FindFollowers(ctx context.Context, conn db.DBConn, followeeID string, viewerID string, beforeDate *time.Time, limit int64) ([]FollowerInfo, error) {
+func FindFollowers(ctx context.Context, conn db.DBConn, followeeID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error) {
 	var (
 		followers []FollowerInfo
-		sql       string
-		params    []interface{}
+		tx        *gorm.DB
 	)
-	if viewerID == "" {
-		sql = `
-SELECT BIN_TO_UUID(u.id) AS id,u.username,u.host,IFNULL(u.url, '') AS url,u.nickname,up.bio
-FROM UserFollow uf
-INNER JOIN User u ON uf.follower_id=u.id
-INNER JOIN UserProfile up ON up.user_id=u.id
-WHERE uf.followee_id=UUID_TO_BIN(?)
-		`
-		params = append(params, followeeID)
+	if viewerID == (db.UUID{}) {
+		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.follower_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Where("followee_id = ?", followeeID).Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio")
 	} else {
-		sql = `
-SELECT BIN_TO_UUID(u.id) AS id,u.username,u.host,IFNULL(u.url, '') AS url,u.nickname,up.bio,
-(
-SELECT COUNT(*) FROM UserFollow uf2 WHERE uf2.follower_id=UUID_TO_BIN(?) AND uf2.followee_id=u.id
-) AS is_following
-FROM UserFollow uf
-INNER JOIN User u ON uf.follower_id=u.id
-INNER JOIN UserProfile up ON up.user_id=u.id
-WHERE uf.followee_id=UUID_TO_BIN(?)
-		`
-		params = append(params, viewerID, followeeID)
+		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.follower_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio, COUNT(user_follows.follower_id) AS is_following").Where("followee_id = ?", followeeID)
 	}
 
 	if beforeDate != nil {
-		sql += " AND u.created_at < ?"
-		params = append(params, beforeDate)
+		tx = tx.Where("users.created_at < ?", beforeDate)
 	}
 
-	sql += " ORDER BY u.created_at DESC LIMIT ?"
-	params = append(params, limit)
+	tx = tx.Order("users.created_at DESC").Limit(limit)
 
-	err := conn.DB().SelectContext(ctx, &followers, sql, params...)
+	err := tx.Find(&followers).Error
 	if err != nil {
 		return nil, err
 	}
@@ -89,52 +71,32 @@ WHERE uf.followee_id=UUID_TO_BIN(?)
 	return followers, nil
 }
 
-func FindFollowing(ctx context.Context, conn db.DBConn, followerID string, viewerID string, beforeDate *time.Time, limit int64) ([]FollowerInfo, error) {
+func FindFollowing(ctx context.Context, conn db.DBConn, followerID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error) {
 	var (
-		following []FollowerInfo
-		sql       string
-		params    []interface{}
+		followings []FollowerInfo
+		tx         *gorm.DB
 	)
-	if viewerID == "" {
-		sql = `
-SELECT BIN_TO_UUID(u.id) AS id,u.username,u.host,IFNULL(u.url, '') AS url,u.nickname,up.bio
-FROM UserFollow uf
-INNER JOIN User u ON uf.followee_id=u.id
-INNER JOIN UserProfile up ON up.user_id=u.id
-WHERE uf.follower_id=UUID_TO_BIN(?)
-		`
-		params = append(params, followerID)
+	if viewerID == (db.UUID{}) {
+		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.followee_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Where("follower_id = ?", followerID).Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio")
 	} else {
-		sql = `
-SELECT BIN_TO_UUID(u.id) AS id,u.username,u.host,IFNULL(u.url, '') AS url,u.nickname,up.bio,
-(
-SELECT COUNT(*) FROM UserFollow uf2 WHERE uf2.follower_id=UUID_TO_BIN(?) AND uf2.followee_id=u.id
-) AS is_following
-FROM UserFollow uf
-INNER JOIN User u ON uf.followee_id=u.id
-INNER JOIN UserProfile up ON up.user_id=u.id
-WHERE uf.follower_id=UUID_TO_BIN(?)
-		`
-		params = append(params, viewerID, followerID)
+		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.followee_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio, COUNT(user_follows.follower_id) AS is_following").Where("follower_id = ?", followerID)
 	}
 
 	if beforeDate != nil {
-		sql += " AND u.created_at < ?"
-		params = append(params, beforeDate)
+		tx = tx.Where("users.created_at < ?", beforeDate)
 	}
 
-	sql += " ORDER BY u.created_at DESC LIMIT ?"
-	params = append(params, limit)
+	tx = tx.Order("users.created_at DESC").Limit(limit)
 
-	err := conn.DB().SelectContext(ctx, &following, sql, params...)
+	err := tx.Find(&followings).Error
 	if err != nil {
 		return nil, err
 	}
 
-	for i, follow := range following {
-		fillInLocalURL(&follow)
-		following[i] = follow
+	for i, follower := range followings {
+		fillInLocalURL(&follower)
+		followings[i] = follower
 	}
 
-	return following, nil
+	return followings, nil
 }
