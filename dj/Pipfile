@@ -8,6 +8,7 @@ django = "*"
 djangorestframework = "*"
 markdown = "*"
 mysqlclient = "*"
+bcrypt = "*"
 
 [dev-packages]
 mypy = "*"
