@@ -1,8 +1,10 @@
 from rest_framework import generics, mixins, status, views
 from rest_framework.response import Response
 
-from .models import User, UserToken
-from .serializers.user import (
+from api.utils.users import UserSpecifier
+
+from ..models import User, UserToken
+from ..serializers.user import (
     LoginSerializer,
     RegisterSerializer,
     login_and_generate_token,
@@ -18,7 +20,7 @@ class RegisterView(generics.CreateAPIView):
 class LoginView(views.APIView):
     serializer_class = LoginSerializer
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         ser = LoginSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         username = ser.validated_data["username"]
@@ -30,3 +32,7 @@ class LoginView(views.APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         return Response({"token": token})
+
+
+# class ModifyFollowView(views.APIView):
+#     def put(self, request, user_spec: UserSpecifier):
