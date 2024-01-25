@@ -3,8 +3,11 @@ from django.http.response import HttpResponse
 from api.models import UserToken
 
 
-def auth_middleware(get_response):
-    def middleware(request):
+class AuthMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
         # read bearer token
         token = request.headers.get("Authorization", None)
 
@@ -18,8 +21,6 @@ def auth_middleware(get_response):
         try:
             user_token = UserToken.objects.select_related("user").get(token=token)
             request.user = user_token.user
-            return get_response(request)
+            return self.get_response(request)
         except UserToken.DoesNotExist:
             return HttpResponse("Authorization failed", status=401)
-
-    return middleware

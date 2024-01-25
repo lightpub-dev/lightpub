@@ -25,13 +25,31 @@ class PostEntrySerializer(serializers.ModelSerializer):
         fields = ["id", "content", "created_at", "privacy"]
 
 
+class PostNotFoundError(serializers.ValidationError):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+
 class CreatePostSerializer(serializers.ModelSerializer):
-    def save(self, validated_data):
-        """
-        Additional `poster_id` field is required to save a post.
-        Accept `reply_to_id` or `repost_of_id` or `
-        """
+    reply_to_id = serializers.PrimaryKeyRelatedField(
+        queryset=Post.objects.all(), required=False
+    )
+    repost_of_id = serializers.PrimaryKeyRelatedField(
+        queryset=Post.objects.all(), required=False
+    )
+
+    def create(self, validated_data):
+        poster = self.context["request"].user
+        if not poster:
+            raise serializers.ValidationError("User not authenticated")
+        # if anonymous
+        if not poster.id:
+            raise serializers.ValidationError("User not authenticated")
+
+        post = Post.objects.create(poster=poster, **validated_data)
+
+        return post
 
     class Meta:
         model = Post
-        fields = ["content", "privacy"]
+        fields = ["content", "privacy", "reply_to_id", "repost_of_id"]

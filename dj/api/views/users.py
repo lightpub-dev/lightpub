@@ -2,7 +2,7 @@ from rest_framework import generics, mixins, status, views
 from rest_framework.response import Response
 
 from api.utils.users import UserSpecifier
-
+from ..auth import AuthOnlyPermission, NoAuthPermission
 from ..models import User, UserToken
 from ..serializers.user import (
     LoginSerializer,
@@ -13,11 +13,13 @@ from ..serializers.user import (
 
 # Create your views here.
 class RegisterView(generics.CreateAPIView):
+    permission_classes = [NoAuthPermission]
     serializer_class = RegisterSerializer
     queryset = User.objects.all()
 
 
 class LoginView(views.APIView):
+    permission_classes = [NoAuthPermission]
     serializer_class = LoginSerializer
 
     def post(self, request):
