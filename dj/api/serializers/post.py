@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from api.models import User, UserFollow, UserProfileLabel, UserToken, Post
+from typing import cast
+from django.db.models import Q
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):
@@ -30,13 +32,32 @@ class PostNotFoundError(serializers.ValidationError):
         super().__init__(msg)
 
 
+class ReplyToIdField(serializers.PrimaryKeyRelatedField):
+    def get_queryset(self):
+        user = cast(User, self.context["request"].user)
+        # posts that are visible to the user
+        posts = Post.objects.filter(
+            Q(privacy=0)
+            | Q(privacy=1)  # public
+            | Q(  # unlisted
+                privacy=1, poster__followers__contains=[user.id]
+            )  # followers only
+        )
+        return posts
+
+
+class RepostOfIdField(serializers.PrimaryKeyRelatedField):
+    def get_queryset(self):
+        # posts that are visible to the user
+        posts = Post.objects.filter(privacy__in=[0, 1])  # public  # unlisted
+        return posts
+
+
 class CreatePostSerializer(serializers.ModelSerializer):
-    reply_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=Post.objects.all(), required=False
-    )
-    repost_of_id = serializers.PrimaryKeyRelatedField(
-        queryset=Post.objects.all(), required=False
-    )
+    reply_to_id = ReplyToIdField(required=False, allow_null=True)
+    repost_of_id = RepostOfIdField(required=False, allow_null=True)
+    id = serializers.UUIDField(read_only=True)
+    author = PostAuthorSerializer(read_only=True, source="poster")
 
     def create(self, validated_data):
         poster = self.context["request"].user
@@ -52,4 +73,4 @@ class CreatePostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ["content", "privacy", "reply_to_id", "repost_of_id"]
+        fields = ["id", "author", "content", "privacy", "reply_to_id", "repost_of_id"]
