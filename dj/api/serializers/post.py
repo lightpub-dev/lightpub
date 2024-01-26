@@ -53,12 +53,7 @@ class RepostOfIdField(serializers.PrimaryKeyRelatedField):
         return posts
 
 
-class CreatePostSerializer(serializers.ModelSerializer):
-    reply_to_id = ReplyToIdField(required=False, allow_null=True)
-    repost_of_id = RepostOfIdField(required=False, allow_null=True)
-    id = serializers.UUIDField(read_only=True)
-    author = PostAuthorSerializer(read_only=True, source="poster")
-
+class CreatePostMixin(serializers.ModelSerializer):
     def create(self, validated_data):
         poster = self.context["request"].user
         if not poster:
@@ -71,6 +66,47 @@ class CreatePostSerializer(serializers.ModelSerializer):
 
         return post
 
+    id = serializers.UUIDField(read_only=True)
+    author = PostAuthorSerializer(read_only=True, source="poster")
+
     class Meta:
         model = Post
         fields = ["id", "author", "content", "privacy", "reply_to_id", "repost_of_id"]
+
+
+class CreatePostSerializer(CreatePostMixin):
+    reply_to_id = ReplyToIdField(read_only=True)
+    repost_of_id = RepostOfIdField(read_only=True)
+
+
+class CreateReplySerializer(CreatePostMixin):
+    reply_to_id = ReplyToIdField(allow_null=False, required=True)
+    repost_of_id = RepostOfIdField(read_only=True)
+
+
+class CreateRepostSerializer(serializers.ModelSerializer):
+    reply_to_id = ReplyToIdField(read_only=True)
+    repost_of_id = RepostOfIdField(allow_null=False, required=True)
+    id = serializers.UUIDField(read_only=True)
+    author = PostAuthorSerializer(read_only=True, source="poster")
+
+    def create(self, validated_data):
+        poster = self.context["request"].user
+        if not poster:
+            raise serializers.ValidationError("User not authenticated")
+        # if anonymous
+        if not poster.id:
+            raise serializers.ValidationError("User not authenticated")
+
+        post = Post.objects.create(poster=poster, content=None, **validated_data)
+
+        return post
+
+    class Meta:
+        model = Post
+        fields = ["id", "author", "privacy", "reply_to_id", "repost_of_id"]
+
+
+class CreateQuoteSerializer(CreatePostMixin):
+    reply_to_id = ReplyToIdField(read_only=True)
+    repost_of_id = RepostOfIdField(allow_null=False, required=True)
