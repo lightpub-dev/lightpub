@@ -31,11 +31,13 @@ class PostViewSet(ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        authed = not not user.id  # type: ignore
+        authed = bool(user.id)  # type: ignore
 
         if not authed:
             return Post.objects.filter(privacy__in=[0, 1]).order_by("-created_at")
 
         return Post.objects.filter(
-            Q(privacy__in=[0, 1]) | Q(privacy=2, poster__followers__follower=user)
+            Q(privacy__in=[0, 1])
+            | Q(privacy=2, poster__followers__follower=user)
+            | Q(privacy=3, poster=user)
         ).order_by("-created_at")

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from ..serializers.interaction import PostFavoriteSerializer, PostBookmarkSerializer
 from ..auth import AuthOnlyPermission
 from ..models import PostFavorite, PostBookmark
+from django.shortcuts import get_object_or_404
 
 
 class PostFavoriteView(
@@ -20,6 +21,12 @@ class PostFavoriteView(
             "-created_at"
         )
         return favorites
+
+    def get_object(self):
+        # get path paramter pk
+        pk = self.kwargs["pk"]
+        # treat pk as post_id
+        return get_object_or_404(PostFavorite, user=self.request.user, post=pk)
 
     def get_serializer_context(self):
         return {"request": self.request}
@@ -41,23 +48,11 @@ class PostBookmarkView(
         )
         return favorites
 
+    def get_object(self):
+        # get path paramter pk
+        pk = self.kwargs["pk"]
+        # treat pk as post_id
+        return get_object_or_404(PostBookmark, user=self.request.user, post=pk)
+
     def get_serializer_context(self):
         return {"request": self.request}
-
-
-class PostFavoriteByPostId(views.APIView):
-    permission_classes = [AuthOnlyPermission]
-
-    def delete(self, request, post_id):
-        favorite = PostFavorite.objects.filter(user=request.user, post_id=post_id)
-        favorite.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class PostBookmarkByPostId(views.APIView):
-    permission_classes = [AuthOnlyPermission]
-
-    def delete(self, request, post_id):
-        favorite = PostBookmark.objects.filter(user=request.user, post_id=post_id)
-        favorite.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)

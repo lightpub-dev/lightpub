@@ -1,3 +1,6 @@
+from ..models import User
+
+
 class UserSpecifier:
     def __init__(
         self,
@@ -24,6 +27,16 @@ class UserSpecifier:
         if len(username_and_host) != 2:
             raise ValueError("user_spec must contain exactly one @")
         return cls(username_and_host=(username_and_host[0], username_and_host[1]))
+
+    def get_user_model(self) -> User | None:
+        if self.user_id is not None:
+            return User.objects.filter(id=self.user_id).first()
+        elif self.username_and_host is not None:
+            return User.objects.filter(
+                username=self.username_and_host[0], host=self.username_and_host[1]
+            ).first()
+        else:
+            raise ValueError("user_id and username_and_host cannot both be None")
 
     def __str__(self):
         if self.user_id is not None:

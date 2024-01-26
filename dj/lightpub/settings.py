@@ -130,7 +130,7 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": ["api.auth.permission.AuthOnlyPermission"],
+    "DEFAULT_PERMISSION_CLASSES": ["api.auth.permission.NoAuthPermission"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "api.auth.auth.TokenAuth",
         "api.auth.auth.CookieAuth",

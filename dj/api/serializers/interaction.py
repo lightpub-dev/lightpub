@@ -14,7 +14,6 @@ class FavoritablePostField(serializers.PrimaryKeyRelatedField):
 
 
 class PostFavoriteSerializer(serializers.ModelSerializer):
-    id = serializers.UUIDField(read_only=True)
     post = PostSerializer(read_only=True)
     post_id = FavoritablePostField(write_only=True, allow_null=False, required=True)
     user = SimpleUserSerializer(read_only=True)
@@ -37,11 +36,10 @@ class PostFavoriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PostFavorite
-        fields = ["id", "post_id", "post", "user", "created_at"]
+        fields = ["post_id", "post", "user", "created_at"]
 
 
 class PostBookmarkSerializer(serializers.ModelSerializer):
-    id = serializers.UUIDField(read_only=True)
     post = PostSerializer(read_only=True)
     post_id = FavoritablePostField(write_only=True, allow_null=False, required=True)
     user = SimpleUserSerializer(read_only=True)
@@ -64,4 +62,4 @@ class PostBookmarkSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PostBookmark
-        fields = ["id", "post_id", "post", "user", "created_at"]
+        fields = ["post_id", "post", "user", "created_at"]

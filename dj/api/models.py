@@ -17,6 +17,14 @@ class User(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
+    def __str__(self) -> str:
+        s = f"@{self.username}"
+        if self.host:
+            s += f"@{self.host}"
+
+        s += f" ({self.id})"
+        return s
+
 
 class UserProfileLabel(models.Model):
     id = models.AutoField(primary_key=True)
