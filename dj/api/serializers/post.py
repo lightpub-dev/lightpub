@@ -39,9 +39,9 @@ class ReplyToIdField(serializers.PrimaryKeyRelatedField):
         posts = Post.objects.filter(
             Q(privacy=0)
             | Q(privacy=1)  # public
-            | Q(  # unlisted
-                privacy=1, poster__followers__contains=[user.id]
-            )  # followers only
+            | Q(
+                privacy=2, poster__followers__follower=user
+            )  # unlisted  # followers only
         )
         return posts
 
