@@ -130,6 +130,8 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "api.pagination.MyPagination",
+    "PAGE_SIZE": 20,
     "DEFAULT_PERMISSION_CLASSES": ["api.auth.permission.NoAuthPermission"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "api.auth.auth.TokenAuth",
