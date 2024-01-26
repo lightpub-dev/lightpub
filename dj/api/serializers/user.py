@@ -14,6 +14,12 @@ def username_validator(username):
         raise serializers.ValidationError("does not match username pattern")
 
 
+class SimpleUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username", "host", "nickname", "url"]
+
+
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(
         required=True, max_length=60, min_length=3, validators=[username_validator]

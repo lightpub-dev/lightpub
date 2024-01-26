@@ -16,7 +16,7 @@ class CookieAuth(BaseAuthentication):
             user_token = UserToken.objects.select_related("user").get(token=token)
             return user_token.user, None
         except UserToken.DoesNotExist:
-            return AuthenticationFailed("Authorization failed")
+            raise AuthenticationFailed("Authorization failed")
 
 
 class TokenAuth(BaseAuthentication):
@@ -35,4 +35,4 @@ class TokenAuth(BaseAuthentication):
             user_token = UserToken.objects.select_related("user").get(token=token)
             return user_token.user, None
         except UserToken.DoesNotExist:
-            return AuthenticationFailed("Authorization failed")
+            raise AuthenticationFailed("Authorization failed")

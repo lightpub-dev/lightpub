@@ -10,3 +10,8 @@ class AuthOnlyPermission(BasePermission):
 class NoAuthPermission(BasePermission):
     def has_permission(self, request, view):
         return True
+
+
+class NoPermission(BasePermission):
+    def has_permission(self, request, view):
+        return False
