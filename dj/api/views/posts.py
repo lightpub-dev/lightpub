@@ -36,8 +36,16 @@ class PostViewSet(ModelViewSet):
         if not authed:
             return Post.objects.filter(privacy__in=[0, 1]).order_by("-created_at")
 
-        return Post.objects.filter(
+        posts = Post.objects.filter(
             Q(privacy__in=[0, 1])
             | Q(privacy=2, poster__followers__follower=user)
             | Q(privacy=3, poster=user)
-        ).order_by("-created_at")
+        )
+
+        hashtag = self.request.query_params.get("hashtag", None)
+        if hashtag:
+            posts = posts.filter(hashtags__hashtag=hashtag)
+
+        posts = posts.order_by("-created_at")
+
+        return posts

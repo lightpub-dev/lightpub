@@ -6,6 +6,7 @@ from .views.posts import PostViewSet
 from .views.interaction import PostFavoriteView, PostBookmarkView
 from .views.users import UserFollowingViewset, UserFollowerViewset, UserViewset
 from .views.timeline import TimelineView
+from .views.hashtags import PopularHashtagsView
 
 app_name = "api"
 
@@ -22,6 +23,7 @@ urlpatterns = [
     path("login", users.LoginView.as_view(), name="login"),
     path("cookie-login", browsable_login.cookie_login, name="cookie-login"),
     path("timeline", TimelineView.as_view(), name="timeline"),
+    path("trend/hashtags", PopularHashtagsView.as_view(), name="trend-hashtags"),
 ]
 
 urlpatterns += router.urls
