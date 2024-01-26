@@ -8,7 +8,21 @@ import datetime
 
 
 class PopularHashtagPage(MyPagination):
-    page_size = 10
+    def get_page_size(self, request):
+        # check limit param
+        limit = request.query_params.get("limit", None)
+        if limit is not None:
+            try:
+                limit = int(limit)
+                if limit < 0:
+                    raise ValueError
+                return limit
+            except ValueError as e:
+                raise ValueError("invalid limit") from e
+
+        # default limit
+        return 10
+
     ordering = "-recent_post_count"
 
 

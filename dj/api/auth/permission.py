@@ -1,5 +1,13 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from ..models import User, Post, UserFollow, PostFavorite, PostBookmark
+from ..models import (
+    User,
+    Post,
+    UserFollow,
+    PostFavorite,
+    PostBookmark,
+    PostAttachment,
+    UploadedFile,
+)
 
 
 def _check_user_updatable(request, user, obj) -> bool:
@@ -18,6 +26,12 @@ def _check_user_updatable(request, user, obj) -> bool:
 
     if isinstance(obj, PostBookmark):
         return request.user == obj.user
+
+    if isinstance(obj, UploadedFile):
+        return request.user == obj.uploader
+
+    if isinstance(obj, PostAttachment):
+        return request.user == obj.post.poster
 
     return False
 

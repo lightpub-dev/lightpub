@@ -1,9 +1,10 @@
 from rest_framework import serializers
 
-from api.models import User, PostHashtag, Post
+from api.models import User, PostHashtag, Post, UploadedFile, PostAttachment
 from typing import Any, cast
 from django.db.models import Q
 from django.db import transaction
+from django.urls import reverse
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):
@@ -76,11 +77,58 @@ def _find_hashtags(content: str) -> list[str]:
     return unique_hashtags
 
 
+class UploadedFileSerializer(serializers.ModelSerializer):
+    file = serializers.ImageField(write_only=True)
+
+    def create(self, validated_data):
+        uploader = self.context["request"].user
+
+        return UploadedFile.objects.create(uploader=uploader, **validated_data)
+
+    class Meta:
+        model = UploadedFile
+        fields = ["id", "uploader", "media_type", "created_at", "file"]
+        read_only_fields = ["id", "uploader", "media_type", "created_at"]
+
+
+class PostAttachmentSerializer(serializers.ModelSerializer):
+    file = UploadedFileSerializer(read_only=True)
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, attachment):
+        if "request" not in self.context:
+            return None
+        request = self.context["request"]
+        return request.build_absolute_uri(
+            reverse("api:attachment", args=[attachment.id])
+        )
+
+    class Meta:
+        model = PostAttachment
+        fields = ["id", "file", "url"]
+        read_only_fields = ["id", "file"]
+
+
+class AttachedFileField(serializers.PrimaryKeyRelatedField):
+    def get_queryset(self):
+        # uploads by the user
+        user = self.context["request"].user
+        if not user.id:
+            return []
+
+        return UploadedFile.objects.filter(uploader=user)
+
+
 class PostSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(read_only=True)
     author = PostAuthorSerializer(read_only=True, source="poster")
     reply_to_id = ReplyToIdField(allow_null=True, required=False, default=None)
     repost_of_id = RepostOfIdField(allow_null=True, required=False, default=None)
+
+    attached_uploads = AttachedFileField(
+        allow_null=True, many=True, required=False, write_only=True
+    )
+    attached_files = serializers.SerializerMethodField()
 
     reply_count = serializers.SerializerMethodField()
     repost_count = serializers.SerializerMethodField()
@@ -121,6 +169,11 @@ class PostSerializer(serializers.ModelSerializer):
             return None
         return post.bookmarks.filter(user=user).exists()
 
+    def get_attached_files(self, post):
+        return PostAttachmentSerializer(
+            many=True, context=self.context
+        ).to_representation(post.attachments.all())
+
     def create(self, validated_data):
         poster = self.context["request"].user
         if not poster:
@@ -131,7 +184,9 @@ class PostSerializer(serializers.ModelSerializer):
 
         # begins transaction
         with transaction.atomic():
-            post = Post.objects.create(poster=poster, **validated_data)
+            post_data = validated_data.copy()
+            del post_data["attached_files"]
+            post = Post.objects.create(poster=poster, **post_data)
 
             # find hashtags
             if post.content is not None:
@@ -145,6 +200,9 @@ class PostSerializer(serializers.ModelSerializer):
 
             for hashtag in hashtags:
                 PostHashtag.objects.create(post=post, hashtag=hashtag)
+
+            for uploaded_file in validated_data.get("attached_files", []):
+                PostAttachment.objects.create(post=post, file=uploaded_file)
 
         return post
 
@@ -165,6 +223,8 @@ class PostSerializer(serializers.ModelSerializer):
             "reposted_by_me",
             "favorited_by_me",
             "bookmarked_by_me",
+            "attached_files",
+            "attached_uploads",
         ]
         read_only_fields = ["created_at"]
 

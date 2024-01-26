@@ -1,16 +1,23 @@
-from ..serializers.post import PostSerializer
-from ..models import Post, UserFollow
-from rest_framework import generics, status
+from ..serializers.post import PostSerializer, UploadedFileSerializer
+from ..models import Post, UploadedFile, PostAttachment
+from rest_framework import status, mixins, views
 from rest_framework.response import Response
-from ..auth import TokenAuth, AuthOnlyPermission, NoAuthPermission, NoPermission
-from rest_framework.viewsets import ModelViewSet
-from django.db.models import Q
+from ..auth import AuthOnlyPermission, NoAuthPermission, NoPermission
+from rest_framework.viewsets import ModelViewSet, GenericViewSet
+from django.db.models import Q, F
 from .users import UserSpecifier
-from api.pagination import MyPagination
+from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
+from PIL import Image
 
 
 class PostViewSet(ModelViewSet):
     serializer_class = PostSerializer
+
+    def get_serializer_context(self):
+        return {
+            "request": self.request,
+        }
 
     def list(self, request, *args, **kwargs):
         # filter privacy==1 posts
@@ -76,3 +83,42 @@ class PostViewSet(ModelViewSet):
         posts = posts.order_by("-created_at")
 
         return posts
+
+
+class UploadFileView(
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.RetrieveModelMixin,
+    GenericViewSet,
+):
+    serializer_class = UploadedFileSerializer
+    queryset = UploadedFile.objects.all()
+    permission_classes = [AuthOnlyPermission]
+
+    def get_serializer_context(self):
+        return {
+            "request": self.request,
+        }
+
+
+class PostAttachmentView(views.APIView):
+    permission_classes = [AuthOnlyPermission]
+
+    def get(self, request, pk):
+        attachment = get_object_or_404(PostAttachment, id=pk)
+
+        # permission check
+        self.check_object_permissions(request, attachment)
+
+        file = attachment.file
+        if not file:
+            return Response(status=status.HTTP_410_GONE)
+
+        file = file.file
+        # serve actual file
+        # file is an image file
+        # use Pillow to decide content_type
+        image = Image.open(file)
+        content_type = image.format.lower()
+        content_type = f"image/{content_type}"
+        return HttpResponse(file, content_type=content_type)

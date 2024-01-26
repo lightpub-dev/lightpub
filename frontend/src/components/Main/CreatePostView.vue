@@ -34,14 +34,37 @@ const selectImage = (event: Event) => {
 const authedAxios = inject(AUTH_AXIOS)!
 
 const postTweet = async () => {
+    // upload image if selected
+    let uploadId = null;
+    if (selectedImage.value) {
+        const formData = new FormData()
+        formData.append('file', selectedImage.value)
+        try {
+            const res = await authedAxios.post("/uploads/", formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            uploadId = res.data.id;
+        } catch (ex) {
+            console.error(ex)
+            alert('Failed to upload image')
+            return;
+        }
+    }
+
     const content = tweetText.value
     const privacy = 0 // TODO
 
     try {
-        authedAxios.post('/posts/', {
+        const req = {
             content,
-            privacy
-        })
+            privacy,
+        } as any
+        if (uploadId) {
+            req['attached_uploads'] = [uploadId]
+        }
+        authedAxios.post('/posts/', req)
 
         tweetText.value = ''
         selectedImage.value = null

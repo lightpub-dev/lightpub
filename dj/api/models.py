@@ -147,3 +147,25 @@ class PostMention(models.Model):
                 name="unique_post_mention",
             )
         ]
+
+
+class UploadedFile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    uploader = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="uploaded_files"
+    )
+    media_type = models.CharField(max_length=255, default="")
+    file = models.FileField(upload_to="uploads/")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class PostAttachment(models.Model):
+    id = models.AutoField(primary_key=True)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="attachments")
+    file = models.ForeignKey(
+        UploadedFile,
+        on_delete=models.SET_NULL,
+        related_name="attachments",
+        blank=False,
+        null=True,
+    )

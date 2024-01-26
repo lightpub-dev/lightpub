@@ -17,10 +17,16 @@ class TimelineView(generics.ListAPIView):
         posts = (
             Post.objects.distinct()
             .filter(
-                Q(
+                Q(poster=user)
+                | Q(
                     privacy__in=[0, 2], poster__followers__follower=user
                 )  # public or follower only
             )
             .order_by("-created_at")
         )
         return posts
+
+    def get_serializer_context(self):
+        return {
+            "request": self.request,
+        }
