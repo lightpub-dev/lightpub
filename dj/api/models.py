@@ -71,7 +71,7 @@ class UserToken(models.Model):
 
 class Post(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    poster = models.ForeignKey(User, on_delete=models.CASCADE)
+    poster = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts")
     content = models.TextField(
         max_length=10000, null=True, blank=True
     )  # NULL for repost

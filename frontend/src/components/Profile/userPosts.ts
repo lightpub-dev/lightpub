@@ -3,7 +3,9 @@ import { AUTH_AXIOS } from '../../consts.ts'
 import { UserPostEntry } from '../UserPost/userpost.model.ts'
 
 export interface UserPostsResponse {
-    posts: UserPostEntry[]
+    results: UserPostEntry[]
+    next: string
+    previous: string
 }
 
 export function useUserPosts(userspec: Ref<string>) {
@@ -15,7 +17,7 @@ export function useUserPosts(userspec: Ref<string>) {
         try {
             posts.value = null
             const response = await authAxios.get(
-                `/user/${userspec.value}/posts`
+                `/posts?user=${userspec.value}`
             )
             posts.value = response.data
         } catch (e) {

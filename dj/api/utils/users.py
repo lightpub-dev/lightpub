@@ -24,9 +24,12 @@ class UserSpecifier:
             raise ValueError("user_spec must start with @ if not specifying user_id")
 
         username_and_host = user_spec[1:].split("@", maxsplit=2)
-        if len(username_and_host) != 2:
-            raise ValueError("user_spec must contain exactly one @")
-        return cls(username_and_host=(username_and_host[0], username_and_host[1]))
+        if len(username_and_host) == 1:
+            return cls(username_and_host=(username_and_host[0], ""))
+        elif len(username_and_host) == 2:
+            return cls(username_and_host=(username_and_host[0], username_and_host[1]))
+
+        raise ValueError("invalid user_spec")
 
     def get_user_model(self) -> User | None:
         if self.user_id is not None:

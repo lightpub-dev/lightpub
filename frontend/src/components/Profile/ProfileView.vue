@@ -28,7 +28,7 @@ const nFollowings = ref(51)
 const isFollowing = ref<boolean | null>(null)
 
 const fetchProfile = async () => {
-    const res = await axios.get(`/user/${id.value}`)
+    const res = await axios.get(`/users/${id.value}`)
     username.value = res.data.username
     nickname.value = res.data.nickname
     hostname.value = res.data.hostname
@@ -57,7 +57,7 @@ const posts = computed(() => {
     if (userPosts.posts.value === null) {
         return []
     }
-    return userPosts.posts.value.posts
+    return userPosts.posts.value.results
 })
 
 // follow button
@@ -66,17 +66,19 @@ const toggleFollow = async () => {
         return
     }
     if (isFollowing.value) {
-        await axios.delete(`/user/${id.value}/follow`)
+        await axios.delete(`/followings/${id.value}`)
     } else {
-        await axios.put(`/user/${id.value}/follow`)
+        await axios.post("/followings", {
+            user: id.value
+        })
     }
     isFollowing.value = null
 
     fetchProfile()
 }
 
-const followerLink = computed(() => `/user/${id.value}/followers`)
-const followingLink = computed(() => `/user/${id.value}/followings`)
+const followerLink = computed(() => `/followers?user=${id.value}`)
+const followingLink = computed(() => `/followings?user=${id.value}`)
 
 const isMe = computed(() => {
     const myUsername = getUsername()

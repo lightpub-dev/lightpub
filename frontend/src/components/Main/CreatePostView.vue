@@ -35,10 +35,10 @@ const authedAxios = inject(AUTH_AXIOS)!
 
 const postTweet = async () => {
     const content = tweetText.value
-    const privacy = 'public' // TODO
+    const privacy = 0 // TODO
 
     try {
-        authedAxios.post('/post', {
+        authedAxios.post('/posts/', {
             content,
             privacy
         })

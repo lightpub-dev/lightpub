@@ -6,8 +6,8 @@ export interface UserPostEntry {
     content: string | null
     created_at: string
     privacy: Privacy
-    reply_to?: string | UserPostEntry
-    repost_of?: string | UserPostEntry
+    reply_to_id?: string
+    repost_of_id?: string
     repost_count: number
     reply_count: number
     quote_count: number
@@ -32,5 +32,5 @@ export interface UserPostEntryAuthor {
 }
 
 export interface TimelineResponse {
-    posts: UserPostEntry[]
+    results: UserPostEntry[]
 }

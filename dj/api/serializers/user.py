@@ -31,6 +31,19 @@ class DetailedUserSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField("get_url")
     labels = UserProfileLabelSerializer(many=True)
 
+    n_posts = serializers.SerializerMethodField()
+    n_followers = serializers.SerializerMethodField()
+    n_followings = serializers.SerializerMethodField()
+
+    def get_n_posts(self, obj):
+        return obj.posts.filter(privacy__in=[0, 1]).count()
+
+    def get_n_followers(self, obj):
+        return obj.followers.count()
+
+    def get_n_followings(self, obj):
+        return obj.followings.count()
+
     def get_url(self, obj):
         if obj.url:
             return obj.url
@@ -63,6 +76,9 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "outbox",
             "created_at",
             "labels",
+            "n_posts",
+            "n_followers",
+            "n_followings",
         ]
         extra_kwargs = {
             "id": {"read_only": True},

@@ -6,7 +6,7 @@ const feedPosts = computed(() => {
     if (timeline.posts.value === null) {
         return []
     }
-    return timeline.posts.value.posts
+    return timeline.posts.value.results
 })
 </script>
 

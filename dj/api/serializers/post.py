@@ -82,6 +82,45 @@ class PostSerializer(serializers.ModelSerializer):
     reply_to_id = ReplyToIdField(allow_null=True, required=False, default=None)
     repost_of_id = RepostOfIdField(allow_null=True, required=False, default=None)
 
+    reply_count = serializers.SerializerMethodField()
+    repost_count = serializers.SerializerMethodField()
+    quote_count = serializers.SerializerMethodField()
+    favorite_count = serializers.SerializerMethodField()
+
+    reposted_by_me = serializers.SerializerMethodField()
+    favorited_by_me = serializers.SerializerMethodField()
+    bookmarked_by_me = serializers.SerializerMethodField()
+
+    def get_reply_count(self, post):
+        return post.replies.count()
+
+    def get_repost_count(self, post):
+        return post.reposts.filter(content=None).count()
+
+    def get_quote_count(self, post):
+        return post.reposts.exclude(content=None).count()
+
+    def get_favorite_count(self, post):
+        return post.favorites.count()
+
+    def get_reposted_by_me(self, post):
+        user = self.context["request"].user
+        if not user.id:
+            return None
+        return post.reposts.filter(poster=user, content=None).exists()
+
+    def get_favorited_by_me(self, post):
+        user = self.context["request"].user
+        if not user.id:
+            return None
+        return post.favorites.filter(user=user).exists()
+
+    def get_bookmarked_by_me(self, post):
+        user = self.context["request"].user
+        if not user.id:
+            return None
+        return post.bookmarks.filter(user=user).exists()
+
     def create(self, validated_data):
         poster = self.context["request"].user
         if not poster:
@@ -119,6 +158,13 @@ class PostSerializer(serializers.ModelSerializer):
             "reply_to_id",
             "repost_of_id",
             "created_at",
+            "reply_count",
+            "repost_count",
+            "quote_count",
+            "favorite_count",
+            "reposted_by_me",
+            "favorited_by_me",
+            "bookmarked_by_me",
         ]
         read_only_fields = ["created_at"]
 

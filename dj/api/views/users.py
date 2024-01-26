@@ -55,6 +55,14 @@ class UserViewset(
             "request": self.request,
         }
 
+    def get_object(self):
+        pk = self.kwargs["pk"]
+        user_spec = UserSpecifier.parse_str(pk)
+        user = user_spec.get_user_model()
+        if user is None:
+            raise Http404("user not found")
+        return user
+
 
 class UserFollowingViewset(
     mixins.CreateModelMixin,

@@ -9,6 +9,7 @@ djangorestframework = "*"
 markdown = "*"
 mysqlclient = "*"
 bcrypt = "*"
+django-cors-headers = "*"
 
 [dev-packages]
 mypy = "*"

@@ -15,13 +15,13 @@ const trendings = ref<
 
 watchEffect(async () => {
     try {
-        const res = await authedAxios.get('/trend')
-        for (let i = 0; i < res.data.trends.length; i++) {
-            const trend = res.data.trends[i]
+        const res = await authedAxios.get('/trend/hashtags')
+        for (let i = 0; i < res.data.results.length; i++) {
+            const trend = res.data.results[i]
             trendings.value.push({
                 index: i + 1,
                 hashtag: trend.hashtag,
-                post_count: trend.post_count,
+                post_count: trend.recent_post_count,
                 url: `/trend/posts?hashtag=${encodeURIComponent(trend.hashtag)}`
             })
         }
@@ -52,7 +52,7 @@ watchEffect(async () => {
                     {{ index + 1 }} - {{ trending.gender }}
                 </p> -->
                     <p class="text-lg text-gray-800 font-bold">
-                        {{ trending.hashtag }}
+                        #{{ trending.hashtag }}
                     </p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                         {{ trending.post_count }} posts

@@ -57,8 +57,24 @@ const targetUserId = route.params.id as string
 const users = ref<User[]>([])
 
 const fetchUsers = async () => {
-    const res = await axios.get(`/user/${targetUserId}/${props.mode}`)
-    users.value = res.data[props.mode]
+    let url = '';
+    switch (props.mode) {
+        case 'followers':
+            url = `/followers?user=${targetUserId}`
+            break
+        case 'followings':
+            url = `/followings?user=${targetUserId}`
+            break
+    }
+    const res = await axios.get(url)
+    switch (props.mode) {
+        case 'followers':
+            users.value = res.data.results.map(r => r.follower)
+            break
+        case 'followings':
+            users.value = res.data.results.map(r => r.followee)
+            break
+    }
 }
 
 watchEffect(() => {
