@@ -12,12 +12,12 @@ const axios = inject(AUTH_AXIOS)!
 const posts: Ref<UserPostEntry[]> = ref([])
 watchEffect(async () => {
     posts.value = []
-    const { data } = await axios.get<UserPostEntry[]>(`/trend/posts`, {
+    const { data } = await axios.get<{results:UserPostEntry[]}>(`/posts`, {
         params: {
             hashtag: hashtag.value
         }
     })
-    posts.value = data
+    posts.value = data.results
 })
 </script>
 

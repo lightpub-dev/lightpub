@@ -66,10 +66,10 @@ const toggleFollow = async () => {
         return
     }
     if (isFollowing.value) {
-        await axios.delete(`/followings/${id.value}`)
+        await axios.delete(`/followings/${id.value}/`)
     } else {
-        await axios.post("/followings", {
-            user: id.value
+        await axios.post("/followings/", {
+            followee_spec: id.value
         })
     }
     isFollowing.value = null

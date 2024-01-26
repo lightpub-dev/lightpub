@@ -6,8 +6,10 @@ from rest_framework import serializers
 
 from api.models import User, UserFollow, UserProfileLabel, UserToken
 from django.urls import reverse
+from django.core.exceptions import ObjectDoesNotExist
+from api.utils.users import UserSpecifier
 
-USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,60}$")
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 
 
 def username_validator(username):
@@ -34,6 +36,7 @@ class DetailedUserSerializer(serializers.ModelSerializer):
     n_posts = serializers.SerializerMethodField()
     n_followers = serializers.SerializerMethodField()
     n_followings = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
 
     def get_n_posts(self, obj):
         return obj.posts.filter(privacy__in=[0, 1]).count()
@@ -53,6 +56,14 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             reverse("api:user-detail", kwargs={"pk": obj.id})
         )
         return full_url
+
+    def get_is_following(self, obj):
+        if not self.context["request"].user.id:
+            return None
+
+        return UserFollow.objects.filter(
+            follower=self.context["request"].user, followee=obj
+        ).exists()
 
     def update(self, instance: User, validated_data):
         if "labels" in validated_data:
@@ -79,6 +90,7 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "n_posts",
             "n_followers",
             "n_followings",
+            "is_following",
         ]
         extra_kwargs = {
             "id": {"read_only": True},
@@ -147,11 +159,23 @@ class FolloweeIdField(serializers.PrimaryKeyRelatedField):
 
 class UserFollowSerializer(serializers.ModelSerializer):
     followee = SimpleUserSerializer(read_only=True)
-    followee_id = FolloweeIdField(write_only=True, allow_null=False, required=True)
+    followee_spec = serializers.CharField(write_only=True, required=False)
+
+    def validate_followee_spec(self, value):
+        try:
+            user_spec = UserSpecifier.parse_str(value)
+        except ValueError as e:
+            raise serializers.ValidationError(str(e))
+
+        user = user_spec.get_user_model()
+        if user is None:
+            raise ObjectDoesNotExist("user not found")
+
+        return user.id
 
     def create(self, validated_data):
-        validated_data["followee"] = validated_data["followee_id"]
-        del validated_data["followee_id"]
+        validated_data["followee_id"] = validated_data["followee_spec"]
+        del validated_data["followee_spec"]
 
         return UserFollow.objects.create(
             follower=self.context["request"].user, **validated_data
@@ -165,7 +189,7 @@ class UserFollowSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserFollow
-        fields = ["followee", "followee_id", "created_at"]
+        fields = ["followee", "followee_spec", "created_at"]
         extra_kwargs = {"created_at": {"read_only": True}}
 
 

@@ -15,7 +15,7 @@ export type AuthHeader = {
 
 export type PostRequest = {
   content: string;
-  privacy: "public" | "unlisted" | "follower" | "private";
+  privacy: 0 | 1 | 2 | 3;
 } & AuthHeader;
 
 export type ReplyRequest = PostRequest & {

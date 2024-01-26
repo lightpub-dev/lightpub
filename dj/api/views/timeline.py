@@ -14,11 +14,13 @@ class TimelineView(generics.ListAPIView):
         user = self.request.user
         if not user.id:
             return []
-        posts = Post.objects.filter(
-            Q(privacy=0)  # public
-            | Q(
-                privacy=2, poster__followers__follower=user
-            )  # unlisted  # followers only
-            | Q(privacy=3, poster=user)  # private myself
-        ).order_by("-created_at")
+        posts = (
+            Post.objects.distinct()
+            .filter(
+                Q(
+                    privacy__in=[0, 2], poster__followers__follower=user
+                )  # public or follower only
+            )
+            .order_by("-created_at")
+        )
         return posts

@@ -10,12 +10,14 @@ markdown = "*"
 mysqlclient = "*"
 bcrypt = "*"
 django-cors-headers = "*"
+uwsgi = "*"
 
 [dev-packages]
 mypy = "*"
 flake8 = "*"
 black = "*"
 isort = "*"
+gunicorn = "*"
 
 [requires]
 python_version = "3.12"

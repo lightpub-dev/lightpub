@@ -50,7 +50,7 @@ class PostViewSet(ModelViewSet):
         if not authed:
             return Post.objects.filter(privacy__in=[0, 1]).order_by("-created_at")
 
-        posts = Post.objects.filter(
+        posts = Post.objects.distinct().filter(
             Q(privacy__in=[0, 1])
             | Q(privacy=2, poster__followers__follower=user)
             | Q(privacy=3, poster=user)
