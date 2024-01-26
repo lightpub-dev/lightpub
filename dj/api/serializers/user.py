@@ -62,3 +62,16 @@ def login_and_generate_token(username: str, password: str) -> str | None:
         return None
     except User.DoesNotExist:
         return None
+
+
+class UserFollowSerializer(serializers.ModelSerializer):
+    follower = SimpleUserSerializer(read_only=True)
+    followee = SimpleUserSerializer(read_only=True)
+    followee_id = serializers.UUIDField(
+        write_only=True, allow_null=False, required=True, queryset=User.objects.all()
+    )
+
+    class Meta:
+        model = UserFollow
+        fields = ["id", "follower", "followee", "followee_id", "created_at"]
+        extra_kwargs = {"id": {"read_only": True}, "created_at": {"read_only": True}}

@@ -42,10 +42,25 @@ class PostFavoriteSerializer(serializers.ModelSerializer):
 
 class PostBookmarkSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(read_only=True)
-    post_id = FavoritablePostField(write_only=True, allow_null=False, required=True)
     post = PostSerializer(read_only=True)
+    post_id = FavoritablePostField(write_only=True, allow_null=False, required=True)
     user = SimpleUserSerializer(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
+
+    def validate_post_id(self, value):
+        # unique check
+        user = self.context["request"].user
+        if PostBookmark.objects.filter(user=user, post=value).exists():
+            raise serializers.ValidationError("Already favorited")
+        return value
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+        if not user.id:
+            raise serializers.ValidationError("User not authenticated")
+        validated_data["post"] = validated_data["post_id"]
+        del validated_data["post_id"]
+        return PostBookmark.objects.create(user=user, **validated_data)
 
     class Meta:
         model = PostBookmark

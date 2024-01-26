@@ -1,13 +1,14 @@
-from rest_framework import generics, mixins, status, views
+from rest_framework import generics, mixins, status, views, viewsets
 from rest_framework.response import Response
 
 from api.utils.users import UserSpecifier
 from ..auth import AuthOnlyPermission, NoAuthPermission
-from ..models import User, UserToken
+from ..models import User, UserFollow
 from ..serializers.user import (
     LoginSerializer,
     RegisterSerializer,
     login_and_generate_token,
+    UserFollowSerializer,
 )
 
 
@@ -36,5 +37,16 @@ class LoginView(views.APIView):
         return Response({"token": token})
 
 
-# class ModifyFollowView(views.APIView):
-#     def put(self, request, user_spec: UserSpecifier):
+class UserFollowViewset(
+    mixins.CreateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView
+):
+    def get_permissions(self):
+        if self.action == "create":
+            permission_classes = [AuthOnlyPermission]
+        else:
+            permission_classes = []
+
+        return [permission() for permission in permission_classes]
+
+    def get_queryset(self):
+        return UserFollow.objects.filter(follower=self.request.user)
