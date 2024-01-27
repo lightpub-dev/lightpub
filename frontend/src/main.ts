@@ -3,6 +3,8 @@ import '@/style.css'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { createApp } from 'vue'
+import InfiniteLoading from 'v3-infinite-loading'
+import 'v3-infinite-loading/lib/style.css' //required if you're not going to override default slots
 
 /* add some free styles */
 import LoginView from '@/components/Login/LoginView.vue'
@@ -76,5 +78,6 @@ library.add(
 )
 createApp(App)
     .component('font-awesome-icon', FontAwesomeIcon)
+    .component('infinite-loading', InfiniteLoading)
     .use(router)
     .mount('#app')

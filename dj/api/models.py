@@ -160,7 +160,7 @@ class UploadedFile(models.Model):
 
 
 class PostAttachment(models.Model):
-    id = models.AutoField(primary_key=True)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="attachments")
     file = models.ForeignKey(
         UploadedFile,

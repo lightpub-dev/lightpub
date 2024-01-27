@@ -25,7 +25,9 @@ urlpatterns = [
     path("cookie-login", browsable_login.cookie_login, name="cookie-login"),
     path("timeline", TimelineView.as_view(), name="timeline"),
     path("trend/hashtags", PopularHashtagsView.as_view(), name="trend-hashtags"),
-    path("attachments/<int:pk>", posts.PostAttachmentView.as_view(), name="attachment"),
+    path(
+        "attachments/<uuid:pk>", posts.PostAttachmentView.as_view(), name="attachment"
+    ),
 ]
 
 urlpatterns += router.urls

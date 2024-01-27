@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { format } from 'timeago.js'
-import { PropType, computed, inject } from 'vue'
+import { PropType, computed, inject, ref } from 'vue'
 import { UserPostEntry } from './userpost.model.ts'
 import { AUTH_AXIOS } from '../../consts'
 
@@ -84,6 +84,26 @@ const isFavoritedByMe = computed(() => {
     return actualPost.value.favorited_by_me ?? false
 })
 
+const attachedFiles = computed<
+    {
+        id: string
+        url: string
+    }[]
+>(() => {
+    return actualPost.value.attached_files
+})
+
+const showImageModal = ref(false)
+const selectedImage = ref('')
+const openImageModal = (imageUrl: string) => {
+    selectedImage.value = imageUrl
+    showImageModal.value = true
+}
+const closeModal = () => {
+    showImageModal.value = false
+    selectedImage.value = ''
+}
+
 const onFavorite = async () => {
     if (isFavoritedByMe.value) {
         await axios.delete(`/favorites/${props.user_post.id}/`)
@@ -160,6 +180,43 @@ const onFavorite = async () => {
         <p class="pt-5 text-gray-600 text-lg mb-4">
             {{ content }}
         </p>
+        <div>
+            <div
+                v-if="attachedFiles.length > 0"
+                :class="`images w-full h-70 bg-ll-neutral dark:bg-ld-neutral rounded-xl my-4 overflow-hidden grid ${
+                    attachedFiles.length > 1 ? 'grid-cols-2' : 'grid-cols-1'
+                } gap-2`"
+            >
+                <div
+                    v-for="file in attachedFiles"
+                    :key="file.id"
+                    class="h-full"
+                >
+                    <img
+                        :src="file.url"
+                        alt=""
+                        class="w-full h-70 object-cover cursor-pointer"
+                        @click="openImageModal(file.url)"
+                    />
+                </div>
+            </div>
+
+            <!-- Modal for displaying larger image -->
+            <div
+                v-if="showImageModal"
+                class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                @click="closeModal()"
+            >
+                <div class="max-w-3xl mx-auto" @click.stop="() => {}">
+                    <img
+                        :src="selectedImage"
+                        alt=""
+                        class="max-w-full max-h-full"
+                        @click.stop="() => {}"
+                    />
+                </div>
+            </div>
+        </div>
 
         <!-- <div
             v-if="props.user_post?.post.pictures_url.length > 0"

@@ -1,7 +1,25 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useTimeline } from '../UserPost/processFeedPosts.ts'
+import InfiniteLoading from 'v3-infinite-loading'
+import 'v3-infinite-loading/lib/style.css'
+
 const timeline = useTimeline()
+const load = async $state => {
+    try {
+        await timeline.fetchNext()
+
+        if (!timeline.hasNext.value) {
+            $state.complete()
+        } else {
+            $state.loaded()
+        }
+    } catch (e) {
+        console.error(e)
+        $state.error()
+    }
+}
+
 const feedPosts = computed(() => {
     if (timeline.posts.value === null) {
         return []
@@ -10,7 +28,7 @@ const feedPosts = computed(() => {
 })
 
 eventBus.on('post-created', async () => {
-    await timeline.fetchPosts();
+    await timeline.fetchPosts()
 })
 </script>
 
@@ -24,13 +42,14 @@ eventBus.on('post-created', async () => {
                 :key="index"
                 :user_post="post"
             ></UserPost>
+            <InfiniteLoading @infinite="load" />
         </div>
     </div>
 </template>
 
 <script lang="ts">
 import UserPost from '@/components/UserPost/UserPost.vue'
-import { eventBus } from '../../event';
+import { eventBus } from '../../event'
 
 export default {
     components: { UserPost }

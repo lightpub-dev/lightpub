@@ -198,8 +198,8 @@ class PostSerializer(serializers.ModelSerializer):
         # begins transaction
         with transaction.atomic():
             post_data = validated_data.copy()
-            if "attached_files" in post_data:
-                del post_data["attached_files"]
+            if "attached_uploads" in post_data:
+                del post_data["attached_uploads"]
             if "reply_to_id" in post_data:
                 post_data["reply_to"] = post_data["reply_to_id"]
                 del post_data["reply_to_id"]
@@ -221,7 +221,7 @@ class PostSerializer(serializers.ModelSerializer):
             for hashtag in hashtags:
                 PostHashtag.objects.create(post=post, hashtag=hashtag)
 
-            for uploaded_file in validated_data.get("attached_files", []):
+            for uploaded_file in validated_data.get("attached_uploads", []):
                 PostAttachment.objects.create(post=post, file=uploaded_file)
 
         return post

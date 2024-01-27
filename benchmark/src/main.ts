@@ -2,9 +2,9 @@ import { faker } from "@faker-js/faker";
 import { followUser, loginUser, post, registerUser } from "./api";
 import { RegisterRequest } from "./models";
 
-const UserCount = 100;
-const FollowCount = 50;
-const PostsPerUser = 100;
+const UserCount = 10;
+const FollowCount = 5;
+const PostsPerUser = 10;
 
 function fakeUser(): RegisterRequest {
   return {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { inject, ref, watch } from 'vue'
 import { AUTH_AXIOS } from '../../consts'
-import { eventBus } from '../../event';
+import { eventBus } from '../../event'
 
 const emit = defineEmits<{
     (e: 'created'): void
@@ -36,21 +36,21 @@ const authedAxios = inject(AUTH_AXIOS)!
 
 const postTweet = async () => {
     // upload image if selected
-    let uploadId = null;
+    let uploadId = null
     if (selectedImage.value) {
         const formData = new FormData()
         formData.append('file', selectedImage.value)
         try {
-            const res = await authedAxios.post("/uploads/", formData, {
+            const res = await authedAxios.post('/uploads/', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 }
-            });
-            uploadId = res.data.id;
+            })
+            uploadId = res.data.id
         } catch (ex) {
             console.error(ex)
             alert('Failed to upload image')
-            return;
+            return
         }
     }
 
@@ -60,7 +60,7 @@ const postTweet = async () => {
     try {
         const req = {
             content,
-            privacy,
+            privacy
         } as any
         if (uploadId) {
             req['attached_uploads'] = [uploadId]
@@ -72,7 +72,7 @@ const postTweet = async () => {
         closePostMenu()
 
         emit('created')
-        eventBus.emit('post-created');
+        eventBus.emit('post-created')
     } catch (ex) {
         console.error(ex)
     }
