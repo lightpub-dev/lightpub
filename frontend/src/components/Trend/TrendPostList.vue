@@ -12,7 +12,7 @@ const axios = inject(AUTH_AXIOS)!
 const posts: Ref<UserPostEntry[]> = ref([])
 watchEffect(async () => {
     posts.value = []
-    const { data } = await axios.get<{results:UserPostEntry[]}>(`/posts`, {
+    const { data } = await axios.get<{ results: UserPostEntry[] }>(`/posts`, {
         params: {
             hashtag: hashtag.value
         }
@@ -27,7 +27,7 @@ watchEffect(async () => {
     >
         <div class="text-left text-lg">
             <span class="text-gray-500">#</span>
-            <span class="text-black">{{ hashtag.substring(1) }}</span>
+            <span class="text-black">{{ hashtag }}</span>
         </div>
         <div class="flex flex-col p-2">
             <UserPost

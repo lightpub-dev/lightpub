@@ -29,14 +29,26 @@ class UserProfileLabelSerializer(serializers.ModelSerializer):
         fields = ["key", "value"]
 
 
+class AvatarIdField(serializers.PrimaryKeyRelatedField):
+    def get_queryset(self):
+        # my own uploads
+        user = self.context["request"].user
+        if not user.id:
+            return []
+        return user.uploaded_files.all()
+
+
 class DetailedUserSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField("get_url")
-    labels = UserProfileLabelSerializer(many=True)
+    avatar = serializers.SerializerMethodField()
+    labels = UserProfileLabelSerializer(many=True, required=False)
 
     n_posts = serializers.SerializerMethodField()
     n_followers = serializers.SerializerMethodField()
     n_followings = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
+
+    avatar_id = AvatarIdField(write_only=True, required=False, allow_null=True)
 
     def get_n_posts(self, obj):
         return obj.posts.filter(privacy__in=[0, 1]).count()
@@ -57,6 +69,16 @@ class DetailedUserSerializer(serializers.ModelSerializer):
         )
         return full_url
 
+    def get_avatar(self, obj):
+        if not obj.avatar:
+            return None
+
+        if "request" not in self.context:
+            return None
+
+        request = self.context["request"]
+        return request.build_absolute_uri(reverse("api:user-avatar", args=[obj.id]))
+
     def get_is_following(self, obj):
         if not self.context["request"].user.id:
             return None
@@ -72,6 +94,12 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             for i, label in enumerate(labels):
                 UserProfileLabel.objects.create(user=instance, order=i, **label)
             del validated_data["labels"]
+        if "avatar_id" in validated_data:
+            if validated_data["avatar_id"] is None:
+                validated_data["avatar"] = None
+            else:
+                validated_data["avatar"] = validated_data["avatar_id"]
+            del validated_data["avatar_id"]
         return super().update(instance, validated_data)
 
     class Meta:
@@ -91,6 +119,8 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "n_followers",
             "n_followings",
             "is_following",
+            "avatar",
+            "avatar_id",
         ]
         extra_kwargs = {
             "id": {"read_only": True},

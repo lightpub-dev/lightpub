@@ -28,6 +28,11 @@ urlpatterns = [
     path(
         "attachments/<uuid:pk>", posts.PostAttachmentView.as_view(), name="attachment"
     ),
+    path(
+        "user-avatars/<str:user_spec>",
+        users.UserAvatarView.as_view(),
+        name="user-avatar",
+    ),
 ]
 
 urlpatterns += router.urls

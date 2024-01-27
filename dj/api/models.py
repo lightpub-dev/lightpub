@@ -11,6 +11,13 @@ class User(models.Model):
     bpassword = models.CharField(max_length=60)
     nickname = models.CharField(max_length=255)
     bio = models.TextField(default="")
+    avatar = models.ForeignKey(
+        "UploadedFile",
+        on_delete=models.SET_NULL,
+        related_name="avatar_for",
+        blank=True,
+        null=True,
+    )
     url = models.CharField(max_length=512, null=True, blank=True)
     inbox = models.CharField(max_length=512, null=True, blank=True)
     outbox = models.CharField(max_length=512, null=True, blank=True)

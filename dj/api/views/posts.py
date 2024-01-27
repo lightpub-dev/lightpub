@@ -9,6 +9,8 @@ from .users import UserSpecifier
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from PIL import Image
+from django.views.decorators.cache import cache_control
+from django.utils.decorators import method_decorator
 
 
 class PostViewSet(ModelViewSet):
@@ -104,6 +106,7 @@ class UploadFileView(
 class PostAttachmentView(views.APIView):
     permission_classes = [AuthOnlyPermission]
 
+    @method_decorator(cache_control(max_age=60 * 60 * 24 * 7))
     def get(self, request, pk):
         attachment = get_object_or_404(PostAttachment, id=pk)
 

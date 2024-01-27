@@ -1,4 +1,4 @@
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, mixins, status, views, viewsets
 from rest_framework.response import Response
@@ -13,6 +13,9 @@ from ..serializers.user import (
     login_and_generate_token,
     UserFollowSerializer,
 )
+from PIL import Image
+from django.views.decorators.cache import cache_control
+from django.utils.decorators import method_decorator
 
 
 # Create your views here.
@@ -129,3 +132,22 @@ class UserFollowerViewset(
         return {
             "request": self.request,
         }
+
+
+class UserAvatarView(views.APIView):
+    permission_classes = [NoAuthPermission]
+
+    @method_decorator(cache_control(max_age=60 * 60 * 24))
+    def get(self, request, user_spec):
+        user_spec = UserSpecifier.parse_str(user_spec)
+        user = user_spec.get_user_model()
+        if not user:
+            raise Http404("user not found")
+        if user.avatar:
+            file = user.avatar.file
+            image = Image.open(file)
+            content_type = image.format.lower()
+            content_type = f"image/{content_type}"
+            return HttpResponse(file, content_type=content_type)
+        else:
+            raise Http404("avatar not set")

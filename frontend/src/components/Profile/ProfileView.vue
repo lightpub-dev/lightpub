@@ -5,6 +5,7 @@ import { AUTH_AXIOS } from '../../consts'
 import { useUserPosts } from './userPosts'
 import UserPost from '@/components/UserPost/UserPost.vue'
 import { getUsername } from '../../auth'
+import { DUMMY_AVATAR_URL } from '../../settings'
 
 const route = useRoute()
 const id = computed(() => route.params.id)
@@ -20,6 +21,7 @@ const labels = ref<
         value: string
     }[]
 >([])
+const avatarURL = ref<string | null>(null)
 
 const nPosts = ref(100)
 const nFollowers = ref(50)
@@ -33,11 +35,12 @@ const fetchProfile = async () => {
     nickname.value = res.data.nickname
     hostname.value = res.data.hostname
     bio.value = res.data.bio
+    avatarURL.value = res.data.avatar
     labels.value = res.data.labels
     isFollowing.value = res.data.is_following
-    nPosts.value = res.data.counters.posts
-    nFollowers.value = res.data.counters.followers
-    nFollowings.value = res.data.counters.following
+    nPosts.value = res.data.n_posts
+    nFollowers.value = res.data.n_followers
+    nFollowings.value = res.data.n_followings
 }
 
 watchEffect(() => {
@@ -68,7 +71,7 @@ const toggleFollow = async () => {
     if (isFollowing.value) {
         await axios.delete(`/followings/${id.value}/`)
     } else {
-        await axios.post("/followings/", {
+        await axios.post('/followings/', {
             followee_spec: id.value
         })
     }
@@ -84,6 +87,14 @@ const isMe = computed(() => {
     const myUsername = getUsername()
     return myUsername === username.value
 })
+
+const actualUserAvatar = computed(() => {
+    if (avatarURL.value) {
+        return avatarURL.value
+    } else {
+        return DUMMY_AVATAR_URL
+    }
+})
 </script>
 
 <template>
@@ -92,7 +103,7 @@ const isMe = computed(() => {
             <div class="mb-4">
                 <img
                     class="w-20 h-20 mx-auto rounded-full"
-                    src="https://placekitten.com/200/200"
+                    :src="actualUserAvatar"
                     alt="User icon"
                 />
             </div>
