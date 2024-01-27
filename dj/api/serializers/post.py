@@ -154,6 +154,37 @@ class PostSerializer(serializers.ModelSerializer):
     favorited_by_me = serializers.SerializerMethodField()
     bookmarked_by_me = serializers.SerializerMethodField()
 
+    def validate_repost_of_id(self, repost_of_id):
+        if repost_of_id is None:
+            return None
+
+        repost_target = repost_of_id
+        if repost_target is None:
+            raise serializers.ValidationError("Repost target not found")
+
+        if repost_target.repost_of_id is not None:
+            raise serializers.ValidationError("Cannot repost a repost")
+
+        return repost_of_id
+
+    def validate(self, data):
+        # check double repost
+        null_content = data.get("content", None) is None
+        reposting = data.get("repost_of_id", None) is not None
+        if null_content and reposting:
+            # check if the user has already reposted the target
+            user = self.context["request"].user
+            if not user.id:
+                raise serializers.ValidationError("User not authenticated")
+
+            already_reposted = Post.objects.filter(
+                poster=user, repost_of_id=data["repost_of_id"].id, content=None
+            ).exists()
+            if already_reposted:
+                raise serializers.ValidationError("You cannot repost a post twice")
+
+        return data
+
     def get_reply_to(self, post):
         if post.reply_to is None:
             return None
@@ -180,7 +211,10 @@ class PostSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         if not user.id:
             return None
-        return post.reposts.filter(poster=user, content=None).exists()
+        repost = post.reposts.filter(poster=user, content=None).first()
+        if repost is None:
+            return None
+        return repost.id
 
     def get_favorited_by_me(self, post):
         user = self.context["request"].user

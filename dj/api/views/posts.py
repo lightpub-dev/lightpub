@@ -104,7 +104,7 @@ class UploadFileView(
 
 
 class PostAttachmentView(views.APIView):
-    permission_classes = [AuthOnlyPermission]
+    permission_classes = [NoAuthPermission]
 
     @method_decorator(cache_control(max_age=60 * 60 * 24 * 7))
     def get(self, request, pk):

@@ -4,6 +4,7 @@ import { PropType, computed, inject, ref } from 'vue'
 import { UserPostEntry } from './userpost.model.ts'
 import { AUTH_AXIOS } from '../../consts'
 import { DUMMY_AVATAR_URL } from '../../settings'
+import { eventBus } from '../../event'
 
 const props = defineProps({
     user_post: {
@@ -70,15 +71,21 @@ const userPageURL = computed(() => {
     return `/user/${id}`
 })
 
-const isRepostedByMe = computed(() => {
-    return actualPost.value.reposted_by_me ?? false
+const isRepostedByMe = computed<string | null>(() => {
+    return actualPost.value.reposted_by_me ?? null
 })
 
 const onRepost = async () => {
-    await axios.post(`/posts/`, {
-        privacy: 0,
-        repost_of_id: props.user_post.id
-    })
+    if (!isRepostedByMe.value) {
+        await axios.post(`/posts/`, {
+            privacy: 0,
+            repost_of_id: actualPost.value.id
+        })
+        eventBus.emit('post-created')
+    } else {
+        await axios.delete(`/posts/${isRepostedByMe.value}/`)
+        eventBus.emit('post-created')
+    }
 }
 
 const isFavoritedByMe = computed(() => {

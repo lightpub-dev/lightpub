@@ -60,6 +60,9 @@ export default {
                 storeLoginToken(token)
                 storeUsername(username.value)
 
+                // set to cookie
+                document.cookie = `auth_token=${token}; path=/;`
+
                 // move to "/"
                 router.push('/') // Use the router object to navigate to the home page
             } catch (error) {
