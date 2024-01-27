@@ -33,6 +33,10 @@ urlpatterns = [
         users.UserAvatarView.as_view(),
         name="user-avatar",
     ),
+    path("replies/<uuid:pk>", posts.ReplyListView.as_view(), name="reply-list"),
+    path("quotes/<uuid:pk>", posts.QuoteListView.as_view(), name="quote-list"),
+    path("reposts/<uuid:pk>", posts.RepostListView.as_view(), name="repost-list"),
+    path("favorites/<uuid:pk>", posts.FavoriteListView.as_view(), name="favorite-list"),
 ]
 
 urlpatterns += router.urls

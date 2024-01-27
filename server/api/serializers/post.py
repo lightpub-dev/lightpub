@@ -300,3 +300,19 @@ class PostSerializer(serializers.ModelSerializer):
 class HashtagSerializer(serializers.Serializer):
     hashtag = serializers.CharField(max_length=255)
     recent_post_count = serializers.IntegerField()
+
+
+# class ReplyListSerializer(serializers.Serializer):
+#     replies = PostSerializer(read_only=True, many=True)
+
+
+# class RepostListSerializer(serializers.Serializer):
+#     reposts = PostSerializer(read_only=True, many=True)
+
+
+# class QuoteListSerializer(serializers.Serializer):
+#     quotes = PostSerializer(read_only=True, many=True)
+
+
+# class FavoriteListSerializer(serializers.Serializer):
+#     favorites = PostSerializer(read_only=True, many=True)

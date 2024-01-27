@@ -1,10 +1,11 @@
 from ..serializers.post import PostSerializer, UploadedFileSerializer
-from ..models import Post, UploadedFile, PostAttachment
-from rest_framework import status, mixins, views
+from ..serializers.user import SimpleUserSerializer
+from ..models import Post, UploadedFile, PostAttachment, User, PostFavorite
+from rest_framework import status, mixins, views, generics
 from rest_framework.response import Response
 from ..auth import AuthOnlyPermission, NoAuthPermission, NoPermission
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
-from django.db.models import Q, F
+from django.db.models import Q
 from .users import UserSpecifier
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
@@ -125,3 +126,124 @@ class PostAttachmentView(views.APIView):
         content_type = image.format.lower()
         content_type = f"image/{content_type}"
         return HttpResponse(file, content_type=content_type)
+
+
+class PostInteractionViewBase(generics.ListAPIView):
+    permission_classes = [NoAuthPermission]
+    serializer_class = PostSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.id:
+            user = None
+
+        post_id = self.kwargs["pk"]
+        target_post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(self.request, target_post)
+        return self._fetch(user, target_post)
+
+    def _fetch(self, user: User | None, target_post: Post):
+        raise NotImplementedError()
+
+
+class ReplyListView(PostInteractionViewBase):
+    def _fetch(self, user: User | None, target_post: Post):
+        if user:
+            return (
+                target_post.replies.distinct()
+                .filter(
+                    Q(privacy__in=[0, 1])
+                    | Q(privacy=2, poster__followers__follower=user)
+                )
+                .order_by("-created_at")
+            )
+
+        return (
+            target_post.replies.distinct()
+            .filter(privacy__in=[0, 1])
+            .order_by("-created_at")
+        )
+
+
+class QuoteListView(PostInteractionViewBase):
+    def _fetch(self, user: User | None, target_post: Post):
+        if user:
+            return (
+                target_post.reposts.distinct()
+                .filter(content__isnull=False)
+                .filter(
+                    Q(privacy__in=[0, 1])
+                    | Q(privacy=2, poster__followers__follower=user)
+                )
+                .order_by("-created_at")
+            )
+
+        return (
+            target_post.reposts.distinct()
+            .filter(content__isnull=False)
+            .filter(privacy__in=[0, 1])
+            .order_by("-created_at")
+        )
+
+
+class RepostListView(generics.ListAPIView):
+    permission_classes = [NoAuthPermission]
+    serializer_class = SimpleUserSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.id:
+            user = None
+
+        post_id = self.kwargs["pk"]
+        target_post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(self.request, target_post)
+
+        if user:
+            repost_users = (
+                target_post.reposts.distinct()
+                .filter(content__isnull=True)
+                .filter(
+                    Q(privacy__in=[0, 1])
+                    | Q(privacy=2, poster__followers__follower=user)
+                )
+                .order_by("-created_at")
+                .values_list("poster", flat=True)
+                .distinct()
+            )
+        else:
+            repost_users = (
+                target_post.reposts.distinct()
+                .filter(content__isnull=True)
+                .filter(privacy__in=[0, 1])
+                .order_by("-created_at")
+                .values_list("poster", flat=True)
+                .distinct()
+            )
+
+        # extract user
+        return repost_users
+
+
+class FavoriteListView(generics.ListAPIView):
+    permission_classes = [NoAuthPermission]
+    serializer_class = SimpleUserSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.id:
+            user = None
+
+        post_id = self.kwargs["pk"]
+        target_post = get_object_or_404(Post, id=post_id)
+        self.check_object_permissions(self.request, target_post)
+
+        favorite_users = (
+            PostFavorite.objects.filter(post=target_post)
+            .order_by("-created_at")
+            .values_list("user", flat=True)
+            .distinct()
+        )
+
+        # extract user
+        return favorite_users
