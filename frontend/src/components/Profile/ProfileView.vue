@@ -70,7 +70,8 @@ const labels = ref<
 
 // avatar
 const avatarURL = ref<string | null>(null)
-const avatarClick = async ev => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const avatarClick = async (ev: any) => {
     const file = ev.target.files[0]
     const formData = new FormData()
     formData.append('file', file)

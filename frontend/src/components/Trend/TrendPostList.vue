@@ -17,6 +17,7 @@ const fetchNext = async () => {
     }
     const params = {
         hashtag: hashtag.value
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any
     if (nextURL.value !== '' && nextURL.value !== null) {
         params.next = nextURL.value
@@ -36,7 +37,7 @@ watchEffect(async () => {
 
 const divRef = ref<HTMLDivElement | null>(null)
 let loadingNow = false
-const scrolledToBottom = async (e: Event) => {
+const scrolledToBottom = async () => {
     if (loadingNow) {
         return
     }
@@ -53,14 +54,14 @@ const scrolledToBottom = async (e: Event) => {
 watchEffect(() => {
     if (divRef.value) {
         const myDiv = divRef.value
-        divRef.value.addEventListener('scroll', e => {
+        divRef.value.addEventListener('scroll', () => {
             // console.log('left hand', myDiv.offsetHeight + myDiv.scrollTop)
             // console.log('right hand', myDiv.scrollHeight)
             if (
                 myDiv.offsetHeight + myDiv.scrollTop >=
                 myDiv.scrollHeight * 0.8
             ) {
-                scrolledToBottom(e)
+                scrolledToBottom()
             }
         })
     }

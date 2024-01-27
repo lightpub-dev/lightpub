@@ -10,10 +10,11 @@ import UserList from '@/components/Profile/UserList.vue'
 import TrendPostView from '@/components/Trend/TrendPostList.vue'
 
 import axios from 'axios'
-import { provide } from 'vue'
+import { provide, ref } from 'vue'
 import { getLoginToken, getUsername } from '../../auth'
 import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
 import { BASE_URL } from '../../settings'
+import { eventBus } from '../../event'
 
 // axios setup
 const authAxios = axios.create({
@@ -36,6 +37,24 @@ const username = getUsername()!
 
 provide(AUTH_AXIOS, authAxios)
 provide(CURRENT_USERNAME, username)
+
+const isCreatePostOpen = ref(false)
+const replyToId = ref<string | null>(null)
+
+const handleToggleCreatePost = () => {
+    isCreatePostOpen.value = !isCreatePostOpen.value
+}
+const onCancel = () => {
+    replyToId.value = null
+}
+const onCreate = () => {
+    replyToId.value = null
+}
+
+eventBus.on('create-reply', (id: string) => {
+    replyToId.value = id
+    isCreatePostOpen.value = true
+})
 </script>
 
 <template>
@@ -50,7 +69,12 @@ provide(CURRENT_USERNAME, username)
             <MainRightMenu />
         </template>
         <template #create-post>
-            <CreatePostView :showPostMenu="isCreatePostOpen" />
+            <CreatePostView
+                :showPostMenu="isCreatePostOpen"
+                :replyToId="replyToId"
+                @created="onCreate"
+                @canceled="onCancel"
+            />
         </template>
         <template #feed>
             <MainFeed v-if="props.mode === 'feed'" />
@@ -67,18 +91,7 @@ provide(CURRENT_USERNAME, username)
 
 <script lang="ts">
 export default {
-    name: 'MainView',
-    data() {
-        return {
-            isCreatePostOpen: false
-        }
-    },
-    methods: {
-        // Toggle Create Post
-        handleToggleCreatePost() {
-            this.isCreatePostOpen = !this.isCreatePostOpen
-        }
-    }
+    name: 'MainView'
 }
 </script>
 

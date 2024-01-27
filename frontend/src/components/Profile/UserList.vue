@@ -77,10 +77,12 @@ const fetchUsers = async () => {
     const res = await axios.get(url)
     switch (props.mode) {
         case 'followers':
-            users.value = res.data.results.map(r => r.follower)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            users.value = res.data.results.map((r: any) => r.follower)
             break
         case 'followings':
-            users.value = res.data.results.map(r => r.followee)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            users.value = res.data.results.map((r: any) => r.followee)
             break
     }
 }

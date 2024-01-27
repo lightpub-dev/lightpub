@@ -5,14 +5,13 @@ import { eventBus } from '../../event'
 
 const emit = defineEmits<{
     (e: 'created'): void
+    (e: 'canceled'): void
 }>()
 
-const props = defineProps({
-    showPostMenu: {
-        type: Boolean,
-        required: true
-    }
-})
+const props = defineProps<{
+    showPostMenu: boolean
+    replyToId: string | null
+}>()
 
 const showPostMenu = ref(props.showPostMenu)
 const tweetText = ref('')
@@ -60,7 +59,9 @@ const postTweet = async () => {
     try {
         const req = {
             content,
-            privacy
+            privacy,
+            reply_to_id: props.replyToId
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any
         if (uploadId) {
             req['attached_uploads'] = [uploadId]
@@ -75,10 +76,12 @@ const postTweet = async () => {
         eventBus.emit('post-created')
     } catch (ex) {
         console.error(ex)
+        alert('Failed to post tweet')
     }
 }
 
 const closePostMenu = () => {
+    emit('canceled')
     showPostMenu.value = false
 }
 </script>
@@ -104,7 +107,7 @@ const closePostMenu = () => {
                         accept="image/*"
                     />
                     <button
-                        @click="$refs.fileInput.click()"
+                        @click="($refs.fileInput as any).click()"
                         class="flex items-center justify-center px-4 py-2 space-x-2 border border-blue-500 text-blue-500 rounded-lg transition duration-300 ease-in-out hover:bg-blue-500 hover:text-white"
                     >
                         <font-awesome-icon :icon="['fa-solid', 'fa-image']" />

@@ -18,7 +18,7 @@ eventBus.on('post-created', async () => {
 const divRef = ref<HTMLDivElement | null>(null)
 
 let loadingNow = false
-const scrolledToBottom = async (e: Event) => {
+const scrolledToBottom = async (_e: Event) => {
     if (loadingNow) {
         return
     }

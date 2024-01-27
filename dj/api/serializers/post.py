@@ -31,7 +31,7 @@ class PostNotFoundError(serializers.ValidationError):
 
 
 def visible_posts(user: User):
-    posts = Post.objects.filter(
+    posts = Post.objects.distinct().filter(
         Q(privacy=0)
         | Q(privacy=1)  # public
         | Q(privacy=2, poster__followers__follower=user)  # unlisted  # followers only

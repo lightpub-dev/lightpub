@@ -1,7 +1,11 @@
 <script lang="ts" setup>
 import { format } from 'timeago.js'
 import { PropType, computed, inject, ref } from 'vue'
-import { UserPostEntry } from './userpost.model.ts'
+import {
+    PRIVACY_PUBLIC,
+    PRIVACY_UNLISTED,
+    UserPostEntry
+} from './userpost.model.ts'
 import { AUTH_AXIOS } from '../../consts'
 import { DUMMY_AVATAR_URL } from '../../settings'
 import { eventBus } from '../../event'
@@ -71,20 +75,42 @@ const userPageURL = computed(() => {
     return `/user/${id}`
 })
 
+// Reply
+const onReply = () => {
+    eventBus.emit('create-reply', actualPost.value.id)
+}
+
+// Repost
 const isRepostedByMe = computed<string | null>(() => {
     return actualPost.value.reposted_by_me ?? null
 })
-
+const isRepostable = computed(() => {
+    return (
+        actualPost.value.privacy === PRIVACY_PUBLIC ||
+        actualPost.value.privacy === PRIVACY_UNLISTED
+    )
+})
 const onRepost = async () => {
     if (!isRepostedByMe.value) {
         await axios.post(`/posts/`, {
-            privacy: 0,
+            privacy: actualPost.value.privacy,
             repost_of_id: actualPost.value.id
         })
         eventBus.emit('post-created')
     } else {
         await axios.delete(`/posts/${isRepostedByMe.value}/`)
         eventBus.emit('post-created')
+    }
+}
+
+// Favorite
+const onFavorite = async () => {
+    if (isFavoritedByMe.value) {
+        await axios.delete(`/favorites/${props.user_post.id}/`)
+    } else {
+        await axios.post(`/favorites/`, {
+            post_id: props.user_post.id
+        })
     }
 }
 
@@ -118,16 +144,6 @@ const openImageModal = (imageUrl: string) => {
 const closeModal = () => {
     showImageModal.value = false
     selectedImage.value = ''
-}
-
-const onFavorite = async () => {
-    if (isFavoritedByMe.value) {
-        await axios.delete(`/favorites/${props.user_post.id}/`)
-    } else {
-        await axios.post(`/favorites/`, {
-            post_id: props.user_post.id
-        })
-    }
 }
 
 // const isBookmarkedByMe = computed(() => {
@@ -316,6 +332,7 @@ const onFavorite = async () => {
         >
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                @click="onReply"
             >
                 <svg
                     class="w-6 h-6"
@@ -335,6 +352,7 @@ const onFavorite = async () => {
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                :disabled="!isRepostable"
                 @click="onRepost"
             >
                 <svg
