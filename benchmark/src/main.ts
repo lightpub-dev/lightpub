@@ -2,9 +2,9 @@ import { faker } from "@faker-js/faker";
 import { followUser, loginUser, post, registerUser } from "./api";
 import { RegisterRequest } from "./models";
 
-const UserCount = 100;
-const FollowCount = 50;
-const PostsPerUser = 100;
+const UserCount = 1;
+const FollowCount = 0;
+const PostsPerUser = 200;
 
 function fakeUser(): RegisterRequest {
   return {
@@ -51,6 +51,18 @@ function chooseAtRate<T>(arr: T[], rate: number): T[] {
   return chosen;
 }
 
+let lastTime = Date.now();
+
+function timeStart() {
+  lastTime = Date.now();
+}
+
+function timeStopAndLog(task: string) {
+  const now = Date.now();
+  console.log(`${task} took ${now - lastTime}ms`);
+  lastTime = now;
+}
+
 async function main() {
   const registers = fakeUsers();
   const loginUsers: {
@@ -59,8 +71,12 @@ async function main() {
     token: string;
   }[] = [];
   for (const reg of registers) {
+    timeStart();
     await registerUser(reg);
+    timeStopAndLog("register");
+    timeStart();
     const token = await loginUser(reg);
+    timeStopAndLog("login");
     loginUsers.push({
       username: reg.username,
       password: reg.password,
@@ -75,18 +91,20 @@ async function main() {
       if (followee.username === user.username) {
         continue;
       }
+      timeStart();
       await followUser({
         target: followee.username,
         token: user.token,
       });
+      timeStopAndLog("follow");
     }
   }
 
   const postCount = loginUsers.length * PostsPerUser;
-  const posts: { poster: string; content: string; privacy: string }[] = [];
+  const posts: { poster: string; content: string; privacy: number }[] = [];
   for (let i = 0; i < postCount; i++) {
     const user = chooseRandom(loginUsers);
-    const privacy = chooseRandom(["public", "unlisted"] as const);
+    const privacy = chooseRandom([0, 1] as const);
     let content = faker.lorem.sentence();
     const hashtags = fakeHashtags();
     for (const hashtag of hashtags) {
@@ -98,11 +116,13 @@ async function main() {
       privacy,
     };
     await post(postReq);
+    timeStart();
     posts.push({
       poster: user.username,
       content,
       privacy,
     });
+    timeStopAndLog("post");
   }
 }
 

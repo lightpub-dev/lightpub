@@ -8,12 +8,15 @@ import MainRightMenu from '@/components/Main/MainRightMenu.vue'
 import ProfileView from '@/components/Profile/ProfileView.vue'
 import UserList from '@/components/Profile/UserList.vue'
 import TrendPostView from '@/components/Trend/TrendPostList.vue'
+import DetailedPost from '@/components/UserPost/DetailedPost.vue'
+import PasswordChange from '@/components/Login/PasswordChange.vue'
 
 import axios from 'axios'
-import { provide } from 'vue'
+import { provide, ref } from 'vue'
 import { getLoginToken, getUsername } from '../../auth'
 import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
 import { BASE_URL } from '../../settings'
+import { eventBus } from '../../event'
 
 // axios setup
 const authAxios = axios.create({
@@ -29,13 +32,38 @@ authAxios.interceptors.request.use(config => {
 })
 
 const props = defineProps<{
-    mode: 'feed' | 'profile' | 'trend-search' | 'followers' | 'followings'
+    mode:
+        | 'feed'
+        | 'profile'
+        | 'trend-search'
+        | 'followers'
+        | 'followings'
+        | 'post-detail'
+        | 'change-password'
 }>()
 
 const username = getUsername()!
 
 provide(AUTH_AXIOS, authAxios)
 provide(CURRENT_USERNAME, username)
+
+const isCreatePostOpen = ref(false)
+const replyToId = ref<string | null>(null)
+
+const handleToggleCreatePost = () => {
+    isCreatePostOpen.value = !isCreatePostOpen.value
+}
+const onCancel = () => {
+    replyToId.value = null
+}
+const onCreate = () => {
+    replyToId.value = null
+}
+
+eventBus.on('create-reply', (id: string) => {
+    replyToId.value = id
+    isCreatePostOpen.value = true
+})
 </script>
 
 <template>
@@ -50,7 +78,12 @@ provide(CURRENT_USERNAME, username)
             <MainRightMenu />
         </template>
         <template #create-post>
-            <CreatePostView :showPostMenu="isCreatePostOpen" />
+            <CreatePostView
+                :showPostMenu="isCreatePostOpen"
+                :replyToId="replyToId"
+                @created="onCreate"
+                @canceled="onCancel"
+            />
         </template>
         <template #feed>
             <MainFeed v-if="props.mode === 'feed'" />
@@ -61,24 +94,15 @@ provide(CURRENT_USERNAME, username)
                 v-else-if="props.mode === 'followings'"
                 mode="followings"
             />
+            <DetailedPost v-else-if="props.mode === 'post-detail'" />
+            <PasswordChange v-else-if="props.mode === 'change-password'" />
         </template>
     </MainAppShell>
 </template>
 
 <script lang="ts">
 export default {
-    name: 'MainView',
-    data() {
-        return {
-            isCreatePostOpen: false
-        }
-    },
-    methods: {
-        // Toggle Create Post
-        handleToggleCreatePost() {
-            this.isCreatePostOpen = !this.isCreatePostOpen
-        }
-    }
+    name: 'MainView'
 }
 </script>
 

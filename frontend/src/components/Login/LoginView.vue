@@ -60,9 +60,13 @@ export default {
                 storeLoginToken(token)
                 storeUsername(username.value)
 
+                // set to cookie
+                document.cookie = `auth_token=${token}; path=/;`
+
                 // move to "/"
                 router.push('/') // Use the router object to navigate to the home page
-            } catch (error) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } catch (error: any) {
                 // handle error here
                 // if not, show error message
                 errorMsg.value = error.response.data

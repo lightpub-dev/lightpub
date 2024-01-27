@@ -1,8 +1,15 @@
 <script lang="ts" setup>
 import { format } from 'timeago.js'
-import { PropType, computed, inject } from 'vue'
-import { UserPostEntry } from './userpost.model.ts'
+import { PropType, computed, inject, ref } from 'vue'
+import {
+    PRIVACY_PUBLIC,
+    PRIVACY_UNLISTED,
+    UserPostEntry
+} from './userpost.model.ts'
 import { AUTH_AXIOS } from '../../consts'
+import { DUMMY_AVATAR_URL } from '../../settings'
+import { eventBus } from '../../event'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
     user_post: {
@@ -69,31 +76,96 @@ const userPageURL = computed(() => {
     return `/user/${id}`
 })
 
-const isRepostedByMe = computed(() => {
-    return actualPost.value.reposted_by_me ?? false
+// Reply
+const onReply = () => {
+    eventBus.emit('create-reply', actualPost.value.id)
+}
+const replyToLink = computed(() => {
+    if (actualPost.value.reply_to) {
+        return `/post/${actualPost.value.reply_to.id}`
+    } else {
+        return null
+    }
 })
 
+// Repost
+const isRepostedByMe = computed<string | null>(() => {
+    return actualPost.value.reposted_by_me ?? null
+})
+const isRepostable = computed(() => {
+    return (
+        actualPost.value.privacy === PRIVACY_PUBLIC ||
+        actualPost.value.privacy === PRIVACY_UNLISTED
+    )
+})
 const onRepost = async () => {
-    await axios.post(`/post/${props.user_post.id}/repost`, {
-        privacy: 'public'
-    })
+    if (!isRepostedByMe.value) {
+        await axios.post(`/posts/`, {
+            privacy: actualPost.value.privacy,
+            repost_of_id: actualPost.value.id
+        })
+        eventBus.emit('repost-created')
+    } else {
+        await axios.delete(`/posts/${isRepostedByMe.value}/`)
+        eventBus.emit('repost-created')
+    }
+}
+const reposterUserLink = computed(() => {
+    if (props.user_post.repost_of) {
+        return `/user/${props.user_post.author.id}`
+    } else {
+        return null
+    }
+})
+
+// Favorite
+const onFavorite = async () => {
+    if (isFavoritedByMe.value) {
+        await axios.delete(`/favorites/${props.user_post.id}/`)
+    } else {
+        await axios.post(`/favorites/`, {
+            post_id: props.user_post.id
+        })
+    }
 }
 
 const isFavoritedByMe = computed(() => {
     return actualPost.value.favorited_by_me ?? false
 })
 
-const onFavorite = async () => {
-    if (isFavoritedByMe.value) {
-        await axios.delete(`/post/${props.user_post.id}/favorite`)
+const attachedFiles = computed<
+    {
+        id: string
+        url: string
+    }[]
+>(() => {
+    return actualPost.value.attached_files
+})
+
+const actualAvatarURL = computed(() => {
+    if (actualPost.value.author.avatar) {
+        return actualPost.value.author.avatar
     } else {
-        await axios.put(`/post/${props.user_post.id}/favorite`)
+        return DUMMY_AVATAR_URL
     }
+})
+
+const showImageModal = ref(false)
+const selectedImage = ref('')
+const openImageModal = (imageUrl: string) => {
+    selectedImage.value = imageUrl
+    showImageModal.value = true
+}
+const closeModal = () => {
+    showImageModal.value = false
+    selectedImage.value = ''
 }
 
-// const isBookmarkedByMe = computed(() => {
-//     return actualPost.value.bookmarked_by_me ?? false
-// })
+const router = useRouter()
+
+const jumpToDetailedPost = () => {
+    router.push(`/post/${actualPost.value.id}`)
+}
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
@@ -106,7 +178,26 @@ const onFavorite = async () => {
             class="mb-2"
         >
             <p class="text-sm text-gray-500">
-                Reposted by {{ props.user_post.author.nickname }}
+                Reposted by
+                <router-link :to="reposterUserLink!"
+                    >{{ props.user_post.author.nickname }}
+                </router-link>
+            </p>
+        </div>
+        <!-- Reply information -->
+        <div
+            v-if="
+                props.user_post.reply_to !== undefined &&
+                props.user_post.reply_to !== null
+            "
+            class="mb-2"
+        >
+            <p class="text-sm text-gray-500">
+                Replying to
+                <router-link :to="replyToLink!"
+                    >{{ props.user_post.reply_to.author.nickname }}'s
+                    post</router-link
+                >
             </p>
         </div>
         <div class="flex justify-between items-center">
@@ -117,9 +208,9 @@ const onFavorite = async () => {
                         class="avatar rounded-full bg-ll-base dark:bg-ld-base w-10 h-10 border-2 border-ll-border dark:border-ld-border mr-3 flex items-center justify-center"
                     >
                         <img
-                            alt=""
+                            alt="User avatar"
                             class="h-full w-full rounded-full"
-                            src="https://avatars.githubusercontent.com/u/41512077"
+                            :src="actualAvatarURL"
                         />
                     </div>
                 </router-link>
@@ -157,6 +248,43 @@ const onFavorite = async () => {
         <p class="pt-5 text-gray-600 text-lg mb-4">
             {{ content }}
         </p>
+        <div>
+            <div
+                v-if="attachedFiles.length > 0"
+                :class="`images w-full h-70 bg-ll-neutral dark:bg-ld-neutral rounded-xl my-4 overflow-hidden grid ${
+                    attachedFiles.length > 1 ? 'grid-cols-2' : 'grid-cols-1'
+                } gap-2`"
+            >
+                <div
+                    v-for="file in attachedFiles"
+                    :key="file.id"
+                    class="h-full"
+                >
+                    <img
+                        :src="file.url"
+                        alt=""
+                        class="w-full h-70 object-cover cursor-pointer"
+                        @click="openImageModal(file.url)"
+                    />
+                </div>
+            </div>
+
+            <!-- Modal for displaying larger image -->
+            <div
+                v-if="showImageModal"
+                class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                @click="closeModal()"
+            >
+                <div class="max-w-3xl mx-auto" @click.stop="() => {}">
+                    <img
+                        :src="selectedImage"
+                        alt=""
+                        class="max-w-full max-h-full"
+                        @click.stop="() => {}"
+                    />
+                </div>
+            </div>
+        </div>
 
         <!-- <div
             v-if="props.user_post?.post.pictures_url.length > 0"
@@ -240,6 +368,7 @@ const onFavorite = async () => {
         >
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                @click="onReply"
             >
                 <svg
                     class="w-6 h-6"
@@ -259,6 +388,7 @@ const onFavorite = async () => {
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                :disabled="!isRepostable"
                 @click="onRepost"
             >
                 <svg
@@ -305,19 +435,23 @@ const onFavorite = async () => {
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                @click="jumpToDetailedPost"
             >
                 <svg
-                    class="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    fill="currentColor"
+                    class="bi bi-box-arrow-up-right"
+                    viewBox="0 0 16 16"
                 >
                     <path
-                        d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15m0-3l-3-3m0 0l-3 3m3-3V15"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
+                        fill-rule="evenodd"
+                        d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"
+                    />
+                    <path
+                        fill-rule="evenodd"
+                        d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"
                     />
                 </svg>
             </button>
