@@ -9,6 +9,7 @@ import ProfileView from '@/components/Profile/ProfileView.vue'
 import UserList from '@/components/Profile/UserList.vue'
 import TrendPostView from '@/components/Trend/TrendPostList.vue'
 import DetailedPost from '@/components/UserPost/DetailedPost.vue'
+import PasswordChange from '@/components/Login/PasswordChange.vue'
 
 import axios from 'axios'
 import { provide, ref } from 'vue'
@@ -38,6 +39,7 @@ const props = defineProps<{
         | 'followers'
         | 'followings'
         | 'post-detail'
+        | 'change-password'
 }>()
 
 const username = getUsername()!
@@ -93,6 +95,7 @@ eventBus.on('create-reply', (id: string) => {
                 mode="followings"
             />
             <DetailedPost v-else-if="props.mode === 'post-detail'" />
+            <PasswordChange v-else-if="props.mode === 'change-password'" />
         </template>
     </MainAppShell>
 </template>

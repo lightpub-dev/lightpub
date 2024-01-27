@@ -8,6 +8,7 @@ from api.models import User, UserFollow, UserProfileLabel, UserToken
 from django.urls import reverse
 from django.core.exceptions import ObjectDoesNotExist
 from api.utils.users import UserSpecifier
+from django.db import transaction
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 
@@ -51,6 +52,8 @@ class AvatarIdField(serializers.PrimaryKeyRelatedField):
 
 
 class DetailedUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(required=True, min_length=4, write_only=True)
+
     url = serializers.SerializerMethodField("get_url")
     avatar = serializers.SerializerMethodField()
     labels = UserProfileLabelSerializer(many=True, required=False)
@@ -100,24 +103,33 @@ class DetailedUserSerializer(serializers.ModelSerializer):
         ).exists()
 
     def update(self, instance: User, validated_data):
-        if "labels" in validated_data:
-            labels = validated_data["labels"]
-            UserProfileLabel.objects.filter(user=instance).delete()
-            for i, label in enumerate(labels):
-                UserProfileLabel.objects.create(user=instance, order=i, **label)
-            del validated_data["labels"]
-        if "avatar_id" in validated_data:
-            if validated_data["avatar_id"] is None:
-                validated_data["avatar"] = None
-            else:
-                validated_data["avatar"] = validated_data["avatar_id"]
-            del validated_data["avatar_id"]
-        return super().update(instance, validated_data)
+        with transaction.atomic():
+            if "labels" in validated_data:
+                labels = validated_data["labels"]
+                UserProfileLabel.objects.filter(user=instance).delete()
+                for i, label in enumerate(labels):
+                    UserProfileLabel.objects.create(user=instance, order=i, **label)
+                del validated_data["labels"]
+            if "avatar_id" in validated_data:
+                if validated_data["avatar_id"] is None:
+                    validated_data["avatar"] = None
+                else:
+                    validated_data["avatar"] = validated_data["avatar_id"]
+                del validated_data["avatar_id"]
+            if "password" in validated_data:
+                bpasswd = bcrypt.hashpw(
+                    validated_data["password"].encode("utf-8"), bcrypt.gensalt()
+                )
+                validated_data["bpassword"] = bpasswd.decode("utf-8")
+                del validated_data["password"]
+                UserToken.objects.filter(user=instance).delete()
+            return super().update(instance, validated_data)
 
     class Meta:
         model = User
         fields = [
             "id",
+            "password",
             "username",
             "host",
             "nickname",

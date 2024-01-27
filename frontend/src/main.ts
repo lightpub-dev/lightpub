@@ -65,6 +65,13 @@ const routes = [
         props: {
             mode: 'post-detail'
         }
+    },
+    {
+        path: '/change-password',
+        component: MainView,
+        props: {
+            mode: 'change-password'
+        }
     }
 ]
 

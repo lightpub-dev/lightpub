@@ -81,7 +81,8 @@ const menus = reactive({
         },
         {
             name: 'Settings',
-            icon: ['fa-solid', 'fa-gear']
+            icon: ['fa-solid', 'fa-gear'],
+            url: '/change-password'
         }
     ]
 })
