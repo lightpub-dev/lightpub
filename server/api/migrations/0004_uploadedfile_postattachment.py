@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="PostAttachment",
             fields=[
-                ("id", models.AutoField(primary_key=True, serialize=False)),
+                ("id", models.UUIDField(default=uuid.uuid4, primary_key=True, serialize=False)),
                 (
                     "post",
                     models.ForeignKey(
