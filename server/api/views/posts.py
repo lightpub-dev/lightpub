@@ -190,6 +190,18 @@ class RepostListView(generics.ListAPIView):
     permission_classes = [NoAuthPermission]
     serializer_class = SimpleUserSerializer
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page:
+            users = [p.poster for p in queryset]
+            serializer = self.serializer_class(users, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        users = [p.poster for p in queryset]
+        serializer = self.serializer_class(users, many=True)
+        return Response(serializer.data)
+
     def get_queryset(self):
         user = self.request.user
         if not user.id:
@@ -200,7 +212,7 @@ class RepostListView(generics.ListAPIView):
         self.check_object_permissions(self.request, target_post)
 
         if user:
-            repost_users = (
+            reposts = (
                 target_post.reposts.distinct()
                 .filter(content__isnull=True)
                 .filter(
@@ -208,26 +220,36 @@ class RepostListView(generics.ListAPIView):
                     | Q(privacy=2, poster__followers__follower=user)
                 )
                 .order_by("-created_at")
-                .values_list("poster", flat=True)
-                .distinct()
+                .select_related("poster")
             )
         else:
-            repost_users = (
+            reposts = (
                 target_post.reposts.distinct()
                 .filter(content__isnull=True)
                 .filter(privacy__in=[0, 1])
                 .order_by("-created_at")
-                .values_list("poster", flat=True)
-                .distinct()
+                .select_related("poster")
             )
 
         # extract user
-        return repost_users
+        return reposts
 
 
 class FavoriteListView(generics.ListAPIView):
     permission_classes = [NoAuthPermission]
     serializer_class = SimpleUserSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page:
+            users = [p.user for p in queryset]
+            serializer = self.serializer_class(users, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        users = [p.user for p in queryset]
+        serializer = self.serializer_class(users, many=True)
+        return Response(serializer.data)
 
     def get_queryset(self):
         user = self.request.user
@@ -238,12 +260,9 @@ class FavoriteListView(generics.ListAPIView):
         target_post = get_object_or_404(Post, id=post_id)
         self.check_object_permissions(self.request, target_post)
 
-        favorite_users = (
-            PostFavorite.objects.filter(post=target_post)
-            .order_by("-created_at")
-            .values_list("user", flat=True)
-            .distinct()
+        favorites = PostFavorite.objects.filter(post=target_post).order_by(
+            "-created_at"
         )
 
         # extract user
-        return favorite_users
+        return favorites
