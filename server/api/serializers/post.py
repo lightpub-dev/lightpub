@@ -1,8 +1,15 @@
 from rest_framework import serializers
 
-from api.models import User, PostHashtag, Post, UploadedFile, PostAttachment
+from api.models import (
+    PostReaction,
+    User,
+    PostHashtag,
+    Post,
+    UploadedFile,
+    PostAttachment,
+)
 from typing import Any, cast
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.db import transaction
 from django.urls import reverse
 
@@ -154,6 +161,8 @@ class PostSerializer(serializers.ModelSerializer):
     favorited_by_me = serializers.SerializerMethodField()
     bookmarked_by_me = serializers.SerializerMethodField()
 
+    reactions = serializers.SerializerMethodField()
+
     def validate_repost_of_id(self, repost_of_id):
         if repost_of_id is None:
             return None
@@ -272,6 +281,22 @@ class PostSerializer(serializers.ModelSerializer):
 
         return post
 
+    def get_reactions(self, post):
+        reactions = (
+            PostReaction.objects.filter(post=post)
+            .values("emoji")
+            .annotate(count=Count("user"))
+            .order_by("-count")
+        )
+
+        reaction_count = {}
+        for reaction in reactions:
+            reaction_count[reaction["emoji"]] = reaction["count"]
+
+        return serializers.DictField(
+            child=serializers.IntegerField()
+        ).to_representation(reaction_count)
+
     class Meta:
         model = Post
         fields = [
@@ -293,6 +318,7 @@ class PostSerializer(serializers.ModelSerializer):
             "bookmarked_by_me",
             "attached_files",
             "attached_uploads",
+            "reactions",
         ]
         read_only_fields = ["created_at"]
 

@@ -176,3 +176,19 @@ class PostAttachment(models.Model):
         blank=False,
         null=True,
     )
+
+
+class PostReaction(models.Model):
+    id = models.AutoField(primary_key=True)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="reactions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    emoji = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["post", "user", "emoji"],
+                name="unique_post_reaction",
+            )
+        ]

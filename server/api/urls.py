@@ -18,6 +18,7 @@ router.register(r"followings", UserFollowingViewset, basename="following")
 router.register(r"followers", UserFollowerViewset, basename="follower")
 router.register(r"users", UserViewset, basename="user")
 router.register(r"uploads", UploadFileView, basename="upload")
+router.register(r"reactions", interaction.PostReactionView, basename="reaction")
 
 urlpatterns = [
     path("register", users.RegisterView.as_view(), name="register"),
