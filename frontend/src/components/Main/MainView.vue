@@ -8,6 +8,7 @@ import MainRightMenu from '@/components/Main/MainRightMenu.vue'
 import ProfileView from '@/components/Profile/ProfileView.vue'
 import UserList from '@/components/Profile/UserList.vue'
 import TrendPostView from '@/components/Trend/TrendPostList.vue'
+import DetailedPost from '@/components/UserPost/DetailedPost.vue'
 
 import axios from 'axios'
 import { provide, ref } from 'vue'
@@ -30,7 +31,13 @@ authAxios.interceptors.request.use(config => {
 })
 
 const props = defineProps<{
-    mode: 'feed' | 'profile' | 'trend-search' | 'followers' | 'followings'
+    mode:
+        | 'feed'
+        | 'profile'
+        | 'trend-search'
+        | 'followers'
+        | 'followings'
+        | 'post-detail'
 }>()
 
 const username = getUsername()!
@@ -85,6 +92,7 @@ eventBus.on('create-reply', (id: string) => {
                 v-else-if="props.mode === 'followings'"
                 mode="followings"
             />
+            <DetailedPost v-else-if="props.mode === 'post-detail'" />
         </template>
     </MainAppShell>
 </template>

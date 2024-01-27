@@ -12,7 +12,7 @@ const feedPosts = computed(() => {
 })
 
 eventBus.on('post-created', async () => {
-    await timeline.fetchPosts()
+    await timeline.reloadPosts()
 })
 
 const divRef = ref<HTMLDivElement | null>(null)

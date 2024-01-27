@@ -130,6 +130,38 @@ const posts = computed(() => {
     }
     return userPosts.posts.value.results
 })
+const divRef = ref<HTMLDivElement | null>(null)
+let loadingNow = false
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const scrolledToBottom = async (_e: Event) => {
+    if (loadingNow) {
+        return
+    }
+    try {
+        loadingNow = true
+        await userPosts.fetchNext()
+    } catch (ex) {
+        console.error(ex)
+        alert('Failed to fetch next posts')
+    } finally {
+        loadingNow = false
+    }
+}
+watchEffect(() => {
+    if (divRef.value) {
+        const myDiv = divRef.value
+        divRef.value.addEventListener('scroll', e => {
+            // console.log('left hand', myDiv.offsetHeight + myDiv.scrollTop)
+            // console.log('right hand', myDiv.scrollHeight)
+            if (
+                myDiv.offsetHeight + myDiv.scrollTop >=
+                myDiv.scrollHeight * 0.8
+            ) {
+                scrolledToBottom(e)
+            }
+        })
+    }
+})
 
 // follow button
 const toggleFollow = async () => {
@@ -277,7 +309,8 @@ const actualUserAvatar = computed(() => {
         </div>
     </div>
     <div
-        class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-gray-100"
+        class="grid-cols-1 w-full grid md:grid-cols-1 px-20 pt-5 transition-all bg-gray-100 overflow-y-auto"
+        ref="divRef"
     >
         <div class="flex flex-col p-2">
             <UserPost

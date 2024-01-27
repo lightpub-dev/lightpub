@@ -9,6 +9,7 @@ import {
 import { AUTH_AXIOS } from '../../consts'
 import { DUMMY_AVATAR_URL } from '../../settings'
 import { eventBus } from '../../event'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
     user_post: {
@@ -79,6 +80,13 @@ const userPageURL = computed(() => {
 const onReply = () => {
     eventBus.emit('create-reply', actualPost.value.id)
 }
+const replyToLink = computed(() => {
+    if (actualPost.value.reply_to) {
+        return `/post/${actualPost.value.reply_to.id}`
+    } else {
+        return null
+    }
+})
 
 // Repost
 const isRepostedByMe = computed<string | null>(() => {
@@ -96,12 +104,19 @@ const onRepost = async () => {
             privacy: actualPost.value.privacy,
             repost_of_id: actualPost.value.id
         })
-        eventBus.emit('post-created')
+        eventBus.emit('repost-created')
     } else {
         await axios.delete(`/posts/${isRepostedByMe.value}/`)
-        eventBus.emit('post-created')
+        eventBus.emit('repost-created')
     }
 }
+const reposterUserLink = computed(() => {
+    if (props.user_post.repost_of) {
+        return `/user/${props.user_post.author.id}`
+    } else {
+        return null
+    }
+})
 
 // Favorite
 const onFavorite = async () => {
@@ -146,9 +161,11 @@ const closeModal = () => {
     selectedImage.value = ''
 }
 
-// const isBookmarkedByMe = computed(() => {
-//     return actualPost.value.bookmarked_by_me ?? false
-// })
+const router = useRouter()
+
+const jumpToDetailedPost = () => {
+    router.push(`/post/${actualPost.value.id}`)
+}
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
@@ -161,7 +178,26 @@ const closeModal = () => {
             class="mb-2"
         >
             <p class="text-sm text-gray-500">
-                Reposted by {{ props.user_post.author.nickname }}
+                Reposted by
+                <router-link :to="reposterUserLink!"
+                    >{{ props.user_post.author.nickname }}
+                </router-link>
+            </p>
+        </div>
+        <!-- Reply information -->
+        <div
+            v-if="
+                props.user_post.reply_to !== undefined &&
+                props.user_post.reply_to !== null
+            "
+            class="mb-2"
+        >
+            <p class="text-sm text-gray-500">
+                Replying to
+                <router-link :to="replyToLink!"
+                    >{{ props.user_post.reply_to.author.nickname }}'s
+                    post</router-link
+                >
             </p>
         </div>
         <div class="flex justify-between items-center">
@@ -399,19 +435,23 @@ const closeModal = () => {
             </button>
             <button
                 class="flex items-center active:scale-95 transform transition-transform"
+                @click="jumpToDetailedPost"
             >
                 <svg
-                    class="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    fill="currentColor"
+                    class="bi bi-box-arrow-up-right"
+                    viewBox="0 0 16 16"
                 >
                     <path
-                        d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15m0-3l-3-3m0 0l-3 3m3-3V15"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
+                        fill-rule="evenodd"
+                        d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"
+                    />
+                    <path
+                        fill-rule="evenodd"
+                        d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"
                     />
                 </svg>
             </button>

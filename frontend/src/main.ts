@@ -58,6 +58,13 @@ const routes = [
         props: {
             mode: 'followings'
         }
+    },
+    {
+        path: '/post/:id',
+        component: MainView,
+        props: {
+            mode: 'post-detail'
+        }
     }
 ]
 
