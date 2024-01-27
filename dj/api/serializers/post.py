@@ -8,9 +8,21 @@ from django.urls import reverse
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+
+    def get_avatar(self, obj):
+        if not obj.avatar:
+            return None
+
+        if "request" not in self.context:
+            return None
+
+        request = self.context["request"]
+        return request.build_absolute_uri(reverse("api:user-avatar", args=[obj.id]))
+
     class Meta:
         model = User
-        fields = ["id", "username", "host", "nickname"]
+        fields = ["id", "username", "host", "nickname", "avatar"]
 
 
 class PostNotFoundError(serializers.ValidationError):

@@ -29,6 +29,7 @@ export interface UserPostEntryAuthor {
     username: string
     host: string
     nickname: string
+    avatar: string
 }
 
 export interface TimelineResponse {

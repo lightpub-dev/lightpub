@@ -3,6 +3,7 @@ import { format } from 'timeago.js'
 import { PropType, computed, inject, ref } from 'vue'
 import { UserPostEntry } from './userpost.model.ts'
 import { AUTH_AXIOS } from '../../consts'
+import { DUMMY_AVATAR_URL } from '../../settings'
 
 const props = defineProps({
     user_post: {
@@ -93,6 +94,14 @@ const attachedFiles = computed<
     return actualPost.value.attached_files
 })
 
+const actualAvatarURL = computed(() => {
+    if (actualPost.value.author.avatar) {
+        return actualPost.value.author.avatar
+    } else {
+        return DUMMY_AVATAR_URL
+    }
+})
+
 const showImageModal = ref(false)
 const selectedImage = ref('')
 const openImageModal = (imageUrl: string) => {
@@ -140,9 +149,9 @@ const onFavorite = async () => {
                         class="avatar rounded-full bg-ll-base dark:bg-ld-base w-10 h-10 border-2 border-ll-border dark:border-ld-border mr-3 flex items-center justify-center"
                     >
                         <img
-                            alt=""
+                            alt="User avatar"
                             class="h-full w-full rounded-full"
-                            src="https://avatars.githubusercontent.com/u/41512077"
+                            :src="actualAvatarURL"
                         />
                     </div>
                 </router-link>

@@ -6,22 +6,89 @@ import { useUserPosts } from './userPosts'
 import UserPost from '@/components/UserPost/UserPost.vue'
 import { getUsername } from '../../auth'
 import { DUMMY_AVATAR_URL } from '../../settings'
+import EditToggle from '@/components/Button/EditToggle.vue'
 
 const route = useRoute()
 const id = computed(() => route.params.id)
 const axios = inject(AUTH_AXIOS)!
 
 const username = ref('')
+
+// nickname
 const nickname = ref('')
+const nicknameEditing = ref(false)
+const startNicknameEdit = () => {
+    nicknameEditing.value = true
+}
+const endNicknameEdit = async () => {
+    try {
+        await axios.patch(`/users/${id.value}/`, {
+            nickname: nickname.value
+        })
+    } catch (ex) {
+        console.error(ex)
+        alert('Failed to update nickname')
+    }
+
+    nicknameEditing.value = false
+}
+
 const hostname = ref('')
+
+// bio
 const bio = ref('')
+const bioText = computed(() => {
+    if (bio.value) {
+        return bio.value
+    } else {
+        return 'No bio'
+    }
+})
+const bioEditing = ref(false)
+const startBioEdit = () => {
+    bioEditing.value = true
+}
+const endBioEdit = () => {
+    try {
+        axios.patch(`/users/${id.value}/`, {
+            bio: bio.value
+        })
+    } catch (ex) {
+        console.error(ex)
+        alert('Failed to update bio')
+    }
+
+    bioEditing.value = false
+}
+
 const labels = ref<
     {
         key: string
         value: string
     }[]
 >([])
+
+// avatar
 const avatarURL = ref<string | null>(null)
+const avatarClick = async ev => {
+    const file = ev.target.files[0]
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+        const res = await axios.post('/uploads/', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        })
+        await axios.patch(`/users/${id.value}/`, {
+            avatar_id: res.data.id
+        })
+        await fetchProfile()
+    } catch (ex) {
+        console.error(ex)
+        alert('Failed to upload avatar')
+    }
+}
 
 const nPosts = ref(100)
 const nFollowers = ref(50)
@@ -106,12 +173,27 @@ const actualUserAvatar = computed(() => {
                     :src="actualUserAvatar"
                     alt="User icon"
                 />
+                <input
+                    type="file"
+                    @change="avatarClick"
+                    class="inline"
+                    v-if="isMe"
+                />
             </div>
             <div class="text-center">
                 <div class="flex items-center justify-center mb-2">
                     <div>
                         <h2 class="text-xl font-semibold text-gray-700">
-                            {{ nickname }}
+                            <p class="inline" v-if="!nicknameEditing">
+                                {{ nickname }}
+                            </p>
+                            <input type="text" v-model="nickname" v-else />
+                            <edit-toggle
+                                v-if="isMe"
+                                :is-editing="nicknameEditing"
+                                @edit-start="startNicknameEdit"
+                                @edit-done="endNicknameEdit"
+                            />
                         </h2>
                         <h3 class="text-gray-500 mb-3">
                             @{{ username }}{{ atHostname }}
@@ -137,7 +219,18 @@ const actualUserAvatar = computed(() => {
                     </button>
                 </div>
 
-                <p class="text-gray-600">{{ bio }}</p>
+                <p class="text-gray-600" v-if="!bioEditing">{{ bioText }}</p>
+                <textarea
+                    v-model="bio"
+                    v-else
+                    class="w-full h-32 p-4 mb-4 text-lg border-0 rounded-lg resize-none bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                ></textarea>
+                <edit-toggle
+                    v-if="isMe"
+                    :is-editing="bioEditing"
+                    @edit-start="startBioEdit"
+                    @edit-done="endBioEdit"
+                />
             </div>
 
             <!-- Specification Table -->
