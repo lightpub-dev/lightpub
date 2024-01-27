@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, ref, watch } from 'vue'
 import { AUTH_AXIOS } from '../../consts'
+import { eventBus } from '../../event';
 
 const emit = defineEmits<{
     (e: 'created'): void
@@ -64,13 +65,14 @@ const postTweet = async () => {
         if (uploadId) {
             req['attached_uploads'] = [uploadId]
         }
-        authedAxios.post('/posts/', req)
+        await authedAxios.post('/posts/', req)
 
         tweetText.value = ''
         selectedImage.value = null
         closePostMenu()
 
         emit('created')
+        eventBus.emit('post-created');
     } catch (ex) {
         console.error(ex)
     }

@@ -74,8 +74,9 @@ const isRepostedByMe = computed(() => {
 })
 
 const onRepost = async () => {
-    await axios.post(`/post/${props.user_post.id}/repost`, {
-        privacy: 'public'
+    await axios.post(`/posts/`, {
+        privacy: 0,
+        repost_of_id: props.user_post.id
     })
 }
 
@@ -85,9 +86,11 @@ const isFavoritedByMe = computed(() => {
 
 const onFavorite = async () => {
     if (isFavoritedByMe.value) {
-        await axios.delete(`/post/${props.user_post.id}/favorite`)
+        await axios.delete(`/favorites/${props.user_post.id}/`)
     } else {
-        await axios.put(`/post/${props.user_post.id}/favorite`)
+        await axios.post(`/favorites/`, {
+            post_id: props.user_post.id
+        })
     }
 }
 

@@ -8,6 +8,10 @@ const feedPosts = computed(() => {
     }
     return timeline.posts.value.results
 })
+
+eventBus.on('post-created', async () => {
+    await timeline.fetchPosts();
+})
 </script>
 
 <template>
@@ -26,6 +30,7 @@ const feedPosts = computed(() => {
 
 <script lang="ts">
 import UserPost from '@/components/UserPost/UserPost.vue'
+import { eventBus } from '../../event';
 
 export default {
     components: { UserPost }

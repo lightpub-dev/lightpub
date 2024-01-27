@@ -125,6 +125,9 @@ class PostSerializer(serializers.ModelSerializer):
     reply_to_id = ReplyToIdField(allow_null=True, required=False, default=None)
     repost_of_id = RepostOfIdField(allow_null=True, required=False, default=None)
 
+    reply_to = serializers.SerializerMethodField()
+    repost_of = serializers.SerializerMethodField()
+
     attached_uploads = AttachedFileField(
         allow_null=True, many=True, required=False, write_only=True
     )
@@ -138,6 +141,16 @@ class PostSerializer(serializers.ModelSerializer):
     reposted_by_me = serializers.SerializerMethodField()
     favorited_by_me = serializers.SerializerMethodField()
     bookmarked_by_me = serializers.SerializerMethodField()
+
+    def get_reply_to(self, post):
+        if post.reply_to is None:
+            return None
+        return PostSerializer(post.reply_to, context=self.context).data
+
+    def get_repost_of(self, post):
+        if post.repost_of is None:
+            return None
+        return PostSerializer(post.repost_of, context=self.context).data
 
     def get_reply_count(self, post):
         return post.replies.count()
@@ -185,7 +198,14 @@ class PostSerializer(serializers.ModelSerializer):
         # begins transaction
         with transaction.atomic():
             post_data = validated_data.copy()
-            del post_data["attached_files"]
+            if "attached_files" in post_data:
+                del post_data["attached_files"]
+            if "reply_to_id" in post_data:
+                post_data["reply_to"] = post_data["reply_to_id"]
+                del post_data["reply_to_id"]
+            if "repost_of_id" in post_data:
+                post_data["repost_of"] = post_data["repost_of_id"]
+                del post_data["repost_of_id"]
             post = Post.objects.create(poster=poster, **post_data)
 
             # find hashtags
@@ -215,6 +235,8 @@ class PostSerializer(serializers.ModelSerializer):
             "privacy",
             "reply_to_id",
             "repost_of_id",
+            "reply_to",
+            "repost_of",
             "created_at",
             "reply_count",
             "repost_count",
