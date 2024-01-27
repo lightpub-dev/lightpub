@@ -12,6 +12,7 @@ bcrypt = "*"
 django-cors-headers = "*"
 uwsgi = "*"
 pillow = "*"
+whitenoise = "*"
 
 [dev-packages]
 mypy = "*"

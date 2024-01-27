@@ -65,7 +65,8 @@ export default {
 
                 // move to "/"
                 router.push('/') // Use the router object to navigate to the home page
-            } catch (error) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } catch (error: any) {
                 // handle error here
                 // if not, show error message
                 errorMsg.value = error.response.data
