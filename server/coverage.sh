@@ -1,3 +1,0 @@
-#!/bin/bash
-go test -v -cover -coverpkg=./... -coverprofile=cover.out ./...
-go tool cover -html=cover.out -o cover.html

@@ -1,13 +1,3 @@
 {
-  "yaml.schemas": {
-    "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/schemas/v3.1/schema.json": "file:///home/tinaxd/git/lightpub/server/openapi.yml"
-  },
-  "go.coverageDecorator": {
-    "type": "gutter",
-    "coveredHighlightColor": "rgba(64,128,128,0.5)",
-    "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
-    "coveredGutterStyle": "blockgreen",
-    "uncoveredGutterStyle": "blockred"
-  },
-  "go.testOnSave": true
+    "python.analysis.typeCheckingMode": "basic"
 }
