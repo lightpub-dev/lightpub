@@ -9,7 +9,7 @@ const load = async $state => {
     try {
         await timeline.fetchNext()
 
-        if (!timeline.hasNext.value) {
+        if (timeline.hasNext.value === false) {
             $state.complete()
         } else {
             $state.loaded()

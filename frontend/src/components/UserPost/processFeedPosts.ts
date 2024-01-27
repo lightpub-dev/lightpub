@@ -35,7 +35,10 @@ export function useTimeline() {
         await fetchPosts()
     })
 
-    const hasNext = computed(() => nextURL.value !== null)
+    const hasNext = computed(() => {
+        const next = nextURL.value !== null
+        return next
+    })
 
     return {
         posts,

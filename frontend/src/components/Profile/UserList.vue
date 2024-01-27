@@ -7,7 +7,7 @@
                 class="flex flex-row items-center bg-white p-4 shadow rounded-lg"
             >
                 <img
-                    :src="user.picture"
+                    :src="getActualAvatar(user.avatar)"
                     alt="User's Profile Picture"
                     class="w-16 h-16 rounded-full mb-2 cursor-pointer"
                     @click="jumpToProfile(user.id)"
@@ -35,10 +35,18 @@
 import { inject, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AUTH_AXIOS } from '../../consts'
+import { DUMMY_AVATAR_URL } from '../../settings'
+
+const getActualAvatar = (avatar: string | null) => {
+    if (avatar) {
+        return avatar
+    }
+    return DUMMY_AVATAR_URL
+}
 
 interface User {
     id: string
-    picture: string
+    avatar: string
     nickname: string
     username: string
     bio: string
@@ -57,7 +65,7 @@ const targetUserId = route.params.id as string
 const users = ref<User[]>([])
 
 const fetchUsers = async () => {
-    let url = '';
+    let url = ''
     switch (props.mode) {
         case 'followers':
             url = `/followers?user=${targetUserId}`

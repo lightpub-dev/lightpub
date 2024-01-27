@@ -12,6 +12,7 @@ from ..serializers.user import (
     RegisterSerializer,
     login_and_generate_token,
     UserFollowSerializer,
+    UserFollowerSerializer,
 )
 from PIL import Image
 from django.views.decorators.cache import cache_control
@@ -109,7 +110,7 @@ class UserFollowerViewset(
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
-    serializer_class = UserFollowSerializer
+    serializer_class = UserFollowerSerializer
     permission_classes = []
 
     def get_object(self):

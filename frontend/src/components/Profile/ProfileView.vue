@@ -147,8 +147,8 @@ const toggleFollow = async () => {
     fetchProfile()
 }
 
-const followerLink = computed(() => `/followers?user=${id.value}`)
-const followingLink = computed(() => `/followings?user=${id.value}`)
+const followerLink = computed(() => `/user/${id.value}/followers`)
+const followingLink = computed(() => `/user/${id.value}/followings`)
 
 const isMe = computed(() => {
     const myUsername = getUsername()
