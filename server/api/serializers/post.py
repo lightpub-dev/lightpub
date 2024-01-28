@@ -1,8 +1,15 @@
 from rest_framework import serializers
 
-from api.models import User, PostHashtag, Post, UploadedFile, PostAttachment
+from api.models import (
+    PostReaction,
+    User,
+    PostHashtag,
+    Post,
+    UploadedFile,
+    PostAttachment,
+)
 from typing import Any, cast
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.db import transaction
 from django.urls import reverse
 
@@ -131,6 +138,11 @@ class AttachedFileField(serializers.PrimaryKeyRelatedField):
         return UploadedFile.objects.filter(uploader=user)
 
 
+class PostReactionInfoSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    reacted_by_me = serializers.BooleanField(required=False, allow_null=True)
+
+
 class PostSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(read_only=True)
     author = PostAuthorSerializer(read_only=True, source="poster")
@@ -153,6 +165,8 @@ class PostSerializer(serializers.ModelSerializer):
     reposted_by_me = serializers.SerializerMethodField()
     favorited_by_me = serializers.SerializerMethodField()
     bookmarked_by_me = serializers.SerializerMethodField()
+
+    reactions = serializers.SerializerMethodField()
 
     def validate_repost_of_id(self, repost_of_id):
         if repost_of_id is None:
@@ -272,6 +286,30 @@ class PostSerializer(serializers.ModelSerializer):
 
         return post
 
+    def get_reactions(self, post):
+        reactions = (
+            PostReaction.objects.filter(post=post)
+            .values("emoji")
+            .annotate(count=Count("user"))
+            .order_by("-count")
+        )
+
+        user = self.context["request"].user
+        reaction_count = {}
+        for reaction in reactions:
+            reaction_count[reaction["emoji"]] = {
+                "count": reaction["count"],
+            }
+            if user.id:
+                reacted_by_me = PostReaction.objects.filter(
+                    post=post, user=user, emoji=reaction["emoji"]
+                ).exists()
+                reaction_count[reaction["emoji"]]["reacted_by_me"] = reacted_by_me
+
+        return serializers.DictField(
+            child=PostReactionInfoSerializer()
+        ).to_representation(reaction_count)
+
     class Meta:
         model = Post
         fields = [
@@ -293,6 +331,7 @@ class PostSerializer(serializers.ModelSerializer):
             "bookmarked_by_me",
             "attached_files",
             "attached_uploads",
+            "reactions",
         ]
         read_only_fields = ["created_at"]
 

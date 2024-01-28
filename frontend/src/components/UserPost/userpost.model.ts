@@ -23,7 +23,10 @@ export interface UserPostEntry {
     reply_count: number
     quote_count: number
     favorite_count: number
-    reactions: Record<string, number>
+    reactions: Record<string, {
+        count: number,
+        reacted_by_me?: boolean
+    }>
     reposted_by_me?: string
     favorited_by_me?: boolean
     bookmarked_by_me?: boolean
