@@ -10,6 +10,9 @@ import { AUTH_AXIOS } from '../../consts'
 import { DUMMY_AVATAR_URL } from '../../settings'
 import { eventBus } from '../../event'
 import { useRouter } from 'vue-router'
+import EmojiPicker from 'vue3-emoji-picker'
+import 'vue3-emoji-picker/css'
+import ReactionBadge from '@/components/UserPost/ReactionBadge.vue'
 
 const props = defineProps({
     user_post: {
@@ -166,6 +169,47 @@ const router = useRouter()
 const jumpToDetailedPost = () => {
     router.push(`/post/${actualPost.value.id}`)
 }
+
+// right-upper menu
+const showPopup = ref(false)
+const closePopup = () => {
+    showPopup.value = false
+}
+
+// delete post
+const deletePost = async () => {
+    if (confirm('Are you sure to delete this post?') === false) {
+        return
+    }
+    try {
+        await axios.delete(`/posts/${props.user_post.id}/`)
+        eventBus.emit('post-deleted')
+    } catch (e: any) {
+        alert("Failed to delete post: " + JSON.stringify(e.response.data))
+    }
+}
+
+// reactions
+const reactions = computed(() => {
+    return actualPost.value.reactions
+})
+const reactionPickerOpen = ref(false);
+const onReactionPicker = () => {
+    reactionPickerOpen.value = !reactionPickerOpen.value;
+}
+const onReaction = async (emoji: { i: string, n: string[]; r: string }) => {
+    console.log(emoji)
+    try {
+        await axios.post(`/reactions/`, {
+            post: actualPost.value.id,
+            emoji: emoji.r
+        })
+        eventBus.emit('reaction-created')
+        reactionPickerOpen.value = false;
+    } catch (e: any) {
+        alert("Failed to create reaction: " + JSON.stringify(e.response.data))
+    }
+}
 </script>
 <template>
     <div class="w-full p-5 bg-white rounded-md flex flex-col mb-4 rounded-xl">
@@ -213,18 +257,49 @@ const jumpToDetailedPost = () => {
                     <p class="text-sm text-gray-500">{{ createdTime }}</p>
                 </div>
             </div>
-            <button class="active:scale-95 transform transition-transform">
+            <button class="active:scale-95 transform transition-transform" @click="showPopup = true">
                 <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path clip-rule="evenodd"
                         d="M4.5 12a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm6 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm6 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z"
                         fill-rule="evenodd" />
                 </svg>
             </button>
+            <div v-if="showPopup" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                @click="closePopup">
+                <div class="max-w-sm mx-auto bg-white rounded-md shadow-lg p-4">
+                    <ul>
+                        <li class="bg-red-300">
+                            <button class="black" @click="deletePost">Delete</button>
+                        </li>
+                        <!-- <li>
+                                <button @click="showReplies">Show replies</button>
+                            </li> -->
+                        <!-- <li>
+                                <button @click="showReposts">Show reposts</button>
+                            </li> -->
+                        <!-- <li>
+                                <button @click="showQuotes">Show quotes</button>
+                            </li> -->
+                        <!-- <li>
+                                <button @click="showFavorites">Show favorites</button>
+                            </li> -->
+                        <!-- <li>
+                                <button @click="showReactions">Show reactions</button>
+                            </li> -->
+                    </ul>
+                </div>
+            </div>
         </div>
 
         <p class="pt-5 text-gray-600 text-lg mb-4">
             {{ content }}
         </p>
+        <div>
+            <div class="flex flex-row">
+                <reaction-badge v-for="(count, emojiName) in reactions" :key="emojiName" :emoji-name="emojiName"
+                    class="mr-2" :count="count.count" :reacted-by-me="count.reacted_by_me" :post-id="actualPost.id" />
+            </div>
+        </div>
         <div>
             <div v-if="attachedFiles.length > 0" :class="`images w-full h-70 bg-ll-neutral dark:bg-ld-neutral rounded-xl my-4 overflow-hidden grid ${attachedFiles.length > 1 ? 'grid-cols-2' : 'grid-cols-1'
                 } gap-2`">
@@ -355,6 +430,10 @@ const jumpToDetailedPost = () => {
                     {{ favoriteCount }}
                 </p>
             </button>
+            <button class="flex items-center active:scale-95 transform transition-transform" @click="onReactionPicker">
+                😊
+            </button>
+            <emoji-picker v-if="reactionPickerOpen" :native="true" @select="onReaction" />
             <button class="flex items-center active:scale-95 transform transition-transform" @click="jumpToDetailedPost">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
                     class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">

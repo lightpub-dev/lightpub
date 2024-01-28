@@ -88,6 +88,16 @@ class PostReactionSerializer(serializers.ModelSerializer):
 
         return PostReaction.objects.create(user=user, **validated_data)
 
+    def validate(self, data):
+        # unique check
+        user = self.context["request"].user
+        if PostReaction.objects.filter(
+            user=user, post=data["post"], emoji=data["emoji"]
+        ).exists():
+            raise serializers.ValidationError("Already reacted")
+
+        return data
+
     class Meta:
         model = PostReaction
         fields = ["post", "user", "emoji", "created_at"]

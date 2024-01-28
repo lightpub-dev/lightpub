@@ -138,6 +138,11 @@ class AttachedFileField(serializers.PrimaryKeyRelatedField):
         return UploadedFile.objects.filter(uploader=user)
 
 
+class PostReactionInfoSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    reacted_by_me = serializers.BooleanField(required=False, allow_null=True)
+
+
 class PostSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(read_only=True)
     author = PostAuthorSerializer(read_only=True, source="poster")
@@ -289,12 +294,20 @@ class PostSerializer(serializers.ModelSerializer):
             .order_by("-count")
         )
 
+        user = self.context["request"].user
         reaction_count = {}
         for reaction in reactions:
-            reaction_count[reaction["emoji"]] = reaction["count"]
+            reaction_count[reaction["emoji"]] = {
+                "count": reaction["count"],
+            }
+            if user.id:
+                reacted_by_me = PostReaction.objects.filter(
+                    post=post, user=user, emoji=reaction["emoji"]
+                ).exists()
+                reaction_count[reaction["emoji"]]["reacted_by_me"] = reacted_by_me
 
         return serializers.DictField(
-            child=serializers.IntegerField()
+            child=PostReactionInfoSerializer()
         ).to_representation(reaction_count)
 
     class Meta:

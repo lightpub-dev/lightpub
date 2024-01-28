@@ -63,7 +63,9 @@ class PostBookmarkView(
 
 
 class PostReactionView(
-    mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
 ):
     serializer_class = PostReactionSerializer
     permission_classes = [AuthOnlyPermission]
