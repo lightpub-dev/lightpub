@@ -128,40 +128,36 @@ const actualAvatarURL = computed(() => {
             class="w-full flex justify-between mt-5 pb-5 border-b border-gray-300"
         >
             <!-- Repeated Structure for Posts, Followers, Following -->
-            <div class="flex flex-col justify-center items-center">
+            <div class="self-center w-px"></div>
+            <div class="flex flex-col justify-center items-center w-3/12">
                 <p class="-mt-1 text-xs text-gray-600">Posts</p>
                 <p class="text-lg font-bold text-gray-800">{{ nPosts }}</p>
             </div>
             <div class="self-center bg-gray-300 w-px h-12"></div>
-            <div class="flex flex-col justify-center items-center">
-                <p
-                    class="-mt-1 text-xs text-gray-600 cursor-pointer"
-                    @click="onFollowerJump"
-                >
+            <div class="flex flex-col justify-center items-center w-3/12">
+                <p class="-mt-1 text-xs text-gray-600" @click="onFollowerJump">
                     Followers
                 </p>
                 <p
-                    class="text-lg font-bold text-gray-800 cursor-pointer"
+                    class="text-lg font-bold text-gray-800"
                     @click="onFollowerJump"
                 >
                     {{ nFollowers }}
                 </p>
             </div>
             <div class="self-center bg-gray-300 w-px h-12"></div>
-            <div class="flex flex-col justify-center items-center">
-                <p
-                    class="-mt-1 text-xs text-gray-600 cursor-pointer"
-                    @click="onFollowingJump"
-                >
+            <div class="flex flex-col justify-center items-center w-3/12">
+                <p class="-mt-1 text-xs text-gray-600" @click="onFollowingJump">
                     Following
                 </p>
                 <p
-                    class="text-lg font-bold text-gray-800 cursor-pointer"
+                    class="text-lg font-bold text-gray-800"
                     @click="onFollowingJump"
                 >
                     {{ nFollowings }}
                 </p>
             </div>
+            <div class="self-center w-px"></div>
         </div>
 
         <!-- Menu Items -->

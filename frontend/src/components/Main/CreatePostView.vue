@@ -6,6 +6,7 @@ import { eventBus } from '../../event'
 const emit = defineEmits<{
     (e: 'created'): void
     (e: 'canceled'): void
+    (e: 'on-close'): void
 }>()
 
 const props = defineProps<{
@@ -83,6 +84,7 @@ const postTweet = async () => {
 const closePostMenu = () => {
     emit('canceled')
     showPostMenu.value = false
+    emit('on-close')
 }
 </script>
 
