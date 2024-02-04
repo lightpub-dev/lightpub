@@ -152,6 +152,11 @@ REST_FRAMEWORK = {
         "api.auth.auth.TokenAuth",
         "api.auth.auth.CookieAuth",
     ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "api.jsonld.renderer.JsonldRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ],
 }
 
 LOGGING = {

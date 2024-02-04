@@ -154,7 +154,98 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "inbox": {"read_only": True},
             "outbox": {"read_only": True},
             "created_at": {"read_only": True},
+            "bio": {"required": False},
         }
+
+
+class JsonldAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfileLabel
+        fields = ["type", "key", "value"]
+
+    type = serializers.ReadOnlyField(default="PropertyValue")
+
+
+class JsonldDetailedUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "ctx",
+            "id",
+            "inbox",
+            "outbox",
+            "following",
+            "followers",
+            "liked",
+            "type",
+            "attachment",
+            "name",
+        ]
+
+    ctx = serializers.ReadOnlyField(default=["https://www.w3.org/ns/activitystreams"])
+    id = serializers.SerializerMethodField()
+    inbox = serializers.SerializerMethodField()
+    outbox = serializers.SerializerMethodField()
+    following = serializers.SerializerMethodField()
+    followers = serializers.SerializerMethodField()
+    liked = serializers.SerializerMethodField()
+    type = serializers.ReadOnlyField(default="Person")
+    name = serializers.CharField(source="nickname")
+
+    attachment = JsonldAttachmentSerializer(many=True, required=False, source="labels")
+
+    def get_id(self, obj):
+        req = self.context["request"]
+        return req.build_absolute_uri(reverse("api:user-detail", kwargs={"pk": obj.id}))
+
+    def get_inbox(self, obj):
+        if obj.inbox:
+            return obj.inbox
+        req = self.context["request"]
+        return req.build_absolute_uri(
+            reverse("api:inbox", kwargs={"user_spec": obj.id})
+        )
+
+    def get_outbox(self, obj):
+        if obj.outbox:
+            return obj.outbox
+        req = self.context["request"]
+        return req.build_absolute_uri(
+            reverse("api:outbox", kwargs={"user_spec": obj.id})
+        )
+
+    def get_following(self, obj):
+        req = self.context["request"]
+        url = req.build_absolute_uri(
+            reverse(
+                "api:following-list",
+            )
+        )
+        return f"{url}?user={obj.id}"
+
+    def get_followers(self, obj):
+        req = self.context["request"]
+        url = req.build_absolute_uri(
+            reverse(
+                "api:follower-list",
+            )
+        )
+        return f"{url}?user={obj.id}"
+
+    def get_liked(self, obj):
+        req = self.context["request"]
+        url = req.build_absolute_uri(
+            reverse(
+                "api:favorite-list",
+            )
+        )
+        return f"{url}?user={obj.id}"
+
+    def get_fields(self):
+        fields = super().get_fields()
+        fields["@context"] = fields.pop("ctx")
+
+        return fields
 
 
 class RegisterSerializer(serializers.Serializer):

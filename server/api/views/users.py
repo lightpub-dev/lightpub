@@ -4,10 +4,12 @@ from rest_framework import generics, mixins, status, views, viewsets
 from rest_framework.response import Response
 
 from api.utils.users import UserSpecifier
+from api.views.jsonld import JsonldMixin
 from ..auth import AuthOnlyPermission, NoAuthPermission
 from ..models import User, UserFollow
 from ..serializers.user import (
     DetailedUserSerializer,
+    JsonldDetailedUserSerializer,
     LoginSerializer,
     RegisterSerializer,
     login_and_generate_token,
@@ -46,6 +48,7 @@ class LoginView(views.APIView):
 
 
 class UserViewset(
+    JsonldMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
     mixins.UpdateModelMixin,
@@ -53,7 +56,8 @@ class UserViewset(
 ):
     permission_classes = [NoAuthPermission]
     queryset = User.objects.all()
-    serializer_class = DetailedUserSerializer
+    normal_serializer_class = DetailedUserSerializer
+    jsonld_serializer_class = JsonldDetailedUserSerializer
 
     def get_serializer_context(self):
         return {

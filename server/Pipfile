@@ -14,6 +14,8 @@ uwsgi = "*"
 pillow = "*"
 whitenoise = "*"
 drf-extra-fields = "*"
+pyld = "*"
+requests = "*"
 
 [dev-packages]
 mypy = "*"
