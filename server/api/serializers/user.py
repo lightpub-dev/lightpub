@@ -345,3 +345,14 @@ class UserFollowerSerializer(serializers.ModelSerializer):
         model = UserFollow
         fields = ["follower", "created_at"]
         extra_kwargs = {"created_at": {"read_only": True}}
+
+
+class UserFollowJsonldSerializer(serializers.HyperlinkedRelatedField):
+    pass
+
+
+class UserFollowerJsonldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserFollow
+        fields = ["follower", "created_at"]
+        extra_kwargs = {"created_at": {"read_only": True}}

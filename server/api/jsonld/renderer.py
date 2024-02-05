@@ -1,5 +1,5 @@
 from rest_framework import renderers
-import json
+from rest_framework.utils import json, encoders
 
 
 class JsonldRenderer(renderers.BaseRenderer):
@@ -7,5 +7,5 @@ class JsonldRenderer(renderers.BaseRenderer):
     format = "jsonld"
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        body = json.dumps(data, indent=2)
+        body = json.dumps(data, cls=encoders.JSONEncoder, indent=2)
         return body.encode("utf-8")

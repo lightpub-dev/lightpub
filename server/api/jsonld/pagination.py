@@ -1,6 +1,9 @@
 from rest_framework import pagination
 from rest_framework import serializers
 from rest_framework.utils.urls import replace_query_param, remove_query_param
+from .renderer import JsonldRenderer
+from api.pagination import MyPagination as DefaultPagination
+from rest_framework.response import Response
 
 
 class CollectionSerializer(serializers.Serializer):
@@ -19,8 +22,10 @@ class CollectionSerializer(serializers.Serializer):
 
 
 class CollectionPageSerializer(CollectionSerializer):
+    type = serializers.ReadOnlyField(default="CollectionPage")
     next = serializers.URLField(read_only=True, required=False)
     prev = serializers.URLField(read_only=True, required=False)
+    partOf = serializers.URLField(read_only=True, required=False)
 
 
 class OrderedCollectionSerializer(serializers.Serializer):
@@ -39,14 +44,17 @@ class OrderedCollectionSerializer(serializers.Serializer):
 
 
 class OrderedCollectionPageSerializer(OrderedCollectionSerializer):
+    type = serializers.ReadOnlyField(default="OrderedCollectionPage")
     next = serializers.URLField(read_only=True, required=False)
     prev = serializers.URLField(read_only=True, required=False)
+    partOf = serializers.URLField(read_only=True, required=False)
 
 
 class CollectionPagination(pagination.BasePagination):
     page_size = 10
     _collection_serializer = CollectionSerializer
     _page_serializer = CollectionPageSerializer
+    _items_key = "items"
     page_param = "page"
 
     def __init__(self) -> None:
@@ -54,6 +62,8 @@ class CollectionPagination(pagination.BasePagination):
         self.next_page = None
         self.total_count = None
         self._request = None
+
+        self._cursor_paginator = None
 
     def get_next_link(self):
         if self.next_page is None:
@@ -73,6 +83,11 @@ class CollectionPagination(pagination.BasePagination):
     def paginate_queryset(self, queryset, request, view=None):
         self._request = request
 
+        # if application/ld+json is not requested, use the default paginator
+        if not isinstance(request.accepted_renderer, JsonldRenderer):
+            self._cursor_paginator = DefaultPagination()
+            return self._cursor_paginator.paginate_queryset(queryset, request, view)
+
         page_param = request.query_params.get("page", None)
 
         self.current_page = page_param
@@ -90,30 +105,41 @@ class CollectionPagination(pagination.BasePagination):
         start = (page - 1) * page_size
         end = start + page_size
 
-        self.next_page = page + 1
+        paginated_queryset = list(queryset[start:end])
+        if len(paginated_queryset) == 0:
+            self.next_page = None
+        else:
+            self.next_page = page + 1
 
-        return list(queryset[start:end])
+        return paginated_queryset
 
     def get_paginated_response(self, data):
+        # if application/ld+json is not requested, use the default paginator
+        if self._cursor_paginator:
+            return self._cursor_paginator.get_paginated_response(data)
+
         if self.current_page is None:
-            return self._collection_serializer(
+            response_data = self._collection_serializer(
                 {
                     "totalItems": self.total_count,
-                    "items": data,
+                    self._items_key: data,
                     "first": self.get_first_link(),
                 }
             ).data
         else:
-            return self._page_serializer(
+            response_data = self._page_serializer(
                 {
                     "totalItems": self.total_count,
-                    "items": data,
+                    self._items_key: data,
                     "first": self.get_first_link(),
                     "next": self.get_next_link(),
                     "partOf": self.get_partof(),
                 }
             ).data
+        return Response(data=response_data)
 
 
 class OrderedCollectionPagination(CollectionPagination):
     _collection_serializer = OrderedCollectionSerializer
+    _page_serializer = OrderedCollectionPageSerializer
+    _items_key = "orderedItems"

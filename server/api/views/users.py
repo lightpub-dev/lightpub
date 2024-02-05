@@ -2,9 +2,9 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, mixins, status, views, viewsets
 from rest_framework.response import Response
+from api.jsonld.mixins import JsonldAwareMixin, JsonldMixin
 
 from api.utils.users import UserSpecifier
-from api.views.jsonld import JsonldMixin
 from ..auth import AuthOnlyPermission, NoAuthPermission
 from ..models import User, UserFollow
 from ..serializers.user import (
@@ -12,6 +12,8 @@ from ..serializers.user import (
     JsonldDetailedUserSerializer,
     LoginSerializer,
     RegisterSerializer,
+    UserFollowJsonldSerializer,
+    UserFollowerJsonldSerializer,
     login_and_generate_token,
     UserFollowSerializer,
     UserFollowerSerializer,
@@ -74,12 +76,31 @@ class UserViewset(
 
 
 class UserFollowingViewset(
+    JsonldAwareMixin,
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
     serializer_class = UserFollowSerializer
+
+    def list(self, request, *args, **kwargs):
+        if not self.jsonld_requested():
+            return super().list(request, *args, **kwargs)
+
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            followees = [followee.followee for followee in page]
+            serializer = UserFollowJsonldSerializer(
+                followees, many=True, read_only=True
+            )
+            return self.get_paginated_response(serializer.data)
+
+        followees = [followee.followee for followee in queryset]
+        serializer = UserFollowJsonldSerializer(followees, many=True, read_only=True)
+        return Response(serializer.data)
 
     def get_permissions(self):
         if self.action == "create":
@@ -112,11 +133,16 @@ class UserFollowingViewset(
 
 
 class UserFollowerViewset(
+    JsonldAwareMixin,
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
     serializer_class = UserFollowerSerializer
     permission_classes = []
+
+    def list(self, request, *args, **kwargs):
+        if not self.jsonld_requested():
+            return super().list(request, *args, **kwargs)
 
     def get_object(self):
         pk = self.kwargs["pk"]
