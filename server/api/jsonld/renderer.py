@@ -9,3 +9,7 @@ class JsonldRenderer(renderers.BaseRenderer):
     def render(self, data, accepted_media_type=None, renderer_context=None):
         body = json.dumps(data, cls=encoders.JSONEncoder, indent=2)
         return body.encode("utf-8")
+
+
+class ActivityJsonRenderer(JsonldRenderer):
+    media_type = "application/activity+json"
