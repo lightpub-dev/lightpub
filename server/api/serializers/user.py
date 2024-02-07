@@ -65,6 +65,9 @@ class DetailedUserSerializer(serializers.ModelSerializer):
 
     avatar_id = AvatarIdField(write_only=True, required=False, allow_null=True)
 
+    inbox = serializers.SerializerMethodField()
+    outbox = serializers.SerializerMethodField()
+
     def get_n_posts(self, obj):
         return obj.posts.filter(privacy__in=[0, 1]).count()
 
@@ -101,6 +104,22 @@ class DetailedUserSerializer(serializers.ModelSerializer):
         return UserFollow.objects.filter(
             follower=self.context["request"].user, followee=obj
         ).exists()
+
+    def get_inbox(self, obj):
+        if obj.inbox:
+            return obj.inbox
+        req = self.context["request"]
+        return req.build_absolute_uri(
+            reverse("api:inbox", kwargs={"user_spec": obj.id})
+        )
+
+    def get_outbox(self, obj):
+        if obj.outbox:
+            return obj.outbox
+        req = self.context["request"]
+        return req.build_absolute_uri(
+            reverse("api:outbox", kwargs={"user_spec": obj.id})
+        )
 
     def update(self, instance: User, validated_data):
         with transaction.atomic():

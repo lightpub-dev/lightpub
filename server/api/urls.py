@@ -39,8 +39,8 @@ urlpatterns = [
     path("quotes/<uuid:pk>", posts.QuoteListView.as_view(), name="quote-list"),
     path("reposts/<uuid:pk>", posts.RepostListView.as_view(), name="repost-list"),
     path("favorites/<uuid:pk>", posts.FavoriteListView.as_view(), name="favorite-list"),
-    path("inbox/<str:user_spec>", InboxView.as_view(), name="inbox"),
-    path("outbox/<str:user_spec>", OutboxView.as_view(), name="outbox"),
+    path("users/<str:user_spec>/inbox", InboxView.as_view(), name="inbox"),
+    path("users/<str:user_spec>/outbox", OutboxView.as_view(), name="outbox"),
 ]
 
 urlpatterns += router.urls

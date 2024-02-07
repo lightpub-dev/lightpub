@@ -16,6 +16,7 @@ whitenoise = "*"
 drf-extra-fields = "*"
 pyld = "*"
 requests = "*"
+requests-cache = "*"
 
 [dev-packages]
 mypy = "*"
