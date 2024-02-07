@@ -10,7 +10,6 @@ class CollectionSerializer(serializers.Serializer):
     ctx = serializers.ReadOnlyField(default="https://www.w3.org/ns/activitystreams")
     type = serializers.ReadOnlyField(default="Collection")
     totalItems = serializers.IntegerField(read_only=True)
-    items = serializers.ListField(read_only=True, required=False)
     first = serializers.URLField(read_only=True, required=False)
     last = serializers.URLField(read_only=True, required=False)
 
@@ -26,13 +25,13 @@ class CollectionPageSerializer(CollectionSerializer):
     next = serializers.URLField(read_only=True, required=False)
     prev = serializers.URLField(read_only=True, required=False)
     partOf = serializers.URLField(read_only=True, required=False)
+    items = serializers.ListField(read_only=True, required=False)
 
 
 class OrderedCollectionSerializer(serializers.Serializer):
     ctx = serializers.ReadOnlyField(default="https://www.w3.org/ns/activitystreams")
     type = serializers.ReadOnlyField(default="OrderedCollection")
     totalItems = serializers.IntegerField(read_only=True)
-    orderedItems = serializers.ListField(read_only=True, required=False)
     first = serializers.URLField(read_only=True, required=False)
     last = serializers.URLField(read_only=True, required=False)
 
@@ -48,6 +47,7 @@ class OrderedCollectionPageSerializer(OrderedCollectionSerializer):
     next = serializers.URLField(read_only=True, required=False)
     prev = serializers.URLField(read_only=True, required=False)
     partOf = serializers.URLField(read_only=True, required=False)
+    orderedItems = serializers.ListField(read_only=True, required=False)
 
 
 class CollectionPagination(pagination.BasePagination):
@@ -122,7 +122,7 @@ class CollectionPagination(pagination.BasePagination):
             response_data = self._collection_serializer(
                 {
                     "totalItems": self.total_count,
-                    self._items_key: data,
+                    # self._items_key: data,
                     "first": self.get_first_link(),
                 }
             ).data

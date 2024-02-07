@@ -12,8 +12,6 @@ from ..serializers.user import (
     JsonldDetailedUserSerializer,
     LoginSerializer,
     RegisterSerializer,
-    UserFollowJsonldSerializer,
-    UserFollowerJsonldSerializer,
     login_and_generate_token,
     UserFollowSerializer,
     UserFollowerSerializer,
@@ -21,6 +19,7 @@ from ..serializers.user import (
 from PIL import Image
 from django.views.decorators.cache import cache_control
 from django.utils.decorators import method_decorator
+from rest_framework.reverse import reverse
 
 
 # Create your views here.
@@ -93,14 +92,13 @@ class UserFollowingViewset(
         page = self.paginate_queryset(queryset)
         if page is not None:
             followees = [followee.followee for followee in page]
-            serializer = UserFollowJsonldSerializer(
-                followees, many=True, read_only=True
-            )
-            return self.get_paginated_response(serializer.data)
+            urls = [
+                reverse("api:user-detail", kwargs={"pk": followee.id}, request=request)
+                for followee in followees
+            ]
+            return self.get_paginated_response(urls)
 
-        followees = [followee.followee for followee in queryset]
-        serializer = UserFollowJsonldSerializer(followees, many=True, read_only=True)
-        return Response(serializer.data)
+        raise ValueError("page is None")
 
     def get_permissions(self):
         if self.action == "create":
@@ -143,6 +141,18 @@ class UserFollowerViewset(
     def list(self, request, *args, **kwargs):
         if not self.jsonld_requested():
             return super().list(request, *args, **kwargs)
+
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            followers = [follower.follower for follower in page]
+            urls = [
+                reverse("api:user-detail", kwargs={"pk": follower.id}, request=request)
+                for follower in followers
+            ]
+            return self.get_paginated_response(urls)
+
+        raise ValueError("page is None")
 
     def get_object(self):
         pk = self.kwargs["pk"]
