@@ -1,6 +1,6 @@
 from django.test import TestCase
-from .serializers import pub
-from .serializers.pub import ActivityType
+from ..serializers import pub
+from ..serializers.pub import ActivityType
 
 # Create your tests here.
 
