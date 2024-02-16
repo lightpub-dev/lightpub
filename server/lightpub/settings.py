@@ -16,7 +16,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Hostname
-HOSTNAME = "localhost:8000"
+HOSTNAME = "lightpub.tinax.local"
 
 
 # Quick-start development settings - unsuitable for production
@@ -29,12 +29,10 @@ SECRET_KEY = "django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9
 DEBUG = True
 # DEBUG = False
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "lightpub.tinax.local"]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "https://lightpub.tinax.local"]
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
@@ -95,7 +93,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": "lightpub",
-        "USER": "lightpub",
+        "USER": "root",
         "PASSWORD": "lightpub",
         "HOST": "127.0.0.1",
         "PORT": "3306",

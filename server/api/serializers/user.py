@@ -199,6 +199,8 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
             "type",
             "attachment",
             "name",
+            "preferredUsername",
+            "url",
         ]
 
     ctx = serializers.ReadOnlyField(default=["https://www.w3.org/ns/activitystreams"])
@@ -210,10 +212,16 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
     liked = serializers.SerializerMethodField()
     type = serializers.ReadOnlyField(default="Person")
     name = serializers.CharField(source="nickname")
+    preferredUsername = serializers.CharField(source="username")
+    url = serializers.SerializerMethodField()
 
     attachment = JsonldAttachmentSerializer(many=True, required=False, source="labels")
 
     def get_id(self, obj):
+        req = self.context["request"]
+        return req.build_absolute_uri(reverse("api:user-detail", kwargs={"pk": obj.id}))
+
+    def get_url(self, obj):
         req = self.context["request"]
         return req.build_absolute_uri(reverse("api:user-detail", kwargs={"pk": obj.id}))
 

@@ -24,6 +24,7 @@ flake8 = "*"
 black = "*"
 isort = "*"
 gunicorn = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.12"
