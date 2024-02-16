@@ -1,0 +1,89 @@
+<div
+  class="w-full h-full flex flex-col p-10 px-5 relative overflow-y-auto overflow-x-hidden bg-blue-100"
+>
+  <!-- Profile Section -->
+  <div class="profile flex flex-col justify-center items-center">
+    <a>
+      <img
+        alt=""
+        class="inline-block h-20 w-20 rounded-full ring-2 ring-white"
+        :src="actualAvatarURL"
+      />
+    </a>
+    <div class="flex flex-col justify-center items-center">
+      <a> <p class="text-xl font-bold text-gray-800">{{ nickname }}</p></a>
+      <a> <p class="text-sm text-gray-700">{{ atUsername }}</p></a>
+    </div>
+  </div>
+
+  <!-- Stats Section -->
+  <div class="w-full flex justify-between mt-5 pb-5 border-b border-gray-300">
+    <!-- Repeated Structure for Posts, Followers, Following -->
+    <div class="self-center w-px"></div>
+    <div class="flex flex-col justify-center items-center w-3/12">
+      <p class="-mt-1 text-xs text-gray-600">Posts</p>
+      <p class="text-lg font-bold text-gray-800">{{ nPosts }}</p>
+    </div>
+    <div class="self-center bg-gray-300 w-px h-12"></div>
+    <div class="flex flex-col justify-center items-center w-3/12">
+      <p class="-mt-1 text-xs text-gray-600" @click="onFollowerJump">
+        Followers
+      </p>
+      <p class="text-lg font-bold text-gray-800" @click="onFollowerJump">
+        {{ nFollowers }}
+      </p>
+    </div>
+    <div class="self-center bg-gray-300 w-px h-12"></div>
+    <div class="flex flex-col justify-center items-center w-3/12">
+      <p class="-mt-1 text-xs text-gray-600" @click="onFollowingJump">
+        Following
+      </p>
+      <p class="text-lg font-bold text-gray-800" @click="onFollowingJump">
+        {{ nFollowings }}
+      </p>
+    </div>
+    <div class="self-center w-px"></div>
+  </div>
+
+  <!-- Menu Items -->
+  <ul class="flex-grow flex flex-col w-full pt-5">
+    <template v-for="menu in menus.menusList" :key="menu.name">
+      <a v-if="menu.url" :to="menu.url"
+        ><li
+          class="w-full px-4 py-2 flex items-center mb-2 cursor-pointer hover:bg-blue-200 hover:rounded-xl select-none"
+        >
+          <font-awesome-icon :icon="menu.icon" class="text-blue-600" />
+          <p class="ml-5 text-gray-800 font-medium">{{ menu.name }}</p>
+        </li>
+      </a>
+      <template v-else>
+        <li
+          class="w-full px-4 py-2 flex items-center mb-2 cursor-pointer hover:bg-blue-200 hover:rounded-xl select-none"
+        >
+          <font-awesome-icon :icon="menu.icon" class="text-blue-600" />
+          <p class="ml-5 text-gray-800 font-medium">{{ menu.name }}</p>
+        </li>
+      </template>
+    </template>
+  </ul>
+
+  <!-- Post Button -->
+  <button
+    class="w-full py-3 px-4 flex items-center justify-center mb-2 cursor-pointer select-none bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 rounded-xl shadow-md hover:shadow-lg transition duration-300 ease-in-out"
+    @click="toggleCreatePost"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 448 512"
+      class="text-white svg-inline"
+      role="img"
+    >
+      <!-- !Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc. -->
+      <path
+        fill="currentColor"
+        d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32V224H48c-17.7 0-32 14.3-32 32s14.3 32 32 32H192V432c0 17.7 14.3 32 32 32s32-14.3 32-32V288H400c17.7 0 32-14.3 32-32s-14.3-32-32-32H256V80z"
+      />
+    </svg>
+    <p class="ml-3 text-white font-medium">Post</p>
+  </button>
+</div>

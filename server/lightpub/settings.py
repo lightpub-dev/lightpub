@@ -41,6 +41,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 INSTALLED_APPS = [
     "corsheaders",
     "api",
+    "web",
     "rest_framework",
     "django.contrib.admin",
     "django.contrib.auth",
