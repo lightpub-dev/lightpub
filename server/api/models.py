@@ -7,7 +7,7 @@ from django.db import models
 class User(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
     username = models.CharField(max_length=64, unique=True)
-    host = models.CharField(max_length=128)
+    host = models.CharField(max_length=128, blank=True, null=True, default=None)
     bpassword = models.CharField(max_length=60)
     nickname = models.CharField(max_length=255)
     bio = models.TextField(default="")

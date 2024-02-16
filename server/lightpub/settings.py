@@ -173,10 +173,10 @@ LOGGING = {
         }
     },
     "loggers": {
-        "django.db.backends": {
-            "level": "DEBUG",
-            "handlers": ["console"],
-        },
+        # "django.db.backends": {
+        #     "level": "DEBUG",
+        #     "handlers": ["console"],
+        # },
         "django": {
             "handlers": ["console"],
             "propagate": True,
@@ -184,4 +184,8 @@ LOGGING = {
     },
 }
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "staticfiles": {
+        "class": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    }
+}

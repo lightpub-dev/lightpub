@@ -284,19 +284,30 @@ class RegisterSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         username = validated_data["username"]
+        plain_password = validated_data["password"]
+        nickname = validated_data["nickname"]
 
-        if User.objects.filter(username=username).exists():
-            raise serializers.ValidationError("username already exists")
+        try:
+            create_new_user(username, plain_password, nickname, host=None)
+            return validated_data
+        except ValueError as e:
+            raise serializers.ValidationError(str(e)) from e
 
-        bpasswd = bcrypt.hashpw(
-            validated_data["password"].encode("utf-8"), bcrypt.gensalt()
-        )
-        User.objects.create(
-            username=username,
-            nickname=validated_data["nickname"],
-            bpassword=bpasswd.decode("utf-8"),
-        )
-        return validated_data
+
+def create_new_user(
+    username: str, plain_password: str, nickname: str, host: str | None
+) -> User:
+    if User.objects.filter(username=username).exists():
+        raise ValueError("username already exists")
+
+    bpasswd = bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt())
+    u = User.objects.create(
+        username=username,
+        nickname=nickname,
+        bpassword=bpasswd.decode("utf-8"),
+        host=host,
+    )
+    return u
 
 
 class LoginSerializer(serializers.Serializer):

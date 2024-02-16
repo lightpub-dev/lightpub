@@ -6,6 +6,8 @@ from rest_framework.fields import SkipField, get_error_detail, set_value
 from django.core.exceptions import ValidationError as DjangoValidationError
 import enum
 
+from api.requester import get_requester
+
 
 class ActivityType(enum.StrEnum):
     FOLLOW = "https://www.w3.org/ns/activitystreams#Follow"
@@ -133,9 +135,21 @@ class FollowSerializer(ActivitySerializer):
         return result
 
 
+class NetworkFollowSerializer(ActivitySerializer):
+    def to_internal_value(self, data):
+        # if "@id" is the only key, then need to fetch the remote object
+        if len(data) == 1 and "@id" in data:
+            req = get_requester()
+            expanded = req.fetch_remote_id(data)
+            ser = FollowSerializer()
+            return ser.to_internal_value(expanded[0])
+
+        return FollowSerializer().to_internal_value(data)
+
+
 class UndoSerializer(ActivitySerializer):
     object = AccessField(
-        serializer=SingleArrayField(serializer=FollowSerializer()),
+        serializer=SingleArrayField(serializer=NetworkFollowSerializer()),
         path=[OBJECT_KEY],
     )
 
