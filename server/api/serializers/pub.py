@@ -1,161 +1,94 @@
-from typing import Mapping, OrderedDict
-from rest_framework import serializers
-from rest_framework.settings import api_settings
-from rest_framework.exceptions import ValidationError
-from rest_framework.fields import SkipField, get_error_detail, set_value
-from django.core.exceptions import ValidationError as DjangoValidationError
-import enum
-
-from api.requester import get_requester
+from dataclasses import dataclass
+from typing import Any, TypeGuard
 
 
-class ActivityType(enum.StrEnum):
-    FOLLOW = "https://www.w3.org/ns/activitystreams#Follow"
-    UNDO = "https://www.w3.org/ns/activitystreams#Undo"
+def _qt(s: str) -> str:
+    return f"https://www.w3.org/ns/activitystreams#{s}"
 
 
-class ActivityPubSerializer(serializers.Serializer):
-    def to_internal_value(self, data):
-        """
-        Dict of native values <- Dict of primitive datatypes.
-        """
-        if not isinstance(data, Mapping):
-            message = self.error_messages["invalid"].format(
-                datatype=type(data).__name__
-            )
-            raise ValidationError(
-                {api_settings.NON_FIELD_ERRORS_KEY: [message]},
-                code="invalid",
-            )
-
-        ret = OrderedDict()
-        errors = OrderedDict()
-        fields = self._writable_fields
-
-        for field in fields:
-            validate_method = getattr(self, "validate_" + field.field_name, None)
-            if not isinstance(field, AccessField):
-                primitive_value = field.get_value(data)
-            else:
-                primitive_value = data
-                for p in field.path:
-                    primitive_value = primitive_value[p]
-            try:
-                validated_value = field.run_validation(primitive_value)
-                if validate_method is not None:
-                    validated_value = validate_method(validated_value)
-            except ValidationError as exc:
-                errors[field.field_name] = exc.detail
-            except DjangoValidationError as exc:
-                errors[field.field_name] = get_error_detail(exc)
-            except SkipField:
-                pass
-            else:
-                if not isinstance(field, AccessField):
-                    set_value(ret, field.source_attrs, validated_value)
-                else:
-                    set_value(ret, [field.field_name], validated_value)
-
-        if errors:
-            raise ValidationError(errors)
-
-        return ret
+def _qt_map(d: dict, m: dict[str, str]) -> dict[str, Any]:
+    dd = {}
+    for k, v in m.items():
+        if k in d:
+            dd[v] = d[k]
+    return dd
 
 
-ACTOR_KEY = "https://www.w3.org/ns/activitystreams#actor"
-OBJECT_KEY = "https://www.w3.org/ns/activitystreams#object"
+@dataclass
+class Node:
+    id: str
+    type: list[str] | None
+
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        return {"id": d["@id"], "type": d.get("@type", None)}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Node":
+        return cls(**cls._build_from_dict(d))
+
+    def is_as_type(self, t: str) -> bool:
+        as_t = _qt(t)
+        return as_t in self.type
 
 
-class AccessField(serializers.Field):
-    def __init__(
-        self, serializer: serializers.Field, path: list[str] = [], *args, **kwargs
-    ):
-        if not serializer:
-            raise ValueError("serializer is required")
-        self._ser = serializer
-        if isinstance(path, list):
-            if len(path) == 0:
-                raise ValueError("path must be a non-empty list")
-        elif isinstance(path, str):
-            path = [path]
-        self.path = path
-        super().__init__(*args, **kwargs)
+class Object(Node):
+    """
+    represents https://www.w3.org/ns/activitystreams#Object
+    """
 
-    def to_internal_value(self, data):
-        return self._ser.to_internal_value(data)
+    as_name: str | None
+    as_to: str | None
 
-
-class SingleArrayField(serializers.Serializer):
-    def __init__(self, *args, **kwargs):
-        if "many" in kwargs:
-            raise ValueError("many kw is not supported")
-        ser = kwargs.pop("serializer")
-        kwargs["many"] = True
-        super().__init__(*args, **kwargs)
-
-        self._ser = ser
-
-    def to_internal_value(self, data):
-        return self._ser.to_internal_value(data[0])
-
-    def to_representation(self, value):
-        return [self._ser.to_representation(value)]
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        return super()._build_from_dict(d) | _qt_map(
+            d,
+            {
+                "name": "as_name",
+                "to": "as_to",
+            },
+        )
 
 
-class IdentifiableSerializer(ActivityPubSerializer):
-    id = serializers.URLField()
+class Activity(Object):
+    """
+    represents https://www.w3.org/ns/activitystreams#Activity
+    """
 
-    def get_fields(self):
-        fields = super().get_fields()
-        fields["@id"] = fields.pop("id")
-        return fields
+    as_actor: list[Object] | None
+    as_object: list[Object] | None
 
-
-class ActivitySerializer(IdentifiableSerializer):
-    type = SingleArrayField(serializer=serializers.CharField())
-
-    def get_fields(self):
-        fields = super().get_fields()
-        fields["@type"] = fields.pop("type")
-        return fields
-
-
-class FollowSerializer(ActivitySerializer):
-    actor = AccessField(
-        serializer=SingleArrayField(serializer=IdentifiableSerializer()),
-        path=[ACTOR_KEY],
-    )
-    object = AccessField(
-        serializer=SingleArrayField(serializer=IdentifiableSerializer()),
-        path=[OBJECT_KEY],
-    )
-
-    def to_internal_value(self, data):
-        result = super().to_internal_value(data)
-        return result
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        return super()._build_from_dict(d) | _qt_map(
+            d,
+            {
+                "actor": "as_actor",
+                "object": "as_object",
+            },
+        )
 
 
-class NetworkFollowSerializer(ActivitySerializer):
-    def to_internal_value(self, data):
-        # if "@id" is the only key, then need to fetch the remote object
-        if len(data) == 1 and "@id" in data:
-            req = get_requester()
-            expanded = req.fetch_remote_id(data)
-            ser = FollowSerializer()
-            return ser.to_internal_value(expanded[0])
+class FollowActivity(Activity):
+    def get_actor_id(self) -> str:
+        return self.as_actor[0].id
 
-        return FollowSerializer().to_internal_value(data)
+    def get_object_id(self) -> str:
+        return self.as_object[0].id
 
 
-class UndoSerializer(ActivitySerializer):
-    object = AccessField(
-        serializer=SingleArrayField(serializer=NetworkFollowSerializer()),
-        path=[OBJECT_KEY],
-    )
+class UndoActivity(Activity):
+    def get_actor_id(self) -> str:
+        return self.as_actor[0].id
 
-    def to_internal_value(self, data):
-        result = super().to_internal_value(data)
-        return result
+    def get_object_id(self) -> str:
+        return self.as_object[0].id
 
 
-serializer_map = {"https://www.w3.org/ns/activitystreams#Follow": FollowSerializer}
+def is_follow(obj: Object) -> TypeGuard[FollowActivity]:
+    return obj.is_as_type("Follow")
+
+
+def is_undo(obj: Object) -> TypeGuard[UndoActivity]:
+    return obj.is_as_type("Undo")

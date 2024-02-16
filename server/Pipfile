@@ -19,6 +19,7 @@ requests = "*"
 requests-cache = "*"
 pytest-django = "*"
 pytest-mock = "*"
+jinja2 = "*"
 
 [dev-packages]
 mypy = "*"
