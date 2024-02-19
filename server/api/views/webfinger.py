@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from django.urls import reverse
 from api.serializers.webfinger import UserSerializer, LinkSerializer
 from lightpub.settings import HOSTNAME
+from api.jsonld.renderer import WebfingerRenderer
+from rest_framework.renderers import BrowsableAPIRenderer
 
 
 def parse_resource(resource: str) -> User | None:
@@ -25,6 +27,7 @@ def parse_resource(resource: str) -> User | None:
 
 class WebFingerAcctView(APIView):
     permission_classes = [NoAuthPermission]
+    renderer_classes = [WebfingerRenderer, BrowsableAPIRenderer]
 
     def get(self, request):
         resource_query = request.query_params.get("resource", None)
@@ -55,4 +58,8 @@ class WebFingerAcctView(APIView):
                 "subject": resource_query,
             }
         )
-        return Response(data=serializer.data, status=200)
+
+        return Response(
+            data=serializer.data,
+            status=200,
+        )

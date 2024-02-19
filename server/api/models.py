@@ -6,9 +6,11 @@ from django.db import models
 # Create your models here.
 class User(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    username = models.CharField(max_length=64, unique=True)
+    username = models.CharField(
+        max_length=64,
+    )
     host = models.CharField(max_length=128, blank=True, null=True, default=None)
-    bpassword = models.CharField(max_length=60)
+    bpassword = models.CharField(max_length=60, blank=True, null=True)
     nickname = models.CharField(max_length=255)
     bio = models.TextField(default="")
     avatar = models.ForeignKey(
@@ -31,6 +33,21 @@ class User(models.Model):
 
         s += f" ({self.id})"
         return s
+
+
+class RemoteUserInfo(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="remote_user_info",
+    )
+    following = models.CharField(max_length=512, null=True, blank=True)
+    followers = models.CharField(max_length=512, null=True, blank=True)
+    liked = models.CharField(max_length=512, null=True, blank=True)
+    preferred_username = models.CharField(max_length=128, null=True, blank=True)
+
+    last_fetched_at = models.DateTimeField(auto_now=True)
 
 
 class UserProfileLabel(models.Model):
@@ -66,6 +83,19 @@ class UserFollow(models.Model):
                 name="unique_user_follow",
             )
         ]
+
+
+class UserFollowRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    url = models.CharField(max_length=512, null=True, blank=True, unique=True)
+    follower = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="follow_requests"
+    )
+    followee = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="follower_requests"
+    )
+    incoming = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class UserToken(models.Model):

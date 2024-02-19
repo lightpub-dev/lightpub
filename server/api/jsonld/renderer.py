@@ -3,7 +3,7 @@ from rest_framework.utils import json, encoders
 
 
 class JsonldRenderer(renderers.BaseRenderer):
-    media_type = "application/ld+json"
+    media_type = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
     format = "jsonld"
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
@@ -13,3 +13,8 @@ class JsonldRenderer(renderers.BaseRenderer):
 
 class ActivityJsonRenderer(JsonldRenderer):
     media_type = "application/activity+json"
+
+
+class WebfingerRenderer(JsonldRenderer):
+    media_type = "application/jrd+json"
+    format = "jrd+json"
