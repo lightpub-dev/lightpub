@@ -186,6 +186,6 @@ LOGGING = {
 
 STORAGES = {
     "staticfiles": {
-        "class": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     }
 }
