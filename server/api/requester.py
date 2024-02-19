@@ -6,6 +6,7 @@ from pyld import jsonld
 from urllib.parse import urlparse
 from django.db import transaction
 from lightpub.settings import DEBUG
+from requests_http_signature import HTTPSignatureAuth, algorithms
 
 ssl_verify = not DEBUG
 

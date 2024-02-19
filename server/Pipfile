@@ -21,6 +21,8 @@ pytest-django = "*"
 pytest-mock = "*"
 jinja2 = "*"
 ddrr = "*"
+requests-http-signature = "*"
+pycryptodome = "*"
 
 [dev-packages]
 mypy = "*"
