@@ -16,13 +16,9 @@ def sample_body_sha256(sample_body):
     return hashlib.sha256(sample_body).digest()
 
 
-def test_digest_body(sample_body, sample_body_sha256):
-    digest = signature.digest_body(sample_body)
-    assert digest == sample_body_sha256
-
-
-def test_signature_string():
-    sample_headers = [
+@pytest.fixture()
+def sample_headers():
+    return [
         ("Date", "Mon, 23 Dec 2019 10:00:00\n GMT"),
         ("Digest", "SHA-256=abcdefg"),
         (
@@ -31,6 +27,14 @@ def test_signature_string():
         ),
         ("Cache-control", "must-revalidate"),
     ]
+
+
+def test_digest_body(sample_body, sample_body_sha256):
+    digest = signature.digest_body(sample_body)
+    assert digest == sample_body_sha256
+
+
+def test_signature_string(sample_headers):
     method = "POST"
     path = "/api/register/"
 
