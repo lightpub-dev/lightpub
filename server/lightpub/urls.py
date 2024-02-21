@@ -18,8 +18,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from api.views.webfinger import WebFingerAcctView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),
+    path(".well-known/webfinger", WebFingerAcctView.as_view(), name="web-finger-acct"),
     path("", include("web.urls")),
 ]

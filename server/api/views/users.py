@@ -2,12 +2,14 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, mixins, status, views, viewsets
 from rest_framework.response import Response
+from api.jsonld.mixins import JsonldAwareMixin, JsonldMixin
 
 from api.utils.users import UserSpecifier
 from ..auth import AuthOnlyPermission, NoAuthPermission
 from ..models import User, UserFollow
 from ..serializers.user import (
     DetailedUserSerializer,
+    JsonldDetailedUserSerializer,
     LoginSerializer,
     RegisterSerializer,
     login_and_generate_token,
@@ -17,6 +19,7 @@ from ..serializers.user import (
 from PIL import Image
 from django.views.decorators.cache import cache_control
 from django.utils.decorators import method_decorator
+from rest_framework.reverse import reverse
 
 
 # Create your views here.
@@ -46,6 +49,7 @@ class LoginView(views.APIView):
 
 
 class UserViewset(
+    JsonldMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
     mixins.UpdateModelMixin,
@@ -53,7 +57,8 @@ class UserViewset(
 ):
     permission_classes = [NoAuthPermission]
     queryset = User.objects.all()
-    serializer_class = DetailedUserSerializer
+    normal_serializer_class = DetailedUserSerializer
+    jsonld_serializer_class = JsonldDetailedUserSerializer
 
     def get_serializer_context(self):
         return {
@@ -70,12 +75,30 @@ class UserViewset(
 
 
 class UserFollowingViewset(
+    JsonldAwareMixin,
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
     serializer_class = UserFollowSerializer
+
+    def list(self, request, *args, **kwargs):
+        if not self.jsonld_requested():
+            return super().list(request, *args, **kwargs)
+
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            followees = [followee.followee for followee in page]
+            urls = [
+                reverse("api:user-detail", kwargs={"pk": followee.id}, request=request)
+                for followee in followees
+            ]
+            return self.get_paginated_response(urls)
+
+        raise ValueError("page is None")
 
     def get_permissions(self):
         if self.action == "create":
@@ -108,11 +131,28 @@ class UserFollowingViewset(
 
 
 class UserFollowerViewset(
+    JsonldAwareMixin,
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
     serializer_class = UserFollowerSerializer
     permission_classes = []
+
+    def list(self, request, *args, **kwargs):
+        if not self.jsonld_requested():
+            return super().list(request, *args, **kwargs)
+
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            followers = [follower.follower for follower in page]
+            urls = [
+                reverse("api:user-detail", kwargs={"pk": follower.id}, request=request)
+                for follower in followers
+            ]
+            return self.get_paginated_response(urls)
+
+        raise ValueError("page is None")
 
     def get_object(self):
         pk = self.kwargs["pk"]

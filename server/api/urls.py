@@ -7,6 +7,7 @@ from .views.interaction import PostFavoriteView, PostBookmarkView
 from .views.users import UserFollowingViewset, UserFollowerViewset, UserViewset
 from .views.timeline import TimelineView
 from .views.hashtags import PopularHashtagsView
+from .views.pub import UserInboxView, UserOutboxView
 
 app_name = "api"
 
@@ -38,6 +39,8 @@ urlpatterns = [
     path("quotes/<uuid:pk>", posts.QuoteListView.as_view(), name="quote-list"),
     path("reposts/<uuid:pk>", posts.RepostListView.as_view(), name="repost-list"),
     path("favorites/<uuid:pk>", posts.FavoriteListView.as_view(), name="favorite-list"),
+    path("users/<str:user_spec>/inbox", UserInboxView.as_view(), name="inbox"),
+    path("users/<str:user_spec>/outbox", UserOutboxView.as_view(), name="outbox"),
 ]
 
 urlpatterns += router.urls

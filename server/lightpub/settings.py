@@ -11,10 +11,14 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 from pathlib import Path
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Hostname
+HOSTNAME = "lightpub.tinax.local"
+HTTP_SCHEME = "https"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -26,12 +30,10 @@ SECRET_KEY = "django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9
 DEBUG = True
 # DEBUG = False
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "lightpub.tinax.local"]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "https://lightpub.tinax.local"]
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
@@ -50,9 +52,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
+    "ddrr",
 ]
 
 MIDDLEWARE = [
+    # "ddrr.middleware.DebugRequestsResponses",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -93,7 +97,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": "lightpub",
-        "USER": "lightpub",
+        "USER": "root",
         "PASSWORD": "lightpub",
         "HOST": "127.0.0.1",
         "PORT": "3306",
@@ -143,35 +147,69 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "api.pagination.MyPagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_PAGINATION_CLASS": "api.jsonld.pagination.OrderedCollectionPagination",
+    "PAGE_SIZE": 10,
     "DEFAULT_PERMISSION_CLASSES": ["api.auth.permission.NoAuthPermission"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "api.auth.auth.TokenAuth",
         "api.auth.auth.CookieAuth",
     ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "api.jsonld.renderer.JsonldRenderer",
+        "api.jsonld.renderer.ActivityJsonRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ],
 }
 
-LOGGING = {
-    "version": 1,
-    "filters": {
-        "require_debug_true": {
-            "()": "django.utils.log.RequireDebugTrue",
-        }
-    },
-    "handlers": {
-        "console": {
-            "level": "DEBUG",
-            "filters": ["require_debug_true"],
-            "class": "logging.StreamHandler",
-        }
-    },
-    "loggers": {
-        "django.db.backends": {
-            "level": "DEBUG",
-            "handlers": ["console"],
-        }
-    },
+if not DEBUG:
+    LOGGING = {
+        "version": 1,
+        "filters": {
+            "require_debug_true": {
+                "()": "django.utils.log.RequireDebugTrue",
+            }
+        },
+        "handlers": {
+            "console": {
+                "level": "DEBUG",
+                "filters": ["require_debug_true"],
+                "class": "logging.StreamHandler",
+            }
+        },
+        "loggers": {
+            # "django.db.backends": {
+            #     "level": "DEBUG",
+            #     "handlers": ["console"],
+            # },
+            "django": {
+                "handlers": ["console"],
+                "propagate": True,
+            },
+        },
+    }
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    }
 }
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+DDRR = {
+    "ENABLE_REQUESTS": True,  # enable request logging
+    "ENABLE_RESPONSES": True,  # enable response logging
+    "LEVEL": "DEBUG",  # ddrr log level
+    "PRETTY_PRINT": True,  # pretty-print JSON and XML
+    "REQUEST_TEMPLATE_NAME": "ddrr/default-request.html",  # request log template name
+    "REQUEST_TEMPLATE": None,  # request log template string (overrides template name)
+    "RESPONSE_TEMPLATE_NAME": "ddrr/default-response.html",  # response log template name
+    "RESPONSE_TEMPLATE": None,  # response log template string (overrides template name)
+    "REQUEST_HANDLER": logging.StreamHandler(),  # request log handler
+    "RESPONSE_HANDLER": logging.StreamHandler(),  # response log handler
+    "ENABLE_COLORS": True,  # enable colors if terminal supports it
+    "LIMIT_BODY": None,  # limit request/response body output to X chars
+    "DISABLE_DJANGO_SERVER_LOG": False,  # disable default django server log
+}
