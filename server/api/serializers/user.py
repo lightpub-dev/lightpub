@@ -9,6 +9,8 @@ from django.urls import reverse
 from django.core.exceptions import ObjectDoesNotExist
 from api.utils.users import UserSpecifier
 from django.db import transaction
+from Crypto.PublicKey import RSA
+from dataclasses import dataclass
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 
@@ -164,6 +166,7 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "is_following",
             "avatar",
             "avatar_id",
+            "public_key",
         ]
         extra_kwargs = {
             "id": {"read_only": True},
@@ -174,6 +177,7 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "outbox": {"read_only": True},
             "created_at": {"read_only": True},
             "bio": {"required": False},
+            "public_key": {"read_only": True},
         }
 
 
@@ -294,6 +298,20 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError(str(e)) from e
 
 
+@dataclass
+class KeyPair:
+    private_key: str
+    public_key: str
+
+
+def generate_key_pair() -> KeyPair:
+    key = RSA.generate(4096)
+    private_key = key.exportKey().decode("utf-8")
+    public_key = key.publickey().exportKey().decode("utf-8")
+
+    return KeyPair(private_key=private_key, public_key=public_key)
+
+
 def create_new_user(
     username: str, plain_password: str, nickname: str, host: str | None
 ) -> User:
@@ -301,11 +319,14 @@ def create_new_user(
         raise ValueError("username already exists")
 
     bpasswd = bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt())
+    key_pair = generate_key_pair()
     u = User.objects.create(
         username=username,
         nickname=nickname,
         bpassword=bpasswd.decode("utf-8"),
         host=host,
+        private_key=key_pair.private_key,
+        public_key=key_pair.public_key,
     )
     return u
 

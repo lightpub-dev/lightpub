@@ -23,6 +23,8 @@ class User(models.Model):
     url = models.CharField(max_length=512, null=True, blank=True)
     inbox = models.CharField(max_length=512, null=True, blank=True)
     outbox = models.CharField(max_length=512, null=True, blank=True)
+    private_key = models.TextField(null=True, blank=True)
+    public_key = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
