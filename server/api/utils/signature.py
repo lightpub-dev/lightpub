@@ -1,5 +1,8 @@
 import hashlib
 from collections import OrderedDict
+from Crypto.PublicKey import RSA
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
 
 
 def digest_body(body: bytes) -> bytes:
@@ -27,3 +30,11 @@ def make_signature_string(
         lines.append(f"{key}: {', '.join(values)}")
 
     return "\n".join(lines)
+
+
+def sign_message(private_key: bytes, message: bytes) -> bytes:
+    key = RSA.import_key(private_key)
+    signer = pkcs1_15.new(key)
+    hash = SHA256.new(message)
+    signed = signer.sign(hash)
+    return signed
