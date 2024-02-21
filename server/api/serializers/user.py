@@ -306,8 +306,8 @@ class KeyPair:
 
 def generate_key_pair() -> KeyPair:
     key = RSA.generate(4096)
-    private_key = key.exportKey().decode("utf-8")
-    public_key = key.publickey().exportKey().decode("utf-8")
+    private_key = key.exportKey(pkcs=8).decode("utf-8")
+    public_key = key.publickey(pkcs=8).exportKey().decode("utf-8")
 
     return KeyPair(private_key=private_key, public_key=public_key)
 
