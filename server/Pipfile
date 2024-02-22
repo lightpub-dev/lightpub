@@ -23,6 +23,7 @@ jinja2 = "*"
 ddrr = "*"
 requests-http-signature = "*"
 pycryptodome = "*"
+django-debug-toolbar = "*"
 
 [dev-packages]
 mypy = "*"

@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
     "ddrr",
+    "debug_toolbar",
 ]
 
 MIDDLEWARE = [
@@ -67,6 +68,7 @@ MIDDLEWARE = [
     # "api.middlewares.auther.AuthMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 ROOT_URLCONF = "lightpub.urls"
@@ -212,4 +214,10 @@ DDRR = {
     "ENABLE_COLORS": True,  # enable colors if terminal supports it
     "LIMIT_BODY": None,  # limit request/response body output to X chars
     "DISABLE_DJANGO_SERVER_LOG": False,  # disable default django server log
+}
+
+# django-debug-toolbar
+INTERNAL_IPS = ["127.0.0.1"]
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": lambda request: True,
 }

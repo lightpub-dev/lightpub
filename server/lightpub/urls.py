@@ -17,7 +17,8 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import include, path
-
+from . import settings
+import debug_toolbar
 from api.views.webfinger import WebFingerAcctView
 
 urlpatterns = [
@@ -26,3 +27,6 @@ urlpatterns = [
     path(".well-known/webfinger", WebFingerAcctView.as_view(), name="web-finger-acct"),
     path("", include("web.urls")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += [path("__debug__/", include(debug_toolbar.urls))]
