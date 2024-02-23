@@ -4,6 +4,7 @@ import { AUTH_AXIOS, CURRENT_USERNAME } from '../../consts'
 
 import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { DUMMY_AVATAR_URL } from '../../settings'
 
 const axios = inject(AUTH_AXIOS)!
 const currentUsername = inject(CURRENT_USERNAME)!
@@ -18,18 +19,20 @@ const atUsername = computed(() => {
 
 const username = ref('')
 const nickname = ref('')
+const avatarURL = ref<string | null>(null)
 
 const nPosts = ref(0)
 const nFollowers = ref(0)
 const nFollowings = ref(0)
 
 const fetchProfile = async () => {
-    const res = await axios.get(`/user/${atUsername.value}`)
+    const res = await axios.get(`/users/${atUsername.value}`)
     username.value = res.data.username
     nickname.value = res.data.nickname
-    nPosts.value = res.data.counters.posts
-    nFollowers.value = res.data.counters.followers
-    nFollowings.value = res.data.counters.following
+    avatarURL.value = res.data.avatar
+    nPosts.value = res.data.n_posts
+    nFollowers.value = res.data.n_followers
+    nFollowings.value = res.data.n_followings
 }
 
 fetchProfile()
@@ -78,9 +81,18 @@ const menus = reactive({
         },
         {
             name: 'Settings',
-            icon: ['fa-solid', 'fa-gear']
+            icon: ['fa-solid', 'fa-gear'],
+            url: '/change-password'
         }
     ]
+})
+
+const actualAvatarURL = computed(() => {
+    if (avatarURL.value) {
+        return avatarURL.value
+    } else {
+        return DUMMY_AVATAR_URL
+    }
 })
 </script>
 <template>
@@ -93,7 +105,7 @@ const menus = reactive({
                 <img
                     alt=""
                     class="inline-block h-20 w-20 rounded-full ring-2 ring-white"
-                    src="https://avatars.githubusercontent.com/u/41512077"
+                    :src="actualAvatarURL"
                 />
             </router-link>
             <div class="flex flex-col justify-center items-center">

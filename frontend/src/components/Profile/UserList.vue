@@ -7,7 +7,7 @@
                 class="flex flex-row items-center bg-white p-4 shadow rounded-lg"
             >
                 <img
-                    :src="user.picture"
+                    :src="getActualAvatar(user.avatar)"
                     alt="User's Profile Picture"
                     class="w-16 h-16 rounded-full mb-2 cursor-pointer"
                     @click="jumpToProfile(user.id)"
@@ -35,10 +35,18 @@
 import { inject, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AUTH_AXIOS } from '../../consts'
+import { DUMMY_AVATAR_URL } from '../../settings'
+
+const getActualAvatar = (avatar: string | null) => {
+    if (avatar) {
+        return avatar
+    }
+    return DUMMY_AVATAR_URL
+}
 
 interface User {
     id: string
-    picture: string
+    avatar: string
     nickname: string
     username: string
     bio: string
@@ -57,8 +65,26 @@ const targetUserId = route.params.id as string
 const users = ref<User[]>([])
 
 const fetchUsers = async () => {
-    const res = await axios.get(`/user/${targetUserId}/${props.mode}`)
-    users.value = res.data[props.mode]
+    let url = ''
+    switch (props.mode) {
+        case 'followers':
+            url = `/followers?user=${targetUserId}`
+            break
+        case 'followings':
+            url = `/followings?user=${targetUserId}`
+            break
+    }
+    const res = await axios.get(url)
+    switch (props.mode) {
+        case 'followers':
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            users.value = res.data.results.map((r: any) => r.follower)
+            break
+        case 'followings':
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            users.value = res.data.results.map((r: any) => r.followee)
+            break
+    }
 }
 
 watchEffect(() => {

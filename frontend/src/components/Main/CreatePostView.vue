@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { inject, ref, watch } from 'vue'
 import { AUTH_AXIOS } from '../../consts'
+import { eventBus } from '../../event'
 
 const emit = defineEmits<{
     (e: 'created'): void
+    (e: 'canceled'): void
 }>()
 
-const props = defineProps({
-    showPostMenu: {
-        type: Boolean,
-        required: true
-    }
-})
+const props = defineProps<{
+    showPostMenu: boolean
+    replyToId: string | null
+}>()
 
 const showPostMenu = ref(props.showPostMenu)
 const tweetText = ref('')
@@ -34,26 +34,54 @@ const selectImage = (event: Event) => {
 const authedAxios = inject(AUTH_AXIOS)!
 
 const postTweet = async () => {
+    // upload image if selected
+    let uploadId = null
+    if (selectedImage.value) {
+        const formData = new FormData()
+        formData.append('file', selectedImage.value)
+        try {
+            const res = await authedAxios.post('/uploads/', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            })
+            uploadId = res.data.id
+        } catch (ex) {
+            console.error(ex)
+            alert('Failed to upload image')
+            return
+        }
+    }
+
     const content = tweetText.value
-    const privacy = 'public' // TODO
+    const privacy = 0 // TODO
 
     try {
-        authedAxios.post('/post', {
+        const req = {
             content,
-            privacy
-        })
+            privacy,
+            reply_to_id: props.replyToId
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any
+        if (uploadId) {
+            req['attached_uploads'] = [uploadId]
+        }
+        await authedAxios.post('/posts/', req)
 
         tweetText.value = ''
         selectedImage.value = null
         closePostMenu()
 
         emit('created')
+        eventBus.emit('post-created')
     } catch (ex) {
         console.error(ex)
+        alert('Failed to post tweet')
     }
 }
 
 const closePostMenu = () => {
+    emit('canceled')
     showPostMenu.value = false
 }
 </script>
@@ -79,7 +107,7 @@ const closePostMenu = () => {
                         accept="image/*"
                     />
                     <button
-                        @click="$refs.fileInput.click()"
+                        @click="($refs.fileInput as any).click()"
                         class="flex items-center justify-center px-4 py-2 space-x-2 border border-blue-500 text-blue-500 rounded-lg transition duration-300 ease-in-out hover:bg-blue-500 hover:text-white"
                     >
                         <font-awesome-icon :icon="['fa-solid', 'fa-image']" />
