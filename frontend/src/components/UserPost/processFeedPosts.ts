@@ -30,7 +30,7 @@ export function useTimeline() {
         try {
             const response = await authAxios.get(nextURL.value!)
             if (!doNotPush) {
-                posts.value!.results.push(...response.data.results)
+                posts.value!.posts.push(...response.data.results)
             }
             nextURL.value = response.data.next
             nextFetchCount.value = nextFetchCount.value + 1

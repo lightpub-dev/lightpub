@@ -77,7 +77,7 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	unAuthed.GET("/user/:username/followings", h.GetUserFollowing)
 	authed.PUT("/user/:username/follow", h.FollowAUser)
 	authed.DELETE("/user/:username/follow", h.UnfollowAUser)
-	authed.PATCH("/user", h.PutUser)
+	authed.PATCH("/user/:userspec", h.PutUser)
 	unAuthed.GET("/user/:username", h.GetUser)
 
 	// Timeline

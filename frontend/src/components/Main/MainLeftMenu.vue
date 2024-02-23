@@ -26,13 +26,13 @@ const nFollowers = ref(0)
 const nFollowings = ref(0)
 
 const fetchProfile = async () => {
-    const res = await axios.get(`/users/${atUsername.value}`)
+    const res = await axios.get(`/user/${atUsername.value}`)
     username.value = res.data.username
     nickname.value = res.data.nickname
     avatarURL.value = res.data.avatar
-    nPosts.value = res.data.n_posts
-    nFollowers.value = res.data.n_followers
-    nFollowings.value = res.data.n_followings
+    nPosts.value = res.data.counters.posts
+    nFollowers.value = res.data.counters.followers
+    nFollowings.value = res.data.counters.following
 }
 
 fetchProfile()

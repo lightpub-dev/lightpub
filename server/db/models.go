@@ -22,7 +22,6 @@ type User struct {
 	CreatedAt  time.Time      `gorm:"autoCreateTime:nano;type:DATETIME(6);not null"`
 
 	UserLabels []UserLabelDB `gorm:"foreignKey:UserID"`
-	Profile    *UserProfile  `gorm:"foreignKey:UserID"`
 	Followers  []UserFollow  `gorm:"foreignKey:FolloweeID"`
 	Following  []UserFollow  `gorm:"foreignKey:FollowerID"`
 	UserTokens []UserToken   `gorm:"foreignKey:UserID"`
@@ -30,7 +29,6 @@ type User struct {
 
 type FullUser struct {
 	User
-	Bio                 string
 	Labels              []UserLabelDB
 	IsFollowingByViewer bool
 	Following           int64
@@ -48,13 +46,6 @@ type UserLabelDB struct {
 
 func (UserLabelDB) TableName() string {
 	return "user_labels"
-}
-
-type UserProfile struct {
-	UserID UUID `gorm:"primaryKey"`
-	User   User
-
-	Bio string `gorm:"type:TEXT;not null"`
 }
 
 type UserToken struct {

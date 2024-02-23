@@ -243,20 +243,10 @@ func (h *Handler) PostRegister(c echo.Context) error {
 			String: keyPair.PrivateKey,
 			Valid:  true,
 		},
+		Bio: "",
 	}
 
 	result = tx.Create(&user)
-	err = result.Error
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
-	userProfile := db.UserProfile{
-		UserID: user.ID,
-		Bio:    "",
-	}
-	result = tx.Create(&userProfile)
 	err = result.Error
 	if err != nil {
 		c.Logger().Error(err)

@@ -5,7 +5,6 @@ import (
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
-	"gorm.io/gorm"
 )
 
 func UpdateProfile(ctx context.Context, conn db.DBConn, userID db.UUID, req *models.UserProfileUpdate) error {
@@ -13,18 +12,15 @@ func UpdateProfile(ctx context.Context, conn db.DBConn, userID db.UUID, req *mod
 	tx := dbconn.Begin()
 	defer tx.Rollback()
 
-	if req.Bio != nil {
-		var profile db.UserProfile
-		err := tx.First(&profile, "user_id = ?", userID).Error
+	if req.Nickname != nil {
+		err := tx.Model(&db.User{}).Where("id = ?", userID).Update("nickname", *req.Nickname).Error
 		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				// TODO: return custom error
-				return err
-			}
 			return err
 		}
-		profile.Bio = *req.Bio
-		err = tx.Save(&profile).Error
+	}
+
+	if req.Bio != nil {
+		err := tx.Model(&db.User{}).Where("id = ?", userID).Update("bio", *req.Bio).Error
 		if err != nil {
 			return err
 		}
@@ -63,14 +59,6 @@ func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID d
 
 	var profile db.FullUser
 	profile.User = *basicUser
-
-	// fetch Bio
-	var userProfile db.UserProfile
-	err = conn.DB().First(&userProfile, "user_id = ?", basicUser.ID).Error
-	if err != nil {
-		return nil, err
-	}
-	profile.Bio = userProfile.Bio
 
 	// fetch labels
 	var labels []db.UserLabelDB

@@ -40,7 +40,7 @@ const postTweet = async () => {
         const formData = new FormData()
         formData.append('file', selectedImage.value)
         try {
-            const res = await authedAxios.post('/uploads/', formData, {
+            const res = await authedAxios.post('/uploads', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 }
@@ -54,7 +54,7 @@ const postTweet = async () => {
     }
 
     const content = tweetText.value
-    const privacy = 0 // TODO
+    const privacy = "public" // TODO
 
     try {
         const req = {
@@ -66,7 +66,7 @@ const postTweet = async () => {
         if (uploadId) {
             req['attached_uploads'] = [uploadId]
         }
-        await authedAxios.post('/posts/', req)
+        await authedAxios.post('/post', req)
 
         tweetText.value = ''
         selectedImage.value = null

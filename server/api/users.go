@@ -367,6 +367,21 @@ func (h *Handler) UnfollowAUser(c echo.Context) error {
 
 func (h *Handler) PutUser(c echo.Context) error {
 	myUserID := c.Get(ContextUserID).(db.UUID)
+	targetUserSpec := c.Param("userspec")
+
+	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), targetUserSpec)
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(http.StatusInternalServerError, "internal server error")
+	}
+
+	if targetUser == nil {
+		return c.String(http.StatusNotFound, "user not found")
+	}
+
+	if targetUser.ID != myUserID {
+		return c.String(http.StatusForbidden, "you can't update other's profile")
+	}
 
 	var update models.UserProfileUpdate
 	if err := c.Bind(&update); err != nil {
@@ -377,7 +392,7 @@ func (h *Handler) PutUser(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "invalid request body")
 	}
 
-	err := users.UpdateProfile(c.Request().Context(), h.MakeDB(), myUserID, &update)
+	err = users.UpdateProfile(c.Request().Context(), h.MakeDB(), targetUser.ID, &update)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(http.StatusInternalServerError, "internal server error")

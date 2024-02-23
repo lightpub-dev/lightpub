@@ -9,8 +9,8 @@ import (
 type PostRequest struct {
 	Content  string  `json:"content"`
 	Privacy  string  `json:"privacy" validate:"oneof=public unlisted follower private"`
-	RepostOf *string `json:"repost_of,omitempty"`
-	ReplyTo  *string `json:"reply_to,omitempty"`
+	RepostOf *string `json:"repost_of_id,omitempty"`
+	ReplyTo  *string `json:"reply_to_id,omitempty"`
 }
 
 type RepostRequest struct {
@@ -103,8 +103,9 @@ type TimelineResponse struct {
 }
 
 type UserProfileUpdate struct {
-	Bio    *string     `json:"bio" validate:"omitempty,max=2000"`
-	Labels []UserLabel `json:"labels" validate:"omitempty,max=4"`
+	Nickname *string     `json:"nickname" validate:"omitempty,max=128"`
+	Bio      *string     `json:"bio" validate:"omitempty,max=2000"`
+	Labels   []UserLabel `json:"labels" validate:"omitempty,max=4"`
 }
 
 type UserLabel struct {

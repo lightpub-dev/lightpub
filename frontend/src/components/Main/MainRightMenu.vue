@@ -15,7 +15,7 @@ const trendings = ref<
 
 watchEffect(async () => {
     try {
-        const res = await authedAxios.get('/trend/hashtags', {
+        const res = await authedAxios.get('/trend', {
             params: {
                 limit: 5
             }

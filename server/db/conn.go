@@ -75,6 +75,5 @@ func (d *DBConnectResult) MigrateToLatest() error {
 		&PollVote{},
 		&PostMention{},
 		&UserFollow{},
-		&UserProfile{},
 	)
 }

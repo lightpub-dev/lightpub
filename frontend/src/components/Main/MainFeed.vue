@@ -8,7 +8,7 @@ const feedPosts = computed(() => {
     if (timeline.posts.value === null) {
         return []
     }
-    return timeline.posts.value.results
+    return timeline.posts.value.posts
 })
 
 eventBus.on('post-created', async () => {

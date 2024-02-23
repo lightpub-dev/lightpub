@@ -1,7 +1,7 @@
-export const PRIVACY_PUBLIC = 0 as const
-export const PRIVACY_UNLISTED = 1 as const
-export const PRIVACY_FOLLOWERS = 2 as const
-export const PRIVACY_PRIVATE = 3 as const
+export const PRIVACY_PUBLIC = 'public' as const
+export const PRIVACY_UNLISTED = 'unlisted' as const
+export const PRIVACY_FOLLOWERS = 'follower' as const
+export const PRIVACY_PRIVATE = 'private' as const
 
 export type Privacy =
     | typeof PRIVACY_PUBLIC
@@ -48,5 +48,5 @@ export interface UserPostEntryAuthor {
 }
 
 export interface TimelineResponse {
-    results: UserPostEntry[]
+    posts: UserPostEntry[]
 }
