@@ -23,6 +23,7 @@ def username_validator(username):
 
 class SimpleUserSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
+    url = serializers.CharField(source="uri", read_only=True)
 
     def get_avatar(self, obj):
         if not obj.avatar:
@@ -36,7 +37,7 @@ class SimpleUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "host", "nickname", "url", "avatar"]
+        fields = ["id", "username", "host", "nickname", "uri", "avatar"]
 
 
 class UserProfileLabelSerializer(serializers.ModelSerializer):
@@ -57,6 +58,7 @@ class AvatarIdField(serializers.PrimaryKeyRelatedField):
 class DetailedUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(required=True, min_length=4, write_only=True)
 
+    uri = serializers.SerializerMethodField("get_url")
     url = serializers.SerializerMethodField("get_url")
     avatar = serializers.SerializerMethodField()
     labels = UserProfileLabelSerializer(many=True, required=False)
@@ -81,14 +83,14 @@ class DetailedUserSerializer(serializers.ModelSerializer):
         return obj.followings.count()
 
     def get_url(self, obj):
-        if obj.url:
-            return obj.url
+        if obj.uri:
+            return obj.uri
 
         request = self.context["request"]
-        full_url = request.build_absolute_uri(
+        full_uri = request.build_absolute_uri(
             reverse("api:user-detail", kwargs={"pk": obj.id})
         )
-        return full_url
+        return full_uri
 
     def get_avatar(self, obj):
         if not obj.avatar:
@@ -156,6 +158,7 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "host",
             "nickname",
             "url",
+            "uri",
             "bio",
             "inbox",
             "outbox",

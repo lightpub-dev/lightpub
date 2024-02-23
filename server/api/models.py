@@ -20,7 +20,7 @@ class User(models.Model):
         blank=True,
         null=True,
     )
-    url = models.CharField(max_length=512, null=True, blank=True)
+    uri = models.CharField(max_length=512, null=True, blank=True)
     inbox = models.CharField(max_length=512, null=True, blank=True)
     outbox = models.CharField(max_length=512, null=True, blank=True)
     private_key = models.TextField(null=True, blank=True)
@@ -101,7 +101,7 @@ class UserFollow(models.Model):
 
 class UserFollowRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    url = models.CharField(max_length=512, null=True, blank=True, unique=True)
+    uri = models.CharField(max_length=512, null=True, blank=True, unique=True)
     follower = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="follow_requests"
     )
@@ -122,6 +122,7 @@ class UserToken(models.Model):
 
 class Post(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    uri = models.CharField(max_length=512, null=True, blank=True)  # remote post only
     poster = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts")
     content = models.TextField(
         max_length=10000, null=True, blank=True

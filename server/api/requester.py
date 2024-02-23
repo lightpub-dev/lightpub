@@ -45,7 +45,7 @@ class Requester:
         if inbox_url is None:
             raise ValueError("inbox url is not set")
 
-        if follow_req.url is None:
+        if follow_req.uri is None:
             raise ValueError("follow request url is not set")
 
         # prepare private key
@@ -64,7 +64,7 @@ class Requester:
                     "https://www.w3.org/ns/activitystreams",
                 ],
                 "type": "Accept",
-                "object": follow_req.url,
+                "object": follow_req.uri,
                 "actor": sender_id,
             },
             headers={
@@ -103,7 +103,7 @@ def get_requester() -> Requester:
 def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
     # check if user already exists
     # TODO: periodically update remote user info
-    user = User.objects.filter(url=actor.id).first()
+    user = User.objects.filter(uri=actor.id).first()
     if user is not None:
         return user
 
@@ -114,7 +114,7 @@ def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
         host=hostname,
         bpassword=None,
         nickname=actor.as_name,
-        url=actor.id,
+        uri=actor.id,
         inbox=actor.as_inbox.id,
         outbox=actor.as_outbox.id,
     )
