@@ -5,7 +5,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	pts "github.com/lightpub-dev/lightpub/posts"
 )
@@ -80,11 +79,6 @@ func fetchPostsFromDB(ctx context.Context, conn db.DBConn, userID db.UUID, optio
 
 	// add additional info to each post
 	for i := range posts {
-		// Add hostname if empty
-		if posts[i].Poster.Host == "" {
-			posts[i].Poster.Host = config.MyHostname
-		}
-
 		// Fill in count fields
 		if err := pts.FillCounts(ctx, conn, &posts[i]); err != nil {
 			return nil, err

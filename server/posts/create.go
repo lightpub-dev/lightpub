@@ -70,7 +70,7 @@ func findOriginalPostID(ctx context.Context, conn db.DBConn, postID db.UUID) (db
 		return postID, nil
 	}
 
-	if originalPost.Content != nil {
+	if originalPost.Content.Valid {
 		return postID, nil
 	}
 
@@ -93,7 +93,7 @@ func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID db.UUID, re
 		return false, err
 	}
 
-	if repostOf.RepostOfID.Valid && repostOf.Content == nil {
+	if repostOf.RepostOfID.Valid && !repostOf.Content.Valid {
 		// repostOf is a repost
 		return checkIfReposted(ctx, conn, repostOf.RepostOfID.UUID, reposterID)
 	}
@@ -158,7 +158,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 			return nil, ErrAlreadyReposted
 		}
 
-		dbPost.Content = nil
+		dbPost.Content.Valid = false
 		dbPost.RepostOfID = post.RepostID.AsNullable()
 
 		// postType = PostTypeRepost
@@ -173,7 +173,8 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 			return nil, ErrReplyOrRepostTargetNotFound
 		}
 
-		dbPost.Content = post.Content
+		dbPost.Content.Valid = true
+		dbPost.Content.String = *post.Content
 		dbPost.RepostOfID = post.RepostID.AsNullable()
 
 		// postType = PostTypeQuote
@@ -189,13 +190,15 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 			return nil, ErrReplyOrRepostTargetNotFound
 		}
 
-		dbPost.Content = post.Content
+		dbPost.Content.Valid = true
+		dbPost.Content.String = *post.Content
 		dbPost.ReplyToID = post.ReplyToPostID.AsNullable()
 
 		// postType = PostTypeReply
 	} else {
 		// Normal post
-		dbPost.Content = post.Content
+		dbPost.Content.Valid = true
+		dbPost.Content.String = *post.Content
 
 		// postType = PostTypeNormal
 	}

@@ -89,6 +89,8 @@ paths:
         - Post
         - Authorization required
       summary: Create a new post.
+      description: |
+        `replyTo` and `repostOf` are mutually exclusive. If both are defined, the server should return 400.
       requestBody:
         content:
           application/json:
@@ -126,82 +128,6 @@ paths:
                     $ref: "#/components/schemas/UserPostEntry"
                 required:
                   - post
-  /post/{post_id}/reply:
-    post:
-      tags:
-        - Post
-        - Authorization required
-      summary: Reply to a post.
-      parameters:
-        - $ref: "#/components/parameters/PathPostID"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PostRequest"
-      responses:
-        400:
-          description: Invalid request body.
-        404:
-          description: Post not found.
-        201:
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PostResultResponse"
-  /post/{post_id}/repost:
-    post:
-      tags:
-        - Post
-        - Authorization required
-      summary: Repost a post.
-      parameters:
-        - $ref: "#/components/parameters/PathPostID"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                privacy:
-                  $ref: "#/components/schemas/PrivacyType"
-              required:
-                - privacy
-      responses:
-        400:
-          description: Invalid request body.
-        404:
-          description: Post not found.
-        201:
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PostResultResponse"
-  /post/{post_id}/quote:
-    post:
-      tags:
-        - Post
-        - Authorization required
-      summary: quote a post.
-      parameters:
-        - $ref: "#/components/parameters/PathPostID"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PostRequest"
-      responses:
-        400:
-          description: Invalid request body.
-        404:
-          description: Post not found.
-        201:
-          description: Success.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PostResultResponse"
   /post/{post_id}/reaction/{reaction}:
     put:
       summary: Add a reaction to a post.
@@ -419,7 +345,7 @@ paths:
                     description: The timestamp of the oldest post included in `posts`. Null if posts.length==0.
                     nullable: true
   /user:
-    put:
+    patch:
       tags: [Authorization required, User]
       summary: Update user profile.
       description: Update user profile. Only the fields in the request body are updated.
@@ -563,17 +489,20 @@ components:
         content:
           type: string
           description: The body of the post.
+          nullable: true
         privacy:
           $ref: "#/components/schemas/PrivacyType"
-        scheduled_at:
+        repost_of:
           type: string
-          format: date-time
-          description: The time when the post is published. Null means that the post is published immediately.
-          example: null
-        poll:
-          $ref: "#/components/schemas/PostPollRequest"
+          format: uuid
+          nullable: true
+          description: The ID of the post to repost or quote. Null if this is not a repost. If this is a quote, the content of the post becomes the content of the quoted post. If this is a repost, the content of the post must be null.
+        reply_to:
+          type: string
+          format: uuid
+          nullable: true
+          description: The ID of the post to reply to. Null if this is not a reply.
       required:
-        - content
         - privacy
     PostPollRequest:
       properties:

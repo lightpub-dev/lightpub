@@ -8,6 +8,7 @@ import (
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/utils"
 )
 
 type trendList struct {
@@ -88,10 +89,10 @@ func GetTrendPosts(ctx context.Context, conn db.DBConn, hashtag string, viewerID
 			Author: models.UserPostEntryAuthor{
 				ID:       post.Poster.ID.String(),
 				Username: post.Poster.Username,
-				Host:     post.Poster.Host,
+				Host:     utils.ConvertSqlHost(post.Poster.Host),
 				Nickname: post.Poster.Nickname,
 			},
-			Content:   post.Content,
+			Content:   utils.ConvertSqlStringToPtr(post.Content),
 			CreatedAt: post.CreatedAt,
 			Privacy:   post.Privacy,
 			ReplyTo:   post.ReplyTo,

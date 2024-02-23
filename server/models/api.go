@@ -7,11 +7,10 @@ import (
 )
 
 type PostRequest struct {
-	Content     string     `json:"content"`
-	Privacy     string     `json:"privacy" validate:"oneof=public unlisted follower private"`
-	ScheduledAt *time.Time `json:"scheduled_at"`
-
-	Poll *PostPollRequest `json:"poll"`
+	Content  string  `json:"content"`
+	Privacy  string  `json:"privacy" validate:"oneof=public unlisted follower private"`
+	RepostOf *string `json:"repost_of,omitempty"`
+	ReplyTo  *string `json:"reply_to,omitempty"`
 }
 
 type RepostRequest struct {

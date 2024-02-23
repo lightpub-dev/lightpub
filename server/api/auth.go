@@ -1,7 +1,12 @@
 package api
 
 import (
+	"database/sql"
 	"errors"
+	"os"
+	"os/exec"
+	"path"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -44,7 +49,7 @@ func (h *Handler) AuthMiddleware(allowUnauthed bool) func(echo.HandlerFunc) echo
 
 			// validate it
 			var user db.UserToken
-			result := h.DB.Model(&db.UserToken{}).Where("token = ?", token).Joins("User").Where("User.host = ''").First(&user)
+			result := h.DB.Model(&db.UserToken{}).Where("token = ?", token).Joins("User").Where("User.host IS NULL").First(&user)
 			// if not found, return 401
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return c.String(401, "Invalid auth token")
@@ -78,7 +83,7 @@ func (h *Handler) PostLogin(c echo.Context) error {
 	}
 
 	var user db.User
-	result := h.DB.First(&user, "username = ? AND host = ''", req.Username)
+	result := h.DB.First(&user, "username = ? AND host IS NULL", req.Username)
 	err = result.Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -115,6 +120,65 @@ func (h *Handler) PostLogin(c echo.Context) error {
 	return c.JSON(200, map[string]interface{}{
 		"token": token.String(),
 	})
+}
+
+type keyPair struct {
+	PrivateKey string
+	PublicKey  string
+}
+
+func generateKeyPair() (keyPair, error) {
+	// create a temporary directory
+	tmpDir, err := os.MkdirTemp("", "lightpub-keygen")
+	if err != nil {
+		return keyPair{}, err
+	}
+	// clean up directory after finish
+	defer os.RemoveAll(tmpDir)
+	// chmod 700
+	if err := os.Chmod(tmpDir, 0700); err != nil {
+		return keyPair{}, err
+	}
+
+	// generate key pair using OpenSSL
+	keyPairFile := path.Join(tmpDir, "keypair.pem")
+	bits := 2048
+	cmd := exec.Command("openssl", "genrsa", "-out", keyPairFile, strconv.Itoa(bits))
+	if err := cmd.Run(); err != nil {
+		return keyPair{}, err
+	}
+
+	// extract public key
+	publicKeyFile := path.Join(tmpDir, "public.pem")
+	cmd = exec.Command("openssl", "rsa", "-in", keyPairFile, "-pubout", "-out", publicKeyFile)
+	if err := cmd.Run(); err != nil {
+		return keyPair{}, err
+	}
+	// read public key
+	publicKey, err := os.ReadFile(publicKeyFile)
+	if err != nil {
+		return keyPair{}, err
+	}
+
+	// export private key as pkcs8
+	privateKeyFile := path.Join(tmpDir, "private.pem")
+	cmd = exec.Command("openssl", "pkcs8", "-topk8", "-inform", "PEM", "-outform", "PEM", "-nocrypt", "-in", keyPairFile, "-out", privateKeyFile)
+	if err := cmd.Run(); err != nil {
+		return keyPair{}, err
+	}
+	// read private key
+	privateKey, err := os.ReadFile(privateKeyFile)
+	if err != nil {
+		return keyPair{}, err
+	}
+
+	publicKeyString := string(publicKey)
+	privateKeyString := string(privateKey)
+
+	return keyPair{
+		PrivateKey: privateKeyString,
+		PublicKey:  publicKeyString,
+	}, nil
 }
 
 func (h *Handler) PostRegister(c echo.Context) error {
@@ -159,12 +223,26 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		return c.String(500, "Internal Server Error")
 	}
 
+	keyPair, err := generateKeyPair()
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
+	}
+
 	user := db.User{
 		ID:       db.UUID(userId),
 		Username: req.Username,
 		Nickname: req.Nickname,
 		Bpasswd:  string(hashedPassword),
-		Host:     "",
+		Host:     sql.NullString{}, // null for local user
+		PublicKey: sql.NullString{
+			String: keyPair.PublicKey,
+			Valid:  true,
+		},
+		PrivateKey: sql.NullString{
+			String: keyPair.PrivateKey,
+			Valid:  true,
+		},
 	}
 
 	result = tx.Create(&user)

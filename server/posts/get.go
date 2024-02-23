@@ -9,6 +9,7 @@ import (
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/utils"
 )
 
 const (
@@ -34,9 +35,9 @@ func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 	result.ID = post.ID.String()
 	result.Author.ID = post.Poster.ID.String()
 	result.Author.Username = post.Poster.Username
-	result.Author.Host = post.Poster.Host
+	result.Author.Host = utils.ConvertSqlHost(post.Poster.Host)
 	result.Author.Nickname = post.Poster.Nickname
-	result.Content = post.Content
+	result.Content = utils.ConvertSqlStringToPtr(post.Content)
 	result.CreatedAt = post.CreatedAt
 	result.Privacy = post.Privacy
 

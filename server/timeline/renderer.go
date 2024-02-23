@@ -7,6 +7,7 @@ import (
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/utils"
 )
 
 func FetchTimeline(ctx context.Context, conn db.DBConn, userID db.UUID, options FetchOptions) (*models.TimelineResponse, error) {
@@ -41,10 +42,10 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID db.UUID, options 
 			Author: models.UserPostEntryAuthor{
 				ID:       cache.Poster.ID.String(),
 				Username: cache.Poster.Username,
-				Host:     cache.Poster.Host,
+				Host:     utils.ConvertSqlHost(cache.Poster.Host),
 				Nickname: cache.Poster.Nickname,
 			},
-			Content:   cache.Content,
+			Content:   utils.ConvertSqlStringToPtr(cache.Content),
 			CreatedAt: cache.CreatedAt,
 			Privacy:   cache.Privacy,
 

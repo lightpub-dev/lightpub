@@ -21,131 +21,29 @@ func (h *Handler) PostPost(c echo.Context) error {
 		return c.String(400, err.Error())
 	}
 
-	post := posts.CreateRequest{
-		PosterID:       c.Get(ContextUserID).(db.UUID),
-		PosterUsername: c.Get(ContextUsername).(string),
-		Content:        &body.Content,
-		Privacy:        posts.PrivacyType(body.Privacy),
-		Poll:           body.Poll,
-	}
-
-	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
-	return c.JSON(201, map[string]interface{}{
-		"id": result.PostID,
-	})
-}
-
-func (h *Handler) PostReply(c echo.Context) error {
-	var body models.PostRequest
-	if err := c.Bind(&body); err != nil {
-		return c.String(400, "Bad Request")
-	}
-
-	// validate
-	if err := validate.Struct(body); err != nil {
-		return c.String(400, err.Error())
-	}
-
-	replyToPostIDStr := c.Param("post_id")
-	replyToPostIDUUID, err := uuid.Parse(replyToPostIDStr)
-	if err != nil {
-		return c.String(400, "Bad Request")
-	}
-	replyToPostID := db.UUID(replyToPostIDUUID)
-	post := posts.CreateRequest{
-		PosterID:       c.Get(ContextUserID).(db.UUID),
-		PosterUsername: c.Get(ContextUsername).(string),
-		Content:        &body.Content,
-		Privacy:        posts.PrivacyType(body.Privacy),
-		Poll:           body.Poll,
-
-		ReplyToPostID: &replyToPostID,
-	}
-
-	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
-	if err != nil {
-		if err == posts.ErrReplyOrRepostTargetNotFound {
-			return c.String(404, "Post not Found")
+	var (
+		replyToUUID  *db.UUID
+		repostOfUUID *db.UUID
+	)
+	if body.ReplyTo != nil {
+		if err := db.ParseTo(replyToUUID, *body.ReplyTo); err != nil {
+			return c.String(http.StatusBadRequest, "Invalid json")
 		}
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
 	}
-
-	return c.JSON(201, map[string]interface{}{
-		"id": result.PostID,
-	})
-}
-
-func (h *Handler) PostRepost(c echo.Context) error {
-	var body models.RepostRequest
-	if err := c.Bind(&body); err != nil {
-		return c.String(400, "Bad Request")
-	}
-
-	// validate
-	if err := validate.Struct(body); err != nil {
-		return c.String(400, err.Error())
-	}
-
-	repostIDStr := c.Param("post_id")
-	repostIDUUID, err := uuid.Parse(repostIDStr)
-	if err != nil {
-		return c.String(400, "Bad Request")
-	}
-	repostID := db.UUID(repostIDUUID)
-	post := posts.CreateRequest{
-		PosterID:       c.Get(ContextUserID).(db.UUID),
-		PosterUsername: c.Get(ContextUsername).(string),
-		Content:        nil,
-		Privacy:        posts.PrivacyType(body.Privacy),
-
-		RepostID: &repostID,
-	}
-
-	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
-	if err != nil {
-		if err == posts.ErrAlreadyReposted {
-			return c.String(http.StatusConflict, "Already reposted")
+	if body.RepostOf != nil {
+		if err := db.ParseTo(repostOfUUID, *body.RepostOf); err != nil {
+			return c.String(http.StatusBadRequest, "Invalid json")
 		}
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
 	}
 
-	return c.JSON(201, map[string]interface{}{
-		"id": result.PostID,
-	})
-}
-
-func (h *Handler) PostQuote(c echo.Context) error {
-	var body models.PostRequest
-	if err := c.Bind(&body); err != nil {
-		return c.String(400, "Bad Request")
-	}
-
-	// validate
-	if err := validate.Struct(body); err != nil {
-		return c.String(400, err.Error())
-	}
-
-	repostIDStr := c.Param("post_id")
-	repostIDUUID, err := uuid.Parse(repostIDStr)
-	if err != nil {
-		return c.String(400, "Bad Request")
-	}
-	repostID := db.UUID(repostIDUUID)
 	post := posts.CreateRequest{
 		PosterID:       c.Get(ContextUserID).(db.UUID),
 		PosterUsername: c.Get(ContextUsername).(string),
 		Content:        &body.Content,
 		Privacy:        posts.PrivacyType(body.Privacy),
-		Poll:           body.Poll,
 
-		RepostID: &repostID,
+		ReplyToPostID: replyToUUID,
+		RepostID:      repostOfUUID,
 	}
 
 	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)

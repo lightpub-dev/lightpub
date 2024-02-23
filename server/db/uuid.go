@@ -9,6 +9,15 @@ import (
 
 type UUID uuid.UUID
 
+func ParseTo(u *UUID, s string) error {
+	parsed, err := uuid.Parse(s)
+	if err != nil {
+		return err
+	}
+	*u = UUID(parsed)
+	return nil
+}
+
 func (us *UUID) Scan(dbValue interface{}) error {
 	switch value := dbValue.(type) {
 	case []byte:

@@ -64,9 +64,6 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	// Posts
 	authed.POST("/post", h.PostPost)
 	unAuthed.GET("/post/:post_id", h.GetPost)
-	authed.POST("/post/:post_id/reply", h.PostReply)
-	authed.POST("/post/:post_id/repost", h.PostRepost)
-	authed.PUT("/post/:post_id/quote", h.PostQuote)
 	authed.PUT("/post/:post_id/reaction/:reaction", h.PutPostReaction)
 	authed.DELETE("/post/:post_id/reaction/:reaction", h.DeletePostReaction)
 	authed.PUT("/post/:post_id/favorite", h.PutPostFavorite)
@@ -80,7 +77,7 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	unAuthed.GET("/user/:username/followings", h.GetUserFollowing)
 	authed.PUT("/user/:username/follow", h.FollowAUser)
 	authed.DELETE("/user/:username/follow", h.UnfollowAUser)
-	authed.PUT("/user", h.PutUser)
+	authed.PATCH("/user", h.PutUser)
 	unAuthed.GET("/user/:username", h.GetUser)
 
 	// Timeline

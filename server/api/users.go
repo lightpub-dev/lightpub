@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/lightpub-dev/lightpub/users"
+	"github.com/lightpub-dev/lightpub/utils"
 	"gorm.io/gorm/clause"
 )
 
@@ -186,10 +186,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 	// convert to response
 	resp := []models.UserPostEntry{}
 	for _, post := range allPosts {
-		hostname := targetUser.Host
-		if hostname == "" {
-			hostname = config.MyHostname
-		}
+		hostname := utils.ConvertSqlHost(targetUser.Host)
 
 		var replyToPostOrURL, repostOfPostOrURL interface{}
 		if post.ReplyTo != nil {
@@ -211,7 +208,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 				Host:     hostname,
 				Nickname: targetUser.Nickname,
 			},
-			Content:   post.Content,
+			Content:   utils.ConvertSqlStringToPtr(post.Content),
 			CreatedAt: post.CreatedAt,
 			Privacy:   post.Privacy,
 
@@ -408,10 +405,10 @@ func (h *Handler) GetUser(c echo.Context) error {
 	}
 
 	var userURL string
-	if user.URL == nil {
+	if !user.URL.Valid {
 		userURL = users.CreateLocalUserURL(user.Username)
 	} else {
-		userURL = *user.URL
+		userURL = user.URL.String
 	}
 
 	labels := []models.UserLabel{}
@@ -426,7 +423,7 @@ func (h *Handler) GetUser(c echo.Context) error {
 		UserInfoResponse: models.UserInfoResponse{
 			ID:       user.ID.String(),
 			Username: user.Username,
-			Hostname: user.Host,
+			Hostname: utils.ConvertSqlHost(user.Host),
 			Nickname: user.Nickname,
 			URL:      userURL,
 			Bio:      user.Bio,
