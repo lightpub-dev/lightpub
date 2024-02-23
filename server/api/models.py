@@ -52,6 +52,18 @@ class RemoteUserInfo(models.Model):
     last_fetched_at = models.DateTimeField(auto_now=True)
 
 
+class PublicKey(models.Model):
+    id = models.AutoField(primary_key=True)
+    uri = models.CharField(max_length=512, null=False, blank=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="public_keys",
+    )
+    public_key_pem = models.TextField(blank=False, null=True)
+    last_fetched_at = models.DateTimeField(auto_now=True)
+
+
 class UserProfileLabel(models.Model):
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="labels")

@@ -20,11 +20,13 @@ from django.urls import include, path
 from . import settings
 import debug_toolbar
 from api.views.webfinger import WebFingerAcctView
+from api.views.nodeinfo import nodeinfo
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),
     path(".well-known/webfinger", WebFingerAcctView.as_view(), name="web-finger-acct"),
+    path(".well-known/nodeinfo", nodeinfo, name="nodeinfo"),
     path("", include("web.urls")),
 ]
 

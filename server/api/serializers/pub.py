@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, TypeGuard, Union
+from typing import Any, TypeGuard, TypeVar, Type, Union
 
 
 def _qt(s: str) -> str:
@@ -28,7 +28,7 @@ def _qt_map2(
             if cls:
                 dd[vv] = cls.from_dict(d[k][0])
             else:
-                dd[vv] = d[k][0]
+                dd[vv] = d[k][0]["@value"]
         else:
             raise MissingAttributeError(k, obj=d)
 
@@ -45,7 +45,7 @@ def _qt_map2(
             if cls:
                 dd[vv] = cls.from_dict(d[k][0])
             else:
-                dd[vv] = d[k][0]
+                dd[vv] = d[k][0]["@value"]
         else:
             dd[vv] = None
     return dd
@@ -60,15 +60,24 @@ class MissingAttributeError(Exception):
         return f"missing attribute {self.missing_attribute}: object {self.obj}"
 
 
+class InvalidFormatError(Exception):
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+
 class ValidationError(Exception):
     def __init__(self, message: str) -> None:
         self.message = message
+
+
+T = TypeVar("T")
 
 
 @dataclass(kw_only=True)
 class Node:
     id: str | None
     type: list[str] | None
+    _source_obj: dict
 
     @classmethod
     def _build_from_dict(cls, d: dict) -> dict:
@@ -78,7 +87,10 @@ class Node:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Node":
-        return cls(**cls._build_from_dict(d))
+        return cls(**cls._build_from_dict(d), _source_obj=d)
+
+    def reparse(self, target_type: Type[T]) -> T:
+        return target_type.from_dict(self._source_obj)
 
     def is_as_type(self, t: str) -> bool:
         as_t = _qt(t)
@@ -106,6 +118,24 @@ class Object(Node):
 
 
 @dataclass(kw_only=True)
+class PublicKey(Object):
+    as_owner: Object
+    as_public_key_pem: str
+
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        d2 = super()._build_from_dict(d) | _qt_map(
+            d,
+            {
+                "https://w3id.org/security#owner": ("as_owner", Object),
+                "https://w3id.org/security#publicKeyPem": "as_public_key_pem",
+            },
+        )
+
+        return d2
+
+
+@dataclass(kw_only=True)
 class Actor(Object):
     as_inbox: Object
     as_outbox: Object
@@ -113,6 +143,7 @@ class Actor(Object):
     as_followers: Object | None
     as_liked: Object | None
     as_preferred_username: str | None
+    as_public_key: PublicKey | None
 
     @classmethod
     def _build_from_dict(cls, d: dict) -> dict:
@@ -127,6 +158,7 @@ class Actor(Object):
                 "followers": ("as_followers", Object),
                 "liked": ("as_liked", Object),
                 "preferredUsername": "as_preferred_username",
+                "https://w3id.org/security#publicKey": ("as_public_key", PublicKey),
             },
         )
 

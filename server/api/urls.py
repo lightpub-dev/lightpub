@@ -8,6 +8,7 @@ from .views.users import UserFollowingViewset, UserFollowerViewset, UserViewset
 from .views.timeline import TimelineView
 from .views.hashtags import PopularHashtagsView
 from .views.pub import UserInboxView, UserOutboxView
+from .views import nodeinfo
 
 app_name = "api"
 
@@ -41,6 +42,8 @@ urlpatterns = [
     path("favorites/<uuid:pk>", posts.FavoriteListView.as_view(), name="favorite-list"),
     path("users/<str:user_spec>/inbox", UserInboxView.as_view(), name="inbox"),
     path("users/<str:user_spec>/outbox", UserOutboxView.as_view(), name="outbox"),
+    path("nodeinfo/2.0", nodeinfo.version_2_0, name="nodeinfo-2.0"),
+    path("nodeinfo/2.1", nodeinfo.version_2_1, name="nodeinfo-2.1"),
 ]
 
 urlpatterns += router.urls

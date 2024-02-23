@@ -1,12 +1,13 @@
 from pprint import pprint
 import requests
 from api.serializers.pub import Actor, is_actor
-from api.models import User, RemoteUserInfo, UserFollow, UserFollowRequest
+from api.serializers.user import get_user_public_key_id, get_user_id
+from api.models import User, RemoteUserInfo, UserFollow, UserFollowRequest, PublicKey
 from pyld import jsonld
 from urllib.parse import urlparse
 from django.db import transaction
 from lightpub.settings import DEBUG
-from requests_http_signature import HTTPSignatureAuth, algorithms
+from api.utils.signature import attach_signature
 
 ssl_verify = not DEBUG
 
@@ -45,26 +46,46 @@ class Requester:
         if follow_req.url is None:
             raise ValueError("follow request url is not set")
 
-        res = self._session.post(
-            inbox_url,
+        # prepare private key
+        sender = follow_req.followee
+        sender_id = get_user_id(sender)
+        private_key = sender.private_key
+        if not private_key:
+            raise ValueError("private key is not set")
+        key_id = get_user_public_key_id(sender)
+
+        req = requests.Request(
+            method="POST",
+            url=inbox_url,
             json={
                 "@context": [
                     "https://www.w3.org/ns/activitystreams",
                 ],
                 "type": "Accept",
                 "object": follow_req.url,
+                "actor": sender_id,
             },
-            timeout=self.default_timeout,
+            headers={
+                "Content-Type": "application/activity+json",
+            },
         )
+        prep = req.prepare()
+        attach_signature(prep, key_id, private_key.encode("utf-8"))
+        res = self._session.send(prep, timeout=self.default_timeout, verify=ssl_verify)
         res.raise_for_status()
 
         with transaction.atomic():
-            # create a new user follow
-            actual_follow = UserFollow(
+            # check if follow is already exists
+            if not UserFollow.objects.filter(
                 follower=follow_req.follower,
                 followee=follow_req.followee,
-            )
-            actual_follow.save()
+            ).exists():
+                # create a new user follow
+                actual_follow = UserFollow(
+                    follower=follow_req.follower,
+                    followee=follow_req.followee,
+                )
+                actual_follow.save()
 
             # delete the follow request
             follow_req.delete()
@@ -79,6 +100,7 @@ def get_requester() -> Requester:
 
 def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
     # check if user already exists
+    # TODO: periodically update remote user info
     user = User.objects.filter(url=actor.id).first()
     if user is not None:
         return user
@@ -103,9 +125,29 @@ def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
         preferred_username=actor.as_preferred_username,
     )
 
+    public_key_info = None
+    if actor.as_public_key:
+        k = actor.as_public_key
+        if not k.as_owner:
+            raise ValueError("public key does not have owner")
+        elif k.as_owner.id != actor.id:
+            print(k.as_owner.id, actor.id)
+            raise ValueError("public key owner does not match actor id")
+
+        if not k.as_public_key_pem:
+            raise ValueError("public key pem is not set")
+
+        public_key_info = PublicKey(
+            uri=k.id,
+            user=new_user,
+            public_key_pem=k.as_public_key_pem,
+        )
+
     # use transaction to ensure consistency
     with transaction.atomic():
         new_user.save()
         remote_info.save()
+        if public_key_info:
+            public_key_info.save()
 
     return new_user

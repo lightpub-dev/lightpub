@@ -3,6 +3,10 @@ from collections import OrderedDict
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
 from Crypto.Hash import SHA256
+from requests import PreparedRequest
+import urllib.parse
+import base64
+import datetime
 
 
 def digest_body(body: bytes) -> bytes:
@@ -11,7 +15,7 @@ def digest_body(body: bytes) -> bytes:
 
 def make_signature_string(
     headers: list[tuple[str, str]], method: str, path: str
-) -> str:
+) -> tuple[str, str]:
     request_target = f"(request-target): {method.lower()} {path}"
 
     lines = [request_target]
@@ -29,7 +33,9 @@ def make_signature_string(
     for key, values in added_headers.items():
         lines.append(f"{key}: {', '.join(values)}")
 
-    return "\n".join(lines)
+    headers_line = " ".join(["(request-target)"] + [key for key, _ in headers])
+
+    return headers_line, "\n".join(lines)
 
 
 def sign_message(private_key: bytes, message: bytes) -> bytes:
@@ -38,3 +44,55 @@ def sign_message(private_key: bytes, message: bytes) -> bytes:
     hash = SHA256.new(message)
     signed = signer.sign(hash)
     return signed
+
+
+def attach_signature(req: PreparedRequest, key_id: str, priv_key: bytes) -> None:
+    included_headers = set(["host", "date", "digest", "content-type"])
+
+    url_parsed = urllib.parse.urlparse(req.url)
+
+    if "Host" not in req.headers:
+        req.headers["Host"] = url_parsed.hostname
+
+    if "Date" not in req.headers:
+        req.headers["Date"] = datetime.datetime.utcnow().strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        )
+
+    # add digest header if this is a POST request
+    if req.method == "POST":
+        # to ensure Digest is appended at the end
+        # (order is important in HTTP signature)
+        req.headers.pop("Digest", None)
+
+        body = req.body
+        if body is None:
+            body = b""
+        digest = digest_body(body)
+        req.headers["Digest"] = f"SHA-256={base64.b64encode(digest).decode('utf-8')}"
+
+    headers = req.headers.items()
+
+    signatured_headers = []
+    for key, value in headers:
+        key_lower = key.lower()
+        if key_lower in included_headers:
+            signatured_headers.append((key, value))
+
+    path = url_parsed.path
+    headers_line, signature_string = make_signature_string(
+        signatured_headers, req.method, path
+    )
+
+    signed_signature = base64.b64encode(
+        sign_message(priv_key, signature_string.encode("utf-8"))
+    ).decode("utf-8")
+
+    signature = (
+        f'keyId="{key_id}",algorithm="rsa-sha256",'
+        f'headers="{headers_line}",signature="{signed_signature}"'
+    )
+
+    req.headers["Signature"] = signature
+    # for Misskey
+    req.headers["Authorization"] = f"Signature {signature}"

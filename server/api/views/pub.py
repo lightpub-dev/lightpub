@@ -4,12 +4,17 @@ from rest_framework.response import Response
 from api.parsers import ActivityJsonParser
 from pprint import pprint
 from api.serializers import pub
+from api.serializers.user import extract_local_user_id
 from api.requester import get_requester
-from lightpub.settings import HOSTNAME, HTTP_SCHEME
-import re
-from api.models import User, UserFollowRequest
+from api.models import User, UserFollowRequest, UserFollow
 from django.shortcuts import get_object_or_404
 from datetime import datetime
+
+
+class InboxProcessingError(Exception):
+    def __init__(self, status: int, response) -> None:
+        self.status = status
+        self.response = response
 
 
 class UserInboxView(APIView):
@@ -25,11 +30,20 @@ class UserInboxView(APIView):
 
         data = request.data[0]
 
-        obj = pub.Object.from_dict(data)
-        if pub.is_follow(obj):
-            follow = pub.FollowActivity.from_dict(data)
-            process_follow_activity(follow)
-            return Response(status=status.HTTP_202_ACCEPTED)
+        # TODO: check HTTP signature
+
+        try:
+            obj = pub.Object.from_dict(data)
+            if pub.is_follow(obj):
+                follow = pub.FollowActivity.from_dict(data)
+                process_follow_activity(follow)
+                return Response(status=status.HTTP_202_ACCEPTED)
+            elif pub.is_undo(obj):
+                undo = pub.UndoActivity.from_dict(data)
+                process_undo_activity(undo)
+                return Response(status=status.HTTP_202_ACCEPTED)
+        except InboxProcessingError as e:
+            return Response(status=e.status, data=e.response)
 
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
@@ -42,16 +56,8 @@ class InvalidIDError(Exception):
     pass
 
 
-scheme = HTTP_SCHEME
-hostname = HOSTNAME
-USER_PATTERN = rf"{scheme}://{hostname}/api/users/([a-f\d\-]+)/"
-
-
 def _extract_local_user_id(uri: str) -> str:
-    m = re.match(USER_PATTERN, uri)
-    if m is None:
-        raise InvalidIDError("Invalid user id")
-    return m.group(1)
+    return extract_local_user_id(uri)
 
 
 def _get_local_user_from_uri(uri: str) -> User:
@@ -85,3 +91,47 @@ def process_follow_activity(activity: pub.FollowActivity):
         fr.save()
 
     req.send_follow_accept(fr)
+
+
+def process_undo_activity(activity: pub.UndoActivity):
+    # req = get_requester()
+
+    obj_s = activity.as_object
+    if pub.is_follow(obj_s):
+        obj = obj_s.reparse(pub.FollowActivity)
+        actor = obj.as_actor
+        follower_uri = obj.as_actor.id
+        followee_uri = obj.as_object.id
+
+        if actor.id != follower_uri:
+            raise InboxProcessingError(
+                status=status.HTTP_403_FORBIDDEN,
+                response={"error": "actor id does not match follower id"},
+            )
+
+        followee_id = extract_local_user_id(followee_uri)
+        if followee_id is None:
+            raise InboxProcessingError(
+                status=status.HTTP_400_BAD_REQUEST,
+                response={"error": "invalid followee id"},
+            )
+
+        # get User object of follower to get the id
+        follower = User.objects.filter(url=follower_uri).first()
+        if follower is None:
+            raise InboxProcessingError(
+                status=status.HTTP_400_BAD_REQUEST,
+                response={"error": "follower not found"},
+            )
+        follower_id = follower.id
+
+        UserFollow.objects.filter(
+            follower_id=follower_id, followee_id=followee_id
+        ).delete()
+
+        return
+
+    raise InboxProcessingError(
+        status.HTTP_400_BAD_REQUEST,
+        {"error": "unsupported undo activity type"},
+    )

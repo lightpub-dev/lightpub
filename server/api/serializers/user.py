@@ -11,6 +11,7 @@ from api.utils.users import UserSpecifier
 from django.db import transaction
 from Crypto.PublicKey import RSA
 from dataclasses import dataclass
+from lightpub.settings import HTTP_SCHEME, HOSTNAME
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 
@@ -205,9 +206,15 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
             "name",
             "preferredUsername",
             "url",
+            "publicKey",
         ]
 
-    ctx = serializers.ReadOnlyField(default=["https://www.w3.org/ns/activitystreams"])
+    ctx = serializers.ReadOnlyField(
+        default=[
+            "https://www.w3.org/ns/activitystreams",
+            "https://w3id.org/security/v1",
+        ]
+    )
     id = serializers.SerializerMethodField()
     inbox = serializers.SerializerMethodField()
     outbox = serializers.SerializerMethodField()
@@ -218,6 +225,7 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="nickname")
     preferredUsername = serializers.CharField(source="username")
     url = serializers.SerializerMethodField()
+    publicKey = serializers.SerializerMethodField()
 
     attachment = JsonldAttachmentSerializer(many=True, required=False, source="labels")
 
@@ -272,11 +280,42 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
         )
         return f"{url}?user={obj.id}"
 
+    def get_publicKey(self, obj):
+        if not obj.public_key:
+            return None
+
+        user_id = self.get_id(obj)
+        key_id = f"{user_id}#main-key"
+
+        return {
+            "id": key_id,
+            "type": "Key",
+            "owner": user_id,
+            "publicKeyPem": obj.public_key,
+        }
+
     def get_fields(self):
         fields = super().get_fields()
         fields["@context"] = fields.pop("ctx")
 
         return fields
+
+
+def get_user_public_key_id(user: User) -> str:
+    # TODO: too fragile
+    return f"{HTTP_SCHEME}://{HOSTNAME}/api/users/{user.id}/#main-key"
+
+
+def get_user_id(user: User) -> str:
+    # TODO: too fragile
+    return f"{HTTP_SCHEME}://{HOSTNAME}/api/users/{user.id}/"
+
+
+def extract_local_user_id(uri: str) -> str | None:
+    m = re.match(rf"{HTTP_SCHEME}://{HOSTNAME}/api/users/([a-f\d\-]+)/", uri)
+    if m is None:
+        return None
+    return m.group(1)
 
 
 class RegisterSerializer(serializers.Serializer):
