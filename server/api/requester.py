@@ -1,13 +1,15 @@
 from pprint import pprint
-import requests
-from api.serializers.pub import Actor, is_actor
-from api.serializers.user import get_user_public_key_id, get_user_id
-from api.models import User, RemoteUserInfo, UserFollow, UserFollowRequest, PublicKey
-from pyld import jsonld
 from urllib.parse import urlparse
+
+import requests
 from django.db import transaction
-from lightpub.settings import DEBUG
+from pyld import jsonld
+
+from api.models import PublicKey, RemoteUserInfo, User, UserFollow, UserFollowRequest
+from api.serializers.pub import Actor, is_actor
+from api.serializers.user import get_user_id, get_user_public_key_id
 from api.utils.signature import attach_signature
+from lightpub.settings import DEBUG
 
 ssl_verify = not DEBUG
 

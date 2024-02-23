@@ -1,9 +1,10 @@
-from rest_framework import pagination
-from rest_framework import serializers
-from rest_framework.utils.urls import replace_query_param, remove_query_param
-from .renderer import JsonldRenderer
-from api.pagination import MyPagination as DefaultPagination
+from rest_framework import pagination, serializers
 from rest_framework.response import Response
+from rest_framework.utils.urls import remove_query_param, replace_query_param
+
+from api.pagination import MyPagination as DefaultPagination
+
+from .renderer import JsonldRenderer
 
 
 class CollectionSerializer(serializers.Serializer):

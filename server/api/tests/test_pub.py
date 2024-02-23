@@ -1,10 +1,12 @@
-from ..serializers import pub
-from ..views import pub as pub_view
+import uuid
+
+import pytest
+from pyld import jsonld
+
 from ..models import User
 from ..requester import Requester
-from pyld import jsonld
-import uuid
-import pytest
+from ..serializers import pub
+from ..views import pub as pub_view
 
 # Create your tests here.
 

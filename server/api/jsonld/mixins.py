@@ -1,5 +1,6 @@
-from .renderer import JsonldRenderer
 from rest_framework import generics
+
+from .renderer import JsonldRenderer
 
 
 class JsonldAwareMixin(generics.GenericAPIView):

@@ -1,8 +1,10 @@
-from . import signature
 import base64
-import pytest
-import json
 import hashlib
+import json
+
+import pytest
+
+from . import signature
 
 
 @pytest.fixture()

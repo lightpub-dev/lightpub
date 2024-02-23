@@ -1,14 +1,13 @@
-from django.urls import path, include
-
-from .views import users, posts, browsable_login, interaction
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from .views.posts import PostViewSet, UploadFileView
-from .views.interaction import PostFavoriteView, PostBookmarkView
-from .views.users import UserFollowingViewset, UserFollowerViewset, UserViewset
-from .views.timeline import TimelineView
+
+from .views import browsable_login, interaction, nodeinfo, posts, users
 from .views.hashtags import PopularHashtagsView
+from .views.interaction import PostBookmarkView, PostFavoriteView
+from .views.posts import PostViewSet, UploadFileView
 from .views.pub import UserInboxView, UserOutboxView
-from .views import nodeinfo
+from .views.timeline import TimelineView
+from .views.users import UserFollowerViewset, UserFollowingViewset, UserViewset
 
 app_name = "api"
 

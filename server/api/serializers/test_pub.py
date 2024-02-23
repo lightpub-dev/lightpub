@@ -1,6 +1,7 @@
 import pytest
-from . import pub
 from pyld import jsonld
+
+from . import pub
 
 
 @pytest.fixture()

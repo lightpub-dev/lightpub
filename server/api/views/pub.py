@@ -1,14 +1,16 @@
-from rest_framework.views import APIView
+from datetime import datetime
+from pprint import pprint
+
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from api.models import User, UserFollow, UserFollowRequest
 from api.parsers import ActivityJsonParser
-from pprint import pprint
+from api.requester import get_requester
 from api.serializers import pub
 from api.serializers.user import extract_local_user_id
-from api.requester import get_requester
-from api.models import User, UserFollowRequest, UserFollow
-from django.shortcuts import get_object_or_404
-from datetime import datetime
 
 
 class InboxProcessingError(Exception):

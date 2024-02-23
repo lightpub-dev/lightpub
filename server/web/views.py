@@ -1,6 +1,8 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import redirect, render
 from django.views import View
-from api.serializers.user import login_and_generate_token, RegisterSerializer
+
+from api.serializers.user import RegisterSerializer, login_and_generate_token
+
 from . import forms
 
 AUTH_COOKIE_NAME = "auth_token"

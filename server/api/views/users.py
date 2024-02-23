@@ -1,10 +1,15 @@
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_control
+from PIL import Image
 from rest_framework import generics, mixins, status, views, viewsets
 from rest_framework.response import Response
-from api.jsonld.mixins import JsonldAwareMixin, JsonldMixin
+from rest_framework.reverse import reverse
 
+from api.jsonld.mixins import JsonldAwareMixin, JsonldMixin
 from api.utils.users import UserSpecifier
+
 from ..auth import AuthOnlyPermission, NoAuthPermission
 from ..models import User, UserFollow
 from ..serializers.user import (
@@ -12,14 +17,10 @@ from ..serializers.user import (
     JsonldDetailedUserSerializer,
     LoginSerializer,
     RegisterSerializer,
-    login_and_generate_token,
-    UserFollowSerializer,
     UserFollowerSerializer,
+    UserFollowSerializer,
+    login_and_generate_token,
 )
-from PIL import Image
-from django.views.decorators.cache import cache_control
-from django.utils.decorators import method_decorator
-from rest_framework.reverse import reverse
 
 
 # Create your views here.

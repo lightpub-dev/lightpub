@@ -1,5 +1,6 @@
-from pyld import jsonld
 import json
+
+from pyld import jsonld
 from rest_framework.parsers import BaseParser
 
 # TODO: cache in redis

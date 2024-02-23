@@ -1,5 +1,5 @@
 from rest_framework import renderers
-from rest_framework.utils import json, encoders
+from rest_framework.utils import encoders, json
 
 
 class JsonldRenderer(renderers.BaseRenderer):

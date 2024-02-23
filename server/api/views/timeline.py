@@ -1,9 +1,10 @@
-from ..models import Post
-from ..serializers.post import PostSerializer
+from django.db.models import Q
 from rest_framework import generics, mixins
 from rest_framework.response import Response
+
 from ..auth import AuthOnlyPermission
-from django.db.models import Q
+from ..models import Post
+from ..serializers.post import PostSerializer
 
 
 class TimelineView(generics.ListAPIView):

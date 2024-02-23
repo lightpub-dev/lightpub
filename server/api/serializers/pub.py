@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, TypeGuard, TypeVar, Type, Union
+from typing import Any, Type, TypeGuard, TypeVar, Union
 
 
 def _qt(s: str) -> str:

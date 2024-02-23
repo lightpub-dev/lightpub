@@ -1,17 +1,18 @@
+from typing import Any, cast
+
+from django.db import transaction
+from django.db.models import Count, Q
+from django.urls import reverse
 from rest_framework import serializers
 
 from api.models import (
-    PostReaction,
-    User,
-    PostHashtag,
     Post,
-    UploadedFile,
     PostAttachment,
+    PostHashtag,
+    PostReaction,
+    UploadedFile,
+    User,
 )
-from typing import Any, cast
-from django.db.models import Q, Count
-from django.db import transaction
-from django.urls import reverse
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):

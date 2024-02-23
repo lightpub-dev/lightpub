@@ -1,12 +1,13 @@
-from rest_framework.views import APIView
-from api.auth.permission import NoAuthPermission
-from api.models import User
-from rest_framework.response import Response
 from django.urls import reverse
-from api.serializers.webfinger import UserSerializer, LinkSerializer
-from lightpub.settings import HOSTNAME
-from api.jsonld.renderer import WebfingerRenderer
 from rest_framework.renderers import BrowsableAPIRenderer
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from api.auth.permission import NoAuthPermission
+from api.jsonld.renderer import WebfingerRenderer
+from api.models import User
+from api.serializers.webfinger import LinkSerializer, UserSerializer
+from lightpub.settings import HOSTNAME
 
 
 def parse_resource(resource: str) -> User | None:

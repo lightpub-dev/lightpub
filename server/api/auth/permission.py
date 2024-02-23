@@ -1,12 +1,13 @@
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS, BasePermission
+
 from ..models import (
-    User,
     Post,
-    UserFollow,
-    PostFavorite,
-    PostBookmark,
     PostAttachment,
+    PostBookmark,
+    PostFavorite,
     UploadedFile,
+    User,
+    UserFollow,
 )
 
 

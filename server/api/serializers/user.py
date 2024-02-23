@@ -1,17 +1,17 @@
 import re
 import uuid
+from dataclasses import dataclass
 
 import bcrypt
+from Crypto.PublicKey import RSA
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.urls import reverse
 from rest_framework import serializers
 
 from api.models import User, UserFollow, UserProfileLabel, UserToken
-from django.urls import reverse
-from django.core.exceptions import ObjectDoesNotExist
 from api.utils.users import UserSpecifier
-from django.db import transaction
-from Crypto.PublicKey import RSA
-from dataclasses import dataclass
-from lightpub.settings import HTTP_SCHEME, HOSTNAME
+from lightpub.settings import HOSTNAME, HTTP_SCHEME
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 

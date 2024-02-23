@@ -1,8 +1,9 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from lightpub.settings import VERSION
-from api.models import User
 from rest_framework.reverse import reverse
+
+from api.models import User
+from lightpub.settings import VERSION
 
 
 def get_total_users():
