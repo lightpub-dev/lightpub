@@ -108,7 +108,6 @@ def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
         return user
 
     # create a new remote user
-    pprint(actor)
     new_user = User(
         username=actor.as_preferred_username,
         host=hostname,

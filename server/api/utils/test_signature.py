@@ -108,7 +108,7 @@ def test_signature_string(sample_headers):
     method = "POST"
     path = "/api/register/"
 
-    signature_string = signature.make_signature_string(sample_headers, method, path)
+    _, signature_string = signature.make_signature_string(sample_headers, method, path)
 
     assert signature_string == (
         "(request-target): post /api/register/\n"

@@ -18,7 +18,12 @@ def sample_follow_req():
 
 
 def test_follow_activity(sample_follow_req):
-    print(sample_follow_req)
     obj = pub.Object.from_dict(sample_follow_req[0])
 
     assert pub.is_follow(obj)
+
+
+def test_is_public():
+    obj = pub.Object.from_dict({"@id": "https://www.w3.org/ns/activitystreams#Public"})
+
+    assert pub.is_public(obj)

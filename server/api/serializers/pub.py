@@ -219,3 +219,7 @@ def is_undo(obj: Object) -> TypeGuard[UndoActivity]:
 
 def is_actor(obj: Object) -> TypeGuard[Actor]:
     return obj.is_as_type("Person")
+
+
+def is_public(obj: Object) -> bool:
+    return obj.id == "https://www.w3.org/ns/activitystreams#Public"
