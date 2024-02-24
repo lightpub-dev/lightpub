@@ -1,4 +1,3 @@
-from pprint import pprint
 from urllib.parse import urlparse
 
 import requests
@@ -7,7 +6,7 @@ from pyld import jsonld
 
 from api.models import PublicKey, RemoteUserInfo, User, UserFollow, UserFollowRequest
 from api.serializers.pub import Actor, is_actor
-from api.serializers.user import get_user_id, get_user_public_key_id
+from api.utils.get_id import get_user_id, get_user_public_key_id
 from api.utils.signature import attach_signature
 from lightpub.settings import DEBUG
 
@@ -35,6 +34,36 @@ class Requester:
         e = self.fetch_remote_id(id)
 
         actor = Actor.from_dict(e[0])
+        if not is_actor(actor):
+            raise ValueError("not an actor, type is " + str(actor.type))
+
+        return _get_or_insert_remote_user(actor, host)
+
+    def _get_actor_id_from_username(self, username: str, host: str) -> str:
+        webfinger_url = f"https://{host}/.well-known/webfinger"
+        webfinger_params = {
+            "resource": f"acct:{username}",
+        }
+        res = self._session.get(
+            webfinger_url,
+            params=webfinger_params,
+            verify=ssl_verify,
+            timeout=self.default_timeout,
+        )
+        res.raise_for_status()
+        j = res.json()
+        links = j["links"]
+        for link in links:
+            if link["rel"] == "self" and link["type"] == "application/activity+json":
+                return link["href"]
+
+        raise ValueError("actor not found")
+
+    def fetch_remote_username(self, username: str, host: str) -> User:
+        id = self._get_actor_id_from_username(username, host)
+        res = self.fetch_remote_id(id)
+
+        actor = Actor.from_dict(res[0])
         if not is_actor(actor):
             raise ValueError("not an actor, type is " + str(actor.type))
 
@@ -92,12 +121,59 @@ class Requester:
             # delete the follow request
             follow_req.delete()
 
+    def send_follow_request(self, follow_req: UserFollowRequest) -> None:
+        inbox = follow_req.followee.inbox
+        if inbox is None:
+            raise ValueError("followee's inbox url is not set")
+
+        followee_uri = follow_req.followee.uri
+        if followee_uri is None:
+            raise ValueError("followee's uri is not set")
+
+        follower_uri = follow_req.follower.uri
+        # should not be set because it is a local user
+        if follower_uri is not None:
+            raise ValueError("follower's uri is set")
+        follower_uri = get_user_id(follow_req.follower)
+
+        req = requests.Request(
+            method="POST",
+            url=inbox,
+            json={
+                "@context": [
+                    "https://www.w3.org/ns/activitystreams",
+                ],
+                "type": "Follow",
+                "object": followee_uri,
+                "actor": follower_uri,
+            },
+            headers={
+                "Content-Type": "application/activity+json",
+            },
+        )
+        prep = req.prepare()
+        attach_signature(
+            prep,
+            get_user_public_key_id(follow_req.follower),
+            follow_req.follower.private_key.encode("utf-8"),
+        )
+        res = self._session.send(
+            prep,
+            verify=ssl_verify,
+            timeout=self.default_timeout,
+        )
+        res.raise_for_status()
+
 
 _req = Requester()
 
 
 def get_requester() -> Requester:
     return _req
+
+
+def get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
+    return _get_or_insert_remote_user(actor, hostname)
 
 
 def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:

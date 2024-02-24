@@ -11,7 +11,6 @@ from rest_framework import serializers
 
 from api.models import User, UserFollow, UserProfileLabel, UserToken
 from api.utils.users import UserSpecifier
-from lightpub.settings import HOSTNAME, HTTP_SCHEME
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 
@@ -304,23 +303,6 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
         return fields
 
 
-def get_user_public_key_id(user: User) -> str:
-    # TODO: too fragile
-    return f"{HTTP_SCHEME}://{HOSTNAME}/api/users/{user.id}/#main-key"
-
-
-def get_user_id(user: User) -> str:
-    # TODO: too fragile
-    return f"{HTTP_SCHEME}://{HOSTNAME}/api/users/{user.id}/"
-
-
-def extract_local_user_id(uri: str) -> str | None:
-    m = re.match(rf"{HTTP_SCHEME}://{HOSTNAME}/api/users/([a-f\d\-]+)/", uri)
-    if m is None:
-        return None
-    return m.group(1)
-
-
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(
         required=True, max_length=60, min_length=3, validators=[username_validator]
@@ -382,7 +364,7 @@ class LoginSerializer(serializers.Serializer):
 
 def login_and_generate_token(username: str, password: str) -> str | None:
     try:
-        user = User.objects.filter(username=username, host="", deleted_at=None).get()
+        user = User.objects.filter(username=username, host=None, deleted_at=None).get()
         hashed_pw = user.bpassword.encode("utf-8")
         if bcrypt.checkpw(password.encode("utf-8"), hashed_pw):
             tokenUUID = uuid.uuid4().hex

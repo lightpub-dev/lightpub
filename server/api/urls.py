@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import browsable_login, interaction, nodeinfo, posts, users
+from .views import browsable_login, follow, interaction, nodeinfo, posts, users
 from .views.hashtags import PopularHashtagsView
 from .views.interaction import PostBookmarkView, PostFavoriteView
 from .views.posts import PostViewSet, UploadFileView
@@ -41,6 +41,7 @@ urlpatterns = [
     path("favorites/<uuid:pk>", posts.FavoriteListView.as_view(), name="favorite-list"),
     path("users/<str:user_spec>/inbox", UserInboxView.as_view(), name="inbox"),
     path("users/<str:user_spec>/outbox", UserOutboxView.as_view(), name="outbox"),
+    path("create-follow/", follow.CreateFollowView.as_view(), name="create-follow"),
     path("nodeinfo/2.0", nodeinfo.version_2_0, name="nodeinfo-2.0"),
     path("nodeinfo/2.1", nodeinfo.version_2_1, name="nodeinfo-2.1"),
 ]

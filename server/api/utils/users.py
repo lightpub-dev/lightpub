@@ -1,3 +1,5 @@
+from rest_framework import serializers
+
 from ..models import User
 
 
@@ -5,7 +7,7 @@ class UserSpecifier:
     def __init__(
         self,
         user_id: str | None = None,
-        username_and_host: tuple[str, str] | None = None,
+        username_and_host: tuple[str, str | None] | None = None,
     ):
         self.user_id = user_id
         self.username_and_host = username_and_host
@@ -25,7 +27,7 @@ class UserSpecifier:
 
         username_and_host = user_spec[1:].split("@", maxsplit=2)
         if len(username_and_host) == 1:
-            return cls(username_and_host=(username_and_host[0], ""))
+            return cls(username_and_host=(username_and_host[0], None))
         elif len(username_and_host) == 2:
             return cls(username_and_host=(username_and_host[0], username_and_host[1]))
 
@@ -62,4 +64,15 @@ class UserSpecifierPath:
             raise ValueError("Invalid user specifier") from e
 
     def to_url(self, value: UserSpecifier):
+        return str(value)
+
+
+class UserSpecifierSerializer(serializers.CharField):
+    def to_internal_value(self, data):
+        try:
+            return UserSpecifier.parse_str(data)
+        except ValueError as e:
+            raise serializers.ValidationError("Invalid user specifier") from e
+
+    def to_representation(self, value):
         return str(value)

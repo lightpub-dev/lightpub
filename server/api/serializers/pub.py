@@ -209,12 +209,30 @@ class UndoActivity(Activity):
         return self.as_object.id
 
 
+@dataclass(kw_only=True)
+class AcceptActivity(Activity):
+    pass
+
+
+@dataclass(kw_only=True)
+class RejectActivity(Activity):
+    pass
+
+
 def is_follow(obj: Object) -> TypeGuard[FollowActivity]:
     return obj.is_as_type("Follow")
 
 
 def is_undo(obj: Object) -> TypeGuard[UndoActivity]:
     return obj.is_as_type("Undo")
+
+
+def is_accept(obj: Object) -> TypeGuard[AcceptActivity]:
+    return obj.is_as_type("Accept")
+
+
+def is_reject(obj: Object) -> TypeGuard[RejectActivity]:
+    return obj.is_as_type("Reject")
 
 
 def is_actor(obj: Object) -> TypeGuard[Actor]:

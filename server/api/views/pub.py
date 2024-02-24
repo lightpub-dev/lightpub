@@ -1,6 +1,7 @@
 from datetime import datetime
 from pprint import pprint
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
@@ -10,7 +11,7 @@ from api.models import User, UserFollow, UserFollowRequest
 from api.parsers import ActivityJsonParser
 from api.requester import get_requester
 from api.serializers import pub
-from api.serializers.user import extract_local_user_id
+from api.utils.get_id import extract_local_user_id
 
 
 class InboxProcessingError(Exception):
@@ -43,6 +44,14 @@ class UserInboxView(APIView):
             elif pub.is_undo(obj):
                 undo = pub.UndoActivity.from_dict(data)
                 process_undo_activity(undo)
+                return Response(status=status.HTTP_202_ACCEPTED)
+            elif pub.is_accept(obj):
+                accept = pub.AcceptActivity.from_dict(data)
+                process_accept_activity(accept)
+                return Response(status=status.HTTP_202_ACCEPTED)
+            elif pub.is_reject(obj):
+                reject = pub.RejectActivity.from_dict(data)
+                process_reject_activity(reject)
                 return Response(status=status.HTTP_202_ACCEPTED)
         except InboxProcessingError as e:
             return Response(status=e.status, data=e.response)
@@ -93,6 +102,84 @@ def process_follow_activity(activity: pub.FollowActivity):
         fr.save()
 
     req.send_follow_accept(fr)
+
+
+def process_reject_activity(activity: pub.RejectActivity):
+    obj_s = activity.as_object
+    if pub.is_follow(obj_s):
+        obj = obj_s.reparse(pub.FollowActivity)
+        actor_id = obj.as_actor.id
+        object_id = obj.as_object.id
+
+        # object should be a local user
+        follower_internal_id = extract_local_user_id(actor_id)
+        if follower_internal_id is None:
+            raise InboxProcessingError(
+                status=status.HTTP_400_BAD_REQUEST,
+                response={"error": "invalid object id"},
+            )
+
+        follow = UserFollow.objects.filter(
+            followee__uri=object_id,
+            follower_id=follower_internal_id,
+        ).first()
+        if follow is None:
+            raise InboxProcessingError(
+                status=status.HTTP_404_NOT_FOUND,
+                response={"error": "follow not found"},
+            )
+
+        follow.delete()
+    else:
+        raise InboxProcessingError(
+            status.HTTP_406_NOT_ACCEPTABLE,
+            {"error": "unsupported accept activity type"},
+        )
+
+
+def process_accept_activity(activity: pub.AcceptActivity):
+    obj_s = activity.as_object
+    if pub.is_follow(obj_s):
+        obj = obj_s.reparse(pub.FollowActivity)
+        actor_id = obj.as_actor.id
+        object_id = obj.as_object.id
+
+        # actor should be a local user
+        follower_internal_id = extract_local_user_id(actor_id)
+        if follower_internal_id is None:
+            raise InboxProcessingError(
+                status=status.HTTP_400_BAD_REQUEST,
+                response={"error": "invalid object id"},
+            )
+
+        follow_req = UserFollowRequest.objects.filter(
+            followee__uri=object_id,
+            follower_id=follower_internal_id,
+        ).first()
+        if follow_req is None:
+            raise InboxProcessingError(
+                status=status.HTTP_404_NOT_FOUND,
+                response={"error": "follow request not found"},
+            )
+        if follow_req.incoming:
+            raise InboxProcessingError(
+                status=status.HTTP_403_FORBIDDEN,
+                response={"error": "you cannot accept this follow request"},
+            )
+
+        with transaction.atomic():
+            # create a new user follow
+            uf = UserFollow(
+                follower=follow_req.follower,
+                followee=follow_req.followee,
+            )
+            uf.save()
+            follow_req.delete()
+    else:
+        raise InboxProcessingError(
+            status.HTTP_406_NOT_ACCEPTABLE,
+            {"error": "unsupported accept activity type"},
+        )
 
 
 def process_undo_activity(activity: pub.UndoActivity):
