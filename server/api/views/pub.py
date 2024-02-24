@@ -40,19 +40,19 @@ class UserInboxView(APIView):
             if pub.is_follow(obj):
                 follow = pub.FollowActivity.from_dict(data)
                 process_follow_activity(follow)
-                return Response(status=status.HTTP_202_ACCEPTED)
+                return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_undo(obj):
                 undo = pub.UndoActivity.from_dict(data)
                 process_undo_activity(undo)
-                return Response(status=status.HTTP_202_ACCEPTED)
+                return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_accept(obj):
                 accept = pub.AcceptActivity.from_dict(data)
                 process_accept_activity(accept)
-                return Response(status=status.HTTP_202_ACCEPTED)
+                return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_reject(obj):
                 reject = pub.RejectActivity.from_dict(data)
                 process_reject_activity(reject)
-                return Response(status=status.HTTP_202_ACCEPTED)
+                return Response(status=status.HTTP_204_NO_CONTENT)
         except InboxProcessingError as e:
             return Response(status=e.status, data=e.response)
 
