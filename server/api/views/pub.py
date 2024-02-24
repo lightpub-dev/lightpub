@@ -80,7 +80,7 @@ def process_follow_activity(activity: pub.FollowActivity):
     # check if already exists
 
     existing_fr = UserFollowRequest.objects.filter(
-        url=activity.id,
+        uri=activity.id,
     ).first()
     if existing_fr:
         fr = existing_fr
@@ -88,7 +88,7 @@ def process_follow_activity(activity: pub.FollowActivity):
         fr.created_at = datetime.now()
     else:
         fr = UserFollowRequest(
-            url=activity.id, follower=remote_user, followee=target_user, incoming=True
+            uri=activity.id, follower=remote_user, followee=target_user, incoming=True
         )
         fr.save()
 
@@ -119,7 +119,7 @@ def process_undo_activity(activity: pub.UndoActivity):
             )
 
         # get User object of follower to get the id
-        follower = User.objects.filter(url=follower_uri).first()
+        follower = User.objects.filter(uri=follower_uri).first()
         if follower is None:
             raise InboxProcessingError(
                 status=status.HTTP_400_BAD_REQUEST,
