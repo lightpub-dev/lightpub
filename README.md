@@ -9,5 +9,5 @@
 
 ## Frontend 建て方
 1. `cd frontend`
-2. yarn install
-3. yarn run dev
+2. `yarn install`
+3. `yarn run dev`
