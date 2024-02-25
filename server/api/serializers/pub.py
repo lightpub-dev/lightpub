@@ -314,5 +314,8 @@ def is_note(obj: Object) -> TypeGuard[Note]:
     return obj.is_as_type("Note")
 
 
+PUBLIC_URI = "https://www.w3.org/ns/activitystreams#Public"
+
+
 def is_public(obj: Object) -> bool:
-    return obj.id == "https://www.w3.org/ns/activitystreams#Public"
+    return obj.id == PUBLIC_URI

@@ -1,12 +1,25 @@
+from typing import TypedDict
 from urllib.parse import urlparse
 
 import requests
 from django.db import transaction
 from pyld import jsonld
 
-from api.models import PublicKey, RemoteUserInfo, User, UserFollow, UserFollowRequest
-from api.serializers.pub import Actor, is_actor
-from api.utils.get_id import get_user_id, get_user_public_key_id
+from api.models import (
+    Post,
+    PublicKey,
+    RemoteUserInfo,
+    User,
+    UserFollow,
+    UserFollowRequest,
+)
+from api.serializers.pub import PUBLIC_URI, Actor, is_actor
+from api.utils.get_id import (
+    get_post_id,
+    get_user_id,
+    get_user_public_key_id,
+    make_followers_id,
+)
 from api.utils.signature import attach_signature
 from lightpub.settings import DEBUG
 
@@ -164,12 +177,126 @@ class Requester:
         )
         res.raise_for_status()
 
+    def send_post_to_federated_servers(self, post: Post) -> None:
+        tocc = _make_to_and_cc(post)
+        to = tocc["to"]
+        cc = tocc["cc"]
+        target_inboxes = tocc["target_inboxes"]
+
+        # prepare private key
+        sender = post.poster
+        sender_id = get_user_id(sender)
+        private_key = sender.private_key
+        if not private_key:
+            raise ValueError("private key is not set")
+        key_id = get_user_public_key_id(sender)
+
+        post_id = get_post_id(post)
+        create_id = f"{post_id}activity/"  # TODO: really?
+
+        # send to each inbox
+        for inbox in target_inboxes:
+            # TODO: ここらへんの処理ループ内でやる必要ある?
+            req = requests.Request(
+                method="POST",
+                url=inbox,
+                json={
+                    "@context": [
+                        "https://www.w3.org/ns/activitystreams",
+                    ],
+                    "id": create_id,
+                    "type": "Create",
+                    "actor": sender_id,
+                    "to": to,
+                    "cc": cc,
+                    "object": {
+                        "id": post_id,
+                        "attributedTo": sender_id,
+                        "type": "Note",
+                        "to": cc,
+                        "cc": cc,
+                        "content": post.content,
+                        "published": post.created_at.isoformat(),
+                        "sensitive": False,
+                    },
+                    "published": post.created_at.isoformat(),
+                },
+                headers={
+                    "Content-Type": "application/activity+json",
+                },
+            )
+            prep = req.prepare()
+            attach_signature(prep, key_id, private_key.encode("utf-8"))
+            try:
+                res = self._session.send(
+                    prep, timeout=self.default_timeout, verify=ssl_verify
+                )
+                res.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                print("failed to post a post to a remote inbox")
+                print(e)
+
 
 _req = Requester()
 
 
 def get_requester() -> Requester:
     return _req
+
+
+class PostToCcList(TypedDict):
+    to: list[str]
+    cc: list[str]
+    target_inboxes: list[str]
+
+
+def get_followers_inboxes(user: User) -> list[str]:
+    followers = (
+        UserFollow.objects.filter(followee=user, follower__host__isnull=False)
+        .select_related("follower")
+        .all()
+    )
+
+    # TODO: send to sharedInbox instead of individual inboxes
+    inboxes = []
+    for f in followers:
+        if f.follower.inbox:
+            inboxes.append(f.follower.inbox)
+
+    return inboxes
+
+
+def _make_to_and_cc(post: Post) -> PostToCcList:
+    # check post's privacy
+    # TODO: consider mentions
+    if post.privacy == 0:
+        # public
+        to = [PUBLIC_URI]
+        cc = [make_followers_id(post.poster)]
+        target_inboxes = get_followers_inboxes(post.poster)
+    elif post.privacy == 1:
+        # unlisted
+        to = [make_followers_id(post.poster)]
+        cc = [PUBLIC_URI]
+        target_inboxes = get_followers_inboxes(post.poster)
+    elif post.privacy == 2:
+        # followers only
+        to = [make_followers_id(post.poster)]
+        cc = []
+        target_inboxes = get_followers_inboxes(post.poster)
+    elif post.privacy == 3:
+        # private only
+        to = []
+        cc = []
+        target_inboxes = []
+    else:
+        raise ValueError("invalid privacy")
+
+    return {
+        "to": to,
+        "cc": cc,
+        "target_inboxes": target_inboxes,
+    }
 
 
 def get_or_insert_remote_user(actor: Actor, hostname: str) -> User:

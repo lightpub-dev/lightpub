@@ -237,3 +237,9 @@ class PostReaction(models.Model):
                 name="unique_post_reaction",
             )
         ]
+
+
+class FederatedServer(models.Model):
+    id = models.AutoField(primary_key=True)
+    host = models.CharField(max_length=128, unique=True)
+    inserted_at = models.DateTimeField(auto_now_add=True)

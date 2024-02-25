@@ -13,6 +13,7 @@ from api.models import (
     UploadedFile,
     User,
 )
+from api.requester import get_requester
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):
@@ -284,6 +285,12 @@ class PostSerializer(serializers.ModelSerializer):
 
             for uploaded_file in validated_data.get("attached_uploads", []):
                 PostAttachment.objects.create(post=post, file=uploaded_file)
+
+        try:
+            req = get_requester()
+            req.send_post_to_federated_servers(post)
+        except Exception as e:
+            print("failed to send post to federated servers", e)
 
         return post
 
