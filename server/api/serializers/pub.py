@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Type, TypeGuard, TypeVar, Union
 
 
@@ -6,12 +7,20 @@ def _qt(s: str) -> str:
     return f"https://www.w3.org/ns/activitystreams#{s}"
 
 
-def _qt_map(d: dict, m: dict[str, str | tuple[str, "Node"]]) -> dict[str, Any]:
+_TargetSpecifier = Union[
+    str,
+    tuple[str, Union["Node", list["Node"]]],
+]
+
+
+def _qt_map(d: dict, m: dict[str, _TargetSpecifier]) -> dict[str, Any]:
     return _qt_map2(d, {}, m)
 
 
 def _qt_map2(
-    d: dict, mandatory: dict[str, str], optional: dict[str, str]
+    d: dict,
+    mandatory: dict[str, _TargetSpecifier],
+    optional: dict[str, _TargetSpecifier],
 ) -> dict[str, Any]:
     dd = {}
 
@@ -26,7 +35,10 @@ def _qt_map2(
             cls = None
         if k in d:
             if cls:
-                dd[vv] = cls.from_dict(d[k][0])
+                if hasattr(cls, "__origin__") and cls.__origin__ == list:
+                    dd[vv] = [cls.__args__[0].from_dict(x) for x in d[k]]
+                else:
+                    dd[vv] = cls.from_dict(d[k][0])
             else:
                 dd[vv] = d[k][0]["@value"]
         else:
@@ -43,7 +55,10 @@ def _qt_map2(
             cls = None
         if k in d:
             if cls:
-                dd[vv] = cls.from_dict(d[k][0])
+                if hasattr(cls, "__origin__") and cls.__origin__ == list:
+                    dd[vv] = [cls.__args__[0].from_dict(x) for x in d[k]]
+                else:
+                    dd[vv] = cls.from_dict(d[k][0])
             else:
                 dd[vv] = d[k][0]["@value"]
         else:
@@ -191,6 +206,58 @@ class Activity(Object):
         )
 
 
+class DateTime:
+    def __init__(self, value: str) -> None:
+        self.value = datetime.fromisoformat(value)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "DateTime":
+        return cls(d["@value"])
+
+    def as_datetime(self) -> datetime:
+        return self.value
+
+
+@dataclass(kw_only=True)
+class Note(Object):
+    as_content: str | None
+    as_published: DateTime | None
+    as_sensitive: bool | None
+    as_to: list[Object] | None
+    as_cc: list[Object] | None
+
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        return super()._build_from_dict(d) | _qt_map(
+            d,
+            {
+                "content": "as_content",
+                "published": ("as_published", DateTime),
+                "sensitive": "as_sensitive",
+                "to": ("as_to", list[Object]),
+                "cc": ("as_cc", list[Object]),
+            },
+        )
+
+
+@dataclass(kw_only=True)
+class CreateActivity(Activity):
+    as_to: list[Object] | None
+    as_cc: list[Object] | None
+    as_published: DateTime | None
+
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        return super()._build_from_dict(d) | _qt_map(
+            d,
+            {
+                "to": ("as_to", list[Object]),
+                "cc": ("as_cc", list[Object]),
+                "published": ("as_published", DateTime),
+            },
+        )
+
+
 @dataclass(kw_only=True)
 class FollowActivity(Activity):
     def get_actor_id(self) -> str:
@@ -237,6 +304,14 @@ def is_reject(obj: Object) -> TypeGuard[RejectActivity]:
 
 def is_actor(obj: Object) -> TypeGuard[Actor]:
     return obj.is_as_type("Person")
+
+
+def is_create(obj: Object) -> TypeGuard[CreateActivity]:
+    return obj.is_as_type("Create")
+
+
+def is_note(obj: Object) -> TypeGuard[Note]:
+    return obj.is_as_type("Note")
 
 
 def is_public(obj: Object) -> bool:

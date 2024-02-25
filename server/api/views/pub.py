@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import User, UserFollow, UserFollowRequest
+from api.models import Post, User, UserFollow, UserFollowRequest
 from api.parsers import ActivityJsonParser
 from api.requester import get_requester
 from api.serializers import pub
@@ -52,6 +52,10 @@ class UserInboxView(APIView):
             elif pub.is_reject(obj):
                 reject = pub.RejectActivity.from_dict(data)
                 process_reject_activity(reject)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            elif pub.is_create(obj):
+                create = pub.CreateActivity.from_dict(data)
+                process_create_activity(create)
                 return Response(status=status.HTTP_204_NO_CONTENT)
         except InboxProcessingError as e:
             return Response(status=e.status, data=e.response)
@@ -223,4 +227,32 @@ def process_undo_activity(activity: pub.UndoActivity):
     raise InboxProcessingError(
         status.HTTP_400_BAD_REQUEST,
         {"error": "unsupported undo activity type"},
+    )
+
+
+def process_create_activity(activity: pub.CreateActivity):
+    obj = activity.as_object
+    if pub.is_note(obj):
+        note = obj.reparse(pub.Note)
+        # pprint(note)
+
+        req = get_requester()
+        user = req.fetch_remote_user(id=activity.as_actor.id)
+
+        post = Post(
+            uri=note.id,
+            poster=user,
+            content=note.as_content,
+            created_at=note.as_published.as_datetime(),
+            privacy=0,  # TODO: implement privacy
+            reply_to=None,  # TODO: implement reply_to
+            repost_of=None,  # TODO: implement repost_of
+        )
+        post.save()
+
+        return
+
+    raise InboxProcessingError(
+        status.HTTP_400_BAD_REQUEST,
+        {"error": "unsupported create activity type"},
     )
