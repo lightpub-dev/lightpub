@@ -13,7 +13,6 @@ from ..models import (
 
 def _check_user_updatable(request, user, obj) -> bool:
     if isinstance(obj, User):
-        print(f"{request.user} == {obj}")
         return request.user == obj
 
     if isinstance(obj, Post):

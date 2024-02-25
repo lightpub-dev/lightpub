@@ -335,7 +335,6 @@ def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
         if not k.as_owner:
             raise ValueError("public key does not have owner")
         elif k.as_owner.id != actor.id:
-            print(k.as_owner.id, actor.id)
             raise ValueError("public key owner does not match actor id")
 
         if not k.as_public_key_pem:
