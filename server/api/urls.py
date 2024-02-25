@@ -11,8 +11,12 @@ from .views.users import UserFollowerViewset, UserFollowingViewset, UserViewset
 
 app_name = "api"
 
-router = DefaultRouter()
-router.register(r"posts", PostViewSet, basename="post")
+router = DefaultRouter(trailing_slash=False)
+router.register(
+    r"posts",
+    PostViewSet,
+    basename="post",
+)
 router.register(r"favorites", PostFavoriteView, basename="favorite")
 router.register(r"bookmarks", PostBookmarkView, basename="bookmark")
 router.register(r"followings", UserFollowingViewset, basename="following")
@@ -41,7 +45,7 @@ urlpatterns = [
     path("favorites/<uuid:pk>", posts.FavoriteListView.as_view(), name="favorite-list"),
     path("users/<str:user_spec>/inbox", UserInboxView.as_view(), name="inbox"),
     path("users/<str:user_spec>/outbox", UserOutboxView.as_view(), name="outbox"),
-    path("create-follow/", follow.CreateFollowView.as_view(), name="create-follow"),
+    path("create-follow", follow.CreateFollowView.as_view(), name="create-follow"),
     path("nodeinfo/2.0", nodeinfo.version_2_0, name="nodeinfo-2.0"),
     path("nodeinfo/2.1", nodeinfo.version_2_1, name="nodeinfo-2.1"),
 ]

@@ -139,6 +139,9 @@ class Post(models.Model):
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="reposts"
     )
     edited = models.BooleanField(default=False)
+    # to get the full post, use "uri" to fetch from the remote server
+    partial = models.BooleanField(default=False)
+
     deleted_at = models.DateTimeField(null=True, blank=True, default=None)
 
 
