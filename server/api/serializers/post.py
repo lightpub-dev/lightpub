@@ -1,3 +1,4 @@
+import copy
 from typing import Any, cast
 
 from django.db import transaction
@@ -209,7 +210,14 @@ class PostSerializer(serializers.ModelSerializer):
     def get_repost_of(self, post):
         if post.repost_of is None:
             return None
-        return PostSerializer(post.repost_of, context=self.context).data
+
+        repost_nest_level = self.context.get("nested_repost", 1)
+        if repost_nest_level == 0:
+            return None
+
+        new_ctx = copy.copy(self.context)
+        new_ctx["nested_repost"] = repost_nest_level - 1
+        return PostSerializer(post.repost_of, context=new_ctx).data
 
     def get_reply_count(self, post):
         return post.replies.count()
@@ -349,17 +357,6 @@ class HashtagSerializer(serializers.Serializer):
     recent_post_count = serializers.IntegerField()
 
 
-# class ReplyListSerializer(serializers.Serializer):
-#     replies = PostSerializer(read_only=True, many=True)
-
-
-# class RepostListSerializer(serializers.Serializer):
-#     reposts = PostSerializer(read_only=True, many=True)
-
-
-# class QuoteListSerializer(serializers.Serializer):
-#     quotes = PostSerializer(read_only=True, many=True)
-
-
-# class FavoriteListSerializer(serializers.Serializer):
-#     favorites = PostSerializer(read_only=True, many=True)
+class PostAddToListSerializer(serializers.Serializer):
+    # no fields required
+    pass
