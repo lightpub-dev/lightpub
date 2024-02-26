@@ -246,13 +246,21 @@ def process_create_activity(activity: pub.CreateActivity):
         req = get_requester()
         user = req.fetch_remote_user(id=activity.as_actor.id)
 
+        # fetch reply to
+        reply_to = note.as_in_reply_to
+        logger.info("reply_to: %s", reply_to)
+        if reply_to:
+            ref_post = _get_or_insert_post_from_uri(reply_to.id)
+        else:
+            ref_post = None
+
         post = Post(
             uri=note.id,
             poster=user,
             content=note.as_content,
             created_at=note.as_published.as_datetime(),
             privacy=0,  # TODO: implement privacy
-            reply_to=None,  # TODO: implement reply_to
+            reply_to=ref_post,  # TODO: implement reply_to
         )
         post.save()
 
@@ -271,20 +279,7 @@ def process_announce_activity(activity: pub.AnnounceActivity):
     req = get_requester()
     user = req.fetch_remote_user(id=activity.as_actor.id)
 
-    local_post_id = extract_local_post_id(obj.id)
-    if local_post_id:
-        # TODO: visibility check
-        ref_post = Post.objects.filter(id=local_post_id).first()
-        if ref_post is None:
-            logger.debug(
-                "referenced post not found: %s (local id: %s)", obj.id, local_post_id
-            )
-            raise InboxProcessingError(
-                status=status.HTTP_404_NOT_FOUND,
-                response={"error": "referenced post not found"},
-            )
-    else:
-        ref_post = req.fetch_remote_post_by_uri(uri=obj.id)
+    ref_post = _get_or_insert_post_from_uri(obj.id)
 
     post = Post(
         uri=obj.id,
@@ -298,3 +293,24 @@ def process_announce_activity(activity: pub.AnnounceActivity):
     post.save()
 
     return
+
+
+def _get_or_insert_post_from_uri(uri: str) -> Post:
+    req = get_requester()
+
+    local_post_id = extract_local_post_id(uri)
+    if local_post_id:
+        # TODO: visibility check
+        ref_post = Post.objects.filter(id=local_post_id).first()
+        if ref_post is None:
+            logger.debug(
+                "referenced post not found: %s (local id: %s)", uri, local_post_id
+            )
+            raise InboxProcessingError(
+                status=status.HTTP_404_NOT_FOUND,
+                response={"error": "referenced post not found"},
+            )
+    else:
+        ref_post = req.fetch_remote_post_by_uri(uri=uri)
+
+    return ref_post

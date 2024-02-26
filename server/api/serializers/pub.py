@@ -227,6 +227,7 @@ class Note(Object):
     as_sensitive: bool | None
     as_to: list[Object] | None
     as_cc: list[Object] | None
+    as_in_reply_to: Object | None
 
     @classmethod
     def _build_from_dict(cls, d: dict) -> dict:
@@ -238,6 +239,7 @@ class Note(Object):
                 "sensitive": "as_sensitive",
                 "to": ("as_to", list[Object]),
                 "cc": ("as_cc", list[Object]),
+                "inReplyTo": ("as_in_reply_to", Object),
             },
         )
 
