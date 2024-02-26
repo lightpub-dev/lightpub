@@ -18,7 +18,6 @@ from ..serializers.post import (
     PostSerializer,
     UploadedFileSerializer,
 )
-from ..serializers.user import SimpleUserSerializer
 from .users import UserSpecifier
 
 
