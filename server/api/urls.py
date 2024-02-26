@@ -20,8 +20,6 @@ router.register(
     PostViewSet,
     basename="post",
 )
-router.register(r"favorites", PostFavoriteView, basename="favorite")
-router.register(r"bookmarks", PostBookmarkView, basename="bookmark")
 router.register(r"users", UserViewset, basename="user")
 router.register(r"uploads", UploadFileView, basename="upload")
 router.register(r"reactions", interaction.PostReactionView, basename="reaction")

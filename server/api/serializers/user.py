@@ -257,12 +257,7 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
 
     def get_liked(self, obj):
         req = self.context["request"]
-        url = req.build_absolute_uri(
-            reverse(
-                "api:favorite-list",
-            )
-        )
-        return f"{url}?user={obj.id}"
+        return reverse("api:user-favorites", request=req, kwargs={"pk": obj.id})
 
     def get_publicKey(self, obj):
         if not obj.public_key:

@@ -7,7 +7,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
+from api.auth.permission import OwnerOnlyPermission
 from api.jsonld.mixins import JsonldMixin
+from api.serializers.interaction import PostBookmarkSerializer, PostFavoriteSerializer
 from api.utils.users import UserSpecifier
 
 from ..auth import NoAuthPermission
@@ -126,6 +128,56 @@ class UserViewset(
             ]
             data = urls
 
+        return self.get_paginated_response(data)
+
+    @action(
+        detail=True,
+        methods=["GET"],
+        url_path="favorites",
+        url_name="favorites",
+    )
+    def favorites(self, request, pk=None):
+        user = self.get_object()
+        favorites = user.favorites.order_by("-created_at").all()
+
+        page = self.paginate_queryset(favorites)
+        if page is None:
+            raise ValueError("page is None")
+
+        if not self.jsonld_requested():
+            data = PostFavoriteSerializer(page, many=True).data
+        else:
+            post_urls = []
+            for favorite in page:
+                post_urls.append(
+                    reverse(
+                        "api:post-detail",
+                        kwargs={"pk": favorite.post.id},
+                        request=request,
+                    )
+                )
+            data = post_urls
+
+        return self.get_paginated_response(data)
+
+    @action(
+        detail=True,
+        methods=["GET"],
+        url_path="bookmarks",
+        url_name="bookmarks",
+        permission_classes=[OwnerOnlyPermission],
+    )
+    def bookmarks(self, request, pk=None):
+        user = self.get_object()
+        bookmarks = user.bookmarks.order_by("-created_at").all()
+
+        page = self.paginate_queryset(bookmarks)
+        if page is None:
+            raise ValueError("page is None")
+
+        # bookmarks are not accessed from external servers,
+        # so we don't have to consider jsonld reponses.
+        data = PostBookmarkSerializer(page, many=True).data
         return self.get_paginated_response(data)
 
     @action(detail=True, methods=["POST"], url_path="inbox", url_name="inbox")

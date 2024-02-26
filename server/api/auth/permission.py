@@ -36,6 +36,14 @@ def _check_user_updatable(request, user, obj) -> bool:
     return False
 
 
+class OwnerOnlyPermission(BasePermission):
+    def has_permission(self, request, view):
+        return isinstance(request.user, User)
+
+    def has_object_permission(self, request, view, obj):
+        return _check_user_updatable(request, request.user, obj)
+
+
 class AuthOnlyPermission(BasePermission):
     def has_permission(self, request, view):
         return isinstance(request.user, User)
