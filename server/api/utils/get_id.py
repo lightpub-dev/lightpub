@@ -38,3 +38,8 @@ def extract_local_post_id(uri: str) -> str | None:
 def make_followers_id(user: User) -> str:
     # TODO: too fragile
     return f"{HTTP_SCHEME}://{HOSTNAME}/api/followers/?user={user.id}"
+
+
+def is_local_uri(uri: str) -> bool:
+    # TODO: too fragile
+    return uri.startswith(f"{HTTP_SCHEME}://{HOSTNAME}/")

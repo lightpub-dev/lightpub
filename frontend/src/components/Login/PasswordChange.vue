@@ -20,7 +20,7 @@ const submitPasswordChange = async () => {
     }
 
     try {
-        await axios.patch(`/users/@${username}/`, {
+        await axios.patch(`/users/@${username}`, {
             password: newPassword.value
         })
     } catch (ex) {

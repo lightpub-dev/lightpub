@@ -1,3 +1,4 @@
+import logging
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -13,11 +14,12 @@ from api.models import (
     UserFollow,
     UserFollowRequest,
 )
-from api.serializers.pub import PUBLIC_URI, Actor, is_actor
+from api.serializers.pub import PUBLIC_URI, Actor, Note, is_actor
 from api.utils.get_id import (
     get_post_id,
     get_user_id,
     get_user_public_key_id,
+    is_local_uri,
     make_followers_id,
 )
 from api.utils.signature import attach_signature
@@ -29,20 +31,59 @@ HEADERS = {
     "accept": "application/activity+json",
 }
 
+logger = logging.getLogger(__name__)
+
+
+class RequesterException(Exception):
+    pass
+
+
+class NotRemoteError(RequesterException):
+    def __init__(self, uri: str, msg: str) -> None:
+        super().__init__(msg)
+        self.uri = uri
+        self.msg = msg
+
+
+class RemoteRelatedError(RequesterException):
+    pass
+
+
+class RemoteObjectNotFoundError(RemoteRelatedError):
+    def __init__(self, uri: str) -> None:
+        self.uri = uri
+
+
+class MalformedRemoteResponseError(RemoteRelatedError):
+    def __init__(self, uri: str, msg: str) -> None:
+        self.uri = uri
+        self.msg = msg
+
 
 class Requester:
     def __init__(self) -> None:
         self._session = requests.Session()
         self.default_timeout = 3
+        logger.info("Requester initialized")
 
     def fetch_remote_id(self, id: str):
+        if is_local_uri(id):
+            raise NotRemoteError(id, "not a remote id")
+        logger.debug("fetching remote resource: %s", id)
         res = self._session.get(
             id, verify=ssl_verify, headers=HEADERS, timeout=self.default_timeout
         )
+        try:
+            res.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            if e.response.status_code == 404:
+                raise RemoteObjectNotFoundError(id)
+            raise e
         j = res.json()
         return jsonld.expand(j)
 
-    def fetch_remote_user(self, id: str):
+    def fetch_remote_user(self, id: str, force_fetch: bool = False):
+        # TODO: respect force_fetch, use db if possible
         host = urlparse(id).hostname
         e = self.fetch_remote_id(id)
 
@@ -51,6 +92,27 @@ class Requester:
             raise ValueError("not an actor, type is " + str(actor.type))
 
         return _get_or_insert_remote_user(actor, host)
+
+    def fetch_remote_post_by_uri(self, uri: str, nested: int = 0) -> Post:
+        # TODO: use nested to determine the content should be fetched
+        e = self.fetch_remote_id(uri)
+
+        if len(e) != 1:
+            logger.debug("malformed response: %s", str(e))
+            raise MalformedRemoteResponseError(uri, "expected 1 object")
+        note = Note.from_dict(e[0])
+        user = self.fetch_remote_user(note.as_attributedTo.id)
+        post = Post(
+            uri=note.id,
+            poster=user,
+            content=note.as_content,
+            created_at=note.as_published.as_datetime(),
+            privacy=0,  # TODO: implement privacy
+            reply_to=None,  # TODO: implement reply_to
+        )
+        post.save()
+
+        return post
 
     def _get_actor_id_from_username(self, username: str, host: str) -> str:
         webfinger_url = f"https://{host}/.well-known/webfinger"

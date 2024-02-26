@@ -54,7 +54,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
-    "ddrr",
+    # "ddrr",
     "debug_toolbar",
 ]
 
@@ -166,32 +166,62 @@ REST_FRAMEWORK = {
     ],
 }
 
-if not DEBUG:
-    LOGGING = {
-        "version": 1,
-        "filters": {
-            "require_debug_true": {
-                "()": "django.utils.log.RequireDebugTrue",
-            }
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "require_debug_false": {
+            "()": "django.utils.log.RequireDebugFalse",
         },
-        "handlers": {
-            "console": {
-                "level": "DEBUG",
-                "filters": ["require_debug_true"],
-                "class": "logging.StreamHandler",
-            }
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
         },
-        "loggers": {
-            # "django.db.backends": {
-            #     "level": "DEBUG",
-            #     "handlers": ["console"],
-            # },
-            "django": {
-                "handlers": ["console"],
-                "propagate": True,
-            },
+    },
+    "formatters": {
+        "django.server": {
+            "()": "django.utils.log.ServerFormatter",
+            "format": "[%(server_time)s] %(message)s a",
         },
-    }
+        "api.logger.CustomFormatter": {
+            "()": "api.logger.CustomFormatter",
+        },
+    },
+    "handlers": {
+        "customcode": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "formatter": "api.logger.CustomFormatter",
+        },
+        "console": {
+            "level": "INFO",
+            "filters": ["require_debug_true"],
+            "class": "logging.StreamHandler",
+        },
+        "django.server": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "django.server",
+        },
+        "mail_admins": {
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+            "class": "django.utils.log.AdminEmailHandler",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+        "django.server": {
+            "handlers": ["django.server"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "api": {"handlers": ["customcode"], "level": "DEBUG", "propagate": True},
+    },
+}
+
 
 STORAGES = {
     "staticfiles": {
@@ -202,21 +232,21 @@ STORAGES = {
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-DDRR = {
-    "ENABLE_REQUESTS": True,  # enable request logging
-    "ENABLE_RESPONSES": True,  # enable response logging
-    "LEVEL": "DEBUG",  # ddrr log level
-    "PRETTY_PRINT": True,  # pretty-print JSON and XML
-    "REQUEST_TEMPLATE_NAME": "ddrr/default-request.html",  # request log template name
-    "REQUEST_TEMPLATE": None,  # request log template string (overrides template name)
-    "RESPONSE_TEMPLATE_NAME": "ddrr/default-response.html",  # response log template name
-    "RESPONSE_TEMPLATE": None,  # response log template string (overrides template name)
-    "REQUEST_HANDLER": logging.StreamHandler(),  # request log handler
-    "RESPONSE_HANDLER": logging.StreamHandler(),  # response log handler
-    "ENABLE_COLORS": True,  # enable colors if terminal supports it
-    "LIMIT_BODY": None,  # limit request/response body output to X chars
-    "DISABLE_DJANGO_SERVER_LOG": False,  # disable default django server log
-}
+# DDRR = {
+#     "ENABLE_REQUESTS": True,  # enable request logging
+#     "ENABLE_RESPONSES": True,  # enable response logging
+#     "LEVEL": "DEBUG",  # ddrr log level
+#     "PRETTY_PRINT": True,  # pretty-print JSON and XML
+#     "REQUEST_TEMPLATE_NAME": "ddrr/default-request.html",  # request log template name
+#     "REQUEST_TEMPLATE": None,  # request log template string (overrides template name)
+#     "RESPONSE_TEMPLATE_NAME": "ddrr/default-response.html",  # response log template name
+#     "RESPONSE_TEMPLATE": None,  # response log template string (overrides template name)
+#     "REQUEST_HANDLER": logging.StreamHandler(),  # request log handler
+#     "RESPONSE_HANDLER": logging.StreamHandler(),  # response log handler
+#     "ENABLE_COLORS": True,  # enable colors if terminal supports it
+#     "LIMIT_BODY": None,  # limit request/response body output to X chars
+#     "DISABLE_DJANGO_SERVER_LOG": False,  # disable default django server log
+# }
 
 # django-debug-toolbar
 INTERNAL_IPS = ["127.0.0.1"]

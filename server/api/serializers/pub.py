@@ -108,6 +108,8 @@ class Node:
         return target_type.from_dict(self._source_obj)
 
     def is_as_type(self, t: str) -> bool:
+        if self.type is None:
+            raise InvalidFormatError("type is missing")
         as_t = _qt(t)
         return as_t in self.type
 
@@ -259,6 +261,24 @@ class CreateActivity(Activity):
 
 
 @dataclass(kw_only=True)
+class AnnounceActivity(Activity):
+    as_to: list[Object] | None
+    as_cc: list[Object] | None
+    as_published: DateTime | None
+
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        return super()._build_from_dict(d) | _qt_map(
+            d,
+            {
+                "to": ("as_to", list[Object]),
+                "cc": ("as_cc", list[Object]),
+                "published": ("as_published", DateTime),
+            },
+        )
+
+
+@dataclass(kw_only=True)
 class FollowActivity(Activity):
     def get_actor_id(self) -> str:
         return self.as_actor.id
@@ -312,6 +332,10 @@ def is_create(obj: Object) -> TypeGuard[CreateActivity]:
 
 def is_note(obj: Object) -> TypeGuard[Note]:
     return obj.is_as_type("Note")
+
+
+def is_announce(obj: Object) -> TypeGuard[AnnounceActivity]:
+    return obj.is_as_type("Announce")
 
 
 PUBLIC_URI = "https://www.w3.org/ns/activitystreams#Public"

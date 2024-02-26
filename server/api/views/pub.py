@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pprint import pprint
 
@@ -11,7 +12,9 @@ from api.models import Post, User, UserFollow, UserFollowRequest
 from api.parsers import ActivityJsonParser
 from api.requester import get_requester
 from api.serializers import pub
-from api.utils.get_id import extract_local_user_id
+from api.utils.get_id import extract_local_post_id, extract_local_user_id
+
+logger = logging.getLogger(__name__)
 
 
 class InboxProcessingError(Exception):
@@ -56,6 +59,10 @@ class UserInboxView(APIView):
             elif pub.is_create(obj):
                 create = pub.CreateActivity.from_dict(data)
                 process_create_activity(create)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            elif pub.is_announce(obj):
+                announce = pub.AnnounceActivity.from_dict(data)
+                process_announce_activity(announce)
                 return Response(status=status.HTTP_204_NO_CONTENT)
         except InboxProcessingError as e:
             return Response(status=e.status, data=e.response)
@@ -246,7 +253,6 @@ def process_create_activity(activity: pub.CreateActivity):
             created_at=note.as_published.as_datetime(),
             privacy=0,  # TODO: implement privacy
             reply_to=None,  # TODO: implement reply_to
-            repost_of=None,  # TODO: implement repost_of
         )
         post.save()
 
@@ -256,3 +262,39 @@ def process_create_activity(activity: pub.CreateActivity):
         status.HTTP_400_BAD_REQUEST,
         {"error": "unsupported create activity type"},
     )
+
+
+def process_announce_activity(activity: pub.AnnounceActivity):
+    obj = activity.as_object
+    # assume obj is a Note
+
+    req = get_requester()
+    user = req.fetch_remote_user(id=activity.as_actor.id)
+
+    local_post_id = extract_local_post_id(obj.id)
+    if local_post_id:
+        # TODO: visibility check
+        ref_post = Post.objects.filter(id=local_post_id).first()
+        if ref_post is None:
+            logger.debug(
+                "referenced post not found: %s (local id: %s)", obj.id, local_post_id
+            )
+            raise InboxProcessingError(
+                status=status.HTTP_404_NOT_FOUND,
+                response={"error": "referenced post not found"},
+            )
+    else:
+        ref_post = req.fetch_remote_post_by_uri(uri=obj.id)
+
+    post = Post(
+        uri=obj.id,
+        poster=user,
+        content=None,
+        created_at=activity.as_published.as_datetime(),
+        privacy=0,  # TODO: implement privacy
+        reply_to=None,
+        repost_of=ref_post,
+    )
+    post.save()
+
+    return
