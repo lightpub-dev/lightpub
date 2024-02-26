@@ -11,9 +11,9 @@ def get_total_users():
     return User.objects.filter(host=None).count()
 
 
-def _gen_data():
+def _gen_data(version: str):
     return {
-        "version": "2.1",
+        "version": version,
         "software": {
             "name": "lightpub",
             "version": VERSION,
@@ -34,12 +34,12 @@ def _gen_data():
 
 @api_view(["GET"])
 def version_2_1(request):
-    return Response(status=200, data=_gen_data())
+    return Response(status=200, data=_gen_data(version="2.1"))
 
 
 @api_view(["GET"])
 def version_2_0(request):
-    return Response(status=200, data=_gen_data())
+    return Response(status=200, data=_gen_data(version="2.0"))
 
 
 @api_view(["GET"])
