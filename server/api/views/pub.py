@@ -64,6 +64,10 @@ class UserInboxView(APIView):
                 announce = pub.AnnounceActivity.from_dict(data)
                 process_announce_activity(announce)
                 return Response(status=status.HTTP_204_NO_CONTENT)
+            elif pub.is_delete(obj):
+                delete = pub.DeleteActivity.from_dict(data)
+                process_delete_activity(delete)
+                return Response(status=status.HTTP_204_NO_CONTENT)
         except InboxProcessingError as e:
             return Response(status=e.status, data=e.response)
 
@@ -293,6 +297,26 @@ def process_announce_activity(activity: pub.AnnounceActivity):
     post.save()
 
     return
+
+
+def process_delete_activity(activity: pub.DeleteActivity):
+    obj = activity.as_object
+    # assume obj is a Note
+
+    obj_id = obj.id
+    local_post_id = extract_local_post_id(obj_id)
+    if local_post_id:
+        post = Post.objects.filter(id=local_post_id).first()
+    else:
+        post = Post.objects.filter(uri=obj_id).first()
+
+    if post is None:
+        raise InboxProcessingError(
+            status=status.HTTP_404_NOT_FOUND,
+            response={"error": "post not found"},
+        )
+    post.deleted_at = activity.as_published.as_datetime()
+    post.save()
 
 
 def _get_or_insert_post_from_uri(uri: str) -> Post:

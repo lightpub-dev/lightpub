@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Type, TypeGuard, TypeVar, Union
+from typing import Any, Self, Type, TypeGuard, TypeVar, Union
 
 
 def _qt(s: str) -> str:
@@ -80,6 +80,10 @@ class InvalidFormatError(Exception):
         self.message = message
 
 
+class TypeMissingError(Exception):
+    pass
+
+
 class ValidationError(Exception):
     def __init__(self, message: str) -> None:
         self.message = message
@@ -101,7 +105,7 @@ class Node:
         return {"id": id, "type": type}
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Node":
+    def from_dict(cls, d: dict) -> Self:
         return cls(**cls._build_from_dict(d), _source_obj=d)
 
     def reparse(self, target_type: Type[T]) -> T:
@@ -109,7 +113,7 @@ class Node:
 
     def is_as_type(self, t: str) -> bool:
         if self.type is None:
-            raise InvalidFormatError("type is missing")
+            raise TypeMissingError()
         as_t = _qt(t)
         return as_t in self.type
 
@@ -299,6 +303,20 @@ class UndoActivity(Activity):
 
 
 @dataclass(kw_only=True)
+class DeleteActivity(Activity):
+    as_published: DateTime | None
+
+    @classmethod
+    def _build_from_dict(cls, d: dict) -> dict:
+        return super()._build_from_dict(d) | _qt_map(
+            d,
+            {
+                "published": ("as_published", DateTime),
+            },
+        )
+
+
+@dataclass(kw_only=True)
 class AcceptActivity(Activity):
     pass
 
@@ -338,6 +356,17 @@ def is_note(obj: Object) -> TypeGuard[Note]:
 
 def is_announce(obj: Object) -> TypeGuard[AnnounceActivity]:
     return obj.is_as_type("Announce")
+
+
+def is_delete(obj: Object) -> TypeGuard[DeleteActivity]:
+    return obj.is_as_type("Delete")
+
+
+def is_tombstone(obj: Object) -> bool:
+    try:
+        return obj.is_as_type("Tombstone")
+    except TypeMissingError:
+        return False
 
 
 PUBLIC_URI = "https://www.w3.org/ns/activitystreams#Public"
