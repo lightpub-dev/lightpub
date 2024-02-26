@@ -36,7 +36,12 @@ urlpatterns = [
         users.UserAvatarView.as_view(),
         name="user-avatar",
     ),
-    path("create-follow", follow.CreateFollowView.as_view(), name="create-follow"),
+    path("follow", follow.CreateFollowView.as_view(), name="create-follow"),
+    path(
+        "follow/<user_spec:user>",
+        follow.FollowView.as_view(),
+        name="delete-follow",
+    ),
     path("nodeinfo/2.0", nodeinfo.version_2_0, name="nodeinfo-2.0"),
     path("nodeinfo/2.1", nodeinfo.version_2_1, name="nodeinfo-2.1"),
 ]

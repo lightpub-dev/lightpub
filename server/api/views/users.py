@@ -4,11 +4,13 @@ from django.views.decorators.cache import cache_control
 from PIL import Image
 from rest_framework import generics, mixins, status, views, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
 from api.auth.permission import OwnerOnlyPermission
 from api.jsonld.mixins import JsonldMixin
+from api.parsers import ActivityJsonParser
 from api.serializers.interaction import PostBookmarkSerializer, PostFavoriteSerializer
 from api.utils.users import UserSpecifier
 
@@ -62,6 +64,7 @@ class UserViewset(
     queryset = User.objects.all()
     normal_serializer_class = DetailedUserSerializer
     jsonld_serializer_class = JsonldDetailedUserSerializer
+    parser_classes = [ActivityJsonParser, JSONParser]
 
     def get_serializer_context(self):
         return {

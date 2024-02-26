@@ -181,11 +181,11 @@ def process_accept_activity(activity: pub.AcceptActivity):
 
         with transaction.atomic():
             # create a new user follow
-            uf = UserFollow(
+            UserFollow.objects.update_or_create(
                 follower=follow_req.follower,
                 followee=follow_req.followee,
+                defaults={"created_at": datetime.now()},
             )
-            uf.save()
             follow_req.delete()
     else:
         raise InboxProcessingError(

@@ -70,3 +70,9 @@ class CreateFollowSerializer(serializers.Serializer):
             requester.send_follow_request(fr)
 
             return {"message": "follow request sent"}
+
+
+class FollowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserFollow
+        fields = ["follower", "followee", "created_at"]

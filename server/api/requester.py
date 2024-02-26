@@ -196,6 +196,42 @@ class Requester:
             # delete the follow request
             follow_req.delete()
 
+    def send_unfollow(self, follower: User, followee: User) -> None:
+        inbox_url = followee.inbox
+        if inbox_url is None:
+            raise ValueError("inbox url is not set")
+
+        # prepare private key
+        sender_id = get_user_id(follower)
+        private_key = follower.private_key
+        if not private_key:
+            raise ValueError("private key is not set")
+        key_id = get_user_public_key_id(follower)
+
+        req = requests.Request(
+            method="POST",
+            url=inbox_url,
+            json={
+                "@context": [
+                    "https://www.w3.org/ns/activitystreams",
+                ],
+                "type": "Undo",
+                "object": {
+                    "type": "Follow",
+                    "actor": sender_id,
+                    "object": get_user_id(followee),
+                },
+                "actor": sender_id,
+            },
+            headers={
+                "Content-Type": "application/activity+json",
+            },
+        )
+        prep = req.prepare()
+        attach_signature(prep, key_id, private_key.encode("utf-8"))
+        res = self._session.send(prep, timeout=self.default_timeout, verify=ssl_verify)
+        res.raise_for_status()
+
     def send_follow_request(self, follow_req: UserFollowRequest) -> None:
         inbox = follow_req.followee.inbox
         if inbox is None:

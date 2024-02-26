@@ -20,7 +20,10 @@ class UserSpecifier:
     @classmethod
     def parse_str(cls, user_spec: str):
         if "@" not in user_spec:
-            return cls(user_id=user_spec)
+            # check if valid uuid
+            if len(user_spec) == 36 and user_spec[8] == "-" and user_spec[13] == "-":
+                return cls(user_id=user_spec)
+            raise ValueError("invalid user_spec uuid")
 
         if not user_spec.startswith("@"):
             raise ValueError("user_spec must start with @ if not specifying user_id")
@@ -55,7 +58,7 @@ class UserSpecifier:
 
 
 class UserSpecifierPath:
-    regex = r"[a-zA-Z0-9_\-@]+"
+    regex = r"[a-zA-Z0-9_\-@\.]+"
 
     def to_python(self, value):
         try:
