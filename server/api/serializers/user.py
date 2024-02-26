@@ -22,7 +22,7 @@ def username_validator(username):
 
 class SimpleUserSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
-    url = serializers.CharField(source="uri", read_only=True)
+    uri = serializers.CharField(read_only=True)
 
     def get_avatar(self, obj):
         if not obj.avatar:
