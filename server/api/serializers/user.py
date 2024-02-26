@@ -6,8 +6,8 @@ import bcrypt
 from Crypto.PublicKey import RSA
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.urls import reverse
 from rest_framework import serializers
+from rest_framework.reverse import reverse
 
 from api.models import User, UserFollow, UserProfileLabel, UserToken
 from api.utils.users import UserSpecifier
@@ -113,17 +113,13 @@ class DetailedUserSerializer(serializers.ModelSerializer):
         if obj.inbox:
             return obj.inbox
         req = self.context["request"]
-        return req.build_absolute_uri(
-            reverse("api:inbox", kwargs={"user_spec": obj.id})
-        )
+        return req.build_absolute_uri(reverse("api:user-inbox", kwargs={"pk": obj.id}))
 
     def get_outbox(self, obj):
         if obj.outbox:
             return obj.outbox
         req = self.context["request"]
-        return req.build_absolute_uri(
-            reverse("api:outbox", kwargs={"user_spec": obj.id})
-        )
+        return req.build_absolute_uri(reverse("api:user-outbox", kwargs={"pk": obj.id}))
 
     def update(self, instance: User, validated_data):
         with transaction.atomic():
@@ -243,35 +239,21 @@ class JsonldDetailedUserSerializer(serializers.ModelSerializer):
         if obj.inbox:
             return obj.inbox
         req = self.context["request"]
-        return req.build_absolute_uri(
-            reverse("api:inbox", kwargs={"user_spec": obj.id})
-        )
+        return reverse("api:user-inbox", kwargs={"pk": obj.id}, request=req)
 
     def get_outbox(self, obj):
         if obj.outbox:
             return obj.outbox
         req = self.context["request"]
-        return req.build_absolute_uri(
-            reverse("api:outbox", kwargs={"user_spec": obj.id})
-        )
+        return reverse("api:user-outbox", kwargs={"pk": obj.id}, request=req)
 
     def get_following(self, obj):
         req = self.context["request"]
-        url = req.build_absolute_uri(
-            reverse(
-                "api:following-list",
-            )
-        )
-        return f"{url}?user={obj.id}"
+        return reverse("api:user-following-list", kwargs={"pk": obj.id}, request=req)
 
     def get_followers(self, obj):
         req = self.context["request"]
-        url = req.build_absolute_uri(
-            reverse(
-                "api:follower-list",
-            )
-        )
-        return f"{url}?user={obj.id}"
+        return reverse("api:user-followers-list", kwargs={"pk": obj.id}, request=req)
 
     def get_liked(self, obj):
         req = self.context["request"]

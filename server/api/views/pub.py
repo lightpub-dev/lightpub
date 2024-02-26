@@ -6,10 +6,8 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from api.models import Post, User, UserFollow, UserFollowRequest
-from api.parsers import ActivityJsonParser
 from api.requester import get_requester
 from api.serializers import pub
 from api.utils.get_id import extract_local_post_id, extract_local_user_id
@@ -23,10 +21,8 @@ class InboxProcessingError(Exception):
         self.response = response
 
 
-class UserInboxView(APIView):
-    parser_classes = [ActivityJsonParser]
-
-    def post(self, request, user_spec):
+class UserInboxView:
+    def post(self, request, user):
         # log headers
         # pprint(request.headers)
         # log request body
@@ -74,8 +70,9 @@ class UserInboxView(APIView):
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class UserOutboxView(APIView):
-    pass
+class UserOutboxView:
+    def post(self, request, user):
+        pass
 
 
 class InvalidIDError(Exception):

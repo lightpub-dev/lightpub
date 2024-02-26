@@ -1,26 +1,26 @@
 from django.http import Http404, HttpResponse
-from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_control
 from PIL import Image
 from rest_framework import generics, mixins, status, views, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
-from api.jsonld.mixins import JsonldAwareMixin, JsonldMixin
+from api.jsonld.mixins import JsonldMixin
 from api.utils.users import UserSpecifier
 
-from ..auth import AuthOnlyPermission, NoAuthPermission
-from ..models import User, UserFollow
+from ..auth import NoAuthPermission
+from ..models import User
 from ..serializers.user import (
     DetailedUserSerializer,
     JsonldDetailedUserSerializer,
     LoginSerializer,
     RegisterSerializer,
     UserFollowerSerializer,
-    UserFollowSerializer,
     login_and_generate_token,
 )
+from .pub import UserInboxView, UserOutboxView
 
 
 # Create your views here.
@@ -74,107 +74,71 @@ class UserViewset(
             raise Http404("user not found")
         return user
 
+    @action(
+        detail=True, methods=["GET"], url_path="followers", url_name="followers-list"
+    )
+    def list_followers(self, request, pk=None):
+        user = self.get_object()
+        followers = user.followers.order_by("-created_at").all()
 
-class UserFollowingViewset(
-    JsonldAwareMixin,
-    mixins.CreateModelMixin,
-    mixins.DestroyModelMixin,
-    mixins.ListModelMixin,
-    viewsets.GenericViewSet,
-):
-    serializer_class = UserFollowSerializer
+        page = self.paginate_queryset(followers)
+        if page is None:
+            raise ValueError("page is None")
 
-    def list(self, request, *args, **kwargs):
         if not self.jsonld_requested():
-            return super().list(request, *args, **kwargs)
-
-        queryset = self.filter_queryset(self.get_queryset())
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            followees = [followee.followee for followee in page]
-            urls = [
-                reverse("api:user-detail", kwargs={"pk": followee.id}, request=request)
-                for followee in followees
-            ]
-            return self.get_paginated_response(urls)
-
-        raise ValueError("page is None")
-
-    def get_permissions(self):
-        if self.action == "create":
-            permission_classes = [AuthOnlyPermission]
+            data = UserFollowerSerializer(page, many=True).data
         else:
-            permission_classes = []
-
-        return [permission() for permission in permission_classes]
-
-    def get_object(self):
-        pk = self.kwargs["pk"]
-        # treat pk as followee_id
-        return get_object_or_404(UserFollow, follower=self.request.user, followee=pk)
-
-    def get_queryset(self):
-        follower = self.request.user
-
-        if "user" in self.request.query_params:
-            follower_spec = UserSpecifier.parse_str(self.request.query_params["user"])
-            follower = follower_spec.get_user_model()
-            if follower is None:
-                raise Http404("user not found")
-
-        return UserFollow.objects.filter(follower=follower).order_by("-created_at")
-
-    def get_serializer_context(self):
-        return {
-            "request": self.request,
-        }
-
-
-class UserFollowerViewset(
-    JsonldAwareMixin,
-    mixins.ListModelMixin,
-    viewsets.GenericViewSet,
-):
-    serializer_class = UserFollowerSerializer
-    permission_classes = []
-
-    def list(self, request, *args, **kwargs):
-        if not self.jsonld_requested():
-            return super().list(request, *args, **kwargs)
-
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            followers = [follower.follower for follower in page]
+            actual_followers = [follow.follower for follow in page]
             urls = [
-                reverse("api:user-detail", kwargs={"pk": follower.id}, request=request)
-                for follower in followers
+                reverse(
+                    "api:user-detail",
+                    kwargs={"pk": follower.id},
+                    request=request,
+                )
+                for follower in actual_followers
             ]
-            return self.get_paginated_response(urls)
+            data = urls
 
-        raise ValueError("page is None")
+        return self.get_paginated_response(data)
 
-    def get_object(self):
-        pk = self.kwargs["pk"]
-        # treat pk as followee_id
-        return get_object_or_404(UserFollow, followee=self.request.user, follower=pk)
+    @action(
+        detail=True, methods=["GET"], url_path="following", url_name="following-list"
+    )
+    def list_following(self, request, pk=None):
+        user = self.get_object()
+        followees = user.followings.order_by("-created_at").all()
 
-    def get_queryset(self):
-        followee = self.request.user
+        page = self.paginate_queryset(followees)
+        if page is None:
+            raise ValueError("page is None")
 
-        if "user" in self.request.query_params:
-            followee_spec = UserSpecifier.parse_str(self.request.query_params["user"])
-            followee = followee_spec.get_user_model()
-            if followee is None:
-                raise Http404("user not found")
+        if not self.jsonld_requested():
+            data = UserFollowerSerializer(page, many=True).data
+        else:
+            actual_followees = [follow.followee for follow in page]
+            urls = [
+                reverse(
+                    "api:user-detail",
+                    kwargs={"pk": followee.id},
+                    request=request,
+                )
+                for followee in actual_followees
+            ]
+            data = urls
 
-        return UserFollow.objects.filter(followee=followee).order_by("-created_at")
+        return self.get_paginated_response(data)
 
-    def get_serializer_context(self):
-        return {
-            "request": self.request,
-        }
+    @action(detail=True, methods=["POST"], url_path="inbox", url_name="inbox")
+    def inbox(self, request, pk=None):
+        user = self.get_object()
+        inbox = UserInboxView()
+        return inbox.post(request, user)
+
+    @action(detail=True, methods=["POST"], url_path="outbox", url_name="outbox")
+    def outbox(self, request, pk=None):
+        user = self.get_object()
+        outbox = UserOutboxView()
+        return outbox.post(request, user)
 
 
 class UserAvatarView(views.APIView):

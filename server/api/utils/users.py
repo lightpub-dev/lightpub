@@ -55,7 +55,7 @@ class UserSpecifier:
 
 
 class UserSpecifierPath:
-    regex = r"[a-zA-Z0-9_-@]+"
+    regex = r"[a-zA-Z0-9_\-@]+"
 
     def to_python(self, value):
         try:

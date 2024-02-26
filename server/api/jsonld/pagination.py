@@ -4,7 +4,7 @@ from rest_framework.utils.urls import remove_query_param, replace_query_param
 
 from api.pagination import MyPagination as DefaultPagination
 
-from .renderer import JsonldRenderer
+from .renderer import ActivityJsonRenderer, JsonldRenderer
 
 
 class CollectionSerializer(serializers.Serializer):
@@ -85,7 +85,9 @@ class CollectionPagination(pagination.BasePagination):
         self._request = request
 
         # if application/ld+json is not requested, use the default paginator
-        if not isinstance(request.accepted_renderer, JsonldRenderer):
+        if not isinstance(request.accepted_renderer, JsonldRenderer) and not isinstance(
+            request.accepted_renderer, ActivityJsonRenderer
+        ):
             self._cursor_paginator = DefaultPagination()
             return self._cursor_paginator.paginate_queryset(queryset, request, view)
 
