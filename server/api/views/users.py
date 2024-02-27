@@ -1,22 +1,31 @@
 from django.http import Http404, HttpResponse
-from django.shortcuts import get_object_or_404
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_control
+from PIL import Image
 from rest_framework import generics, mixins, status, views, viewsets
+from rest_framework.decorators import action
+from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
+from rest_framework.reverse import reverse
 
+from api import tasks
+from api.auth.permission import OwnerOnlyPermission
+from api.jsonld.mixins import JsonldMixin
+from api.parsers import ActivityJsonParser
+from api.serializers.interaction import PostBookmarkSerializer, PostFavoriteSerializer
 from api.utils.users import UserSpecifier
-from ..auth import AuthOnlyPermission, NoAuthPermission
-from ..models import User, UserFollow
+
+from ..auth import NoAuthPermission
+from ..models import User
 from ..serializers.user import (
     DetailedUserSerializer,
+    JsonldDetailedUserSerializer,
     LoginSerializer,
     RegisterSerializer,
-    login_and_generate_token,
-    UserFollowSerializer,
     UserFollowerSerializer,
+    login_and_generate_token,
 )
-from PIL import Image
-from django.views.decorators.cache import cache_control
-from django.utils.decorators import method_decorator
+from .pub import UserInboxView, UserOutboxView
 
 
 # Create your views here.
@@ -46,6 +55,7 @@ class LoginView(views.APIView):
 
 
 class UserViewset(
+    JsonldMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
     mixins.UpdateModelMixin,
@@ -53,7 +63,9 @@ class UserViewset(
 ):
     permission_classes = [NoAuthPermission]
     queryset = User.objects.all()
-    serializer_class = DetailedUserSerializer
+    normal_serializer_class = DetailedUserSerializer
+    jsonld_serializer_class = JsonldDetailedUserSerializer
+    parser_classes = [ActivityJsonParser, JSONParser]
 
     def get_serializer_context(self):
         return {
@@ -68,72 +80,136 @@ class UserViewset(
             raise Http404("user not found")
         return user
 
+    @action(
+        detail=True, methods=["GET"], url_path="followers", url_name="followers-list"
+    )
+    def list_followers(self, request, pk=None):
+        user = self.get_object()
+        followers = user.followers.order_by("-created_at").all()
 
-class UserFollowingViewset(
-    mixins.CreateModelMixin,
-    mixins.DestroyModelMixin,
-    mixins.ListModelMixin,
-    viewsets.GenericViewSet,
-):
-    serializer_class = UserFollowSerializer
+        page = self.paginate_queryset(followers)
+        if page is None:
+            raise ValueError("page is None")
 
-    def get_permissions(self):
-        if self.action == "create":
-            permission_classes = [AuthOnlyPermission]
+        if not self.jsonld_requested():
+            data = UserFollowerSerializer(page, many=True).data
         else:
-            permission_classes = []
+            actual_followers = [follow.follower for follow in page]
+            urls = [
+                reverse(
+                    "api:user-detail",
+                    kwargs={"pk": follower.id},
+                    request=request,
+                )
+                for follower in actual_followers
+            ]
+            data = urls
 
-        return [permission() for permission in permission_classes]
+        return self.get_paginated_response(data)
 
-    def get_object(self):
-        pk = self.kwargs["pk"]
-        # treat pk as followee_id
-        return get_object_or_404(UserFollow, follower=self.request.user, followee=pk)
+    @action(
+        detail=True, methods=["GET"], url_path="following", url_name="following-list"
+    )
+    def list_following(self, request, pk=None):
+        user = self.get_object()
+        followees = user.followings.order_by("-created_at").all()
 
-    def get_queryset(self):
-        follower = self.request.user
+        page = self.paginate_queryset(followees)
+        if page is None:
+            raise ValueError("page is None")
 
-        if "user" in self.request.query_params:
-            follower_spec = UserSpecifier.parse_str(self.request.query_params["user"])
-            follower = follower_spec.get_user_model()
-            if follower is None:
-                raise Http404("user not found")
+        if not self.jsonld_requested():
+            data = UserFollowerSerializer(page, many=True).data
+        else:
+            actual_followees = [follow.followee for follow in page]
+            urls = [
+                reverse(
+                    "api:user-detail",
+                    kwargs={"pk": followee.id},
+                    request=request,
+                )
+                for followee in actual_followees
+            ]
+            data = urls
 
-        return UserFollow.objects.filter(follower=follower).order_by("-created_at")
+        return self.get_paginated_response(data)
 
-    def get_serializer_context(self):
-        return {
-            "request": self.request,
-        }
+    @action(
+        detail=True,
+        methods=["GET"],
+        url_path="favorites",
+        url_name="favorites",
+    )
+    def favorites(self, request, pk=None):
+        user = self.get_object()
+        favorites = user.favorites.order_by("-created_at").all()
 
+        page = self.paginate_queryset(favorites)
+        if page is None:
+            raise ValueError("page is None")
 
-class UserFollowerViewset(
-    mixins.ListModelMixin,
-    viewsets.GenericViewSet,
-):
-    serializer_class = UserFollowerSerializer
-    permission_classes = []
+        if not self.jsonld_requested():
+            data = PostFavoriteSerializer(page, many=True).data
+        else:
+            post_urls = []
+            for favorite in page:
+                post_urls.append(
+                    reverse(
+                        "api:post-detail",
+                        kwargs={"pk": favorite.post.id},
+                        request=request,
+                    )
+                )
+            data = post_urls
 
-    def get_object(self):
-        pk = self.kwargs["pk"]
-        # treat pk as followee_id
-        return get_object_or_404(UserFollow, followee=self.request.user, follower=pk)
+        return self.get_paginated_response(data)
 
-    def get_queryset(self):
-        followee = self.request.user
+    @action(
+        detail=True,
+        methods=["GET"],
+        url_path="bookmarks",
+        url_name="bookmarks",
+        permission_classes=[OwnerOnlyPermission],
+    )
+    def bookmarks(self, request, pk=None):
+        user = self.get_object()
+        bookmarks = user.bookmarks.order_by("-created_at").all()
 
-        if "user" in self.request.query_params:
-            followee_spec = UserSpecifier.parse_str(self.request.query_params["user"])
-            followee = followee_spec.get_user_model()
-            if followee is None:
-                raise Http404("user not found")
+        page = self.paginate_queryset(bookmarks)
+        if page is None:
+            raise ValueError("page is None")
 
-        return UserFollow.objects.filter(followee=followee).order_by("-created_at")
+        # bookmarks are not accessed from external servers,
+        # so we don't have to consider jsonld reponses.
+        data = PostBookmarkSerializer(page, many=True).data
+        return self.get_paginated_response(data)
 
-    def get_serializer_context(self):
-        return {
-            "request": self.request,
-        }
+    @action(detail=True, methods=["POST"], url_path="inbox", url_name="inbox")
+    def inbox(self, request, pk=None):
+        user = self.get_object()
+        inbox = UserInboxView()
+        return inbox.post(request, user)
+
+    @action(detail=True, methods=["POST"], url_path="outbox", url_name="outbox")
+    def outbox(self, request, pk=None):
+        user = self.get_object()
+        outbox = UserOutboxView()
+        return outbox.post(request, user)
+
+    @action(
+        detail=True,
+        methods=["POST"],
+        url_path="update-remote",
+        url_name="update-remote",
+    )
+    def update_remote_user(self, request, pk=None):
+        user = self.get_object()
+        if user.host is None:
+            return Response(
+                {"error": "user is not remote"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        tasks.update_remote_user.delay(user.id)
+        return Response({"message": "update requested"})
 
 
 class UserAvatarView(views.APIView):

@@ -14,6 +14,18 @@ uwsgi = "*"
 pillow = "*"
 whitenoise = "*"
 drf-extra-fields = "*"
+pyld = "*"
+requests = "*"
+requests-cache = "*"
+pytest-django = "*"
+pytest-mock = "*"
+jinja2 = "*"
+ddrr = "*"
+requests-http-signature = "*"
+pycryptodome = "*"
+django-debug-toolbar = "*"
+celery = {extras = ["redis"], version = "*"}
+flower = "*"
 
 [dev-packages]
 mypy = "*"
@@ -21,6 +33,9 @@ flake8 = "*"
 black = "*"
 isort = "*"
 gunicorn = "*"
+pytest = "*"
+pytest-mock = "*"
+watchdog = "*"
 
 [requires]
 python_version = "3.12"

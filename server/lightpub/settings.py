@@ -10,11 +10,17 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import logging
 from pathlib import Path
+
+VERSION = "0.1"
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Hostname
+HOSTNAME = "lightpub.tinax.local"
+HTTP_SCHEME = "https"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -26,21 +32,23 @@ SECRET_KEY = "django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9
 DEBUG = True
 # DEBUG = False
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "lightpub.tinax.local"]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "https://lightpub.tinax.local"]
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# background task runner
+CELERY_BROKER_URL = "redis://localhost:6380/1"
+CELERY_RESULT_BACKEND = "redis://localhost:6380/1"
 
 # Application definition
 
 INSTALLED_APPS = [
     "corsheaders",
     "api",
+    "web",
     "rest_framework",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -49,9 +57,12 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
+    # "ddrr",
+    "debug_toolbar",
 ]
 
 MIDDLEWARE = [
+    # "ddrr.middleware.DebugRequestsResponses",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -62,6 +73,7 @@ MIDDLEWARE = [
     # "api.middlewares.auther.AuthMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 ROOT_URLCONF = "lightpub.urls"
@@ -92,7 +104,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": "lightpub",
-        "USER": "lightpub",
+        "USER": "root",
         "PASSWORD": "lightpub",
         "HOST": "127.0.0.1",
         "PORT": "3306",
@@ -142,35 +154,105 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "api.pagination.MyPagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_PAGINATION_CLASS": "api.jsonld.pagination.OrderedCollectionPagination",
+    "PAGE_SIZE": 10,
     "DEFAULT_PERMISSION_CLASSES": ["api.auth.permission.NoAuthPermission"],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "api.auth.auth.TokenAuth",
         "api.auth.auth.CookieAuth",
     ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "api.jsonld.renderer.JsonldRenderer",
+        "api.jsonld.renderer.ActivityJsonRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ],
 }
 
 LOGGING = {
     "version": 1,
+    "disable_existing_loggers": False,
     "filters": {
+        "require_debug_false": {
+            "()": "django.utils.log.RequireDebugFalse",
+        },
         "require_debug_true": {
             "()": "django.utils.log.RequireDebugTrue",
-        }
+        },
+    },
+    "formatters": {
+        "django.server": {
+            "()": "django.utils.log.ServerFormatter",
+            "format": "[%(server_time)s] %(message)s a",
+        },
+        "api.logger.CustomFormatter": {
+            "()": "api.logger.CustomFormatter",
+        },
     },
     "handlers": {
-        "console": {
+        "customcode": {
             "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "formatter": "api.logger.CustomFormatter",
+        },
+        "console": {
+            "level": "INFO",
             "filters": ["require_debug_true"],
             "class": "logging.StreamHandler",
-        }
+        },
+        "django.server": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "django.server",
+        },
+        "mail_admins": {
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+            "class": "django.utils.log.AdminEmailHandler",
+        },
     },
     "loggers": {
-        "django.db.backends": {
-            "level": "DEBUG",
+        "django": {
             "handlers": ["console"],
-        }
+            "level": "INFO",
+        },
+        "django.server": {
+            "handlers": ["django.server"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "api": {"handlers": ["customcode"], "level": "DEBUG", "propagate": True},
     },
 }
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    }
+}
+
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# DDRR = {
+#     "ENABLE_REQUESTS": True,  # enable request logging
+#     "ENABLE_RESPONSES": True,  # enable response logging
+#     "LEVEL": "DEBUG",  # ddrr log level
+#     "PRETTY_PRINT": True,  # pretty-print JSON and XML
+#     "REQUEST_TEMPLATE_NAME": "ddrr/default-request.html",  # request log template name
+#     "REQUEST_TEMPLATE": None,  # request log template string (overrides template name)
+#     "RESPONSE_TEMPLATE_NAME": "ddrr/default-response.html",  # response log template name
+#     "RESPONSE_TEMPLATE": None,  # response log template string (overrides template name)
+#     "REQUEST_HANDLER": logging.StreamHandler(),  # request log handler
+#     "RESPONSE_HANDLER": logging.StreamHandler(),  # response log handler
+#     "ENABLE_COLORS": True,  # enable colors if terminal supports it
+#     "LIMIT_BODY": None,  # limit request/response body output to X chars
+#     "DISABLE_DJANGO_SERVER_LOG": False,  # disable default django server log
+# }
+
+# django-debug-toolbar
+INTERNAL_IPS = ["127.0.0.1"]
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": lambda request: True,
+}

@@ -1,13 +1,14 @@
-from rest_framework import viewsets, mixins, views, status
+from django.shortcuts import get_object_or_404
+from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
+
+from ..auth import AuthOnlyPermission
+from ..models import PostBookmark, PostFavorite, PostReaction
 from ..serializers.interaction import (
-    PostFavoriteSerializer,
     PostBookmarkSerializer,
+    PostFavoriteSerializer,
     PostReactionSerializer,
 )
-from ..auth import AuthOnlyPermission
-from ..models import PostFavorite, PostBookmark, PostReaction
-from django.shortcuts import get_object_or_404
 
 
 class PostFavoriteView(

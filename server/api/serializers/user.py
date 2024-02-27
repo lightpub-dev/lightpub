@@ -2,13 +2,14 @@ import re
 import uuid
 
 import bcrypt
-from rest_framework import serializers
-
-from api.models import User, UserFollow, UserProfileLabel, UserToken
-from django.urls import reverse
 from django.core.exceptions import ObjectDoesNotExist
-from api.utils.users import UserSpecifier
 from django.db import transaction
+from rest_framework import serializers
+from rest_framework.reverse import reverse
+
+from api import tasks
+from api.models import User, UserFollow, UserProfileLabel, UserToken
+from api.utils.users import UserSpecifier
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 
@@ -20,6 +21,7 @@ def username_validator(username):
 
 class SimpleUserSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
+    uri = serializers.CharField(read_only=True)
 
     def get_avatar(self, obj):
         if not obj.avatar:
@@ -33,7 +35,7 @@ class SimpleUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "host", "nickname", "url", "avatar"]
+        fields = ["id", "username", "host", "nickname", "uri", "avatar"]
 
 
 class UserProfileLabelSerializer(serializers.ModelSerializer):
@@ -54,6 +56,7 @@ class AvatarIdField(serializers.PrimaryKeyRelatedField):
 class DetailedUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(required=True, min_length=4, write_only=True)
 
+    uri = serializers.SerializerMethodField("get_url")
     url = serializers.SerializerMethodField("get_url")
     avatar = serializers.SerializerMethodField()
     labels = UserProfileLabelSerializer(many=True, required=False)
@@ -65,6 +68,9 @@ class DetailedUserSerializer(serializers.ModelSerializer):
 
     avatar_id = AvatarIdField(write_only=True, required=False, allow_null=True)
 
+    inbox = serializers.SerializerMethodField()
+    outbox = serializers.SerializerMethodField()
+
     def get_n_posts(self, obj):
         return obj.posts.filter(privacy__in=[0, 1]).count()
 
@@ -75,14 +81,14 @@ class DetailedUserSerializer(serializers.ModelSerializer):
         return obj.followings.count()
 
     def get_url(self, obj):
-        if obj.url:
-            return obj.url
+        if obj.uri:
+            return obj.uri
 
         request = self.context["request"]
-        full_url = request.build_absolute_uri(
+        full_uri = request.build_absolute_uri(
             reverse("api:user-detail", kwargs={"pk": obj.id})
         )
-        return full_url
+        return full_uri
 
     def get_avatar(self, obj):
         if not obj.avatar:
@@ -101,6 +107,18 @@ class DetailedUserSerializer(serializers.ModelSerializer):
         return UserFollow.objects.filter(
             follower=self.context["request"].user, followee=obj
         ).exists()
+
+    def get_inbox(self, obj):
+        if obj.inbox:
+            return obj.inbox
+        req = self.context["request"]
+        return req.build_absolute_uri(reverse("api:user-inbox", kwargs={"pk": obj.id}))
+
+    def get_outbox(self, obj):
+        if obj.outbox:
+            return obj.outbox
+        req = self.context["request"]
+        return req.build_absolute_uri(reverse("api:user-outbox", kwargs={"pk": obj.id}))
 
     def update(self, instance: User, validated_data):
         with transaction.atomic():
@@ -134,6 +152,7 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "host",
             "nickname",
             "url",
+            "uri",
             "bio",
             "inbox",
             "outbox",
@@ -145,6 +164,7 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "is_following",
             "avatar",
             "avatar_id",
+            "public_key",
         ]
         extra_kwargs = {
             "id": {"read_only": True},
@@ -154,7 +174,109 @@ class DetailedUserSerializer(serializers.ModelSerializer):
             "inbox": {"read_only": True},
             "outbox": {"read_only": True},
             "created_at": {"read_only": True},
+            "bio": {"required": False},
+            "public_key": {"read_only": True},
         }
+
+
+class JsonldAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfileLabel
+        fields = ["type", "key", "value"]
+
+    type = serializers.ReadOnlyField(default="PropertyValue")
+
+
+class JsonldDetailedUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "ctx",
+            "id",
+            "inbox",
+            "outbox",
+            "following",
+            "followers",
+            "liked",
+            "type",
+            "attachment",
+            "name",
+            "preferredUsername",
+            "url",
+            "publicKey",
+        ]
+
+    ctx = serializers.ReadOnlyField(
+        default=[
+            "https://www.w3.org/ns/activitystreams",
+            "https://w3id.org/security/v1",
+        ]
+    )
+    id = serializers.SerializerMethodField()
+    inbox = serializers.SerializerMethodField()
+    outbox = serializers.SerializerMethodField()
+    following = serializers.SerializerMethodField()
+    followers = serializers.SerializerMethodField()
+    liked = serializers.SerializerMethodField()
+    type = serializers.ReadOnlyField(default="Person")
+    name = serializers.CharField(source="nickname")
+    preferredUsername = serializers.CharField(source="username")
+    url = serializers.SerializerMethodField()
+    publicKey = serializers.SerializerMethodField()
+
+    attachment = JsonldAttachmentSerializer(many=True, required=False, source="labels")
+
+    def get_id(self, obj):
+        req = self.context["request"]
+        return req.build_absolute_uri(reverse("api:user-detail", kwargs={"pk": obj.id}))
+
+    def get_url(self, obj):
+        req = self.context["request"]
+        return req.build_absolute_uri(reverse("api:user-detail", kwargs={"pk": obj.id}))
+
+    def get_inbox(self, obj):
+        if obj.inbox:
+            return obj.inbox
+        req = self.context["request"]
+        return reverse("api:user-inbox", kwargs={"pk": obj.id}, request=req)
+
+    def get_outbox(self, obj):
+        if obj.outbox:
+            return obj.outbox
+        req = self.context["request"]
+        return reverse("api:user-outbox", kwargs={"pk": obj.id}, request=req)
+
+    def get_following(self, obj):
+        req = self.context["request"]
+        return reverse("api:user-following-list", kwargs={"pk": obj.id}, request=req)
+
+    def get_followers(self, obj):
+        req = self.context["request"]
+        return reverse("api:user-followers-list", kwargs={"pk": obj.id}, request=req)
+
+    def get_liked(self, obj):
+        req = self.context["request"]
+        return reverse("api:user-favorites", request=req, kwargs={"pk": obj.id})
+
+    def get_publicKey(self, obj):
+        if not obj.public_key:
+            return None
+
+        user_id = self.get_id(obj)
+        key_id = f"{user_id}#main-key"
+
+        return {
+            "id": key_id,
+            "type": "Key",
+            "owner": user_id,
+            "publicKeyPem": obj.public_key,
+        }
+
+    def get_fields(self):
+        fields = super().get_fields()
+        fields["@context"] = fields.pop("ctx")
+
+        return fields
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -166,19 +288,31 @@ class RegisterSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         username = validated_data["username"]
+        plain_password = validated_data["password"]
+        nickname = validated_data["nickname"]
 
-        if User.objects.filter(username=username).exists():
-            raise serializers.ValidationError("username already exists")
+        try:
+            create_new_user(username, plain_password, nickname, host=None)
+            return validated_data
+        except ValueError as e:
+            raise serializers.ValidationError(str(e)) from e
 
-        bpasswd = bcrypt.hashpw(
-            validated_data["password"].encode("utf-8"), bcrypt.gensalt()
-        )
-        User.objects.create(
-            username=username,
-            nickname=validated_data["nickname"],
-            bpassword=bpasswd.decode("utf-8"),
-        )
-        return validated_data
+
+def create_new_user(
+    username: str, plain_password: str, nickname: str, host: str | None
+) -> User:
+    if User.objects.filter(username=username).exists():
+        raise ValueError("username already exists")
+
+    bpasswd = bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt())
+    u = User.objects.create(
+        username=username,
+        nickname=nickname,
+        bpassword=bpasswd.decode("utf-8"),
+        host=host,
+    )
+    tasks.gen_keypair_for_user.delay(u.id)
+    return u
 
 
 class LoginSerializer(serializers.Serializer):
@@ -190,7 +324,7 @@ class LoginSerializer(serializers.Serializer):
 
 def login_and_generate_token(username: str, password: str) -> str | None:
     try:
-        user = User.objects.filter(username=username, host="", deleted_at=None).get()
+        user = User.objects.filter(username=username, host=None, deleted_at=None).get()
         hashed_pw = user.bpassword.encode("utf-8")
         if bcrypt.checkpw(password.encode("utf-8"), hashed_pw):
             tokenUUID = uuid.uuid4().hex
