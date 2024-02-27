@@ -1,6 +1,7 @@
+import datetime
 import logging
 import uuid
-from typing import TypedDict
+from typing import TypedDict, cast
 from urllib.parse import urlparse
 
 import requests
@@ -83,10 +84,10 @@ class Requester:
         j = res.json()
         return jsonld.expand(j)
 
-    def fetch_remote_user(self, id: str, force_fetch: bool = False):
+    def fetch_remote_user(self, uri: str, force_fetch: bool = False):
         # TODO: respect force_fetch, use db if possible
-        host = urlparse(id).hostname
-        e = self.fetch_remote_id(id)
+        host = urlparse(uri).hostname
+        e = self.fetch_remote_id(uri)
 
         actor = Actor.from_dict(e[0])
         if not is_actor(actor):
@@ -404,29 +405,63 @@ def get_or_insert_remote_user(actor: Actor, hostname: str) -> uuid.UUID:
 
 def _get_or_insert_remote_user(actor: Actor, hostname: str) -> uuid.UUID:
     # check if user already exists
-    # TODO: periodically update remote user info
+    new_user: User | None = None
+    remote_info: RemoteUserInfo | None = None
     user = User.objects.filter(uri=actor.id).first()
     if user is not None:
-        return user.id
+        remote_user_info = cast(RemoteUserInfo | None, user.remote_user_info)
+        if remote_user_info is None:
+            # user need to be updated
+            new_user_ = user
+            remote_info = None
+        else:
+            # TODO: parameterize the threshold
+            if remote_user_info.last_fetched_at < datetime.datetime.now(
+                datetime.timezone.utc
+            ) - datetime.timedelta(days=1):
+                # user need to be updated
+                new_user_ = user
+                remote_info = remote_user_info
+            else:
+                # user is up-to-date
+                return user.id
+        # update existing user
+        new_user_.username = actor.as_preferred_username
+        new_user_.nickname = actor.as_name
+        new_user_.uri = actor.id  # TODO: uri update して大丈夫?
+        new_user_.inbox = actor.as_inbox.id
+        new_user_.outbox = actor.as_outbox.id
+        new_user = new_user_
+    else:
+        # create a new remote user
+        new_user = User(
+            username=actor.as_preferred_username,
+            host=hostname,
+            bpassword=None,
+            nickname=actor.as_name,
+            uri=actor.id,
+            inbox=actor.as_inbox.id,
+            outbox=actor.as_outbox.id,
+        )
 
-    # create a new remote user
-    new_user = User(
-        username=actor.as_preferred_username,
-        host=hostname,
-        bpassword=None,
-        nickname=actor.as_name,
-        uri=actor.id,
-        inbox=actor.as_inbox.id,
-        outbox=actor.as_outbox.id,
-    )
-
-    remote_info = RemoteUserInfo(
-        user=new_user,
-        following=actor.as_following.id if actor.as_following else None,
-        followers=actor.as_followers.id if actor.as_followers else None,
-        liked=actor.as_liked.id if actor.as_liked else None,
-        preferred_username=actor.as_preferred_username,
-    )
+    if remote_info is None:
+        remote_info = RemoteUserInfo(
+            user=new_user,
+            following=actor.as_following.id if actor.as_following else None,
+            followers=actor.as_followers.id if actor.as_followers else None,
+            liked=actor.as_liked.id if actor.as_liked else None,
+            shared_inbox=actor.as_shared_inbox.id if actor.as_shared_inbox else None,
+            preferred_username=actor.as_preferred_username,
+        )
+    else:
+        remote_info.following = actor.as_following.id if actor.as_following else None
+        remote_info.followers = actor.as_followers.id if actor.as_followers else None
+        remote_info.liked = actor.as_liked.id if actor.as_liked else None
+        remote_info.preferred_username = actor.as_preferred_username
+        remote_info.shared_inbox = (
+            actor.as_shared_inbox.id if actor.as_shared_inbox else None
+        )
+        remote_info.last_fetched_at = datetime.datetime.now()
 
     public_key_info = None
     if actor.as_public_key:

@@ -27,6 +27,16 @@ def fetch_remote_user(id: str, force_fetch: bool = False):
 
 
 @shared_task
+def update_remote_user(id: str):
+    """
+    Update remote user from the API
+    """
+    u = User.objects.get(id=id)
+    req = get_requester()
+    req.fetch_remote_user(u.uri, force_fetch=True)
+
+
+@shared_task
 def fetch_remote_post_by_uri(uri: str, nested: int = 0):
     """
     Fetch remote post by uri from the API

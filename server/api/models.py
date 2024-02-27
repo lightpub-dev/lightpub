@@ -48,6 +48,7 @@ class RemoteUserInfo(models.Model):
     followers = models.CharField(max_length=512, null=True, blank=True)
     liked = models.CharField(max_length=512, null=True, blank=True)
     preferred_username = models.CharField(max_length=128, null=True, blank=True)
+    shared_inbox = models.CharField(max_length=512, null=True, blank=True)
 
     last_fetched_at = models.DateTimeField(auto_now=True)
 

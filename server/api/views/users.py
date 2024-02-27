@@ -8,6 +8,7 @@ from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
+from api import tasks
 from api.auth.permission import OwnerOnlyPermission
 from api.jsonld.mixins import JsonldMixin
 from api.parsers import ActivityJsonParser
@@ -194,6 +195,21 @@ class UserViewset(
         user = self.get_object()
         outbox = UserOutboxView()
         return outbox.post(request, user)
+
+    @action(
+        detail=True,
+        methods=["POST"],
+        url_path="update-remote",
+        url_name="update-remote",
+    )
+    def update_remote_user(self, request, pk=None):
+        user = self.get_object()
+        if user.host is None:
+            return Response(
+                {"error": "user is not remote"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        tasks.update_remote_user.delay(user.id)
+        return Response({"message": "update requested"})
 
 
 class UserAvatarView(views.APIView):

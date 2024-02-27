@@ -165,6 +165,7 @@ class Actor(Object):
     as_liked: Object | None
     as_preferred_username: str | None
     as_public_key: PublicKey | None
+    as_shared_inbox: Object | None
 
     @classmethod
     def _build_from_dict(cls, d: dict) -> dict:
@@ -180,6 +181,7 @@ class Actor(Object):
                 "liked": ("as_liked", Object),
                 "preferredUsername": "as_preferred_username",
                 "https://w3id.org/security#publicKey": ("as_public_key", PublicKey),
+                "sharedInbox": ("as_shared_inbox", Object),
             },
         )
 
