@@ -39,6 +39,9 @@ CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "https://lightpub.tinax.local"]
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# background task runner
+CELERY_BROKER_URL = "redis://localhost:6380/1"
+CELERY_RESULT_BACKEND = "redis://localhost:6380/1"
 
 # Application definition
 

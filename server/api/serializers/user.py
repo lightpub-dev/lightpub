@@ -1,14 +1,13 @@
 import re
 import uuid
-from dataclasses import dataclass
 
 import bcrypt
-from Crypto.PublicKey import RSA
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from api import tasks
 from api.models import User, UserFollow, UserProfileLabel, UserToken
 from api.utils.users import UserSpecifier
 
@@ -299,20 +298,6 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError(str(e)) from e
 
 
-@dataclass
-class KeyPair:
-    private_key: str
-    public_key: str
-
-
-def generate_key_pair() -> KeyPair:
-    key = RSA.generate(4096)
-    private_key = key.exportKey(pkcs=8).decode("utf-8")
-    public_key = key.publickey().exportKey(pkcs=8).decode("utf-8")
-
-    return KeyPair(private_key=private_key, public_key=public_key)
-
-
 def create_new_user(
     username: str, plain_password: str, nickname: str, host: str | None
 ) -> User:
@@ -320,15 +305,13 @@ def create_new_user(
         raise ValueError("username already exists")
 
     bpasswd = bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt())
-    key_pair = generate_key_pair()
     u = User.objects.create(
         username=username,
         nickname=nickname,
         bpassword=bpasswd.decode("utf-8"),
         host=host,
-        private_key=key_pair.private_key,
-        public_key=key_pair.public_key,
     )
+    tasks.gen_keypair_for_user.delay(u.id)
     return u
 
 

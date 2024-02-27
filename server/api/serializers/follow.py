@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from api import tasks
 from api.models import UserFollow, UserFollowRequest
 from api.requester import get_requester
 from api.utils.users import UserSpecifier, UserSpecifierSerializer
@@ -65,9 +66,7 @@ class CreateFollowSerializer(serializers.Serializer):
             )
             fr.save()
 
-            # TODO: offload to background task
-            requester = get_requester()
-            requester.send_follow_request(fr)
+            tasks.send_follow_request.delay(fr.id)
 
             return {"message": "follow request sent"}
 

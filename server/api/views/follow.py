@@ -3,9 +3,9 @@ from rest_framework import generics
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 
+from api import tasks
 from api.auth.permission import AuthOnlyPermission
 from api.models import UserFollow
-from api.requester import get_requester
 from api.serializers.follow import CreateFollowSerializer, FollowSerializer
 
 
@@ -47,8 +47,7 @@ class FollowView(generics.RetrieveDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         object = self.get_object()
 
-        req = get_requester()
-        req.send_unfollow(self.request.user, object.followee)
+        tasks.send_unfollow.delay(self.request.user.id, object.followee.id)
 
         object.delete()
         return Response(status=204)
