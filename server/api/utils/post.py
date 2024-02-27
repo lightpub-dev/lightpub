@@ -1,3 +1,7 @@
+import re
+from dataclasses import dataclass
+
+
 def find_hashtags(content: str) -> list[str]:
     hashtags = []
     in_hashtag = False
@@ -24,6 +28,30 @@ def find_hashtags(content: str) -> list[str]:
         if hashtag != "#":
             hashtags.append(hashtag[1:])
 
-    # Remove duplicates
-    unique_hashtags = list(set(hashtags))
+    # Remove duplicates while preserving order
+    unique_hashtags = []
+    for hashtag in hashtags:
+        if hashtag not in unique_hashtags:
+            unique_hashtags.append(hashtag)
     return unique_hashtags
+
+
+@dataclass
+class MentionTarget:
+    username: str
+    host: str | None
+
+
+_mention_re = re.compile(r"@([a-zA-Z0-9_\-]+)(?:@([a-zA-Z0-9_\-\.]+))?")
+
+
+def find_mentions(content: str) -> list[MentionTarget]:
+    all_matches = _mention_re.findall(content)
+
+    mentions = []
+    for match in all_matches:
+        username = match[0]
+        host = match[1] if match[1] else None
+        mentions.append(MentionTarget(username, host))
+
+    return mentions
