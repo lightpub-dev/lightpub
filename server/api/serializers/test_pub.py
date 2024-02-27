@@ -12,7 +12,7 @@ def sample_follow_req():
             "id": "http://misskey.tinax.local/follows/9prswext6qc1000g",
             "type": "Follow",
             "actor": "http://misskey.tinax.local/users/9prqtbgp6qc10001",
-            "object": "http://lightpub.tinax.local/api/users/9018aaeb-c698-4bcf-b5fd-c2feb0064c91/",
+            "object": "http://lightpub.tinax.local/api/users/9018aaeb-c698-4bcf-b5fd-c2feb0064c91/",  # noqa: E501
         }
     )
 

@@ -29,7 +29,6 @@ urlpatterns = [
     path("api/", include("api.urls")),
     path(".well-known/webfinger", WebFingerAcctView.as_view(), name="web-finger-acct"),
     path(".well-known/nodeinfo", nodeinfo, name="nodeinfo"),
-    path("", include("web.urls")),
 ]
 
 if settings.DEBUG:

@@ -9,7 +9,6 @@ from rest_framework.response import Response
 
 from api import tasks
 from api.models import Post, User, UserFollow, UserFollowRequest
-from api.requester import get_requester
 from api.serializers import pub
 from api.utils.get_id import extract_local_post_id, extract_local_user_id
 

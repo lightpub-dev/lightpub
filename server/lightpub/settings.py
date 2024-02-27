@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
-import logging
 from pathlib import Path
 
 VERSION = "0.1"
@@ -48,7 +47,6 @@ CELERY_RESULT_BACKEND = "redis://localhost:6380/1"
 INSTALLED_APPS = [
     "corsheaders",
     "api",
-    "web",
     "rest_framework",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -117,7 +115,7 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",  # noqa: E501
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
@@ -242,8 +240,8 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 #     "PRETTY_PRINT": True,  # pretty-print JSON and XML
 #     "REQUEST_TEMPLATE_NAME": "ddrr/default-request.html",  # request log template name
 #     "REQUEST_TEMPLATE": None,  # request log template string (overrides template name)
-#     "RESPONSE_TEMPLATE_NAME": "ddrr/default-response.html",  # response log template name
-#     "RESPONSE_TEMPLATE": None,  # response log template string (overrides template name)
+#     "RESPONSE_TEMPLATE_NAME": "ddrr/default-response.html",  # response log template name # noqa: E501
+#     "RESPONSE_TEMPLATE": None,  # response log template string (overrides template name) # noqa: E501
 #     "REQUEST_HANDLER": logging.StreamHandler(),  # request log handler
 #     "RESPONSE_HANDLER": logging.StreamHandler(),  # response log handler
 #     "ENABLE_COLORS": True,  # enable colors if terminal supports it

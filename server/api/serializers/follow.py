@@ -2,7 +2,6 @@ from rest_framework import serializers
 
 from api import tasks
 from api.models import User, UserFollow, UserFollowRequest
-from api.requester import get_requester
 from api.utils.users import UserSpecifier, UserSpecifierSerializer
 from lightpub.settings import HOSTNAME
 
