@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
 
+from api import tasks
 from api.models import Post, User, UserFollow, UserFollowRequest
 from api.requester import get_requester
 from api.serializers import pub
@@ -89,13 +90,12 @@ def _get_local_user_from_uri(uri: str) -> User:
 
 
 def process_follow_activity(activity: pub.FollowActivity):
-    req = get_requester()
-
     target_user = _get_local_user_from_uri(activity.as_object.id)
 
     # fetch the actor's user id
     actor_id = activity.as_actor.id
-    remote_user = req.fetch_remote_user(id=actor_id)
+    remote_user_result = tasks.fetch_remote_user.delay(id=actor_id)
+    remote_user = User.objects.get(id=remote_user_result.get())
 
     # register follow request
     # check if already exists
@@ -113,7 +113,7 @@ def process_follow_activity(activity: pub.FollowActivity):
         )
         fr.save()
 
-    req.send_follow_accept(fr)
+    tasks.send_follow_accept.delay(fr.id)
 
 
 def process_reject_activity(activity: pub.RejectActivity):
@@ -195,8 +195,6 @@ def process_accept_activity(activity: pub.AcceptActivity):
 
 
 def process_undo_activity(activity: pub.UndoActivity):
-    # req = get_requester()
-
     obj_s = activity.as_object
     if pub.is_follow(obj_s):
         obj = obj_s.reparse(pub.FollowActivity)
@@ -244,8 +242,8 @@ def process_create_activity(activity: pub.CreateActivity):
         note = obj.reparse(pub.Note)
         # pprint(note)
 
-        req = get_requester()
-        user = req.fetch_remote_user(id=activity.as_actor.id)
+        user_result = tasks.fetch_remote_user(id=activity.as_actor.id)
+        user = User.objects.get(id=user_result.get())
 
         # fetch reply to
         reply_to = note.as_in_reply_to
@@ -277,8 +275,8 @@ def process_announce_activity(activity: pub.AnnounceActivity):
     obj = activity.as_object
     # assume obj is a Note
 
-    req = get_requester()
-    user = req.fetch_remote_user(id=activity.as_actor.id)
+    user_result = tasks.fetch_remote_user(id=activity.as_actor.id)
+    user = User.objects.get(id=user_result.get())
 
     ref_post = _get_or_insert_post_from_uri(obj.id)
 
@@ -317,8 +315,6 @@ def process_delete_activity(activity: pub.DeleteActivity):
 
 
 def _get_or_insert_post_from_uri(uri: str) -> Post:
-    req = get_requester()
-
     local_post_id = extract_local_post_id(uri)
     if local_post_id:
         # TODO: visibility check
@@ -332,6 +328,7 @@ def _get_or_insert_post_from_uri(uri: str) -> Post:
                 response={"error": "referenced post not found"},
             )
     else:
-        ref_post = req.fetch_remote_post_by_uri(uri=uri)
+        ref_post_result = tasks.fetch_remote_post_by_uri.delay(uri)
+        ref_post = Post.objects.get(id=ref_post_result.get())
 
     return ref_post

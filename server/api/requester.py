@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -93,7 +94,7 @@ class Requester:
 
         return _get_or_insert_remote_user(actor, host)
 
-    def fetch_remote_post_by_uri(self, uri: str, nested: int = 0) -> Post:
+    def fetch_remote_post_by_uri(self, uri: str, nested: int = 0) -> uuid.UUID:
         # TODO: use nested to determine the content should be fetched
         e = self.fetch_remote_id(uri)
 
@@ -112,7 +113,7 @@ class Requester:
         )
         post.save()
 
-        return post
+        return post.id
 
     def _get_actor_id_from_username(self, username: str, host: str) -> str:
         webfinger_url = f"https://{host}/.well-known/webfinger"
@@ -134,7 +135,7 @@ class Requester:
 
         raise ValueError("actor not found")
 
-    def fetch_remote_username(self, username: str, host: str) -> User:
+    def fetch_remote_username(self, username: str, host: str) -> uuid.UUID:
         id = self._get_actor_id_from_username(username, host)
         res = self.fetch_remote_id(id)
 
@@ -397,16 +398,16 @@ def _make_to_and_cc(post: Post) -> PostToCcList:
     }
 
 
-def get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
+def get_or_insert_remote_user(actor: Actor, hostname: str) -> uuid.UUID:
     return _get_or_insert_remote_user(actor, hostname)
 
 
-def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
+def _get_or_insert_remote_user(actor: Actor, hostname: str) -> uuid.UUID:
     # check if user already exists
     # TODO: periodically update remote user info
     user = User.objects.filter(uri=actor.id).first()
     if user is not None:
-        return user
+        return user.id
 
     # create a new remote user
     new_user = User(
@@ -451,4 +452,4 @@ def _get_or_insert_remote_user(actor: Actor, hostname: str) -> User:
         if public_key_info:
             public_key_info.save()
 
-    return new_user
+    return new_user.id

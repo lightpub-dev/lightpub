@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from api import tasks
-from api.models import UserFollow, UserFollowRequest
+from api.models import User, UserFollow, UserFollowRequest
 from api.requester import get_requester
 from api.utils.users import UserSpecifier, UserSpecifierSerializer
 from lightpub.settings import HOSTNAME
@@ -36,10 +36,11 @@ class CreateFollowSerializer(serializers.Serializer):
                 # if host is different from this host,
                 # it is a remote user
                 # try to fetch the user from the remote host
-                req = get_requester()
-                new_remote_user = req.fetch_remote_username(
+                # TODO: prioritize task
+                new_remote_user_id = tasks.fetch_remote_username.delay(
                     user_spec.username_and_host[0], host
                 )
+                new_remote_user = User.objects.get(id=new_remote_user_id.get())
                 target_user = new_remote_user
                 target_user_is_remote = True
             else:
