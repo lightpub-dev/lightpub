@@ -11,11 +11,12 @@ from api.models import (
     Post,
     PostAttachment,
     PostHashtag,
+    PostMention,
     PostReaction,
     UploadedFile,
     User,
 )
-from api.utils.post import find_hashtags
+from api.utils.post import find_hashtags, find_mentions
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):
@@ -248,6 +249,7 @@ class PostSerializer(serializers.ModelSerializer):
                 del post_data["repost_of_id"]
             post = Post.objects.create(poster=poster, **post_data)
 
+            # region hashtag
             # find hashtags
             if post.content is not None:
                 hashtags = find_hashtags(post.content)
@@ -260,6 +262,34 @@ class PostSerializer(serializers.ModelSerializer):
 
             for hashtag in hashtags:
                 PostHashtag.objects.create(post=post, hashtag=hashtag)
+            # endregion
+
+            # region mentions
+            # find mentions
+            if post.content is not None:
+                raw_mentions = find_mentions(post.content)
+                mentions = []
+                for raw_mention in raw_mentions:
+                    if (
+                        user := raw_mention.to_user_spec().get_user_model()
+                    ) is not None:
+                        mentions.append(user)
+            else:
+                # find mentions of the original post
+                # TODO: use repost_of fetched above
+                repost_of = Post.objects.get(id=post.repost_of_id)
+                mention_models = repost_of.mentions.all()
+                mentions = []
+                for mention_model in mention_models:
+                    mentions.append(mention_model.target_user)
+
+            for mention in mentions:
+                # TODO: bulk insert
+                PostMention.objects.create(
+                    post=post,
+                    target_user=mention,
+                )
+            # endregion
 
             for uploaded_file in validated_data.get("attached_uploads", []):
                 PostAttachment.objects.create(post=post, file=uploaded_file)

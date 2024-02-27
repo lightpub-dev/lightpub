@@ -1,6 +1,8 @@
 import re
 from dataclasses import dataclass
 
+from api.utils.users import UserSpecifier
+
 
 def find_hashtags(content: str) -> list[str]:
     hashtags = []
@@ -40,6 +42,9 @@ def find_hashtags(content: str) -> list[str]:
 class MentionTarget:
     username: str
     host: str | None
+
+    def to_user_spec(self) -> UserSpecifier:
+        return UserSpecifier(username_and_host=(self.username, self.host))
 
 
 _mention_re = re.compile(r"@([a-zA-Z0-9_\-]+)(?:@([a-zA-Z0-9_\-\.]+))?")
