@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from api.auth.permission import NoAuthPermission
 from api.jsonld.renderer import WebfingerRenderer
 from api.models import User
-from api.serializers.webfinger import LinkSerializer, UserSerializer
+from api.serializers.webfinger import UserSerializer
 from lightpub.settings import HOSTNAME
 
 
@@ -52,7 +52,7 @@ class WebFingerAcctView(APIView):
                 "links": [
                     {
                         "rel": "self",
-                        "type": 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+                        "type": 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',  # noqa: E501
                         "href": user_url,
                     }
                 ],

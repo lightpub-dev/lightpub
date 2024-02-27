@@ -46,7 +46,7 @@ def remote_user_object():
         "outbox": "https://misskey.tinax.local/users/9prqtbgp6qc10001/outbox",
         "followers": "https://misskey.tinax.local/users/9prqtbgp6qc10001/followers",
         "following": "https://misskey.tinax.local/users/9prqtbgp6qc10001/following",
-        "featured": "https://misskey.tinax.local/users/9prqtbgp6qc10001/collections/featured",
+        "featured": "https://misskey.tinax.local/users/9prqtbgp6qc10001/collections/featured",  # noqa: E501
         "sharedInbox": "https://misskey.tinax.local/inbox",
         "endpoints": {"sharedInbox": "https://misskey.tinax.local/inbox"},
         "url": "https://misskey.tinax.local/@misskey",
@@ -63,7 +63,7 @@ def remote_user_object():
             "id": "https://misskey.tinax.local/users/9prqtbgp6qc10001#main-key",
             "type": "Key",
             "owner": "https://misskey.tinax.local/users/9prqtbgp6qc10001",
-            "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwaA30rvBeqb3hq5KMfV+\nJhZWM7dRSht61tCxweVsWUwI+kLzU8hzwI7gDJb9XDqAx+hVkha7FgFohtcwtAP5\nleAVI4zxf5WAZzbhM5Fbwy6kX44eKtn7AwlSjkx2sdIlGJh42J/DAXg4cdEcdier\nu4zFjXaszEV+0ptFZUDjP8JYAcqg2U4kd1P00ztASatLVi/O85QKQqHwdj6pQf4c\nBoC9T77pSIXhciNkLuTlascPT8hy74QGpZGggpcgC7vH210ywd8vJNDALF9dkejL\ncetNj45JlF4btfUijp029LmQywttwnzWdatbCO7UIMc1LSXrywg11nTQKKIVt9b+\nIQIDAQAB\n-----END PUBLIC KEY-----\n",
+            "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwaA30rvBeqb3hq5KMfV+\nJhZWM7dRSht61tCxweVsWUwI+kLzU8hzwI7gDJb9XDqAx+hVkha7FgFohtcwtAP5\nleAVI4zxf5WAZzbhM5Fbwy6kX44eKtn7AwlSjkx2sdIlGJh42J/DAXg4cdEcdier\nu4zFjXaszEV+0ptFZUDjP8JYAcqg2U4kd1P00ztASatLVi/O85QKQqHwdj6pQf4c\nBoC9T77pSIXhciNkLuTlascPT8hy74QGpZGggpcgC7vH210ywd8vJNDALF9dkejL\ncetNj45JlF4btfUijp029LmQywttwnzWdatbCO7UIMc1LSXrywg11nTQKKIVt9b+\nIQIDAQAB\n-----END PUBLIC KEY-----\n",  # noqa: E501
         },
         "isCat": False,
     }
@@ -80,7 +80,7 @@ def follow_req():
             ],
             "https://www.w3.org/ns/activitystreams#object": [
                 {
-                    "@id": "https://lightpub.tinax.local/api/users/9018aaeb-c698-4bcf-b5fd-c2feb0064c91"
+                    "@id": "https://lightpub.tinax.local/api/users/9018aaeb-c698-4bcf-b5fd-c2feb0064c91"  # noqa: E501
                 }
             ],
         }
@@ -132,7 +132,7 @@ def test_follow_activity_send_accept(
 ):
     req = follow_req
     actor = ("misskey.tinax.local", "misskey")
-    user_spec = sample_user.id
+    # user_spec = sample_user.id
 
     parsed = pub.FollowActivity.from_dict(req[0])
 

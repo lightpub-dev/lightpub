@@ -2,7 +2,7 @@ from drf_extra_fields.relations import PresentablePrimaryKeyRelatedField
 from rest_framework import serializers
 
 from ..models import PostBookmark, PostFavorite, PostReaction
-from .post import PostSerializer, ReplyToIdField, visible_posts
+from .post import PostSerializer, visible_posts
 from .user import SimpleUserSerializer
 
 
