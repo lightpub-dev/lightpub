@@ -37,7 +37,10 @@ def find_common_inbox(targets: list[DeliveryTarget]) -> list[str]:
 def _find_best_inbox(target: DeliveryTarget) -> list[str]:
     if isinstance(target, FollowerTarget):
         follows = (
-            UserFollow.objects.filter(followee_id=target.followed_user.id)
+            UserFollow.objects.filter(
+                followee_id=target.followed_user.id,
+                follower__host__isnull=False,
+            )
             .select_related("follower")
             .all()
         )
@@ -54,7 +57,7 @@ def _find_best_inbox(target: DeliveryTarget) -> list[str]:
 
 
 def _find_shared_or_inbox(target: User) -> str | None:
-    if target.remote_user_info and target.remote_user_info.shared_inbox:
+    if hasattr(target, "remote_user_info") and target.remote_user_info.shared_inbox:
         return target.remote_user_info.shared_inbox
     else:
         return target.inbox
