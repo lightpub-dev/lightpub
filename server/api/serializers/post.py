@@ -117,6 +117,17 @@ class PostReactionInfoSerializer(serializers.Serializer):
     reacted_by_me = serializers.BooleanField(required=False, allow_null=True)
 
 
+class MentionedUserSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="target_user.id", read_only=True)
+    username = serializers.CharField(source="target_user.username", read_only=True)
+    host = serializers.CharField(source="target_user.host", read_only=True)
+    nickname = serializers.CharField(source="target_user.nickname", read_only=True)
+
+    class Meta:
+        model = PostMention
+        fields = ["id", "username", "host", "nickname"]
+
+
 class PostSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(read_only=True)
     author = PostAuthorSerializer(read_only=True, source="poster")
@@ -140,6 +151,7 @@ class PostSerializer(serializers.ModelSerializer):
     favorited_by_me = serializers.SerializerMethodField()
     bookmarked_by_me = serializers.SerializerMethodField()
 
+    mentions = MentionedUserSerializer(many=True, read_only=True)
     reactions = serializers.SerializerMethodField()
 
     def validate_repost_of_id(self, repost_of_id):
@@ -343,6 +355,7 @@ class PostSerializer(serializers.ModelSerializer):
             "bookmarked_by_me",
             "attached_files",
             "attached_uploads",
+            "mentions",
             "reactions",
         ]
         read_only_fields = ["created_at"]
