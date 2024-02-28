@@ -53,7 +53,7 @@ def _find_best_inbox(target: DeliveryTarget) -> list[str]:
                 inbox_set.add(inbox)
         return inboxes
     elif isinstance(target, UserTarget):
-        return _find_shared_or_inbox(target.target_user)
+        return [_find_shared_or_inbox(target.target_user)]
 
 
 def _find_shared_or_inbox(target: User) -> str | None:

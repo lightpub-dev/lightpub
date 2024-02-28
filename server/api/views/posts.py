@@ -138,8 +138,7 @@ class PostViewSet(ModelViewSet):
         else:
             user = request.user
             if self.request.method == "PUT":
-                pf = PostFavorite(user=user, post=post)
-                pf.save()
+                PostFavorite.objects.create(user=user, post=post)
                 return Response(status=status.HTTP_201_CREATED)
             elif self.request.method == "DELETE":
                 PostFavorite.objects.filter(user=user, post=post).delete()
@@ -180,8 +179,7 @@ class PostViewSet(ModelViewSet):
         else:
             user = request.user
             if self.request.method == "PUT":
-                pb = PostBookmark(user=user, post=post)
-                pb.save()
+                PostBookmark.objects.create(user=user, post=post)
                 return Response(status=status.HTTP_201_CREATED)
             elif self.request.method == "DELETE":
                 PostBookmark.objects.filter(user=user, post=post).delete()

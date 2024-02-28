@@ -53,18 +53,16 @@ class CreateFollowSerializer(serializers.Serializer):
             raise ValueError("cannot follow self")
 
         if not target_user_is_remote:
-            uf = UserFollow(
+            UserFollow.objects.create(
                 follower=following,
                 followee=target_user,
             )
-            uf.save()
             return {"message": "followed"}
         else:
-            fr = UserFollowRequest(
+            fr = UserFollowRequest.objects.create(
                 follower=following,
                 followee=target_user,
             )
-            fr.save()
 
             tasks.send_follow_request.delay(fr.id)
 

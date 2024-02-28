@@ -158,10 +158,9 @@ def process_follow_activity(request, activity: pub.FollowActivity):
         fr.incoming = True
         fr.created_at = datetime.now()
     else:
-        fr = UserFollowRequest(
+        fr = UserFollowRequest.objects.create(
             uri=activity.id, follower=remote_user, followee=target_user, incoming=True
         )
-        fr.save()
 
     tasks.send_follow_accept.delay(fr.id)
 
@@ -338,7 +337,7 @@ def process_announce_activity(request, activity: pub.AnnounceActivity):
 
     ref_post = _get_or_insert_post_from_uri(obj.id)
 
-    post = Post(
+    Post.objects.create(
         uri=obj.id,
         poster=user,
         content=None,
@@ -347,7 +346,6 @@ def process_announce_activity(request, activity: pub.AnnounceActivity):
         reply_to=None,
         repost_of=ref_post,
     )
-    post.save()
 
     return
 
