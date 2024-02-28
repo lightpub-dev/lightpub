@@ -10,7 +10,6 @@ markdown = "*"
 mysqlclient = "*"
 bcrypt = "*"
 django-cors-headers = "*"
-uwsgi = "*"
 pillow = "*"
 whitenoise = "*"
 drf-extra-fields = "*"
@@ -26,6 +25,7 @@ pycryptodome = "*"
 django-debug-toolbar = "*"
 celery = {extras = ["redis"], version = "*"}
 flower = "*"
+gunicorn = "*"
 
 [dev-packages]
 mypy = "*"
@@ -36,6 +36,7 @@ gunicorn = "*"
 pytest = "*"
 pytest-mock = "*"
 watchdog = "*"
+uwsgi = "*"
 
 [requires]
 python_version = "3.12"
