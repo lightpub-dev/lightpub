@@ -28,8 +28,12 @@ HTTP_SCHEME = "https"
 SECRET_KEY = "django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-# DEBUG = False
+# DEBUG = True
+DEBUG = False
+
+# SECURITY WARNING: Always set to True in production
+SSL_VERIFY = False
+# SSL_VERIFY = True
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "lightpub.tinax.local"]
 
@@ -56,8 +60,10 @@ INSTALLED_APPS = [
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
     # "ddrr",
-    "debug_toolbar",
 ]
+
+if DEBUG:
+    INSTALLED_APPS.append("debug_toolbar")
 
 MIDDLEWARE = [
     # "ddrr.middleware.DebugRequestsResponses",
@@ -71,8 +77,10 @@ MIDDLEWARE = [
     # "api.middlewares.auther.AuthMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
+
+if DEBUG:
+    MIDDLEWARE.append("debug_toolbar.middleware.DebugToolbarMiddleware")
 
 ROOT_URLCONF = "lightpub.urls"
 

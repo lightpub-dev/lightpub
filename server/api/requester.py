@@ -28,9 +28,9 @@ from api.utils.get_id import (
 )
 from api.utils.inbox import FollowerTarget, UserTarget, find_common_inbox
 from api.utils.signature import attach_signature
-from lightpub.settings import DEBUG
+from lightpub.settings import SSL_VERIFY
 
-ssl_verify = not DEBUG
+ssl_verify = SSL_VERIFY
 
 HEADERS = {
     "accept": "application/activity+json",
@@ -222,7 +222,7 @@ class Requester:
             raise MalformedRemoteResponseError(uri, "expected 1 object")
         note = Note.from_dict(e[0])
         user = self.fetch_remote_user(note.as_attributedTo.id)
-        post = Post(
+        post = Post.objects.create(
             uri=note.id,
             poster=user,
             content=note.as_content,
@@ -230,7 +230,6 @@ class Requester:
             privacy=0,  # TODO: implement privacy
             reply_to=None,  # TODO: implement reply_to
         )
-        post.save()
 
         return post.id
 
@@ -315,11 +314,10 @@ class Requester:
                 followee=follow_req.followee,
             ).exists():
                 # create a new user follow
-                actual_follow = UserFollow(
+                UserFollow.objects.create(
                     follower=follow_req.follower,
                     followee=follow_req.followee,
                 )
-                actual_follow.save()
 
             # delete the follow request
             follow_req.delete()
