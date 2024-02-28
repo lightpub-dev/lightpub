@@ -431,6 +431,21 @@ class Requester:
         for inbox in target_inboxes:
             logger.debug("sending a post to a remote inbox: %s", inbox)
             # TODO: ここらへんの処理ループ内でやる必要ある?
+            post_object = {
+                "id": post_id,
+                "attributedTo": sender_id,
+                "type": "Note",
+                "to": cc,
+                "cc": cc,
+                "content": post.content,
+                "published": post.created_at.isoformat(),
+                "sensitive": False,
+            }
+            if post.reply_to:
+                post_object["inReplyTo"] = get_post_id(
+                    post.reply_to, use_remote_uri=True
+                )
+
             req = requests.Request(
                 method="POST",
                 url=inbox,
@@ -443,16 +458,7 @@ class Requester:
                     "actor": sender_id,
                     "to": to,
                     "cc": cc,
-                    "object": {
-                        "id": post_id,
-                        "attributedTo": sender_id,
-                        "type": "Note",
-                        "to": cc,
-                        "cc": cc,
-                        "content": post.content,
-                        "published": post.created_at.isoformat(),
-                        "sensitive": False,
-                    },
+                    "object": post_object,
                     "published": post.created_at.isoformat(),
                 },
                 headers={

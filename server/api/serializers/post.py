@@ -134,6 +134,7 @@ class PostSerializer(serializers.ModelSerializer):
 
     reply_to = serializers.SerializerMethodField()
     repost_of = serializers.SerializerMethodField()
+    external_uri = serializers.URLField(read_only=True, source="uri", allow_null=True)
 
     attached_uploads = AttachedFileField(
         allow_null=True, many=True, required=False, write_only=True
@@ -328,6 +329,7 @@ class PostSerializer(serializers.ModelSerializer):
             "attached_uploads",
             "mentions",
             "reactions",
+            "external_uri",
         ]
         read_only_fields = ["created_at"]
 

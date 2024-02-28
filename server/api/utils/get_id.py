@@ -14,7 +14,10 @@ def get_user_id(user: User) -> str:
     return f"{HTTP_SCHEME}://{HOSTNAME}/api/users/{user.id}"
 
 
-def get_post_id(post: Post) -> str:
+def get_post_id(post: Post, use_remote_uri: bool = False) -> str:
+    if use_remote_uri and post.uri is not None:
+        return post.uri
+
     # TODO: too fragile
     return f"{HTTP_SCHEME}://{HOSTNAME}/api/posts/{post.id}"
 
@@ -37,7 +40,7 @@ def extract_local_post_id(uri: str) -> str | None:
 
 def make_followers_id(user: User) -> str:
     # TODO: too fragile
-    return f"{HTTP_SCHEME}://{HOSTNAME}/api/followers/?user={user.id}"
+    return f"{HTTP_SCHEME}://{HOSTNAME}/api/{user.id}/followers"
 
 
 def is_local_uri(uri: str) -> bool:
