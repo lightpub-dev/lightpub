@@ -1,7 +1,7 @@
 import datetime
 import logging
 import uuid
-from typing import TypedDict, cast
+from typing import Iterator, TypedDict, cast
 from urllib.parse import urlparse
 
 import requests
@@ -10,6 +10,7 @@ from pyld import jsonld
 
 from api.models import (
     Post,
+    PostMention,
     PublicKey,
     RemoteUserInfo,
     User,
@@ -24,6 +25,7 @@ from api.utils.get_id import (
     is_local_uri,
     make_followers_id,
 )
+from api.utils.inbox import FollowerTarget, UserTarget, find_common_inbox
 from api.utils.signature import attach_signature
 from lightpub.settings import DEBUG
 
@@ -295,7 +297,9 @@ class Requester:
         create_id = f"{post_id}activity/"  # TODO: really?
 
         # send to each inbox
+        # TODO: should split into multiple tasks to queue starvation
         for inbox in target_inboxes:
+            logger.debug("sending a post to a remote inbox: %s", inbox)
             # TODO: ここらへんの処理ループ内でやる必要ある?
             req = requests.Request(
                 method="POST",
@@ -350,47 +354,44 @@ class PostToCcList(TypedDict):
     target_inboxes: list[str]
 
 
-def get_followers_inboxes(user: User) -> list[str]:
-    followers = (
-        UserFollow.objects.filter(followee=user, follower__host__isnull=False)
-        .select_related("follower")
-        .all()
-    )
-
-    # TODO: send to sharedInbox instead of individual inboxes
-    inboxes = []
-    for f in followers:
-        if f.follower.inbox:
-            inboxes.append(f.follower.inbox)
-
-    return inboxes
-
-
 def _make_to_and_cc(post: Post) -> PostToCcList:
     # check post's privacy
-    # TODO: consider mentions
     if post.privacy == 0:
         # public
         to = [PUBLIC_URI]
         cc = [make_followers_id(post.poster)]
-        target_inboxes = get_followers_inboxes(post.poster)
+        delivery_targets = [
+            FollowerTarget(followed_user=post.poster),
+        ]
     elif post.privacy == 1:
         # unlisted
         to = [make_followers_id(post.poster)]
         cc = [PUBLIC_URI]
-        target_inboxes = get_followers_inboxes(post.poster)
+        delivery_targets = [
+            FollowerTarget(followed_user=post.poster),
+        ]
     elif post.privacy == 2:
         # followers only
         to = [make_followers_id(post.poster)]
         cc = []
-        target_inboxes = get_followers_inboxes(post.poster)
+        delivery_targets = [
+            FollowerTarget(followed_user=post.poster),
+        ]
     elif post.privacy == 3:
-        # private only
+        # private only (see mentions below)
         to = []
         cc = []
-        target_inboxes = []
+        delivery_targets = []
     else:
         raise ValueError("invalid privacy")
+
+    # process mentions
+    mentions: Iterator[PostMention] = post.mentions.all()
+    for mention in mentions:
+        to.append(get_user_id(mention.target_user))
+        delivery_targets.append(UserTarget(target_user=mention.target_user))
+
+    target_inboxes = find_common_inbox(delivery_targets)
 
     return {
         "to": to,
