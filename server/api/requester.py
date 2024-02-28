@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import requests
 from django.db import transaction
 from pyld import jsonld
+from requests.exceptions import RequestException
 
 from api.models import (
     Post,
@@ -44,9 +45,9 @@ class RequesterException(Exception):
 
 class NotRemoteError(RequesterException):
     def __init__(self, uri: str, msg: str) -> None:
-        super().__init__(msg)
         self.uri = uri
         self.msg = msg
+        super().__init__(uri, msg)
 
 
 class RemoteRelatedError(RequesterException):
@@ -56,12 +57,29 @@ class RemoteRelatedError(RequesterException):
 class RemoteObjectNotFoundError(RemoteRelatedError):
     def __init__(self, uri: str) -> None:
         self.uri = uri
+        super().__init__(uri)
 
 
-class MalformedRemoteResponseError(RemoteRelatedError):
+class RecoverableRemoteError(RemoteRelatedError):
+    pass
+
+
+class MalformedRemoteResponseError(RecoverableRemoteError):
     def __init__(self, uri: str, msg: str) -> None:
         self.uri = uri
         self.msg = msg
+        super().__init__(uri, msg)
+
+
+class RemoteDownError(RecoverableRemoteError):
+    def __init__(self, uri: str, status: int | None) -> None:
+        self.uri = uri
+        self.status = status
+        super().__init__(uri, status)
+
+    @classmethod
+    def from_request_exception(cls, uri: str, e: requests.exceptions.RequestException):
+        return cls(uri, e.response.status_code if e.response else None)
 
 
 class Requester:
@@ -79,10 +97,10 @@ class Requester:
         )
         try:
             res.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            if e.response.status_code == 404:
+        except RequestException as e:
+            if e.response and e.response.status_code == 404:
                 raise RemoteObjectNotFoundError(id)
-            raise e
+            raise RemoteDownError.from_request_exception(id, e) from e
         j = res.json()
         return jsonld.expand(j)
 
@@ -129,7 +147,10 @@ class Requester:
             verify=ssl_verify,
             timeout=self.default_timeout,
         )
-        res.raise_for_status()
+        try:
+            res.raise_for_status()
+        except RequestException as e:
+            raise RemoteDownError.from_request_exception(webfinger_url, e) from e
         j = res.json()
         links = j["links"]
         for link in links:
@@ -182,7 +203,10 @@ class Requester:
         prep = req.prepare()
         attach_signature(prep, key_id, private_key.encode("utf-8"))
         res = self._session.send(prep, timeout=self.default_timeout, verify=ssl_verify)
-        res.raise_for_status()
+        try:
+            res.raise_for_status()
+        except RequestException as e:
+            raise RemoteDownError.from_request_exception(inbox_url, e) from e
 
         with transaction.atomic():
             # check if follow is already exists
@@ -234,7 +258,10 @@ class Requester:
         prep = req.prepare()
         attach_signature(prep, key_id, private_key.encode("utf-8"))
         res = self._session.send(prep, timeout=self.default_timeout, verify=ssl_verify)
-        res.raise_for_status()
+        try:
+            res.raise_for_status()
+        except RequestException as e:
+            raise RemoteDownError.from_request_exception(inbox_url, e) from e
 
     def send_follow_request(self, follow_req: UserFollowRequest) -> None:
         inbox = follow_req.followee.inbox
@@ -277,7 +304,10 @@ class Requester:
             verify=ssl_verify,
             timeout=self.default_timeout,
         )
-        res.raise_for_status()
+        try:
+            res.raise_for_status()
+        except RequestException as e:
+            raise RemoteDownError.from_request_exception(inbox, e) from e
 
     def send_post_to_federated_servers(self, post: Post) -> None:
         tocc = _make_to_and_cc(post)
@@ -336,9 +366,8 @@ class Requester:
                     prep, timeout=self.default_timeout, verify=ssl_verify
                 )
                 res.raise_for_status()
-            except requests.exceptions.RequestException as e:
-                print("failed to post a post to a remote inbox")
-                print(e)
+            except RequestException as e:
+                raise RemoteDownError.from_request_exception(inbox, e) from e
 
 
 _req = Requester()
