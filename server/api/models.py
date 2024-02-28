@@ -55,7 +55,7 @@ class RemoteUserInfo(models.Model):
 
 class PublicKey(models.Model):
     id = models.AutoField(primary_key=True)
-    uri = models.CharField(max_length=512, null=False, blank=False)
+    uri = models.CharField(max_length=512, null=False, blank=False, unique=True)
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -128,8 +128,10 @@ class Post(models.Model):
     content = models.TextField(
         max_length=10000, null=True, blank=True
     )  # NULL for repost
-    inserted_at = models.DateTimeField(auto_now_add=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    inserted_at = models.DateTimeField(auto_now_add=True)  # the time added to the db
+    created_at = models.DateTimeField(
+        null=False, blank=False
+    )  # the time the post was created (may be different from inserted_at if the post was created remotely) # noqa: E501
     privacy = models.SmallIntegerField(
         choices=[(0, "public"), (1, "unlisted"), (2, "follower"), (3, "private")]
     )

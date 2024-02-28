@@ -1,13 +1,20 @@
 import base64
 import datetime
 import hashlib
+import logging
 import urllib.parse
 from collections import OrderedDict
+from uuid import UUID
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
+from django.http import HttpRequest
 from requests import PreparedRequest
+
+from api.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def digest_body(body: bytes) -> bytes:
@@ -97,3 +104,108 @@ def attach_signature(req: PreparedRequest, key_id: str, priv_key: bytes) -> None
     req.headers["Signature"] = signature
     # for Misskey
     req.headers["Authorization"] = f"Signature {signature}"
+
+
+class KeyRetriever:
+    def get_public_key(self, key_id: str) -> tuple[bytes, UUID] | None:
+        """
+        Retrieve the public key for the given key ID.
+
+        :param key_id: The key ID.
+        :return: The public key bytes and owner's uuid,
+                 or None if the key ID is not found.
+        """
+        raise NotImplementedError
+
+
+class SignatureVerificationError(Exception):
+    def __init__(self, msg) -> None:
+        self.msg = msg
+        super().__init__(msg)
+
+
+_SPECIAL_HEADERS = [
+    "(request-target)",
+]
+_SIGN_REQUIRED_HEADERS = [
+    "(request-target)",
+    "host",
+    "date",
+    "digest",
+]
+
+
+def verify_signature(req: HttpRequest, keyret: KeyRetriever) -> User:
+    """
+    Verifies the signature of an HTTP request.
+
+    :param res: The HTTP request object.
+    :param public_key_retriever: A callable that takes a key ID
+                                 and returns the corresponding public key.
+    :return: Returns the user who owns the public key if the signature is valid,
+             otherwise raise SignatureVerificationError
+    """
+    # Parse the Signature header
+    signature_header = req.headers.get("Signature")
+    if not signature_header:
+        return False
+
+    # Extract keyId and signature from the Signature header
+    signature_parts = {
+        kv[0]: kv[1].strip('"')
+        for kv in [part.split("=", maxsplit=1) for part in signature_header.split(",")]
+        if len(kv) == 2
+    }
+    algorithm = signature_parts.get("algorithm", "")
+    if algorithm.lower() != "rsa-sha256":
+        return False
+    key_id = signature_parts.get("keyId")
+    try:
+        received_signature = base64.b64decode(signature_parts["signature"])
+    except KeyError:
+        raise SignatureVerificationError("Signature header does not contain signature")
+
+    # Fetch the public key using the retriever
+    keyret_result = keyret.get_public_key(key_id)
+    if keyret_result is None:
+        raise SignatureVerificationError("Key not found")
+    public_key_bytes, user_id = keyret_result
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        raise SignatureVerificationError("User not found")
+
+    # check signature contains required headers
+    required_headers = [k.lower() for k in signature_parts.get("headers", "").split()]
+    for header in _SIGN_REQUIRED_HEADERS:
+        if header not in required_headers:
+            raise SignatureVerificationError("Missing header in signature: " + header)
+    not_found_headers = set(required_headers) - set(_SPECIAL_HEADERS)
+
+    # Reconstruct the signing string
+    method = req.method
+    path = urllib.parse.urlparse(req.path).path
+    headers = req.headers
+    signatured_headers = []
+    for sig_header in required_headers:
+        if sig_header in _SPECIAL_HEADERS:
+            continue
+        if sig_header in headers:
+            signatured_headers.append((sig_header, headers[sig_header]))
+            not_found_headers.discard(sig_header)
+    if not_found_headers:
+        raise SignatureVerificationError(
+            "Missing header in request: " + ", ".join(not_found_headers)
+        )
+
+    _, signature_string = make_signature_string(signatured_headers, method, path)
+
+    # Verify the signature
+    try:
+        public_key = RSA.import_key(public_key_bytes)
+        verifier = pkcs1_15.new(public_key)
+        message_hash = SHA256.new(signature_string.encode("utf-8"))
+        verifier.verify(message_hash, received_signature)
+        return user
+    except (ValueError, TypeError) as e:
+        raise SignatureVerificationError("Verification failed")

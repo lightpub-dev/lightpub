@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import datetime
 from pprint import pprint
 
@@ -8,11 +9,16 @@ from rest_framework import status
 from rest_framework.response import Response
 
 from api import tasks
-from api.models import Post, User, UserFollow, UserFollowRequest
+from api.models import Post, PublicKey, User, UserFollow, UserFollowRequest
 from api.serializers import pub
 from api.utils.get_id import extract_local_post_id, extract_local_user_id
 from api.utils.posts.db import CreatePostData, create_post
 from api.utils.posts.privacy import PostPrivacy
+from api.utils.signature import (
+    KeyRetriever,
+    SignatureVerificationError,
+    verify_signature,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +27,48 @@ class InboxProcessingError(Exception):
     def __init__(self, status: int, response) -> None:
         self.status = status
         self.response = response
+
+
+class PubKeyRetriever(KeyRetriever):
+    def get_public_key(self, key_id: str) -> tuple[bytes, uuid.UUID] | None:
+        # assume key_id is a remote user's key
+        try:
+            pubkey = PublicKey.objects.get(uri=key_id)
+            return (pubkey.public_key_pem, pubkey.user_id)
+        except PublicKey.DoesNotExist:
+            return None
+
+
+def _check_signature(request, actor_id: str) -> None:
+    """
+    check HTTP signature.
+    raise InboxProcessingError if invalid.
+    """
+    remote_user_result = tasks.fetch_remote_user.delay(actor_id)
+    try:
+        remote_user = User.objects.get(id=remote_user_result.get())
+    except User.DoesNotExist:
+        raise InboxProcessingError(
+            status=status.HTTP_404_NOT_FOUND,
+            response={"error": "remote user not found"},
+        )
+
+    try:
+        verified_user = verify_signature(request, PubKeyRetriever())
+    except SignatureVerificationError as e:
+        logger.debug("signature verification failed: %s", e)
+        raise InboxProcessingError(
+            status=status.HTTP_401_UNAUTHORIZED,
+            response={"error": "HTTP Signature check failed"},
+        )
+
+    if remote_user.id != verified_user.id:
+        raise InboxProcessingError(
+            status=status.HTTP_401_UNAUTHORIZED,
+            response={"error": "HTTP Signature signer does not match the actor"},
+        )
+
+    # check passed
 
 
 class UserInboxView:
@@ -34,37 +82,35 @@ class UserInboxView:
 
         data = request.data[0]
 
-        # TODO: check HTTP signature
-
         try:
             obj = pub.Object.from_dict(data)
             if pub.is_follow(obj):
                 follow = pub.FollowActivity.from_dict(data)
-                process_follow_activity(follow)
+                process_follow_activity(request, follow)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_undo(obj):
                 undo = pub.UndoActivity.from_dict(data)
-                process_undo_activity(undo)
+                process_undo_activity(request, undo)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_accept(obj):
                 accept = pub.AcceptActivity.from_dict(data)
-                process_accept_activity(accept)
+                process_accept_activity(request, accept)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_reject(obj):
                 reject = pub.RejectActivity.from_dict(data)
-                process_reject_activity(reject)
+                process_reject_activity(request, reject)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_create(obj):
                 create = pub.CreateActivity.from_dict(data)
-                process_create_activity(create)
+                process_create_activity(request, create)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_announce(obj):
                 announce = pub.AnnounceActivity.from_dict(data)
-                process_announce_activity(announce)
+                process_announce_activity(request, announce)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_delete(obj):
                 delete = pub.DeleteActivity.from_dict(data)
-                process_delete_activity(delete)
+                process_delete_activity(request, delete)
                 return Response(status=status.HTTP_204_NO_CONTENT)
         except InboxProcessingError as e:
             return Response(status=e.status, data=e.response)
@@ -90,11 +136,14 @@ def _get_local_user_from_uri(uri: str) -> User:
     return get_object_or_404(User, id=user_id)
 
 
-def process_follow_activity(activity: pub.FollowActivity):
+def process_follow_activity(request, activity: pub.FollowActivity):
     target_user = _get_local_user_from_uri(activity.as_object.id)
 
     # fetch the actor's user id
     actor_id = activity.as_actor.id
+
+    _check_signature(request, actor_id)
+
     remote_user_result = tasks.fetch_remote_user.delay(id=actor_id)
     remote_user = User.objects.get(id=remote_user_result.get())
 
@@ -195,8 +244,11 @@ def process_accept_activity(activity: pub.AcceptActivity):
         )
 
 
-def process_undo_activity(activity: pub.UndoActivity):
+def process_undo_activity(request, activity: pub.UndoActivity):
     obj_s = activity.as_object
+
+    _check_signature(request, activity.as_actor.id)
+
     if pub.is_follow(obj_s):
         obj = obj_s.reparse(pub.FollowActivity)
         actor = obj.as_actor
@@ -237,8 +289,11 @@ def process_undo_activity(activity: pub.UndoActivity):
     )
 
 
-def process_create_activity(activity: pub.CreateActivity):
+def process_create_activity(request, activity: pub.CreateActivity):
     obj = activity.as_object
+
+    _check_signature(request, activity.as_actor.id)
+
     if pub.is_note(obj):
         note = obj.reparse(pub.Note)
         # pprint(note)
@@ -272,9 +327,11 @@ def process_create_activity(activity: pub.CreateActivity):
     )
 
 
-def process_announce_activity(activity: pub.AnnounceActivity):
+def process_announce_activity(request, activity: pub.AnnounceActivity):
     obj = activity.as_object
     # assume obj is a Note
+
+    _check_signature(request, activity.as_actor.id)
 
     user_result = tasks.fetch_remote_user(id=activity.as_actor.id)
     user = User.objects.get(id=user_result.get())
@@ -295,9 +352,11 @@ def process_announce_activity(activity: pub.AnnounceActivity):
     return
 
 
-def process_delete_activity(activity: pub.DeleteActivity):
+def process_delete_activity(request, activity: pub.DeleteActivity):
     obj = activity.as_object
     # assume obj is a Note
+
+    _check_signature(request, activity.as_actor.id)
 
     obj_id = obj.id
     local_post_id = extract_local_post_id(obj_id)

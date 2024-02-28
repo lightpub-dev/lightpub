@@ -251,12 +251,32 @@ class PostSerializer(serializers.ModelSerializer):
         except ValueError:
             raise serializers.ValidationError("Invalid privacy value")
 
+        repost_of_id = None
+        if (
+            "repost_of_id" in validated_data
+            and validated_data["repost_of_id"] is not None
+        ):
+            repost_of_id = validated_data["repost_of_id"].id
+        reply_to_id = None
+        if (
+            "reply_to_id" in validated_data
+            and validated_data["reply_to_id"] is not None
+        ):
+            reply_to_id = validated_data["reply_to_id"].id
+        attached_uploads = []
+        if (
+            "attached_uploads" in validated_data
+            and validated_data["attached_uploads"] is not None
+        ):
+            attached_uploads = [
+                upload.id for upload in validated_data["attached_uploads"]
+            ]
         post_data = CreatePostData(
             poster=poster,
             content=validated_data.get("content", None),
-            repost_of_id=validated_data.get("repost_of_id", None),
-            reply_to_id=validated_data.get("reply_to_id", None),
-            attached_uploads=validated_data.get("attached_uploads", []),
+            repost_of_id=repost_of_id,
+            reply_to_id=reply_to_id,
+            attached_uploads=attached_uploads,
             privacy=privacy,
         )
         return create_post(post_data)

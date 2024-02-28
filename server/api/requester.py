@@ -189,29 +189,27 @@ class Requester:
             )
             remote_info.last_fetched_at = datetime.datetime.now()
 
-        public_key_info = None
-        if actor.as_public_key:
-            k = actor.as_public_key
-            if not k.as_owner:
-                raise ValueError("public key does not have owner")
-            elif k.as_owner.id != actor.id:
-                raise ValueError("public key owner does not match actor id")
-
-            if not k.as_public_key_pem:
-                raise ValueError("public key pem is not set")
-
-            public_key_info = PublicKey(
-                uri=k.id,
-                user=new_user,
-                public_key_pem=k.as_public_key_pem,
-            )
-
         # use transaction to ensure consistency
         with transaction.atomic():
             new_user.save()
             remote_info.save()
-            if public_key_info:
-                public_key_info.save()
+
+            # upsert public keys
+            if actor.as_public_key:
+                k = actor.as_public_key
+                if not k.as_owner:
+                    raise ValueError("public key does not have owner")
+                elif k.as_owner.id != actor.id:
+                    raise ValueError("public key owner does not match actor id")
+
+                if not k.as_public_key_pem:
+                    raise ValueError("public key pem is not set")
+
+                PublicKey.objects.update_or_create(
+                    uri=k.id,
+                    user=new_user,
+                    public_key_pem=k.as_public_key_pem,
+                )
 
         return new_user.id
 
