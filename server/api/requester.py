@@ -105,15 +105,115 @@ class Requester:
         return jsonld.expand(j)
 
     def fetch_remote_user(self, uri: str, force_fetch: bool = False):
-        # TODO: respect force_fetch, use db if possible
-        host = urlparse(uri).hostname
-        e = self.fetch_remote_id(uri)
+        actor: Actor = None
 
-        actor = Actor.from_dict(e[0])
-        if not is_actor(actor):
-            raise ValueError("not an actor, type is " + str(actor.type))
+        def _fetch_remote() -> None:
+            nonlocal actor
+            if actor is not None:
+                return
+            e = self.fetch_remote_id(uri)
+            actor = Actor.from_dict(e[0])
+            if not is_actor(actor):
+                raise ValueError("not an actor, type is " + str(actor.type))
 
-        return _get_or_insert_remote_user(actor, host)
+        # check if user already exists
+        new_user: User | None = None
+        remote_info: RemoteUserInfo | None = None
+        user = User.objects.filter(uri=uri).first()
+        if user is not None:
+            remote_user_info = cast(RemoteUserInfo | None, user.remote_user_info)
+            if remote_user_info is None:
+                # user need to be updated
+                new_user_ = user
+                remote_info = None
+            else:
+                # TODO: parameterize the threshold
+                if force_fetch or (
+                    remote_user_info.last_fetched_at
+                    < datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=1)
+                ):
+                    # user need to be updated
+                    new_user_ = user
+                    remote_info = remote_user_info
+                else:
+                    # user is up-to-date
+                    return user.id
+            # update existing user
+            _fetch_remote()
+            new_user_.username = actor.as_preferred_username
+            new_user_.nickname = actor.as_name
+            new_user_.uri = actor.id  # TODO: uri update して大丈夫?
+            new_user_.inbox = actor.as_inbox.id
+            new_user_.outbox = actor.as_outbox.id
+            new_user = new_user_
+        else:
+            # create a new remote user
+            _fetch_remote()
+            new_user = User(
+                username=actor.as_preferred_username,
+                host=urlparse(uri).hostname,
+                bpassword=None,
+                nickname=(
+                    actor.as_name if actor.as_name else actor.as_preferred_username
+                ),
+                uri=actor.id,
+                inbox=actor.as_inbox.id,
+                outbox=actor.as_outbox.id,
+            )
+
+        # if you reach here, _fetch_remote() is called and actor is set
+
+        if remote_info is None:
+            remote_info = RemoteUserInfo(
+                user=new_user,
+                following=actor.as_following.id if actor.as_following else None,
+                followers=actor.as_followers.id if actor.as_followers else None,
+                liked=actor.as_liked.id if actor.as_liked else None,
+                shared_inbox=(
+                    actor.as_shared_inbox.id if actor.as_shared_inbox else None
+                ),
+                preferred_username=actor.as_preferred_username,
+            )
+        else:
+            remote_info.following = (
+                actor.as_following.id if actor.as_following else None
+            )
+            remote_info.followers = (
+                actor.as_followers.id if actor.as_followers else None
+            )
+            remote_info.liked = actor.as_liked.id if actor.as_liked else None
+            remote_info.preferred_username = actor.as_preferred_username
+            remote_info.shared_inbox = (
+                actor.as_shared_inbox.id if actor.as_shared_inbox else None
+            )
+            remote_info.last_fetched_at = datetime.datetime.now()
+
+        public_key_info = None
+        if actor.as_public_key:
+            k = actor.as_public_key
+            if not k.as_owner:
+                raise ValueError("public key does not have owner")
+            elif k.as_owner.id != actor.id:
+                raise ValueError("public key owner does not match actor id")
+
+            if not k.as_public_key_pem:
+                raise ValueError("public key pem is not set")
+
+            public_key_info = PublicKey(
+                uri=k.id,
+                user=new_user,
+                public_key_pem=k.as_public_key_pem,
+            )
+
+        # use transaction to ensure consistency
+        with transaction.atomic():
+            new_user.save()
+            remote_info.save()
+            if public_key_info:
+                public_key_info.save()
+
+        return new_user.id
 
     def fetch_remote_post_by_uri(self, uri: str, nested: int = 0) -> uuid.UUID:
         # TODO: use nested to determine the content should be fetched
@@ -160,14 +260,16 @@ class Requester:
         raise ValueError("actor not found")
 
     def fetch_remote_username(self, username: str, host: str) -> uuid.UUID:
+        # check if the user already exists in the db
+        existing_user = User.objects.filter(username=username, host=host).first()
+        if existing_user is not None:
+            # FIXME: double db read
+            return self.fetch_remote_user(existing_user.uri, force_fetch=False)
+
+        # if not, fetch the user_id using webfinger
         id = self._get_actor_id_from_username(username, host)
-        res = self.fetch_remote_id(id)
-
-        actor = Actor.from_dict(res[0])
-        if not is_actor(actor):
-            raise ValueError("not an actor, type is " + str(actor.type))
-
-        return _get_or_insert_remote_user(actor, host)
+        # using the fetched id, fetch the actor info
+        return self.fetch_remote_user(id, force_fetch=False)
 
     def send_follow_accept(self, follow_req: UserFollowRequest) -> None:
         inbox_url = follow_req.follower.inbox
@@ -427,94 +529,3 @@ def _make_to_and_cc(post: Post) -> PostToCcList:
         "cc": cc,
         "target_inboxes": target_inboxes,
     }
-
-
-def get_or_insert_remote_user(actor: Actor, hostname: str) -> uuid.UUID:
-    return _get_or_insert_remote_user(actor, hostname)
-
-
-def _get_or_insert_remote_user(actor: Actor, hostname: str) -> uuid.UUID:
-    # check if user already exists
-    new_user: User | None = None
-    remote_info: RemoteUserInfo | None = None
-    user = User.objects.filter(uri=actor.id).first()
-    if user is not None:
-        remote_user_info = cast(RemoteUserInfo | None, user.remote_user_info)
-        if remote_user_info is None:
-            # user need to be updated
-            new_user_ = user
-            remote_info = None
-        else:
-            # TODO: parameterize the threshold
-            if remote_user_info.last_fetched_at < datetime.datetime.now(
-                datetime.timezone.utc
-            ) - datetime.timedelta(days=1):
-                # user need to be updated
-                new_user_ = user
-                remote_info = remote_user_info
-            else:
-                # user is up-to-date
-                return user.id
-        # update existing user
-        new_user_.username = actor.as_preferred_username
-        new_user_.nickname = actor.as_name
-        new_user_.uri = actor.id  # TODO: uri update して大丈夫?
-        new_user_.inbox = actor.as_inbox.id
-        new_user_.outbox = actor.as_outbox.id
-        new_user = new_user_
-    else:
-        # create a new remote user
-        new_user = User(
-            username=actor.as_preferred_username,
-            host=hostname,
-            bpassword=None,
-            nickname=actor.as_name,
-            uri=actor.id,
-            inbox=actor.as_inbox.id,
-            outbox=actor.as_outbox.id,
-        )
-
-    if remote_info is None:
-        remote_info = RemoteUserInfo(
-            user=new_user,
-            following=actor.as_following.id if actor.as_following else None,
-            followers=actor.as_followers.id if actor.as_followers else None,
-            liked=actor.as_liked.id if actor.as_liked else None,
-            shared_inbox=actor.as_shared_inbox.id if actor.as_shared_inbox else None,
-            preferred_username=actor.as_preferred_username,
-        )
-    else:
-        remote_info.following = actor.as_following.id if actor.as_following else None
-        remote_info.followers = actor.as_followers.id if actor.as_followers else None
-        remote_info.liked = actor.as_liked.id if actor.as_liked else None
-        remote_info.preferred_username = actor.as_preferred_username
-        remote_info.shared_inbox = (
-            actor.as_shared_inbox.id if actor.as_shared_inbox else None
-        )
-        remote_info.last_fetched_at = datetime.datetime.now()
-
-    public_key_info = None
-    if actor.as_public_key:
-        k = actor.as_public_key
-        if not k.as_owner:
-            raise ValueError("public key does not have owner")
-        elif k.as_owner.id != actor.id:
-            raise ValueError("public key owner does not match actor id")
-
-        if not k.as_public_key_pem:
-            raise ValueError("public key pem is not set")
-
-        public_key_info = PublicKey(
-            uri=k.id,
-            user=new_user,
-            public_key_pem=k.as_public_key_pem,
-        )
-
-    # use transaction to ensure consistency
-    with transaction.atomic():
-        new_user.save()
-        remote_info.save()
-        if public_key_info:
-            public_key_info.save()
-
-    return new_user.id
