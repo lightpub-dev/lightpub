@@ -11,6 +11,8 @@ from api import tasks
 from api.models import Post, User, UserFollow, UserFollowRequest
 from api.serializers import pub
 from api.utils.get_id import extract_local_post_id, extract_local_user_id
+from api.utils.posts.db import CreatePostData, create_post
+from api.utils.posts.privacy import PostPrivacy
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +243,7 @@ def process_create_activity(activity: pub.CreateActivity):
         note = obj.reparse(pub.Note)
         # pprint(note)
 
-        user_result = tasks.fetch_remote_user(id=activity.as_actor.id)
+        user_result = tasks.fetch_remote_user.delay(id=activity.as_actor.id)
         user = User.objects.get(id=user_result.get())
 
         # fetch reply to
@@ -252,15 +254,15 @@ def process_create_activity(activity: pub.CreateActivity):
         else:
             ref_post = None
 
-        post = Post(
+        post_data = CreatePostData(
             uri=note.id,
             poster=user,
             content=note.as_content,
             created_at=note.as_published.as_datetime(),
-            privacy=0,  # TODO: implement privacy
-            reply_to=ref_post,  # TODO: implement reply_to
+            privacy=PostPrivacy.PUBLIC,  # TODO: implement privacy
+            reply_to_id=ref_post.id if ref_post else None,
         )
-        post.save()
+        create_post(post_data)
 
         return
 

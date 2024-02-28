@@ -1,11 +1,9 @@
-import pytest
-
-from . import post
-from .post import MentionTarget
+from .posts import content
+from .posts.content import MentionTarget
 
 
 def test_find_hashtag():
-    f = post.find_hashtags
+    f = content.find_hashtags
     assert f("Here is a post with a #hashtag") == ["hashtag"]
     assert f("This post contains multiple #hashtags, with #different #tags.") == [
         "hashtags",
@@ -22,7 +20,7 @@ def test_find_hashtag():
 
 
 def test_find_mentions():
-    f = post.find_mentions
+    f = content.find_mentions
     t = MentionTarget
     assert f("Hello @user") == [t("user", None)]
     assert f("Hello @user@example.com") == [t("user", "example.com")]

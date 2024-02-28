@@ -1,22 +1,20 @@
 import copy
 from typing import Any, cast
 
-from django.db import transaction
 from django.db.models import Count, Q
 from django.urls import reverse
 from rest_framework import serializers
 
-from api import tasks
 from api.models import (
     Post,
     PostAttachment,
-    PostHashtag,
     PostMention,
     PostReaction,
     UploadedFile,
     User,
 )
-from api.utils.post import find_hashtags, find_mentions
+from api.utils.posts.db import CreatePostData, create_post
+from api.utils.posts.privacy import PostPrivacy
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):
@@ -248,67 +246,20 @@ class PostSerializer(serializers.ModelSerializer):
         if not poster.id:
             raise serializers.ValidationError("User not authenticated")
 
-        # begins transaction
-        with transaction.atomic():
-            post_data = validated_data.copy()
-            if "attached_uploads" in post_data:
-                del post_data["attached_uploads"]
-            if "reply_to_id" in post_data:
-                post_data["reply_to"] = post_data["reply_to_id"]
-                del post_data["reply_to_id"]
-            if "repost_of_id" in post_data:
-                post_data["repost_of"] = post_data["repost_of_id"]
-                del post_data["repost_of_id"]
-            post = Post.objects.create(poster=poster, **post_data)
+        try:
+            privacy = PostPrivacy(validated_data["privacy"])
+        except ValueError:
+            raise serializers.ValidationError("Invalid privacy value")
 
-            # region hashtag
-            # find hashtags
-            if post.content is not None:
-                hashtags = find_hashtags(post.content)
-            else:
-                # fetch hashtags of the original post
-                repost_of = Post.objects.get(id=post.repost_of_id)
-                hashtags = PostHashtag.objects.filter(post=repost_of).values_list(
-                    "hashtag", flat=True
-                )
-
-            for hashtag in hashtags:
-                PostHashtag.objects.create(post=post, hashtag=hashtag)
-            # endregion
-
-            # region mentions
-            # find mentions
-            if post.content is not None:
-                raw_mentions = find_mentions(post.content)
-                mentions = []
-                for raw_mention in raw_mentions:
-                    if (
-                        user := raw_mention.to_user_spec().get_user_model()
-                    ) is not None:
-                        mentions.append(user)
-            else:
-                # find mentions of the original post
-                # TODO: use repost_of fetched above
-                repost_of = Post.objects.get(id=post.repost_of_id)
-                mention_models = repost_of.mentions.all()
-                mentions = []
-                for mention_model in mention_models:
-                    mentions.append(mention_model.target_user)
-
-            for mention in mentions:
-                # TODO: bulk insert
-                PostMention.objects.create(
-                    post=post,
-                    target_user=mention,
-                )
-            # endregion
-
-            for uploaded_file in validated_data.get("attached_uploads", []):
-                PostAttachment.objects.create(post=post, file=uploaded_file)
-
-        tasks.send_post_to_federated_servers.delay(post.id)
-
-        return post
+        post_data = CreatePostData(
+            poster=poster,
+            content=validated_data.get("content", None),
+            repost_of_id=validated_data.get("repost_of_id", None),
+            reply_to_id=validated_data.get("reply_to_id", None),
+            attached_uploads=validated_data.get("attached_uploads", []),
+            privacy=privacy,
+        )
+        return create_post(post_data)
 
     def get_reactions(self, post):
         reactions = (
