@@ -213,6 +213,12 @@ class Requester:
         return new_user.id
 
     def fetch_remote_post_by_uri(self, uri: str, nested: int = 0) -> uuid.UUID:
+        existing_post = Post.objects.filter(uri=uri).first()
+        if existing_post is not None:
+            # TODO: check existing_post is up-to-date
+            # may need to add a column like last_fetched_at to Post table
+            return existing_post.id
+
         # TODO: use nested to determine the content should be fetched
         e = self.fetch_remote_id(uri)
 
