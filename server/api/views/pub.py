@@ -12,8 +12,8 @@ from api import tasks
 from api.models import Post, PublicKey, User, UserFollow, UserFollowRequest
 from api.serializers import pub
 from api.utils.get_id import extract_local_post_id, extract_local_user_id
+from api.utils.inbox import infer_privacy
 from api.utils.posts.db import CreatePostData, create_post
-from api.utils.posts.privacy import PostPrivacy
 from api.utils.signature import (
     KeyRetriever,
     SignatureVerificationError,
@@ -332,12 +332,24 @@ def process_create_activity(request, activity: pub.CreateActivity):
         else:
             ref_post = None
 
+        to_list = (
+            [t.id for t in note.as_to if t.id is not None]
+            if note.as_to is not None
+            else []
+        )
+        cc_list = (
+            [c.id for c in note.as_cc if c.id is not None]
+            if note.as_cc is not None
+            else []
+        )
+        inferred_privacy = infer_privacy(to_list, cc_list)
+
         post_data = CreatePostData(
             uri=note.id,
             poster=user,
             content=note.as_content,
             created_at=note.as_published.as_datetime(),
-            privacy=PostPrivacy.PUBLIC,  # TODO: implement privacy
+            privacy=inferred_privacy.privacy,  # TODO: implement privacy
             reply_to_id=ref_post.id if ref_post else None,
         )
         create_post(post_data)

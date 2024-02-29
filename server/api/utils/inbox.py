@@ -3,6 +3,7 @@ from typing import Iterator, TypedDict, Union
 
 from api.serializers.pub import PUBLIC_URI
 from api.utils.get_id import get_user_id, make_followers_id
+from api.utils.posts.privacy import PostPrivacy
 
 from ..models import Post, PostMention, User, UserFollow
 
@@ -136,3 +137,24 @@ def make_to_and_cc(post: Post) -> PostToCcList:
         "cc": result["cc"],
         "target_inboxes": target_inboxes,
     }
+
+
+@dataclass
+class InferredPrivacy:
+    privacy: PostPrivacy
+    # TODO: include information about targeted individuals (e.g. mentioned users)
+
+
+def infer_privacy(to: list[str], cc: list[str]) -> InferredPrivacy:
+    # TODO: make it more robust
+    if PUBLIC_URI in to:
+        return InferredPrivacy(privacy=PostPrivacy.PUBLIC)
+    elif PUBLIC_URI in cc:
+        return InferredPrivacy(privacy=PostPrivacy.UNLISTED)
+
+    # heauristic: if url ends with "/followers", it is targeted to followers
+    for t in to:
+        if t.endswith("/followers"):
+            return InferredPrivacy(privacy=PostPrivacy.FOLLOWERS)
+
+    return InferredPrivacy(privacy=PostPrivacy.PRIVATE)

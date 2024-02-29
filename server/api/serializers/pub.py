@@ -376,3 +376,7 @@ PUBLIC_URI = "https://www.w3.org/ns/activitystreams#Public"
 
 def is_public(obj: Object) -> bool:
     return obj.id == PUBLIC_URI
+
+
+def is_public_id(id: str) -> bool:
+    return id == PUBLIC_URI
