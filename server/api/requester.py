@@ -24,7 +24,7 @@ from api.utils.get_id import (
     get_user_public_key_id,
     is_local_uri,
 )
-from api.utils.inbox import make_to_and_cc
+from api.utils.inbox import infer_privacy, make_to_and_cc
 from api.utils.posts.pub import create_post_object
 from api.utils.signature import attach_signature
 from lightpub.settings import SSL_VERIFY
@@ -220,13 +220,18 @@ class Requester:
             logger.debug("malformed response: %s", str(e))
             raise MalformedRemoteResponseError(uri, "expected 1 object")
         note = Note.from_dict(e[0])
-        user = self.fetch_remote_user(note.as_attributedTo.id)
+        user = self.fetch_remote_user(note.as_attributed_to.id)
+
+        to_list = [t.id for t in note.as_to if t.id is not None] if note.as_to else []
+        cc_list = [c.id for c in note.as_cc if c.id is not None] if note.as_cc else []
+        inferred_privacy = infer_privacy(to_list, cc_list)
+
         post = Post.objects.create(
             uri=note.id,
-            poster=user,
+            poster_id=user,
             content=note.as_content,
             created_at=note.as_published.as_datetime(),
-            privacy=0,  # TODO: implement privacy
+            privacy=inferred_privacy.privacy,
             reply_to=None,  # TODO: implement reply_to
         )
 

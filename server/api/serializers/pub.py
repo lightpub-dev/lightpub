@@ -234,6 +234,7 @@ class Note(Object):
     as_to: list[Object] | None
     as_cc: list[Object] | None
     as_in_reply_to: Object | None
+    as_attributed_to: Object | None
 
     @classmethod
     def _build_from_dict(cls, d: dict) -> dict:
@@ -246,6 +247,7 @@ class Note(Object):
                 "to": ("as_to", list[Object]),
                 "cc": ("as_cc", list[Object]),
                 "inReplyTo": ("as_in_reply_to", Object),
+                "attributedTo": ("as_attributed_to", Object),
             },
         )
 
