@@ -332,7 +332,7 @@ def process_announce_activity(request, activity: pub.AnnounceActivity):
 
     _check_signature(request, activity.as_actor.id)
 
-    user_result = tasks.fetch_remote_user(id=activity.as_actor.id)
+    user_result = tasks.fetch_remote_user.delay(id=activity.as_actor.id)
     user = User.objects.get(id=user_result.get())
 
     ref_post = _get_or_insert_post_from_uri(obj.id)
