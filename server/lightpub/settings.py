@@ -12,39 +12,42 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 
+import yaml
+
+with open("lightpub.yml", "r") as f:
+    config = yaml.safe_load(f)
+
 VERSION = "0.1"
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Hostname
-HOSTNAME = "lightpub.tinax.local"
-HTTP_SCHEME = "https"
+HOSTNAME = config["hostname"]
+HTTP_SCHEME = config["http_scheme"]
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9"
+SECRET_KEY = config["secret_key"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-# DEBUG = False
+DEBUG = config["dev"]["debug"]
 
 # SECURITY WARNING: Always set to True in production
-SSL_VERIFY = False
-# SSL_VERIFY = True
+SSL_VERIFY = config["dev"]["ssl_verify"]
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "lightpub.tinax.local"]
+ALLOWED_HOSTS = config["allowed_hosts"]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "https://lightpub.tinax.local"]
+CORS_ALLOWED_ORIGINS = config["cors_allowed_origins"]
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # background task runner
-CELERY_BROKER_URL = "redis://localhost:6380/1"
-CELERY_RESULT_BACKEND = "redis://localhost:6380/1"
+CELERY_BROKER_URL = config["background_task_runner"]["broker_url"]
+CELERY_RESULT_BACKEND = config["background_task_runner"]["broker_url"]
 
 # Application definition
 
@@ -109,11 +112,11 @@ WSGI_APPLICATION = "lightpub.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": "lightpub",
-        "USER": "root",
-        "PASSWORD": "lightpub",
-        "HOST": "127.0.0.1",
-        "PORT": "3306",
+        "NAME": config["database"]["name"],
+        "USER": config["database"]["user"],
+        "PASSWORD": config["database"]["password"],
+        "HOST": config["database"]["host"],
+        "PORT": config["database"]["port"],
     }
 }
 

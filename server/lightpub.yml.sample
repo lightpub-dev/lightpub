@@ -1,0 +1,22 @@
+hostname: lightpub.tinax.local
+http_scheme: https
+secret_key: django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9
+allowed_hosts:
+  - lightpub.tinax.local
+  - localhost
+  - 127.0.0.1
+cors_allowed_origins:
+  - http://localhost:5173
+  - https://lightpub.tinax.local
+database:
+  host: 127.0.0.1
+  port: 3306
+  name: lightpub
+  user: root
+  password: lightpub
+background_task_runner:
+  broker_url: redis://localhost:6380/1
+dev:
+  debug: true
+  ssl_verify: false
+

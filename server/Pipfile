@@ -26,6 +26,7 @@ django-debug-toolbar = "*"
 celery = {extras = ["redis"], version = "*"}
 flower = "*"
 gunicorn = "*"
+pyyaml = "*"
 
 [dev-packages]
 mypy = "*"
