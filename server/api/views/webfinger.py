@@ -1,10 +1,10 @@
 from django.urls import reverse
-from rest_framework.renderers import BrowsableAPIRenderer
+from rest_framework.renderers import BrowsableAPIRenderer, JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.auth.permission import NoAuthPermission
-from api.jsonld.renderer import WebfingerRenderer
+from api.jsonld.renderer import ActivityJsonRenderer, JsonldRenderer, WebfingerRenderer
 from api.models import User
 from api.serializers.webfinger import UserSerializer
 from lightpub.settings import HOSTNAME
@@ -28,7 +28,13 @@ def parse_resource(resource: str) -> User | None:
 
 class WebFingerAcctView(APIView):
     permission_classes = [NoAuthPermission]
-    renderer_classes = [WebfingerRenderer, BrowsableAPIRenderer]
+    renderer_classes = [
+        WebfingerRenderer,
+        JSONRenderer,
+        JsonldRenderer,
+        ActivityJsonRenderer,
+        BrowsableAPIRenderer,
+    ]
 
     def get(self, request):
         resource_query = request.query_params.get("resource", None)
