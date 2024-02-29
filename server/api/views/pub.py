@@ -94,11 +94,11 @@ class UserInboxView:
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_accept(obj):
                 accept = pub.AcceptActivity.from_dict(data)
-                process_accept_activity(request, accept)
+                process_accept_activity(accept)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_reject(obj):
                 reject = pub.RejectActivity.from_dict(data)
-                process_reject_activity(request, reject)
+                process_reject_activity(reject)
                 return Response(status=status.HTTP_204_NO_CONTENT)
             elif pub.is_create(obj):
                 create = pub.CreateActivity.from_dict(data)
