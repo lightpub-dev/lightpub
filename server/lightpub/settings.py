@@ -50,10 +50,12 @@ CELERY_BROKER_URL = config["background_task_runner"]["broker_url"]
 CELERY_RESULT_BACKEND = config["background_task_runner"]["broker_url"]
 
 # Application definition
+FRONTEND_URL = config["frontend_url"]
 
 INSTALLED_APPS = [
     "corsheaders",
     "api",
+    "frontend",
     "rest_framework",
     "django.contrib.admin",
     "django.contrib.auth",
