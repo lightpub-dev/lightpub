@@ -246,7 +246,7 @@ class Requester:
     def _get_actor_id_from_username(self, username: str, host: str) -> str:
         webfinger_url = f"https://{host}/.well-known/webfinger"
         webfinger_params = {
-            "resource": f"acct:{username}",
+            "resource": f"acct:{username}@{host}",
         }
         res = self._session.get(
             webfinger_url,
