@@ -373,12 +373,20 @@ def process_announce_activity(request, activity: pub.AnnounceActivity):
 
     ref_post = _get_or_insert_post_from_uri(obj.id)
 
+    to_list = (
+        [t.id for t in activity.as_to if t.id is not None] if activity.as_to else []
+    )
+    cc_list = (
+        [c.id for c in activity.as_cc if c.id is not None] if activity.as_cc else []
+    )
+    inferred_privacy = infer_privacy(to_list, cc_list)
+
     Post.objects.create(
         uri=obj.id,
         poster=user,
         content=None,
         created_at=activity.as_published.as_datetime(),
-        privacy=0,  # TODO: implement privacy
+        privacy=inferred_privacy.privacy,
         reply_to=None,
         repost_of=ref_post,
     )
