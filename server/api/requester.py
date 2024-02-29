@@ -1,7 +1,7 @@
 import datetime
 import logging
 import uuid
-from typing import Iterator, TypedDict, cast
+from typing import cast
 from urllib.parse import urlparse
 
 import requests
@@ -11,22 +11,22 @@ from requests.exceptions import RequestException
 
 from api.models import (
     Post,
-    PostMention,
     PublicKey,
     RemoteUserInfo,
     User,
     UserFollow,
     UserFollowRequest,
 )
-from api.serializers.pub import PUBLIC_URI, Actor, Note, is_actor
+from api.serializers.pub import Actor, Note, is_actor
 from api.utils.get_id import (
+    get_post_create_activity_id,
     get_post_id,
     get_user_id,
     get_user_public_key_id,
     is_local_uri,
-    make_followers_id,
 )
-from api.utils.inbox import FollowerTarget, UserTarget, find_common_inbox
+from api.utils.inbox import make_to_and_cc
+from api.utils.posts.pub import create_post_object
 from api.utils.signature import attach_signature
 from lightpub.settings import SSL_VERIFY
 
@@ -408,7 +408,7 @@ class Requester:
             raise RemoteDownError.from_request_exception(inbox, e) from e
 
     def send_post_to_federated_servers(self, post: Post) -> None:
-        tocc = _make_to_and_cc(post)
+        tocc = make_to_and_cc(post)
         to = tocc["to"]
         cc = tocc["cc"]
         target_inboxes = tocc["target_inboxes"]
@@ -421,28 +421,14 @@ class Requester:
             raise ValueError("private key is not set")
         key_id = get_user_public_key_id(sender)
 
-        post_id = get_post_id(post)
-        create_id = f"{post_id}activity/"  # TODO: really?
+        create_id = get_post_create_activity_id(post)
+
+        post_object = create_post_object(post)
 
         # send to each inbox
         # TODO: should split into multiple tasks to queue starvation
         for inbox in target_inboxes:
             logger.debug("sending a post to a remote inbox: %s", inbox)
-            # TODO: ここらへんの処理ループ内でやる必要ある?
-            post_object = {
-                "id": post_id,
-                "attributedTo": sender_id,
-                "type": "Note",
-                "to": cc,
-                "cc": cc,
-                "content": post.content,
-                "published": post.created_at.isoformat(),
-                "sensitive": False,
-            }
-            if post.reply_to:
-                post_object["inReplyTo"] = get_post_id(
-                    post.reply_to, use_remote_uri=True
-                )
 
             req = requests.Request(
                 method="POST",
@@ -479,55 +465,3 @@ _req = Requester()
 
 def get_requester() -> Requester:
     return _req
-
-
-class PostToCcList(TypedDict):
-    to: list[str]
-    cc: list[str]
-    target_inboxes: list[str]
-
-
-def _make_to_and_cc(post: Post) -> PostToCcList:
-    # check post's privacy
-    if post.privacy == 0:
-        # public
-        to = [PUBLIC_URI]
-        cc = [make_followers_id(post.poster)]
-        delivery_targets = [
-            FollowerTarget(followed_user=post.poster),
-        ]
-    elif post.privacy == 1:
-        # unlisted
-        to = [make_followers_id(post.poster)]
-        cc = [PUBLIC_URI]
-        delivery_targets = [
-            FollowerTarget(followed_user=post.poster),
-        ]
-    elif post.privacy == 2:
-        # followers only
-        to = [make_followers_id(post.poster)]
-        cc = []
-        delivery_targets = [
-            FollowerTarget(followed_user=post.poster),
-        ]
-    elif post.privacy == 3:
-        # private only (see mentions below)
-        to = []
-        cc = []
-        delivery_targets = []
-    else:
-        raise ValueError("invalid privacy")
-
-    # process mentions
-    mentions: Iterator[PostMention] = post.mentions.all()
-    for mention in mentions:
-        to.append(get_user_id(mention.target_user))
-        delivery_targets.append(UserTarget(target_user=mention.target_user))
-
-    target_inboxes = find_common_inbox(delivery_targets)
-
-    return {
-        "to": to,
-        "cc": cc,
-        "target_inboxes": target_inboxes,
-    }

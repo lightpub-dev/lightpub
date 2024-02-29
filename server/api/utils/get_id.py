@@ -22,6 +22,11 @@ def get_post_id(post: Post, use_remote_uri: bool = False) -> str:
     return f"{HTTP_SCHEME}://{HOSTNAME}/api/posts/{post.id}"
 
 
+def get_post_create_activity_id(post: Post) -> str:
+    post_id = get_post_id(post)
+    return f"{post_id}/activity"  # TODO: really?
+
+
 def extract_local_user_id(uri: str) -> str | None:
     # TODO: too fragile
     m = re.match(rf"{HTTP_SCHEME}://{HOSTNAME}/api/users/([a-f\d\-]+)", uri)

@@ -13,6 +13,7 @@ from api.models import (
     UploadedFile,
     User,
 )
+from api.utils.get_id import get_post_id, get_user_id
 from api.utils.posts.db import CreatePostData, create_post
 from api.utils.posts.privacy import PostPrivacy
 

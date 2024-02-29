@@ -9,7 +9,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
+from api.jsonld.mixins import JsonldAwareMixin
 from api.serializers.interaction import PostBookmarkSerializer, PostFavoriteSerializer
+from api.utils.posts.pub import create_post_object
 
 from ..auth import AuthOnlyPermission, NoAuthPermission, NoPermission
 from ..models import Post, PostAttachment, PostBookmark, PostFavorite, UploadedFile
@@ -21,13 +23,24 @@ from ..serializers.post import (
 from .users import UserSpecifier
 
 
-class PostViewSet(ModelViewSet):
+class PostViewSet(JsonldAwareMixin, ModelViewSet):
     serializer_class = PostSerializer
 
     def get_serializer_context(self):
         return {
             "request": self.request,
         }
+
+    def retrieve(self, request, *args, **kwargs):
+        if not self.jsonld_requested():
+            return super().retrieve(request, *args, **kwargs)
+
+        object = self.get_object()
+        ap_object = create_post_object(object)
+        ap_object["@context"] = [
+            "https://www.w3.org/ns/activitystreams",
+        ]
+        return Response(ap_object, status=status.HTTP_200_OK)
 
     def list(self, request, *args, **kwargs):
         # filter privacy==1 posts
