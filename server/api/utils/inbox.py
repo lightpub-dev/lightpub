@@ -114,7 +114,7 @@ def calculate_to_and_cc(post: Post) -> TargetList:
     mentions: Iterator[PostMention] = post.mentions.all()
     for mention in mentions:
         to.append(get_user_id(mention.target_user))
-        delivery_targets.append(FollowerTarget(followed_user=mention.target_user))
+        delivery_targets.append(UserTarget(target_user=mention.target_user))
 
     return {"to": to, "cc": cc, "delivery_targets": delivery_targets}
 
