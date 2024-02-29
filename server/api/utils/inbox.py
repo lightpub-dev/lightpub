@@ -57,10 +57,15 @@ def _find_best_inbox(target: DeliveryTarget) -> list[str]:
         return inboxes
     elif isinstance(target, UserTarget):
         return [_find_shared_or_inbox(target.target_user)]
+    else:
+        raise ValueError("invalid target type: " + str(target))
 
 
 def _find_shared_or_inbox(target: User) -> str | None:
-    if hasattr(target, "remote_user_info") and target.remote_user_info.shared_inbox:
+    if (
+        hasattr(target, "remote_user_info")
+        and target.remote_user_info.shared_inbox is not None
+    ):
         return target.remote_user_info.shared_inbox
     else:
         return target.inbox
@@ -123,11 +128,11 @@ def calculate_target_inboxes(delivery_targets: list[FollowerTarget]) -> list[str
 
 
 def make_to_and_cc(post: Post) -> PostToCcList:
-    to, cc, delivery_targets = calculate_to_and_cc(post)
-    target_inboxes = calculate_target_inboxes(delivery_targets)
+    result = calculate_to_and_cc(post)
+    target_inboxes = calculate_target_inboxes(result["delivery_targets"])
 
     return {
-        "to": to,
-        "cc": cc,
+        "to": result["to"],
+        "cc": result["cc"],
         "target_inboxes": target_inboxes,
     }
