@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pprint import pprint
 
 from django.db import transaction
@@ -279,6 +279,30 @@ def process_undo_activity(request, activity: pub.UndoActivity):
         UserFollow.objects.filter(
             follower_id=follower_id, followee_id=followee_id
         ).delete()
+
+        return
+
+    if pub.is_announce(obj_s):
+        obj = obj_s.reparse(pub.AnnounceActivity)
+        actor = obj.as_actor
+        actor_id = actor.id
+
+        if actor.id != actor_id:
+            raise InboxProcessingError(
+                status=status.HTTP_403_FORBIDDEN,
+                response={"error": "actor id does not match repost id"},
+            )
+
+        reposted_post_id = obj.as_object.id
+        local_post_id = extract_local_post_id(reposted_post_id)
+        if local_post_id:
+            Post.objects.filter(
+                repost_of_id=local_post_id, poster__uri=actor_id
+            ).update(deleted_at=datetime.now(timezone.utc))
+        else:
+            Post.objects.filter(
+                repost_of__uri=reposted_post_id, poster__uri=actor_id
+            ).update(deleted_at=datetime.now(timezone.utc))
 
         return
 
