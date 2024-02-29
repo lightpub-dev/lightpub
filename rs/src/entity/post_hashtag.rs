@@ -6,7 +6,7 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "post_hashtag")]
 pub struct Model {
     #[sea_orm(column_type = "Binary(BlobSize::Blob(Some(16)))")]
-    pub post_id: Vec<u8>,
+    pub post_id: uuid::Uuid,
     pub name: String,
 }
 

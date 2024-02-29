@@ -82,11 +82,10 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx_hashtag_unique")
                     .table(PostHashtag::Table)
                     .col(PostHashtag::PostId)
                     .col(PostHashtag::Name)
-                    .unique()
+                    .primary()
                     .to_owned(),
             )
             .await?;
@@ -131,12 +130,11 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx_postlike_unique")
                     .table(PostLike::Table)
                     .col(PostLike::PostId)
                     .col(PostLike::UserId)
                     .col(PostLike::IsPrivate)
-                    .unique()
+                    .primary()
                     .to_owned(),
             )
             .await?;
@@ -180,11 +178,10 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx_postmention_unique")
                     .table(PostMention::Table)
                     .col(PostMention::PostId)
                     .col(PostMention::TargetUserId)
-                    .unique()
+                    .primary()
                     .to_owned(),
             )
             .await?;
@@ -262,12 +259,11 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx_postreaction_unique")
                     .table(PostReaction::Table)
                     .col(PostReaction::PostId)
                     .col(PostReaction::UserId)
                     .col(PostReaction::ReactionId)
-                    .unique()
+                    .primary()
                     .to_owned(),
             )
             .await?;
