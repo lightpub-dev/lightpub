@@ -49,5 +49,4 @@ class FollowView(generics.RetrieveDestroyAPIView):
 
         tasks.send_unfollow.delay(self.request.user.id, object.followee.id)
 
-        object.delete()
         return Response(status=204)

@@ -9,11 +9,15 @@ def get_user_public_key_id(user: User) -> str:
     return f"{HTTP_SCHEME}://{HOSTNAME}/api/users/{user.id}#main-key"
 
 
-def get_user_id(user: User) -> str:
+def get_user_id(user: User, use_remote_uri: bool = True) -> str:
+    if use_remote_uri and user.uri is not None:
+        return user.uri
+
     # TODO: too fragile
     return f"{HTTP_SCHEME}://{HOSTNAME}/api/users/{user.id}"
 
 
+# TODO: change use_remote_uri defualt to True
 def get_post_id(post: Post, use_remote_uri: bool = False) -> str:
     if use_remote_uri and post.uri is not None:
         return post.uri

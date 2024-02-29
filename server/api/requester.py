@@ -20,7 +20,6 @@ from api.models import (
 from api.serializers.pub import Actor, Note, is_actor
 from api.utils.get_id import (
     get_post_create_activity_id,
-    get_post_id,
     get_user_id,
     get_user_public_key_id,
     is_local_uri,
@@ -345,7 +344,7 @@ class Requester:
                 "object": {
                     "type": "Follow",
                     "actor": sender_id,
-                    "object": get_user_id(followee),
+                    "object": get_user_id(followee, use_remote_uri=True),
                 },
                 "actor": sender_id,
             },
