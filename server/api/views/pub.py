@@ -419,8 +419,8 @@ def process_delete_activity(request, activity: pub.DeleteActivity):
 def _get_or_insert_post_from_uri(uri: str) -> Post:
     local_post_id = extract_local_post_id(uri)
     if local_post_id:
-        # TODO: visibility check
-        ref_post = Post.objects.filter(id=local_post_id).first()
+        # TODO: more accurate visibility check
+        ref_post = Post.objects.filter(id=local_post_id, privacy__in=[0, 1]).first()
         if ref_post is None:
             logger.debug(
                 "referenced post not found: %s (local id: %s)", uri, local_post_id
