@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from lightpub.settings import HOSTNAME
+
 from ..models import User
 
 
@@ -40,8 +42,11 @@ class UserSpecifier:
         if self.user_id is not None:
             return User.objects.filter(id=self.user_id).first()
         elif self.username_and_host is not None:
+            host = self.username_and_host[1]
+            if host == HOSTNAME:  # when our host is targetted
+                host = None
             return User.objects.filter(
-                username=self.username_and_host[0], host=self.username_and_host[1]
+                username=self.username_and_host[0], host=host
             ).first()
         else:
             raise ValueError("user_id and username_and_host cannot both be None")
