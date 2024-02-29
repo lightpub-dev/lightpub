@@ -9,6 +9,7 @@ allowed_hosts:
 cors_allowed_origins:
   - http://localhost:5173
   - https://lightpub.tinax.local
+allow_register: false
 database:
   host: 127.0.0.1
   port: 3306

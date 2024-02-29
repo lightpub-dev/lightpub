@@ -14,6 +14,7 @@ from api.jsonld.mixins import JsonldMixin
 from api.parsers import ActivityJsonParser
 from api.serializers.interaction import PostBookmarkSerializer, PostFavoriteSerializer
 from api.utils.users import UserSpecifier
+from lightpub.settings import ALLOW_REGISTER
 
 from ..auth import NoAuthPermission
 from ..models import User
@@ -33,6 +34,14 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [NoAuthPermission]
     serializer_class = RegisterSerializer
     queryset = User.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        if not ALLOW_REGISTER:
+            return Response(
+                {"error": "registration is disabled on this server"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
 
 
 class LoginView(views.APIView):

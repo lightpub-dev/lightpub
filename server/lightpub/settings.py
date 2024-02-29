@@ -67,6 +67,8 @@ INSTALLED_APPS = [
     # "ddrr",
 ]
 
+ALLOW_REGISTER = config["allow_register"]
+
 if DEBUG:
     INSTALLED_APPS.append("debug_toolbar")
 
