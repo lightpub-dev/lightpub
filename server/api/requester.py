@@ -78,9 +78,9 @@ class RemoteDownError(RecoverableRemoteError):
         super().__init__(uri, status, body)
 
     @classmethod
-    def from_request_exception(cls, uri: str, e: requests.exceptions.RequestException):
-        response_body = e.response.text if e.response else None
-        return cls(uri, e.response.status_code if e.response else None, response_body)
+    def from_request_exception(cls, uri: str, e: requests.Response):
+        response_body = e.text if e.text else None
+        return cls(uri, e.status_code, response_body)
 
 
 def _attach_maintenance_signature(prep: requests.PreparedRequest) -> None:
@@ -123,7 +123,7 @@ class Requester:
         except RequestException as e:
             if e.response and e.response.status_code == 404:
                 raise RemoteObjectNotFoundError(id)
-            raise RemoteDownError.from_request_exception(id, e) from e
+            raise RemoteDownError.from_request_exception(id, res) from e
         j = res.json()
         return jsonld.expand(j)
 
@@ -281,7 +281,7 @@ class Requester:
         try:
             res.raise_for_status()
         except RequestException as e:
-            raise RemoteDownError.from_request_exception(webfinger_url, e) from e
+            raise RemoteDownError.from_request_exception(webfinger_url, res) from e
         j = res.json()
         links = j["links"]
         for link in links:
@@ -339,7 +339,7 @@ class Requester:
         try:
             res.raise_for_status()
         except RequestException as e:
-            raise RemoteDownError.from_request_exception(inbox_url, e) from e
+            raise RemoteDownError.from_request_exception(inbox_url, res) from e
 
         with transaction.atomic():
             # check if follow is already exists
@@ -393,7 +393,7 @@ class Requester:
         try:
             res.raise_for_status()
         except RequestException as e:
-            raise RemoteDownError.from_request_exception(inbox_url, e) from e
+            raise RemoteDownError.from_request_exception(inbox_url, res) from e
 
     def send_follow_request(self, follow_req: UserFollowRequest) -> None:
         inbox = follow_req.followee.inbox
@@ -439,7 +439,7 @@ class Requester:
         try:
             res.raise_for_status()
         except RequestException as e:
-            raise RemoteDownError.from_request_exception(inbox, e) from e
+            raise RemoteDownError.from_request_exception(inbox, res) from e
 
     def send_post_to_federated_servers(self, post: Post) -> None:
         tocc = make_to_and_cc(post)
@@ -491,7 +491,7 @@ class Requester:
                 )
                 res.raise_for_status()
             except RequestException as e:
-                raise RemoteDownError.from_request_exception(inbox, e) from e
+                raise RemoteDownError.from_request_exception(inbox, res) from e
 
 
 _req = Requester()
