@@ -70,6 +70,14 @@ class MalformedRemoteResponseError(RecoverableRemoteError):
         super().__init__(uri, msg)
 
 
+class RemoteRejectedError(RemoteRelatedError):
+    def __init__(self, uri: str, status: int | None, body: str | None) -> None:
+        self.uri = uri
+        self.status = status
+        self.body = body
+        super().__init__(uri, status, body)
+
+
 class RemoteDownError(RecoverableRemoteError):
     def __init__(self, uri: str, status: int | None, body: str | None) -> None:
         self.uri = uri
@@ -87,6 +95,10 @@ class RemoteDownError(RecoverableRemoteError):
             logger.debug("Response status: %d", e.status_code)
             logger.debug("Response headers: %s", e.headers)
         response_body = e.text if e.text else None
+
+        if e.status_code in [404, 410]:
+            return RemoteRejectedError(uri, e.status_code, response_body)
+
         return cls(uri, e.status_code, response_body)
 
 
