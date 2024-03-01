@@ -71,14 +71,16 @@ class MalformedRemoteResponseError(RecoverableRemoteError):
 
 
 class RemoteDownError(RecoverableRemoteError):
-    def __init__(self, uri: str, status: int | None) -> None:
+    def __init__(self, uri: str, status: int | None, body: str | None) -> None:
         self.uri = uri
         self.status = status
+        self.body = body
         super().__init__(uri, status)
 
     @classmethod
     def from_request_exception(cls, uri: str, e: requests.exceptions.RequestException):
-        return cls(uri, e.response.status_code if e.response else None)
+        response_body = e.response.text if e.response else None
+        return cls(uri, e.response.status_code if e.response else None, response_body)
 
 
 def _attach_maintenance_signature(prep: requests.PreparedRequest) -> None:
