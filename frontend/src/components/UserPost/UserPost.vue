@@ -51,7 +51,7 @@ const hostname = computed(() => {
 })
 
 const atHostname = computed(() => {
-    if (hostname.value === '') {
+    if (hostname.value === null) {
         return ''
     }
     return `@${hostname.value}`
@@ -184,6 +184,7 @@ const deletePost = async () => {
     try {
         await axios.delete(`/posts/${props.user_post.id}`)
         eventBus.emit('post-deleted')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
         alert("Failed to delete post: " + JSON.stringify(e.response.data))
     }
@@ -206,6 +207,7 @@ const onReaction = async (emoji: { i: string, n: string[]; r: string }) => {
         })
         eventBus.emit('reaction-created')
         reactionPickerOpen.value = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
         alert("Failed to create reaction: " + JSON.stringify(e.response.data))
     }
