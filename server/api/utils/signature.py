@@ -85,7 +85,7 @@ def attach_signature(req: PreparedRequest, key_id: str, priv_key: bytes) -> None
     for key, value in headers:
         key_lower = key.lower()
         if key_lower in included_headers:
-            signatured_headers.append((key, value))
+            signatured_headers.append((key_lower, value))
 
     path = url_parsed.path
     headers_line, signature_string = make_signature_string(
