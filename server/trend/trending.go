@@ -82,7 +82,7 @@ func GetTrendPosts(ctx context.Context, conn db.DBConn, hashtag string, viewerID
 		rawPosts = rawPosts[:limit]
 	}
 
-	var result []models.UserPostEntry
+	var result []models.UserPostEntry = []models.UserPostEntry{}
 	for _, post := range rawPosts {
 		entry := (models.UserPostEntry{
 			ID: post.ID.String(),

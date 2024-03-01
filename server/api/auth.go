@@ -194,6 +194,13 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		return c.String(400, "Bad Request")
 	}
 
+	// validate request body
+	err = validate.Struct(req)
+	if err != nil {
+		c.Logger().Debug(err)
+		return c.String(400, "Bad body format")
+	}
+
 	// check if username is taken
 	tx := h.DB.Begin()
 	defer tx.Rollback()
