@@ -10,6 +10,10 @@ from rest_framework.reverse import reverse
 from api import tasks
 from api.models import User, UserFollow, UserProfileLabel, UserToken
 from api.utils.users import UserSpecifier
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9\._-]{3,60}$")
 
@@ -312,6 +316,20 @@ def create_new_user(
         host=host,
     )
     tasks.gen_keypair_for_user.delay(u.id)
+    return u
+
+
+def create_maintenance_user() -> None:
+    maintenance_username = "lp.maintenance"
+    if User.objects.filter(username=maintenance_username).exists():
+        return User.objects.get(username=maintenance_username)
+    u = User.objects.create(
+        username=maintenance_username, nickname="Maintenance user", host=None
+    )
+    tasks.gen_keypair_for_user.delay(u.id)
+    logger.info(
+        "created a maintenance user with id=%s and username=%s", u.id, u.username
+    )
     return u
 
 
