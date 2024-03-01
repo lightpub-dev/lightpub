@@ -75,7 +75,7 @@ class RemoteDownError(RecoverableRemoteError):
         self.uri = uri
         self.status = status
         self.body = body
-        super().__init__(uri, status)
+        super().__init__(uri, status, body)
 
     @classmethod
     def from_request_exception(cls, uri: str, e: requests.exceptions.RequestException):
