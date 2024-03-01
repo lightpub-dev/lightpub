@@ -31,6 +31,9 @@ def test_find_mentions():
         t("other", "example.com"),
         t("another", "another.example.com"),
     ]
+    assert f("@alex.7552441788648396124@tester.tinax.local hi") == [
+        t("alex.7552441788648396124", "tester.tinax.local")
+    ]
 
     # No mentions
     assert f("Hello there") == []

@@ -63,8 +63,17 @@ def create_post(data: CreatePostData) -> Post:
             raw_mentions = find_mentions(data.content)
             mentions = []
             for raw_mention in raw_mentions:
-                if (user := raw_mention.to_user_spec().get_user_model()) is not None:
+                mentioned_user = raw_mention.to_user_spec()
+                mentioned_user_uuid = tasks.fetch_remote_username.delay(
+                    username=mentioned_user.username_and_host[0],
+                    host=mentioned_user.username_and_host[1],
+                ).get()
+                if (
+                    user := User.objects.filter(id=mentioned_user_uuid).first()
+                ) is not None:
                     mentions.append(user)
+                    continue
+
         else:
             # find mentions of the original post
             # TODO: use repost_of fetched above

@@ -47,7 +47,7 @@ class MentionTarget:
         return UserSpecifier(username_and_host=(self.username, self.host))
 
 
-_mention_re = re.compile(r"@([a-zA-Z0-9_\-]+)(?:@([a-zA-Z0-9_\-\.]+))?")
+_mention_re = re.compile(r"@([a-zA-Z0-9_\-\.]+)(?:@([a-zA-Z0-9_\-\.]+))?")
 
 
 def find_mentions(content: str) -> list[MentionTarget]:
