@@ -20,7 +20,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from api.views.nodeinfo import nodeinfo
-from api.views.webfinger import WebFingerAcctView
+from api.views.webfinger import HostMetaView, WebFingerAcctView
 
 from . import settings
 
@@ -29,6 +29,7 @@ urlpatterns = [
     path("api/", include("api.urls")),
     path(".well-known/webfinger", WebFingerAcctView.as_view(), name="web-finger-acct"),
     path(".well-known/nodeinfo", nodeinfo, name="nodeinfo"),
+    path(".well-known/host-meta", HostMetaView.as_view(), name="host-meta"),
     path("", include("frontend.urls")),
 ]
 

@@ -1,3 +1,4 @@
+from django.shortcuts import render
 from django.urls import reverse
 from rest_framework.renderers import BrowsableAPIRenderer, JSONRenderer
 from rest_framework.response import Response
@@ -7,17 +8,22 @@ from api.auth.permission import NoAuthPermission
 from api.jsonld.renderer import ActivityJsonRenderer, JsonldRenderer, WebfingerRenderer
 from api.models import User
 from api.serializers.webfinger import UserSerializer
-from lightpub.settings import HOSTNAME
+from api.xml.renderer import XrdXmlRenderer
+from lightpub.settings import HOSTNAME, HTTP_SCHEME
 
 
 def parse_resource(resource: str) -> User | None:
     if not resource.startswith("acct:"):
         return None
     resource = resource[5:]
-    if "@" not in resource:
-        return None
 
-    username, domain = resource.split("@", maxsplit=2)
+    username_and_domain = resource.split("@", maxsplit=1)
+
+    if len(username_and_domain) == 1:
+        username = username_and_domain[0]
+        domain = HOSTNAME
+    else:
+        username, domain = username_and_domain
 
     if domain != HOSTNAME:
         return None
@@ -29,6 +35,7 @@ def parse_resource(resource: str) -> User | None:
 class WebFingerAcctView(APIView):
     permission_classes = [NoAuthPermission]
     renderer_classes = [
+        XrdXmlRenderer,
         WebfingerRenderer,
         JSONRenderer,
         JsonldRenderer,
@@ -52,13 +59,21 @@ class WebFingerAcctView(APIView):
             reverse("api:user-detail", kwargs={"pk": "@" + user.username})
         )
 
+        if isinstance(request.accepted_renderer, XrdXmlRenderer):
+            return render(
+                request,
+                "api/webfinger.xml",
+                {"api_url": user_url, "subject": resource_query[5:]},
+                content_type="application/xrd+xml",
+            )
+
         serializer = UserSerializer(
             {
                 "aliases": [user_url, user_url_by_username],
                 "links": [
                     {
                         "rel": "self",
-                        "type": 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',  # noqa: E501
+                        "type": "application/activity+json",  # noqa: E501
                         "href": user_url,
                     }
                 ],
@@ -69,4 +84,24 @@ class WebFingerAcctView(APIView):
         return Response(
             data=serializer.data,
             status=200,
+        )
+
+
+class HostMetaView(APIView):
+    permission_classes = [NoAuthPermission]
+    renderer_classes = [
+        XrdXmlRenderer,
+        JSONRenderer,
+        JsonldRenderer,
+        ActivityJsonRenderer,
+        BrowsableAPIRenderer,
+    ]
+
+    def get(self, request):
+        base_url = f"{HTTP_SCHEME}://{HOSTNAME}"
+        return render(
+            request,
+            "api/host-meta.xml",
+            {"base_url": base_url},
+            content_type="application/xrd+xml",
         )
