@@ -12,8 +12,7 @@ type User struct {
 	Bpasswd    string         `gorm:"size:60;not null"`
 	Nickname   string         `gorm:"size:255;not null"`
 	Bio        string         `gorm:"type:TEXT;not null"`
-	AvatarID   NullUUID
-	Avatar     *UploadedFile
+	Avatar     *UserAvatar    `gorm:"foreignKey:UserID;references:ID;default:NULL"`
 	URL        sql.NullString `gorm:"size:512"`
 	Inbox      sql.NullString `gorm:"size:512"`
 	Outbox     sql.NullString `gorm:"size:512"`
@@ -25,6 +24,13 @@ type User struct {
 	Followers  []UserFollow  `gorm:"foreignKey:FolloweeID"`
 	Following  []UserFollow  `gorm:"foreignKey:FollowerID"`
 	UserTokens []UserToken   `gorm:"foreignKey:UserID"`
+}
+
+type UserAvatar struct {
+	UserID UUID `gorm:"not null;primaryKey"`
+	User   User
+	FileID UUID
+	File   UploadedFile
 }
 
 type FullUser struct {

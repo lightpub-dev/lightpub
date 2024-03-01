@@ -62,6 +62,8 @@ func ConnectDB(connectDB DBConnectionInfo) (*DBConnectResult, error) {
 
 func (d *DBConnectResult) MigrateToLatest() error {
 	return d.DB.AutoMigrate(
+		&UploadedFile{},
+		&UserAvatar{},
 		&User{},
 		&UserLabelDB{},
 		&UserToken{},
