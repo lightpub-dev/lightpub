@@ -27,7 +27,7 @@ from api.utils.get_id import (
 from api.utils.inbox import infer_privacy, make_to_and_cc
 from api.utils.posts.pub import create_post_object
 from api.utils.signature import attach_signature
-from lightpub.settings import SSL_VERIFY
+from lightpub.settings import HOSTNAME, SSL_VERIFY
 
 ssl_verify = SSL_VERIFY
 
@@ -84,6 +84,13 @@ class RemoteDownError(RecoverableRemoteError):
 class Requester:
     def __init__(self) -> None:
         self._session = requests.Session()
+        ua = f"Lightpub at {HOSTNAME}"
+        self._session.headers.update(
+            {
+                "User-Agent": ua,
+            }
+        )
+        logger.info('User-Agent is set to "%s"', ua)
         self.default_timeout = 3
         logger.info("Requester initialized")
 
