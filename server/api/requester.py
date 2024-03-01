@@ -81,6 +81,15 @@ class RemoteDownError(RecoverableRemoteError):
         return cls(uri, e.response.status_code if e.response else None)
 
 
+def _attach_maintenance_signature(prep: requests.PreparedRequest) -> None:
+    maintenance_user = User.objects.get(username="lp.maintenance")
+    attach_signature(
+        prep,
+        get_user_public_key_id(maintenance_user),
+        maintenance_user.private_key.encode("utf-8"),
+    )
+
+
 class Requester:
     def __init__(self) -> None:
         self._session = requests.Session()
@@ -98,9 +107,15 @@ class Requester:
         if is_local_uri(id):
             raise NotRemoteError(id, "not a remote id")
         logger.debug("fetching remote resource: %s", id)
-        res = self._session.get(
-            id, verify=ssl_verify, headers=HEADERS, timeout=self.default_timeout
+
+        req = requests.Request(
+            method="GET",
+            url=id,
+            headers=HEADERS,
         )
+        prep = req.prepare()
+        _attach_maintenance_signature(prep)
+        res = self._session.send(prep, verify=ssl_verify, timeout=self.default_timeout)
         try:
             res.raise_for_status()
         except RequestException as e:
