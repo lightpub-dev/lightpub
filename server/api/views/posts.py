@@ -1,3 +1,5 @@
+import datetime
+
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -56,8 +58,11 @@ class PostViewSet(JsonldAwareMixin, ModelViewSet):
 
     def destroy(self, request, pk):
         post = Post.objects.get(pk=pk)
+        # TODO: この検証は drf のpermissionがやってくれてるかも
         if post.poster == request.user:
-            return super().destroy(request, pk)
+            post.deleted_at = datetime.datetime.now(datetime.timezone.utc)
+            post.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         return Response(
             {"detail": "You can delete only your own posts"},
