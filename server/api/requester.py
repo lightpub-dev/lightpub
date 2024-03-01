@@ -81,7 +81,7 @@ class RemoteDownError(RecoverableRemoteError):
     def from_request_exception(cls, uri: str, e: requests.Response):
         req = e.request
         if req:
-            logger.debug("URL: %s", req.uri)
+            logger.debug("URL: %s", req.url)
             logger.debug("Request headers: %s", req.headers)
             logger.debug("Request body: %s", req.body)
             logger.debug("Response status: %d", e.status_code)
