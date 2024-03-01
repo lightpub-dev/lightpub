@@ -3,7 +3,12 @@ from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
 from api.models import User
-from lightpub.settings import VERSION
+from lightpub.settings import (
+    ALLOW_REGISTER,
+    INSTANCE_DESCRIPTION,
+    INSTANCE_NAME,
+    VERSION,
+)
 
 
 def get_total_users():
@@ -17,18 +22,22 @@ def _gen_data(version: str):
         "software": {
             "name": "lightpub",
             "version": VERSION,
+            "repository": "https://github.com/lightpub-dev/lightpub",
         },
         "protocol": [
             "activitypub",
         ],
         "services": {"inbound": [], "outbound": []},
-        "openRegistrations": True,
+        "openRegistrations": ALLOW_REGISTER,
         "usage": {
             "users": {
                 "total": get_total_users(),
             }
         },
-        "metadata": {},
+        "metadata": {
+            "nodeName": INSTANCE_NAME,
+            "nodeDescription": INSTANCE_DESCRIPTION,
+        },
     }
 
 

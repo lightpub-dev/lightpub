@@ -1,5 +1,7 @@
 hostname: lightpub.tinax.local
 http_scheme: https
+instance_name: Lightpub Development Server
+instance_description: Development instance for Lightpub
 secret_key: django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9
 frontend_url: http://localhost:5173/#
 allowed_hosts:
