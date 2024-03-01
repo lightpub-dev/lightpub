@@ -20,6 +20,7 @@ from api.models import (
 from api.serializers.pub import Actor, Note, is_actor
 from api.utils.get_id import (
     get_post_create_activity_id,
+    get_post_id,
     get_user_id,
     get_user_public_key_id,
     is_local_uri,
@@ -476,32 +477,58 @@ class Requester:
 
         create_id = get_post_create_activity_id(post)
 
-        post_object = create_post_object(post)
+        is_repost = post.repost_of_id is not None and post.content is None
+        if not is_repost:
+            post_object = create_post_object(post)
+        else:
+            post_object = create_post_object(post.repost_of)
+        published_at = post.created_at.isoformat()
 
         # send to each inbox
         # TODO: should split into multiple tasks to queue starvation
         for inbox in target_inboxes:
             logger.debug("sending a post to a remote inbox: %s", inbox)
 
-            req = requests.Request(
-                method="POST",
-                url=inbox,
-                json={
-                    "@context": [
-                        "https://www.w3.org/ns/activitystreams",
-                    ],
-                    "id": create_id,
-                    "type": "Create",
-                    "actor": sender_id,
-                    "to": to,
-                    "cc": cc,
-                    "object": post_object,
-                    "published": post.created_at.isoformat(),
-                },
-                headers={
-                    "Content-Type": "application/activity+json",
-                },
-            )
+            if not is_repost:
+                req = requests.Request(
+                    method="POST",
+                    url=inbox,
+                    json={
+                        "@context": [
+                            "https://www.w3.org/ns/activitystreams",
+                        ],
+                        "id": create_id,
+                        "type": "Create",
+                        "actor": sender_id,
+                        "to": to,
+                        "cc": cc,
+                        "object": post_object,
+                        "published": published_at,
+                    },
+                    headers={
+                        "Content-Type": "application/activity+json",
+                    },
+                )
+            else:
+                req = requests.Request(
+                    method="POST",
+                    url=inbox,
+                    json={
+                        "@context": [
+                            "https://www.w3.org/ns/activitystreams",
+                        ],
+                        "id": create_id,
+                        "type": "Announce",
+                        "actor": sender_id,
+                        "to": to,
+                        "cc": cc,
+                        "object": post_object,
+                        "published": published_at,
+                    },
+                    headers={
+                        "Content-Type": "application/activity+json",
+                    },
+                )
             prep = req.prepare()
             attach_signature(prep, key_id, private_key.encode("utf-8"))
             try:

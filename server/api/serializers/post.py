@@ -181,6 +181,7 @@ class PostSerializer(serializers.ModelSerializer):
                 poster=user, repost_of_id=data["repost_of_id"].id, content=None
             ).exists()
             if already_reposted:
+                # TODO: この制約って本当にいるんだっけ?
                 raise serializers.ValidationError("You cannot repost a post twice")
 
         return data
@@ -240,6 +241,12 @@ class PostSerializer(serializers.ModelSerializer):
             many=True, context=self.context
         ).to_representation(post.attachments.all())
 
+    def validate_privacy(self, value):
+        try:
+            return PostPrivacy(value)
+        except ValueError:
+            raise serializers.ValidationError("Invalid privacy value")
+
     def create(self, validated_data):
         poster = self.context["request"].user
         if not poster:
@@ -248,10 +255,7 @@ class PostSerializer(serializers.ModelSerializer):
         if not poster.id:
             raise serializers.ValidationError("User not authenticated")
 
-        try:
-            privacy = PostPrivacy(validated_data["privacy"])
-        except ValueError:
-            raise serializers.ValidationError("Invalid privacy value")
+        privacy = validated_data["privacy"]
 
         repost_of_id = None
         if (

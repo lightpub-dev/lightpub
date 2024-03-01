@@ -18,6 +18,8 @@ with open("lightpub.yml", "r") as f:
     config = yaml.safe_load(f)
 
 VERSION = "0.1"
+INSTANCE_NAME = config["instance_name"]
+INSTANCE_DESCRIPTION = config["instance_description"]
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

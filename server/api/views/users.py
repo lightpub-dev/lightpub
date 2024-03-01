@@ -24,6 +24,7 @@ from ..serializers.user import (
     LoginSerializer,
     RegisterSerializer,
     UserFollowerSerializer,
+    UserFollowSerializer,
     login_and_generate_token,
 )
 from .pub import UserInboxView, UserOutboxView
@@ -128,7 +129,7 @@ class UserViewset(
             raise ValueError("page is None")
 
         if not self.jsonld_requested():
-            data = UserFollowerSerializer(page, many=True).data
+            data = UserFollowSerializer(page, many=True).data
         else:
             actual_followees = [follow.followee for follow in page]
             urls = [
