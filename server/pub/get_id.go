@@ -1,8 +1,12 @@
 package pub
 
-import "github.com/lightpub-dev/lightpub/db"
+import (
+	"net/url"
+
+	"github.com/lightpub-dev/lightpub/db"
+)
 
 type IDGetterService interface {
-	GetUserID(user *db.User, attribute string) (string, error)
-	GetPostID(post *db.Post) (string, error)
+	GetUserID(user *db.User, attribute string) (*url.URL, error)
+	GetPostID(post *db.Post) (*url.URL, error)
 }
