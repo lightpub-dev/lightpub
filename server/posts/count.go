@@ -50,7 +50,7 @@ type reactionCountRow struct {
 
 func CountReactions(ctx context.Context, conn db.DBConn, postID db.UUID) (models.ReactionCountMap, error) {
 	var rows []reactionCountRow
-	err := conn.DB().Model(&db.PostReaction{}).Select("reaction", "COUNT(user_id) AS count").Where("post_id = ?", postID).Group("reaction").Find(&rows).Error
+	err := conn.DB().Model(&db.PostReaction{}).Select("post_reactions.reaction_id", "COUNT(post_reactions.user_id) AS count", "Reaction.name AS reaction").Joins("Reaction").Where("post_reactions.post_id = ?", postID).Group("reaction_id").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}

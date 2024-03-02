@@ -71,7 +71,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 
 	// first, get all "public" and "unlisted" posts
 	var publicPosts []postWithRepostedByMe
-	publicPostsQuery := h.DB.Table("posts p").Where("p.poster_id = ? AND p.privacy IN ('public','unlisted')", targetUser.ID).Order("p.created_at DESC").Limit(limit).Select("p.id, p.content, p.created_at, p.privacy, p.reply_to_id, p.repost_of_id, p.poll_id, NULL AS reposted_by_me, NULL AS favorited_by_me, NULL AS bookmarked_by_me")
+	publicPostsQuery := h.DB.Table("posts p").Where("p.poster_id = ? AND p.privacy IN ('public','unlisted')", targetUser.ID).Order("p.created_at DESC").Limit(limit).Select("p.id, p.content, p.created_at, p.privacy, p.reply_to_id, p.repost_of_id, NULL AS reposted_by_me, NULL AS favorited_by_me, NULL AS bookmarked_by_me")
 	err = publicPostsQuery.Scan(&publicPosts).Error
 	if err != nil {
 		c.Logger().Error(err)
@@ -201,7 +201,8 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 		}
 
 		resp = append(resp, models.UserPostEntry{
-			ID: post.ID.String(),
+			IDUUID: post.ID,
+			ID:     post.ID.String(),
 			Author: models.UserPostEntryAuthor{
 				ID:       targetUser.ID.String(),
 				Username: targetUser.Username,

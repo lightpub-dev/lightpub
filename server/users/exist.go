@@ -13,6 +13,7 @@ import (
 
 var (
 	ErrInvalidUsername = errors.New("invalid username")
+	ErrInvalidUUID     = errors.New("invalid UUID")
 )
 
 func ExistsByID(ctx context.Context, conn db.DBConn, userID string) (bool, error) {
@@ -47,7 +48,7 @@ func parseUsernameOrID(usernameOrID string) (parsedUsernameOrID, error) {
 		// otherwise, it's an ID
 		parsedID, err := uuid.Parse(usernameOrID)
 		if err != nil {
-			return parsedUsernameOrID{}, err
+			return parsedUsernameOrID{}, ErrInvalidUUID
 		}
 		return parsedUsernameOrID{
 			ID: db.UUID(parsedID),
@@ -77,6 +78,8 @@ func parseUsername(username string) (parsedUsername, error) {
 }
 
 func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db.User, error) {
+	username = strings.ReplaceAll(username, "%40", "@")
+
 	parsedUsernameOrID, err := parseUsernameOrID(username)
 	if err != nil {
 		return nil, err
@@ -85,7 +88,7 @@ func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db
 	var (
 		user db.User
 	)
-	selectColumns := "id, username, host, nickname, url, inbox, outbox, (host IS NULL) AS is_local, bio"
+	selectColumns := "id, username, host, nickname, url, inbox, outbox, bio"
 	if parsedUsernameOrID.ID != (db.UUID{}) {
 		// parsed ID
 		parsedID := parsedUsernameOrID.ID

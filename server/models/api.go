@@ -28,7 +28,7 @@ type PostReactionRequest struct {
 }
 
 type UserPostListResponse struct {
-	Posts []UserPostEntry `json:"posts"`
+	Posts []UserPostEntry `json:"results"`
 }
 
 type ReactionCountMap map[string]int64

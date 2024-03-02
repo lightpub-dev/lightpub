@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
-	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/utils"
 	"gorm.io/gorm"
 )
@@ -32,7 +31,7 @@ type CreateRequest struct {
 	Content        *string // should be nil when reposting
 	Privacy        PrivacyType
 
-	Poll *models.PostPollRequest
+	// Poll *models.PostPollRequest
 
 	ReplyToPostID *db.UUID // should be non-nil when replying
 	RepostID      *db.UUID // should be non-nil when reposting or quoting
@@ -234,32 +233,6 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 				return nil, err
 			}
 		}
-	}
-
-	// insert Poll (if any)
-	if post.Poll != nil {
-		// TODO: poll
-		// if postType == PostTypeRepost {
-		// 	return nil, ErrRepostHasBody
-		// }
-
-		// dbPoll := models.PostPoll{
-		// 	ID:            pollID,
-		// 	AllowMultiple: post.Poll.AllowMultiple,
-		// 	Due:           post.Poll.Due,
-		// }
-		// _, err = tx.NamedExecContext(ctx, "INSERT INTO PostPoll (id,allow_multiple,due) VALUES (UUID_TO_BIN(:id),:allow_multiple,:due)", dbPoll)
-		// if err != nil {
-		// 	return nil, err
-		// }
-
-		// // insert PollChoices
-		// for _, choice := range post.Poll.Choices {
-		// 	_, err = tx.ExecContext(ctx, "INSERT INTO PollChoice (poll_id,title,count) VALUES (UUID_TO_BIN(?),?,0)", pollID, choice)
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-		// }
 	}
 
 	// insert mentions (if any)
