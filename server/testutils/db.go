@@ -77,7 +77,7 @@ func DefaultEcho() (*echo.Echo, *api.Handler) {
 		panic(err)
 	}
 
-	h := api.NewHandler(db.DB, db.RDB)
+	h := api.NewHandler(db.DB, db.RDB, "http://example.com")
 	return api.BuildEcho(h, api.EchoOptions{
 		LogLevel: log.WARN,
 	}), h

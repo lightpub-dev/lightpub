@@ -53,7 +53,7 @@ func main() {
 		return
 	}
 
-	e := api.BuildEcho(api.NewHandler(db.DB, db.RDB), api.EchoOptions{LogLevel: log.DEBUG})
+	e := api.BuildEcho(api.NewHandler(db.DB, db.RDB, "http://localhost:1323"), api.EchoOptions{LogLevel: log.DEBUG})
 
 	e.Logger.Fatal(e.Start(":1323"))
 }

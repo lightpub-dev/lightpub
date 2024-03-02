@@ -23,10 +23,11 @@ type Handler struct {
 	BaseURL string
 }
 
-func NewHandler(db *gorm.DB, rdb *redis.Client) *Handler {
+func NewHandler(db *gorm.DB, rdb *redis.Client, baseURL string) *Handler {
 	return &Handler{
-		DB:  db,
-		RDB: rdb,
+		DB:      db,
+		RDB:     rdb,
+		BaseURL: baseURL,
 	}
 }
 
