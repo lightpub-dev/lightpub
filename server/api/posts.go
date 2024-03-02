@@ -1,6 +1,16 @@
 package api
 
-/*
+import (
+	"errors"
+	"net/http"
+
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/posts"
+)
+
 func (h *Handler) PostPost(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
@@ -37,7 +47,8 @@ func (h *Handler) PostPost(c echo.Context) error {
 		RepostID:      repostOfUUID,
 	}
 
-	result, err := posts.CreatePost(c.Request().Context(), h.MakeDB(), post)
+	postCreateService := initializePostCreateService(c, h)
+	result, err := postCreateService.CreatePost(post)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -58,49 +69,22 @@ func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) e
 	}
 	postId := db.UUID(postIdUUID)
 
-	// find reaction id
-	reactionObj, err := reactions.FindReactionByID(c.Request().Context(), h.MakeDB(), reaction)
-	if err != nil {
-		return c.String(http.StatusNotFound, "Reaction not found")
-	}
-
-	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), h.MakeDB(), postId, userId)
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
-	if !visible {
-		// 404 for privacy reasons
-		return c.String(404, "Not Found")
-	}
-
-	// find original post if repost
-	postId, err = posts.FindOriginalPostID(c.Request().Context(), h.MakeDB(), postId)
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
+	reactionService := initializePostReactionService(c, h)
 	if isAdd {
-		// add a reaction
-		var postReaction db.PostReaction
-		postReaction.PostID = postId
-		postReaction.ReactionID = reactionObj.ID
-		postReaction.UserID = userId
-		err := h.DB.Create(&postReaction).Error
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "Internal Server Error")
-		}
+		err = reactionService.AddPostReaction(postId, userId, reaction)
 	} else {
-		// delete a reaction
-		err := h.DB.Delete(&db.PostReaction{}, "post_id = ? AND user_id = ? AND reaction_id = ?", postId, userId, reactionObj.ID).Error
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "Internal Server Error")
+		err = reactionService.RemovePostReaction(postId, userId, reaction)
+	}
+
+	if err != nil {
+		if errors.Is(err, posts.ErrPostNotFound) {
+			return c.String(404, "Post not found")
 		}
+		if errors.Is(err, posts.ErrReactionNotFound) {
+			return c.String(400, "Invalid reaction")
+		}
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
 	}
 
 	return c.NoContent(200)
@@ -134,44 +118,28 @@ func (h *Handler) modPostBookmark(c echo.Context, isAdd, isBookmark bool) error 
 	}
 	postId := db.UUID(postIdUUID)
 
-	// check if post is available to user
-	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), h.MakeDB(), postId, userId)
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
-	if !visible {
-		// 404 for privacy reasons
-		return c.String(404, "Not Found")
-	}
-
-	// find original post if repost
-	postId, err = posts.FindOriginalPostID(c.Request().Context(), h.MakeDB(), postId)
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
+	likeService := initializePostLikeService(c, h)
 
 	if isAdd {
-		// add to favorite
-		favorite := db.PostFavorite{
-			PostID:     postId,
-			UserID:     userId,
-			IsBookmark: isBookmark,
-		}
-		err := h.DB.Create(&favorite).Error
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "Internal Server Error")
+		if isBookmark {
+			err = likeService.Bookmark(postId, userId)
+		} else {
+			err = likeService.Favorite(postId, userId)
 		}
 	} else {
-		// delete from favorite
-		err := h.DB.Delete(&db.PostFavorite{}, "post_id = ? AND user_id = ? AND is_bookmark", postId, userId, isBookmark).Error
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "Internal Server Error")
+		if isBookmark {
+			err = likeService.Unbookmark(postId, userId)
+		} else {
+			err = likeService.Unfavorite(postId, userId)
 		}
+	}
+
+	if err != nil {
+		if errors.Is(err, posts.ErrPostNotFound) {
+			return c.String(404, "Post not found")
+		}
+		c.Logger().Error(err)
+		return c.String(500, "Internal Server Error")
 	}
 
 	return c.NoContent(200)
@@ -193,6 +161,7 @@ func (h *Handler) DeletePostBookmark(c echo.Context) error {
 	return h.modPostBookmark(c, false, true)
 }
 
+/*
 func (h *Handler) GetPost(c echo.Context) error {
 	var viewerUserID db.UUID
 	if c.Get(ContextAuthed).(bool) {

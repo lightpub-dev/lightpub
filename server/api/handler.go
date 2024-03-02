@@ -69,7 +69,7 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	e.POST("/login", h.PostLogin)
 	e.POST("/register", h.PostRegister)
 
-	// authed := e.Group("", h.AuthMiddleware(false))
+	authed := e.Group("", h.AuthMiddleware(false))
 	// unAuthed := e.Group("", h.AuthMiddleware(true))
 	// APIs with auth
 	// Posts
@@ -94,7 +94,7 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	// unAuthed.GET("/user/:userspec/outbox", h.UserOutbox)
 
 	// Timeline
-	// authed.GET("/timeline", h.GetTimeline)
+	authed.GET("/timeline", h.GetTimeline)
 
 	// Trend
 	// unAuthed.GET("/trend", h.GetTrend)

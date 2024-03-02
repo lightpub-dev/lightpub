@@ -18,6 +18,7 @@ const (
 type PostFetchService interface {
 	FetchSinglePost(postID db.UUID, viewerUserID db.UUID) (*models.UserPostEntry, error)
 	FetchSinglePostWithDepth(postID db.UUID, viewerUserID db.UUID, currentDepth int) (*models.UserPostEntry, error)
+	FindOriginalPostID(postID db.UUID) (db.UUID, error)
 }
 
 type DBPostFetchService struct {

@@ -12,10 +12,10 @@ type UserProfileService interface {
 
 type DBUserProfileService struct {
 	conn       db.DBConn
-	userFinder UserFinder
+	userFinder UserFinderService
 }
 
-func ProvideDBUserProfileService(conn db.DBConn, userFinder UserFinder) *DBUserProfileService {
+func ProvideDBUserProfileService(conn db.DBConn, userFinder UserFinderService) *DBUserProfileService {
 	return &DBUserProfileService{conn, userFinder}
 }
 

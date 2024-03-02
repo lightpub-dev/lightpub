@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/wire"
 	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/reactions"
 	"github.com/lightpub-dev/lightpub/timeline"
 	"github.com/lightpub-dev/lightpub/users"
 )
@@ -17,10 +18,16 @@ func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {
 	return db.DBConn{DB: h.DB, Ctx: ctx}
 }
 
+var (
+	DBSet = wire.NewSet(
+		ProvideDBConnFromHandler,
+		db.ProvideContext,
+	)
+)
+
 func initializeUserCreateService(c echo.Context, h *Handler) users.UserCreateService {
 	wire.Build(
-		db.ProvideContext,
-		ProvideDBConnFromHandler,
+		DBSet,
 		users.ProvideDBUserCreateService,
 		wire.Bind(
 			new(users.UserCreateService), new(*users.DBUserCreateService),
@@ -31,8 +38,7 @@ func initializeUserCreateService(c echo.Context, h *Handler) users.UserCreateSer
 
 func initializeUserLoginService(c echo.Context, h *Handler) users.UserLoginService {
 	wire.Build(
-		db.ProvideContext,
-		ProvideDBConnFromHandler,
+		DBSet,
 		users.ProvideDBUserLoginService,
 		wire.Bind(
 			new(users.UserLoginService), new(*users.DBUserLoginService),
@@ -42,8 +48,8 @@ func initializeUserLoginService(c echo.Context, h *Handler) users.UserLoginServi
 }
 
 func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineService {
-	wire.Build(db.ProvideContext,
-		ProvideDBConnFromHandler,
+	wire.Build(
+		DBSet,
 		wire.Bind(
 			new(users.UserFollowService), new(*users.DBUserFollowService),
 		),
@@ -54,6 +60,34 @@ func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineServ
 			new(*timeline.DBTimelineService),
 		),
 		timeline.ProvideDBTimelineService,
+	)
+	return nil
+}
+
+func initializePostCreateService(c echo.Context, h *Handler) posts.PostCreateService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+		posts.DBPostServices,
+	)
+	return nil
+}
+
+func initializePostReactionService(c echo.Context, h *Handler) posts.PostReactionService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+		reactions.DBReactionServices,
+		posts.DBPostServices,
+	)
+	return nil
+}
+
+func initializePostLikeService(c echo.Context, h *Handler) posts.PostLikeService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+		posts.DBPostServices,
 	)
 	return nil
 }

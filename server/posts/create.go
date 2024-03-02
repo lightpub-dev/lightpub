@@ -26,10 +26,11 @@ type PostCreateService interface {
 type DBPostCreateService struct {
 	conn           db.DBConn
 	postVisibility PostVisibilityService
+	fetch          PostFetchService
 }
 
-func ProvideDBPostCreateService(conn db.DBConn, postVisibility PostVisibilityService) *DBPostCreateService {
-	return &DBPostCreateService{conn, postVisibility}
+func ProvideDBPostCreateService(conn db.DBConn, postVisibility PostVisibilityService, fetch PostFetchService) *DBPostCreateService {
+	return &DBPostCreateService{conn, postVisibility, fetch}
 }
 
 var (
@@ -73,7 +74,7 @@ func (s *DBPostCreateService) checkRepostable(postID db.UUID) (bool, error) {
 	return true, nil
 }
 
-func (s *DBPostCreateService) findOriginalPostID(postID db.UUID) (db.UUID, error) {
+func (s *DBPostFetchService) findOriginalPostID(postID db.UUID) (db.UUID, error) {
 	conn := s.conn.DB
 
 	var originalPost db.Post
@@ -93,7 +94,7 @@ func (s *DBPostCreateService) findOriginalPostID(postID db.UUID) (db.UUID, error
 	return s.findOriginalPostID(originalPost.RepostOfID.UUID)
 }
 
-func (s *DBPostCreateService) FindOriginalPostID(postID db.UUID) (db.UUID, error) {
+func (s *DBPostFetchService) FindOriginalPostID(postID db.UUID) (db.UUID, error) {
 	return s.findOriginalPostID(postID)
 }
 
@@ -143,7 +144,7 @@ func (s *DBPostCreateService) CreatePost(post CreateRequest) (*CreateResponse, e
 	// var postType PostType
 
 	if post.RepostID != nil {
-		repostID, err := s.findOriginalPostID(*post.RepostID)
+		repostID, err := s.fetch.FindOriginalPostID(*post.RepostID)
 		post.RepostID = &repostID
 		if err != nil {
 			return nil, err
@@ -151,7 +152,7 @@ func (s *DBPostCreateService) CreatePost(post CreateRequest) (*CreateResponse, e
 	}
 
 	if post.ReplyToPostID != nil {
-		ReplyToPostID, err := s.findOriginalPostID(*post.ReplyToPostID)
+		ReplyToPostID, err := s.fetch.FindOriginalPostID(*post.ReplyToPostID)
 		post.ReplyToPostID = &ReplyToPostID
 		if err != nil {
 			return nil, err

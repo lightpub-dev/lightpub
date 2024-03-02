@@ -15,21 +15,21 @@ var (
 	ErrInvalidUUID     = errors.New("invalid UUID")
 )
 
-type UserFinder interface {
+type UserFinderService interface {
 	ExistsByID(userID string) (bool, error)
 	FindIDByUsername(username string) (*db.User, error)
 	CountLocalUsers() (int64, error)
 }
 
-type DBUserFinder struct {
+type DBUserFinderService struct {
 	conn *db.DBConn
 }
 
-func ProvideDBUserFinder(conn *db.DBConn) *DBUserFinder {
-	return &DBUserFinder{conn: conn}
+func ProvideDBUserFinder(conn *db.DBConn) *DBUserFinderService {
+	return &DBUserFinderService{conn: conn}
 }
 
-func (f *DBUserFinder) ExistsByID(userID string) (bool, error) {
+func (f *DBUserFinderService) ExistsByID(userID string) (bool, error) {
 	var count int64
 	err := f.conn.DB.WithContext(f.conn.Ctx.Ctx).Model(&db.User{}).Where("id = ?", userID).Count(&count).Error
 	if err != nil {
@@ -90,7 +90,7 @@ func parseUsername(username string) (parsedUsername, error) {
 	}
 }
 
-func (f *DBUserFinder) FindIDByUsername(username string) (*db.User, error) {
+func (f *DBUserFinderService) FindIDByUsername(username string) (*db.User, error) {
 	// ctx := f.conn.Ctx.Ctx
 	conn := f.conn.DB
 
@@ -131,7 +131,7 @@ func (f *DBUserFinder) FindIDByUsername(username string) (*db.User, error) {
 	return &user, nil
 }
 
-func (f *DBUserFinder) CountLocalUsers() (int64, error) {
+func (f *DBUserFinderService) CountLocalUsers() (int64, error) {
 	var count int64
 	err := f.conn.DB.WithContext(f.conn.Ctx.Ctx).Model(&db.User{}).Where("host IS NULL").Count(&count).Error
 	if err != nil {

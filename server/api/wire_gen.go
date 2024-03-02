@@ -7,9 +7,11 @@
 package api
 
 import (
+	"github.com/google/wire"
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/reactions"
 	"github.com/lightpub-dev/lightpub/timeline"
 	"github.com/lightpub-dev/lightpub/users"
 )
@@ -42,8 +44,48 @@ func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineServ
 	return dbTimelineService
 }
 
+func initializePostCreateService(c echo.Context, h *Handler) posts.PostCreateService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
+	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
+	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
+	dbPostCreateService := posts.ProvideDBPostCreateService(dbConn, dbPostVisibilityService, dbPostFetchService)
+	return dbPostCreateService
+}
+
+func initializePostReactionService(c echo.Context, h *Handler) posts.PostReactionService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbFindReactionService := reactions.ProvideDBFindReactionService(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
+	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
+	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
+	dbPostReactionService := posts.ProvideDBPostReactionService(dbConn, dbFindReactionService, dbPostVisibilityService, dbPostFetchService)
+	return dbPostReactionService
+}
+
+func initializePostLikeService(c echo.Context, h *Handler) posts.PostLikeService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
+	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
+	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
+	dbPostLikeService := posts.ProvideDBPostLikeService(dbConn, dbPostVisibilityService, dbPostFetchService)
+	return dbPostLikeService
+}
+
 // services.go:
 
 func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {
 	return db.DBConn{DB: h.DB, Ctx: ctx}
 }
+
+var (
+	DBSet = wire.NewSet(
+		ProvideDBConnFromHandler, db.ProvideContext,
+	)
+)

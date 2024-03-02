@@ -9,6 +9,8 @@ var (
 		ProvideDBPostFetchService,
 		ProvideDBPostInteractionService,
 		ProvideDBPostVisibilityService,
+		ProvideDBPostReactionService,
+		ProvideDBPostLikeService,
 		wire.Bind(
 			new(PostCountService), new(*DBPostCountService),
 		),
@@ -23,6 +25,12 @@ var (
 		),
 		wire.Bind(
 			new(PostVisibilityService), new(*DBPostVisibilityService),
+		),
+		wire.Bind(
+			new(PostReactionService), new(*DBPostReactionService),
+		),
+		wire.Bind(
+			new(PostLikeService), new(*DBPostLikeService),
 		),
 	)
 )

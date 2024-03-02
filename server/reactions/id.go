@@ -1,13 +1,11 @@
 package reactions
 
 import (
-	"context"
-
 	"github.com/lightpub-dev/lightpub/db"
 )
 
 type FindReactionService interface {
-	FindReactionByID(context.Context, string) (*db.Reaction, error)
+	FindReactionByID(name string) (*db.Reaction, error)
 }
 
 type DBFindReactionService struct {
