@@ -90,7 +90,7 @@ func (s *DBPostFetchService) FetchSinglePostWithDepth(postID db.UUID, viewerUser
 	conn := s.conn.DB
 
 	var post db.Post
-	err := conn.Find(&post, "id = ?", postID).Joins("JOIN users ON users.id = posts.poster_id").Error
+	err := conn.Joins("Poster").Find(&post, "posts.id = ?", postID).Error
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

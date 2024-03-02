@@ -69,7 +69,7 @@ type Post struct {
 	RepostOfID NullUUID       // Nullable fields as pointers
 	// PollID     NullUUID       // Nullable fields, assuming same type as ID
 
-	Poster   User
+	Poster   User `gorm:"foreignKey:PosterID"`
 	ReplyTo  *Post
 	RepostOf *Post
 	// Poll     *PostPoll
