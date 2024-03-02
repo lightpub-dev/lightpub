@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/db"
@@ -10,12 +12,12 @@ import (
 	"github.com/lightpub-dev/lightpub/utils"
 )
 
-/*
 const (
 	DefaultUserPostLimit   = 10
 	DefaultFollowViewLimit = 10
 )
 
+/*
 type postWithRepostedByMe struct {
 	db.Post
 	RepostedByMe   *bool
@@ -230,6 +232,7 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			Posts: resp,
 		})
 }
+*/
 
 func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool) error {
 	username := c.Param("username")
@@ -256,7 +259,8 @@ func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool)
 		beforeDate = &beforeDateParsed
 	}
 
-	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), username)
+	userFinderService := initializeUserFinderService(c, h)
+	targetUser, err := userFinderService.FindIDByUsername(username)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -270,11 +274,12 @@ func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool)
 		viewerID = c.Get(ContextUserID).(db.UUID)
 	}
 
+	userFollowService := initializeUserFollowService(c, h)
 	var followDB []users.FollowerInfo
 	if fetchFollower {
-		followDB, err = users.FindFollowers(c.Request().Context(), h.MakeDB(), targetUser.ID, viewerID, beforeDate, limit)
+		followDB, err = userFollowService.FindFollowers(targetUser.ID, viewerID, beforeDate, limit)
 	} else {
-		followDB, err = users.FindFollowing(c.Request().Context(), h.MakeDB(), targetUser.ID, viewerID, beforeDate, limit)
+		followDB, err = userFollowService.FindFollowing(targetUser.ID, viewerID, beforeDate, limit)
 	}
 
 	if err != nil {
@@ -298,14 +303,8 @@ func (h *Handler) getUserFollowerOrFollowing(c echo.Context, fetchFollower bool)
 		follows = append(follows, res)
 	}
 
-	var jsonKey string
-	if fetchFollower {
-		jsonKey = "followers"
-	} else {
-		jsonKey = "followings"
-	}
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		jsonKey: follows,
+		"results": follows,
 	})
 }
 
@@ -316,7 +315,6 @@ func (h *Handler) GetUserFollowers(c echo.Context) error {
 func (h *Handler) GetUserFollowing(c echo.Context) error {
 	return h.getUserFollowerOrFollowing(c, false)
 }
-*/
 
 func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	myUserId := c.Get(ContextUserID).(db.UUID)
