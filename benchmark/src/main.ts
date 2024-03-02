@@ -2,9 +2,9 @@ import { faker } from "@faker-js/faker";
 import { followUser, loginUser, post, registerUser } from "./api";
 import { RegisterRequest } from "./models";
 
-const UserCount = 1;
-const FollowCount = 0;
-const PostsPerUser = 200;
+const UserCount = 50;
+const FollowCount = 25;
+const PostsPerUser = 30;
 
 function fakeUser(): RegisterRequest {
   return {
@@ -101,10 +101,10 @@ async function main() {
   }
 
   const postCount = loginUsers.length * PostsPerUser;
-  const posts: { poster: string; content: string; privacy: number }[] = [];
+  const posts: { poster: string; content: string; privacy: string }[] = [];
   for (let i = 0; i < postCount; i++) {
     const user = chooseRandom(loginUsers);
-    const privacy = chooseRandom([0, 1] as const);
+    const privacy = chooseRandom(["public", "unlisted"] as const);
     let content = faker.lorem.sentence();
     const hashtags = fakeHashtags();
     for (const hashtag of hashtags) {
@@ -115,8 +115,8 @@ async function main() {
       content,
       privacy,
     };
-    await post(postReq);
     timeStart();
+    await post(postReq);
     posts.push({
       poster: user.username,
       content,

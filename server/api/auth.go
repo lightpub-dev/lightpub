@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"errors"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -127,6 +128,23 @@ type keyPair struct {
 	PublicKey  string
 }
 
+func generateKeyPairForUser(userID db.UUID, conn db.DBConn) {
+	keyPair, err := generateKeyPair()
+	if err != nil {
+		log.Printf("error generating key pair for user %s: %s", userID, err)
+		return
+	}
+
+	if err := conn.DB().Model(&db.User{ID: userID}).Updates(&db.User{
+		PrivateKey: sql.NullString{String: keyPair.PrivateKey, Valid: true},
+		PublicKey:  sql.NullString{String: keyPair.PublicKey, Valid: true},
+	}).Error; err != nil {
+		log.Printf("error updating key pair for user %s: %s", userID, err)
+	}
+
+	log.Printf("generated key pair for user %s", userID)
+}
+
 func generateKeyPair() (keyPair, error) {
 	// create a temporary directory
 	tmpDir, err := os.MkdirTemp("", "lightpub-keygen")
@@ -183,7 +201,7 @@ func generateKeyPair() (keyPair, error) {
 
 func (h *Handler) PostRegister(c echo.Context) error {
 	var req struct {
-		Username string `json:"username" validate:"alphanum,max=60,min=1"`
+		Username string `json:"username" validate:"ascii,max=60,min=1"`
 		Nickname string `json:"nickname" validate:"max=200,min=1"`
 		Password string `json:"password" validate:"min=4"`
 	}
@@ -230,27 +248,13 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		return c.String(500, "Internal Server Error")
 	}
 
-	keyPair, err := generateKeyPair()
-	if err != nil {
-		c.Logger().Error(err)
-		return c.String(500, "Internal Server Error")
-	}
-
 	user := db.User{
 		ID:       db.UUID(userId),
 		Username: req.Username,
 		Nickname: req.Nickname,
 		Bpasswd:  string(hashedPassword),
 		Host:     sql.NullString{}, // null for local user
-		PublicKey: sql.NullString{
-			String: keyPair.PublicKey,
-			Valid:  true,
-		},
-		PrivateKey: sql.NullString{
-			String: keyPair.PrivateKey,
-			Valid:  true,
-		},
-		Bio: "",
+		Bio:      "",
 	}
 
 	result = tx.Create(&user)
@@ -266,6 +270,8 @@ func (h *Handler) PostRegister(c echo.Context) error {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
 	}
+
+	go generateKeyPairForUser(user.ID, h.MakeDB())
 
 	return c.NoContent(201)
 }
