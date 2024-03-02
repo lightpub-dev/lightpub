@@ -1,5 +1,12 @@
 package api
 
+import (
+	"net/http"
+
+	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/db"
+)
+
 /*
 const (
 	DefaultUserPostLimit   = 10
@@ -306,6 +313,7 @@ func (h *Handler) GetUserFollowers(c echo.Context) error {
 func (h *Handler) GetUserFollowing(c echo.Context) error {
 	return h.getUserFollowerOrFollowing(c, false)
 }
+*/
 
 func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	myUserId := c.Get(ContextUserID).(db.UUID)
@@ -314,7 +322,9 @@ func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	// TODO: transaction
 
 	// existence check
-	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), targetUsername)
+	userFinderService := initializeUserFinderService(c, h)
+	userFollowService := initializeUserFollowService(c, h)
+	targetUser, err := userFinderService.FindIDByUsername(targetUsername)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")
@@ -324,21 +334,14 @@ func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	}
 
 	if isFollow {
-		follow := db.UserFollow{
-			FollowerID: myUserId,
-			FolloweeID: targetUser.ID,
-		}
-		err := h.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&follow).Error
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "internal server error")
-		}
+		err = userFollowService.Follow(myUserId, targetUser.ID)
 	} else {
-		err := h.DB.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", myUserId, targetUser.ID).Error
-		if err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "internal server error")
-		}
+		err = userFollowService.Unfollow(myUserId, targetUser.ID)
+	}
+
+	if err != nil {
+		c.Logger().Error(err)
+		return c.String(500, "internal server error")
 	}
 
 	return c.NoContent(http.StatusOK)
@@ -352,6 +355,7 @@ func (h *Handler) UnfollowAUser(c echo.Context) error {
 	return h.modifyFollow(c, false)
 }
 
+/*
 func (h *Handler) PutUser(c echo.Context) error {
 	myUserID := c.Get(ContextUserID).(db.UUID)
 	targetUserSpec := c.Param("userspec")

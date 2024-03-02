@@ -13,6 +13,8 @@ type UserFollowService interface {
 	IsFollowedBy(followerID db.UUID, followeeID db.UUID) (bool, error)
 	FindFollowers(followeeID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
 	FindFollowing(followerID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
+	Follow(followerID db.UUID, followeeID db.UUID) error
+	Unfollow(followerID db.UUID, followeeID db.UUID) error
 }
 
 type DBUserFollowService struct {
@@ -118,4 +120,31 @@ func (s *DBUserFollowService) FindFollowing(followerID db.UUID, viewerID db.UUID
 	}
 
 	return followings, nil
+}
+
+func (s *DBUserFollowService) Follow(followerID db.UUID, followeeID db.UUID) error {
+	conn := s.conn.DB
+
+	follow := db.UserFollow{
+		FollowerID: followerID,
+		FolloweeID: followeeID,
+	}
+
+	err := conn.Create(&follow).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *DBUserFollowService) Unfollow(followerID db.UUID, followeeID db.UUID) error {
+	conn := s.conn.DB
+
+	err := conn.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", followerID, followeeID).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

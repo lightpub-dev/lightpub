@@ -118,3 +118,11 @@ func initializeUserFinderService(c echo.Context, h *Handler) users.UserFinderSer
 	)
 	return nil
 }
+
+func initializeUserFollowService(c echo.Context, h *Handler) users.UserFollowService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+	)
+	return nil
+}
