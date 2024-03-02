@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 )
 
 /*
@@ -355,12 +356,14 @@ func (h *Handler) UnfollowAUser(c echo.Context) error {
 	return h.modifyFollow(c, false)
 }
 
-/*
 func (h *Handler) PutUser(c echo.Context) error {
 	myUserID := c.Get(ContextUserID).(db.UUID)
 	targetUserSpec := c.Param("userspec")
 
-	targetUser, err := users.FindIDByUsername(c.Request().Context(), h.MakeDB(), targetUserSpec)
+	userFinderService := initializeUserFinderService(c, h)
+	userProfileService := initializeUserProfileService(c, h)
+
+	targetUser, err := userFinderService.FindIDByUsername(targetUserSpec)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(http.StatusInternalServerError, "internal server error")
@@ -383,7 +386,7 @@ func (h *Handler) PutUser(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "invalid request body")
 	}
 
-	err = users.UpdateProfile(c.Request().Context(), h.MakeDB(), targetUser.ID, &update)
+	err = userProfileService.UpdateProfile(targetUser.ID, &update)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(http.StatusInternalServerError, "internal server error")
@@ -392,6 +395,7 @@ func (h *Handler) PutUser(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
+/*
 func (h *Handler) GetUser(c echo.Context) error {
 	userspec := c.Param("username")
 

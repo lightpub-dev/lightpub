@@ -111,6 +111,14 @@ func initializeUserFollowService(c echo.Context, h *Handler) users.UserFollowSer
 	return dbUserFollowService
 }
 
+func initializeUserProfileService(c echo.Context, h *Handler) users.UserProfileService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserProfileService := users.ProvideDBUserProfileService(dbConn, dbUserFinderService)
+	return dbUserProfileService
+}
+
 // services.go:
 
 func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {

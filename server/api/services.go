@@ -126,3 +126,11 @@ func initializeUserFollowService(c echo.Context, h *Handler) users.UserFollowSer
 	)
 	return nil
 }
+
+func initializeUserProfileService(c echo.Context, h *Handler) users.UserProfileService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+	)
+	return nil
+}
