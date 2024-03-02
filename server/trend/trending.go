@@ -114,7 +114,8 @@ func (s *DBTrendService) GetTrendPosts(hashtag string, viewerID db.UUID, beforeD
 	var result []models.UserPostEntry = []models.UserPostEntry{}
 	for _, post := range rawPosts {
 		entry := (models.UserPostEntry{
-			ID: post.ID.String(),
+			ID:       post.ID,
+			IDString: post.ID.String(),
 			Author: models.UserPostEntryAuthor{
 				ID:       post.Poster.ID.String(),
 				Username: post.Poster.Username,

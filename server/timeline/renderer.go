@@ -37,7 +37,8 @@ func (s *DBTimelineService) FetchTimeline(userID db.UUID, options FetchOptions) 
 		// TODO: Poll
 
 		timelinePosts = append(timelinePosts, models.UserPostEntry{
-			ID: cache.ID.String(),
+			ID:       cache.ID,
+			IDString: cache.ID.String(),
 			Author: models.UserPostEntryAuthor{
 				ID:       cache.Poster.ID.String(),
 				Username: cache.Poster.Username,

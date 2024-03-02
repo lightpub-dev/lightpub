@@ -46,7 +46,7 @@ func (UUID) GormDataType() string {
 }
 
 func (us UUID) String() string {
-	return uuid.UUID(us).String()
+	return strings.ReplaceAll(uuid.UUID(us).String(), "-", "")
 }
 
 func (us UUID) AsNullable() NullUUID {

@@ -282,5 +282,5 @@ func (s *DBPostCreateService) CreatePost(post CreateRequest) (*CreateResponse, e
 	// TODO: publish to timeline
 	// TODO: this should be done asynchronously
 
-	return &CreateResponse{PostID: postID.String()}, nil
+	return &CreateResponse{PostID: db.UUID(postID).String()}, nil
 }

@@ -47,7 +47,8 @@ func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 	replyTo interface{}, // *models.UserPostEntry || string || nil
 	repostOf interface{}, // *models.UserPostEntry || string || nil
 ) {
-	result.ID = post.ID.String()
+	result.ID = post.ID
+	result.IDString = post.ID.String()
 	result.Author.ID = post.Poster.ID.String()
 	result.Author.Username = post.Poster.Username
 	result.Author.Host = utils.ConvertSqlHost(post.Poster.Host)
@@ -170,7 +171,7 @@ func (s *DBPostFetchService) FetchSinglePostWithDepth(postID db.UUID, viewerUser
 	}
 
 	result := &models.UserPostEntry{
-		IDUUID: post.ID,
+		ID: post.ID,
 	}
 	fillUserPostEntry(result, postWithUser{
 

@@ -78,14 +78,9 @@ func (h *Handler) GetUserPosts(c echo.Context) error {
 			}
 		}
 
-		var postUUID db.UUID
-		if err := db.ParseTo(&postUUID, post.ID); err != nil {
-			c.Logger().Error(err)
-			return c.String(500, "internal server error")
-		}
 		resp = append(resp, models.UserPostEntry{
-			IDUUID: postUUID,
-			ID:     post.ID,
+			ID:       post.ID,
+			IDString: post.ID.String(),
 			Author: models.UserPostEntryAuthor{
 				ID:       targetUser.ID.String(),
 				Username: targetUser.Username,

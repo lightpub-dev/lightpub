@@ -34,8 +34,8 @@ type UserPostListResponse struct {
 type ReactionCountMap map[string]int64
 
 type UserPostEntry struct {
-	IDUUID    db.UUID             `json:"-"` // for internal use only
-	ID        string              `json:"id"`
+	ID        db.UUID             `json:"-"` // for internal use only
+	IDString  string              `json:"id"`
 	Author    UserPostEntryAuthor `json:"author"`
 	Content   *string             `json:"content"`
 	CreatedAt time.Time           `json:"created_at"`
@@ -64,7 +64,7 @@ func (u *UserPostEntry) UpdateCounts(reply, favorite, repost, quote int64, react
 }
 
 func (u *UserPostEntry) PostID() db.UUID {
-	return u.IDUUID
+	return u.ID
 }
 
 type UserPostEntryAuthor struct {
