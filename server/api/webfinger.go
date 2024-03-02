@@ -1,11 +1,17 @@
 package api
 
 import (
+	"bytes"
+	"html/template"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/users"
 	"github.com/lightpub-dev/lightpub/webfinger"
+)
+
+var (
+	hostMetaTemplate = template.Must(template.ParseFiles("templates/host-meta.xml"))
 )
 
 func (h *Handler) GetWebfinger(c echo.Context) error {
@@ -96,4 +102,15 @@ func (h *Handler) Nodeinfo20(c echo.Context) error {
 
 func (h *Handler) Nodeinfo21(c echo.Context) error {
 	return h.NodeInfo2(c, "2.1")
+}
+
+func (h *Handler) GetHostMeta(c echo.Context) error {
+	buf := new(bytes.Buffer)
+	if err := hostMetaTemplate.Execute(buf, map[string]string{
+		"baseUrl": h.BaseURL,
+	}); err != nil {
+		c.Logger().Error(err)
+		return c.String(http.StatusInternalServerError, "internal server error")
+	}
+	return c.Blob(http.StatusOK, "application/xrd+xml", buf.Bytes())
 }
