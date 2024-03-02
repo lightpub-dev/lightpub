@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -8,6 +9,8 @@ import (
 	api "github.com/lightpub-dev/lightpub/api"
 	d "github.com/lightpub-dev/lightpub/db"
 )
+
+var doMigrate = flag.Bool("migrate", false, "run migrations and not start the server")
 
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
@@ -17,6 +20,8 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
+	flag.Parse()
+
 	// get config from env
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbPort := (getEnv("DB_PORT", "3306"))
@@ -40,8 +45,12 @@ func main() {
 	}
 
 	// migrate
-	if err := db.MigrateToLatest(); err != nil {
-		panic(err)
+	if *doMigrate {
+		if err := db.MigrateToLatest(); err != nil {
+			panic(err)
+		}
+		log.Print("migration done")
+		return
 	}
 
 	e := api.BuildEcho(api.NewHandler(db.DB, db.RDB), api.EchoOptions{LogLevel: log.DEBUG})
