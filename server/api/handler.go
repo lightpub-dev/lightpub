@@ -90,6 +90,8 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	authed.DELETE("/user/:username/follow", h.UnfollowAUser)
 	authed.PATCH("/user/:userspec", h.PutUser)
 	unAuthed.GET("/user/:username", h.GetUser)
+	unAuthed.POST("/user/:userspec/inbox", h.UserInbox)
+	unAuthed.GET("/user/:userspec/outbox", h.UserOutbox)
 
 	// Timeline
 	authed.GET("/timeline", h.GetTimeline)
