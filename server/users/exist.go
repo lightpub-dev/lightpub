@@ -111,3 +111,13 @@ func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db
 
 	return &user, nil
 }
+
+func CountLocalUsers(ctx context.Context, conn db.DBConn) (int64, error) {
+	var count int64
+	err := conn.DB().Model(&db.User{}).Where("host IS NULL").Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}

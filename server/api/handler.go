@@ -15,8 +15,9 @@ var (
 )
 
 type Handler struct {
-	DB  *gorm.DB
-	RDB *redis.Client
+	DB      *gorm.DB
+	RDB     *redis.Client
+	BaseURL string
 }
 
 func NewHandler(db *gorm.DB, rdb *redis.Client) *Handler {
@@ -89,6 +90,10 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 
 	// webfinger
 	unAuthed.GET("/.well-known/webfinger", h.GetWebfinger)
+	unAuthed.GET("/.well-known/nodeinfo", h.GetNodeInfo)
+	// unAuthed.GET("/.well-known/host-meta", h.GetHostMeta)
+	unAuthed.GET("/nodeinfo/2.0", h.Nodeinfo20)
+	unAuthed.GET("/nodeinfo/2.1", h.Nodeinfo21)
 
 	// swagger
 	e.GET("/docs/*", echo.WrapHandler(httpSwagger.Handler(
