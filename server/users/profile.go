@@ -1,14 +1,26 @@
 package users
 
 import (
-	"context"
-
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 )
 
-func UpdateProfile(ctx context.Context, conn db.DBConn, userID db.UUID, req *models.UserProfileUpdate) error {
-	dbconn := conn.DB()
+type UserProfileService interface {
+	UpdateProfile(userID db.UUID, req *models.UserProfileUpdate) error
+	GetProfile(userSpec string, viewerID db.UUID) (*db.FullUser, error)
+}
+
+type DBUserProfileService struct {
+	conn       db.DBConn
+	userFinder UserFinder
+}
+
+func ProvideDBUserProfileService(conn db.DBConn, userFinder UserFinder) *DBUserProfileService {
+	return &DBUserProfileService{conn, userFinder}
+}
+
+func (s *DBUserProfileService) UpdateProfile(userID db.UUID, req *models.UserProfileUpdate) error {
+	dbconn := s.conn.DB
 	tx := dbconn.Begin()
 	defer tx.Rollback()
 
@@ -47,8 +59,10 @@ func UpdateProfile(ctx context.Context, conn db.DBConn, userID db.UUID, req *mod
 	return tx.Commit().Error
 }
 
-func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID db.UUID) (*db.FullUser, error) {
-	basicUser, err := FindIDByUsername(ctx, conn, userSpec)
+func (s *DBUserProfileService) GetProfile(userSpec string, viewerID db.UUID) (*db.FullUser, error) {
+	conn := s.conn.DB
+
+	basicUser, err := s.userFinder.FindIDByUsername(userSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +76,7 @@ func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID d
 
 	// fetch labels
 	var labels []db.UserLabelDB
-	err = conn.DB().Find(&labels, "user_id = ?", basicUser.ID).Order("order ASC").Error
+	err = conn.Find(&labels, "user_id = ?", basicUser.ID).Order("order ASC").Error
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +85,7 @@ func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID d
 	// fetch is_following
 	if viewerID != (db.UUID{}) {
 		var isFollowingCount int64
-		err = conn.DB().Model(&db.UserFollow{}).Where("follower_id = ? AND followee_id = ?", viewerID, basicUser.ID).Count(&isFollowingCount).Error
+		err = conn.Model(&db.UserFollow{}).Where("follower_id = ? AND followee_id = ?", viewerID, basicUser.ID).Count(&isFollowingCount).Error
 		if err != nil {
 			return nil, err
 		}
@@ -79,18 +93,18 @@ func GetProfile(ctx context.Context, conn db.DBConn, userSpec string, viewerID d
 	}
 
 	// follower count
-	err = conn.DB().Model(&db.UserFollow{}).Where("followee_id = ?", basicUser.ID).Count(&profile.Followers).Error
+	err = conn.Model(&db.UserFollow{}).Where("followee_id = ?", basicUser.ID).Count(&profile.Followers).Error
 	if err != nil {
 		return nil, err
 	}
 
-	err = conn.DB().Model(&db.UserFollow{}).Where("follower_id = ?", basicUser.ID).Count(&profile.Following).Error
+	err = conn.Model(&db.UserFollow{}).Where("follower_id = ?", basicUser.ID).Count(&profile.Following).Error
 	if err != nil {
 		return nil, err
 	}
 
 	// post count
-	err = conn.DB().Model(&db.Post{}).Where("poster_id = ?", basicUser.ID).Count(&profile.PostCount).Error
+	err = conn.Model(&db.Post{}).Where("poster_id = ?", basicUser.ID).Count(&profile.PostCount).Error
 	if err != nil {
 		return nil, err
 	}

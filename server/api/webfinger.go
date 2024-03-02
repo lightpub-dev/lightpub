@@ -1,15 +1,6 @@
 package api
 
-import (
-	"bytes"
-	"html/template"
-	"net/http"
-
-	"github.com/labstack/echo/v4"
-	"github.com/lightpub-dev/lightpub/users"
-	"github.com/lightpub-dev/lightpub/webfinger"
-)
-
+/*
 var (
 	hostMetaTemplate = template.Must(template.ParseFiles("templates/host-meta.xml"))
 )
@@ -99,3 +90,4 @@ func (h *Handler) GetHostMeta(c echo.Context) error {
 	}
 	return c.Blob(http.StatusOK, "application/xrd+xml", buf.Bytes())
 }
+*/

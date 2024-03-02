@@ -1,12 +1,24 @@
 package posts
 
 import (
-	"context"
 	"errors"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/users"
 )
+
+type PostVisibilityService interface {
+	IsPostVisibleToUser(postId db.UUID, userId db.UUID) (bool, error)
+}
+
+type DBPostVisibilityService struct {
+	conn          db.DBConn
+	followService users.UserFollowService
+}
+
+func ProvideDBPostVisibilityService(conn db.DBConn, followService users.UserFollowService) *DBPostVisibilityService {
+	return &DBPostVisibilityService{conn, followService}
+}
 
 type PrivacyType string
 
@@ -17,9 +29,11 @@ const (
 	PrivacyPrivate  PrivacyType = "private"
 )
 
-func IsPostVisibleToUser(ctx context.Context, conn db.DBConn, postId db.UUID, userId db.UUID) (bool, error) {
+func (s *DBPostVisibilityService) IsPostVisibleToUser(postId db.UUID, userId db.UUID) (bool, error) {
+	conn := s.conn.DB
+
 	var post db.Post
-	err := conn.DB().Model(&db.Post{}).Select("poster_id", "privacy").Where("id = ?", postId).First(&post).Error
+	err := conn.Model(&db.Post{}).Select("poster_id", "privacy").Where("id = ?", postId).First(&post).Error
 	if err != nil {
 		return false, err
 	}
@@ -37,7 +51,7 @@ func IsPostVisibleToUser(ctx context.Context, conn db.DBConn, postId db.UUID, us
 	case PrivacyFollower:
 		// check if user is followed by poster
 		posterID := post.PosterID
-		isFollowedBy, err := users.IsFollowedBy(ctx, conn, posterID, userId)
+		isFollowedBy, err := s.followService.IsFollowedBy(posterID, userId)
 		if err != nil {
 			return false, err
 		}
@@ -45,7 +59,7 @@ func IsPostVisibleToUser(ctx context.Context, conn db.DBConn, postId db.UUID, us
 	case PrivacyPrivate:
 		// check if user is in post's mention list
 		var count int64
-		err := conn.DB().Model(&db.PostMention{}).Where("post_id = ? AND target_user_id = ?", postId, userId).Count(&count).Error
+		err := conn.Model(&db.PostMention{}).Where("post_id = ? AND target_user_id = ?", postId, userId).Count(&count).Error
 		if err != nil {
 			return false, err
 		}

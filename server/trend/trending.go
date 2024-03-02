@@ -1,7 +1,6 @@
 package trend
 
 import (
-	"context"
 	"sort"
 	"time"
 
@@ -11,16 +10,35 @@ import (
 	"github.com/lightpub-dev/lightpub/utils"
 )
 
+type TrendService interface {
+	GetCurrentTrend() (*models.TrendOverviewResponse, error)
+	GetTrendPosts(hashtag string, viewerID db.UUID, beforeDate *time.Time, limit int) ([]models.UserPostEntry, error)
+}
+
+type DBTrendService struct {
+	conn      db.DBConn
+	postCount posts.PostCountService
+}
+
+func ProvideDBTrendService(conn db.DBConn, postCount posts.PostCountService) *DBTrendService {
+	return &DBTrendService{
+		conn:      conn,
+		postCount: postCount,
+	}
+}
+
 type trendList struct {
 	HashtagName string
 	PostCount   int64
 }
 
 // GetCurrentTrend fetches the most posted hashtags within the last 3 hours
-func GetCurrentTrend(ctx context.Context, conn db.DBConn) (*models.TrendOverviewResponse, error) {
+func (s *DBTrendService) GetCurrentTrend() (*models.TrendOverviewResponse, error) {
+	conn := s.conn.DB
+
 	result := []trendList{}
-	hashtagAndCounts := conn.DB().Model(&db.PostHashtag{}).InnerJoins("Post").Where("Post.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND Post.privacy='public'").Select("post_hashtags.hashtag_name, Post.id AS post_id")
-	err := conn.DB().Table("(?) AS hc", hashtagAndCounts).Select("hc.hashtag_name, COUNT(hc.post_id) AS post_count").Group("hashtag_name").Order("post_count DESC").Limit(5).Find(&result).Error
+	hashtagAndCounts := conn.Model(&db.PostHashtag{}).InnerJoins("Post").Where("Post.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND Post.privacy='public'").Select("post_hashtags.hashtag_name, Post.id AS post_id")
+	err := conn.Table("(?) AS hc", hashtagAndCounts).Select("hc.hashtag_name, COUNT(hc.post_id) AS post_count").Group("hashtag_name").Order("post_count DESC").Limit(5).Find(&result).Error
 	if err != nil {
 		return nil, err
 	}
@@ -41,10 +59,12 @@ func GetCurrentTrend(ctx context.Context, conn db.DBConn) (*models.TrendOverview
 
 // GetTrendPosts fetches the posts for a given hashtag
 // Consider viewerID to determine if the posts are visible to the viewer
-func GetTrendPosts(ctx context.Context, conn db.DBConn, hashtag string, viewerID db.UUID, beforeDate *time.Time, limit int) ([]models.UserPostEntry, error) {
+func (s *DBTrendService) GetTrendPosts(hashtag string, viewerID db.UUID, beforeDate *time.Time, limit int) ([]models.UserPostEntry, error) {
+	conn := s.conn.DB
+
 	// get 'public' posts
 	var publicPosts []db.Post
-	publicQuery := conn.DB().Model(&db.Post{}).Joins("Poster").Joins("Hashtags").Where("Hashtags.hashtag_name = ? AND posts.privacy = 'public'", hashtag).Order("posts.created_at DESC").Limit(limit)
+	publicQuery := conn.Model(&db.Post{}).Joins("Poster").Joins("Hashtags").Where("Hashtags.hashtag_name = ? AND posts.privacy = 'public'", hashtag).Order("posts.created_at DESC").Limit(limit)
 	if beforeDate != nil {
 		publicQuery = publicQuery.Where("posts.created_at < ?", *beforeDate)
 	}
@@ -56,7 +76,7 @@ func GetTrendPosts(ctx context.Context, conn db.DBConn, hashtag string, viewerID
 	// get 'follower' posts
 	var followerPosts []db.Post
 	if viewerID != (db.UUID{}) {
-		err := conn.DB().Model(&db.Post{}).Joins("Poster").Joins("Hashtags").Joins("INNER JOIN user_follows uf ON uf.followee_id=Poster.id").Where("posts.privacy = 'follower'").Where("Hashtags.hashtag_name = ?", hashtag).Where("uf.follower_id = ?", viewerID).Order("posts.created_at DESC").Limit(limit).Find(&followerPosts).Error
+		err := conn.Model(&db.Post{}).Joins("Poster").Joins("Hashtags").Joins("INNER JOIN user_follows uf ON uf.followee_id=Poster.id").Where("posts.privacy = 'follower'").Where("Hashtags.hashtag_name = ?", hashtag).Where("uf.follower_id = ?", viewerID).Order("posts.created_at DESC").Limit(limit).Find(&followerPosts).Error
 		if err != nil {
 			return nil, err
 		}
@@ -98,7 +118,7 @@ func GetTrendPosts(ctx context.Context, conn db.DBConn, hashtag string, viewerID
 			ReplyTo:   post.ReplyTo,
 			RepostOf:  post.RepostOf,
 		})
-		posts.FillCounts(ctx, conn, &entry)
+		s.postCount.FillCounts(&entry)
 
 		result = append(result, entry)
 	}

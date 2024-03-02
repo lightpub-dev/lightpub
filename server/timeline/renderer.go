@@ -1,7 +1,6 @@
 package timeline
 
 import (
-	"context"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
@@ -10,10 +9,10 @@ import (
 	"github.com/lightpub-dev/lightpub/utils"
 )
 
-func FetchTimeline(ctx context.Context, conn db.DBConn, userID db.UUID, options FetchOptions) (*models.TimelineResponse, error) {
+func (s *DBTimelineService) FetchTimeline(userID db.UUID, options FetchOptions) (*models.TimelineResponse, error) {
 	// TODO: use timeline cache in redis
 	// TODO: for now, just fetch from db
-	cached, err := fetchPostsFromDB(ctx, conn, userID, options)
+	cached, err := s.fetchPostsFromDB(userID, options)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +27,7 @@ func FetchTimeline(ctx context.Context, conn db.DBConn, userID db.UUID, options 
 			replyToURL = posts.CreatePostURL(cache.ReplyToID.UUID)
 		}
 		if cache.RepostOfID.Valid {
-			repost, err := posts.FetchSinglePostWithDepth(ctx, conn, cache.RepostOfID.UUID, userID, 0)
+			repost, err := s.postFetch.FetchSinglePostWithDepth(cache.RepostOfID.UUID, userID, 0)
 			if err != nil {
 				return nil, err
 			}

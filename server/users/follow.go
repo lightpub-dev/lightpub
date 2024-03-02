@@ -1,7 +1,6 @@
 package users
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,9 +9,25 @@ import (
 	"gorm.io/gorm"
 )
 
-func IsFollowedBy(ctx context.Context, conn db.DBConn, followerID db.UUID, followeeID db.UUID) (bool, error) {
+type UserFollowService interface {
+	IsFollowedBy(followerID db.UUID, followeeID db.UUID) (bool, error)
+	FindFollowers(followeeID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
+	FindFollowing(followerID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
+}
+
+type DBUserFollowService struct {
+	conn db.DBConn
+}
+
+func ProvideDBUserFollowService(conn db.DBConn) *DBUserFollowService {
+	return &DBUserFollowService{conn: conn}
+}
+
+func (s *DBUserFollowService) IsFollowedBy(followerID db.UUID, followeeID db.UUID) (bool, error) {
+	conn := s.conn.DB
+
 	var count int64
-	err := conn.DB().Model(&db.UserFollow{}).Where("follower_id = ? AND followee_id = ?", followerID, followeeID).Count(&count).Error
+	err := conn.Model(&db.UserFollow{}).Where("follower_id = ? AND followee_id = ?", followerID, followeeID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
@@ -41,15 +56,17 @@ func fillInLocalURL(follower *FollowerInfo) {
 	}
 }
 
-func FindFollowers(ctx context.Context, conn db.DBConn, followeeID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error) {
+func (s *DBUserFollowService) FindFollowers(followeeID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error) {
+	conn := s.conn.DB
+
 	var (
 		followers []FollowerInfo
 		tx        *gorm.DB
 	)
 	if viewerID == (db.UUID{}) {
-		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.follower_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Where("followee_id = ?", followeeID).Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio")
+		tx = conn.Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.follower_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Where("followee_id = ?", followeeID).Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio")
 	} else {
-		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.follower_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio, COUNT(user_follows.follower_id) AS is_following").Where("followee_id = ?", followeeID)
+		tx = conn.Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.follower_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio, COUNT(user_follows.follower_id) AS is_following").Where("followee_id = ?", followeeID)
 	}
 
 	if beforeDate != nil {
@@ -71,15 +88,17 @@ func FindFollowers(ctx context.Context, conn db.DBConn, followeeID db.UUID, view
 	return followers, nil
 }
 
-func FindFollowing(ctx context.Context, conn db.DBConn, followerID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error) {
+func (s *DBUserFollowService) FindFollowing(followerID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error) {
+	conn := s.conn.DB
+
 	var (
 		followings []FollowerInfo
 		tx         *gorm.DB
 	)
 	if viewerID == (db.UUID{}) {
-		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.followee_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Where("follower_id = ?", followerID).Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio")
+		tx = conn.Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.followee_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Where("follower_id = ?", followerID).Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio")
 	} else {
-		tx = conn.DB().Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.followee_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio, COUNT(user_follows.follower_id) AS is_following").Where("follower_id = ?", followerID)
+		tx = conn.Model(&db.UserFollow{}).Joins("JOIN users ON users.id = user_follows.followee_id").Joins("JOIN user_profiles ON user_profiles.user_id = users.id").Select("users.id AS id, users.username, users.host, users.url, users.nickname, user_profiles.bio, COUNT(user_follows.follower_id) AS is_following").Where("follower_id = ?", followerID)
 	}
 
 	if beforeDate != nil {

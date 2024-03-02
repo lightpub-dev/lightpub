@@ -1,7 +1,6 @@
 package users
 
 import (
-	"context"
 	"errors"
 	"strings"
 
@@ -16,9 +15,23 @@ var (
 	ErrInvalidUUID     = errors.New("invalid UUID")
 )
 
-func ExistsByID(ctx context.Context, conn db.DBConn, userID string) (bool, error) {
+type UserFinder interface {
+	ExistsByID(userID string) (bool, error)
+	FindIDByUsername(username string) (*db.User, error)
+	CountLocalUsers() (int64, error)
+}
+
+type DBUserFinder struct {
+	conn *db.DBConn
+}
+
+func ProvideDBUserFinder(conn *db.DBConn) *DBUserFinder {
+	return &DBUserFinder{conn: conn}
+}
+
+func (f *DBUserFinder) ExistsByID(userID string) (bool, error) {
 	var count int64
-	err := conn.DB().Model(&db.User{}).Where("id = ?", userID).Count(&count).Error
+	err := f.conn.DB.WithContext(f.conn.Ctx.Ctx).Model(&db.User{}).Where("id = ?", userID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
@@ -77,7 +90,10 @@ func parseUsername(username string) (parsedUsername, error) {
 	}
 }
 
-func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db.User, error) {
+func (f *DBUserFinder) FindIDByUsername(username string) (*db.User, error) {
+	// ctx := f.conn.Ctx.Ctx
+	conn := f.conn.DB
+
 	username = strings.ReplaceAll(username, "%40", "@")
 
 	parsedUsernameOrID, err := parseUsernameOrID(username)
@@ -92,16 +108,16 @@ func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db
 	if parsedUsernameOrID.ID != (db.UUID{}) {
 		// parsed ID
 		parsedID := parsedUsernameOrID.ID
-		err = conn.DB().Select(selectColumns).First(&user, "id = ?", parsedID).Error
+		err = conn.Select(selectColumns).First(&user, "id = ?", parsedID).Error
 	} else {
 		// parsed Username
 		parsedUsername := parsedUsernameOrID.Username
 		if parsedUsername.Host == "" {
 			// local user
-			err = conn.DB().Select(selectColumns).First(&user, "username = ?", parsedUsername.Username).Error
+			err = conn.Select(selectColumns).First(&user, "username = ?", parsedUsername.Username).Error
 		} else {
 			// remote user
-			err = conn.DB().Select(selectColumns).First(&user, "username = ? AND host = ?", parsedUsername.Username, parsedUsername.Host).Error
+			err = conn.Select(selectColumns).First(&user, "username = ? AND host = ?", parsedUsername.Username, parsedUsername.Host).Error
 		}
 	}
 
@@ -115,9 +131,9 @@ func FindIDByUsername(ctx context.Context, conn db.DBConn, username string) (*db
 	return &user, nil
 }
 
-func CountLocalUsers(ctx context.Context, conn db.DBConn) (int64, error) {
+func (f *DBUserFinder) CountLocalUsers() (int64, error) {
 	var count int64
-	err := conn.DB().Model(&db.User{}).Where("host IS NULL").Count(&count).Error
+	err := f.conn.DB.WithContext(f.conn.Ctx.Ctx).Model(&db.User{}).Where("host IS NULL").Count(&count).Error
 	if err != nil {
 		return 0, err
 	}

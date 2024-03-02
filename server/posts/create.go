@@ -1,7 +1,6 @@
 package posts
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -18,6 +17,20 @@ const (
 	PostTypeRepost
 	PostTypeQuote
 )
+
+type PostCreateService interface {
+	CreatePost(post CreateRequest) (*CreateResponse, error)
+	// FindOriginalPostID(postID db.UUID) (db.UUID, error)
+}
+
+type DBPostCreateService struct {
+	conn           db.DBConn
+	postVisibility PostVisibilityService
+}
+
+func ProvideDBPostCreateService(conn db.DBConn, postVisibility PostVisibilityService) *DBPostCreateService {
+	return &DBPostCreateService{conn, postVisibility}
+}
 
 var (
 	ErrReplyOrRepostTargetNotFound = errors.New("reply or repost target not found")
@@ -41,10 +54,12 @@ type CreateResponse struct {
 	PostID string
 }
 
-func checkRepostable(ctx context.Context, conn db.DBConn, postID db.UUID) (bool, error) {
+func (s *DBPostCreateService) checkRepostable(postID db.UUID) (bool, error) {
+	conn := s.conn.DB
+
 	// check if post is public or unlisted
 	var privacy string
-	err := conn.DB().Model(&db.Post{}).Where("id = ?", postID).Select("privacy").Find(&privacy).Error
+	err := conn.Model(&db.Post{}).Where("id = ?", postID).Select("privacy").Find(&privacy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, ErrReplyOrRepostTargetNotFound
@@ -58,9 +73,11 @@ func checkRepostable(ctx context.Context, conn db.DBConn, postID db.UUID) (bool,
 	return true, nil
 }
 
-func findOriginalPostID(ctx context.Context, conn db.DBConn, postID db.UUID) (db.UUID, error) {
+func (s *DBPostCreateService) findOriginalPostID(postID db.UUID) (db.UUID, error) {
+	conn := s.conn.DB
+
 	var originalPost db.Post
-	err := conn.DB().Model(&db.Post{}).Select("repost_of", "content").Where("id=UUID_TO_BIN(?)", postID).First(&originalPost).Error
+	err := conn.Model(&db.Post{}).Select("repost_of", "content").Where("id=UUID_TO_BIN(?)", postID).First(&originalPost).Error
 	if err != nil {
 		return db.UUID{}, err
 	}
@@ -73,18 +90,20 @@ func findOriginalPostID(ctx context.Context, conn db.DBConn, postID db.UUID) (db
 		return postID, nil
 	}
 
-	return findOriginalPostID(ctx, conn, originalPost.RepostOfID.UUID)
+	return s.findOriginalPostID(originalPost.RepostOfID.UUID)
 }
 
-func FindOriginalPostID(ctx context.Context, conn db.DBConn, postID db.UUID) (db.UUID, error) {
-	return findOriginalPostID(ctx, conn, postID)
+func (s *DBPostCreateService) FindOriginalPostID(postID db.UUID) (db.UUID, error) {
+	return s.findOriginalPostID(postID)
 }
 
 // checkIfReposted checks if a post is reposted by a user
-func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID db.UUID, reposterID db.UUID) (bool, error) {
+func (s *DBPostCreateService) checkIfReposted(repostedID db.UUID, reposterID db.UUID) (bool, error) {
+	conn := s.conn.DB
+
 	// first, check if repostedID is a repost
 	var repostOf db.Post
-	err := conn.DB().Model(&db.Post{}).Select("repost_of_id", "content").Where("id = ?", repostedID).Find(&repostOf).Error
+	err := conn.Model(&db.Post{}).Select("repost_of_id", "content").Where("id = ?", repostedID).Find(&repostOf).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, ErrReplyOrRepostTargetNotFound
@@ -94,18 +113,20 @@ func checkIfReposted(ctx context.Context, conn db.DBConn, repostedID db.UUID, re
 
 	if repostOf.RepostOfID.Valid && !repostOf.Content.Valid {
 		// repostOf is a repost
-		return checkIfReposted(ctx, conn, repostOf.RepostOfID.UUID, reposterID)
+		return s.checkIfReposted(repostOf.RepostOfID.UUID, reposterID)
 	}
 
 	var count int64
-	err = conn.DB().Model(&db.Post{}).Where("repost_of_id = ? AND poster_id = ? AND content IS NULL", repostedID, reposterID).Count(&count).Error
+	err = conn.Model(&db.Post{}).Where("repost_of_id = ? AND poster_id = ? AND content IS NULL", repostedID, reposterID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
 	return count > 0, nil
 }
 
-func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*CreateResponse, error) {
+func (s *DBPostCreateService) CreatePost(post CreateRequest) (*CreateResponse, error) {
+	conn := s.conn.DB
+
 	postID, err := utils.GenerateUUID()
 	if err != nil {
 		return nil, err
@@ -122,7 +143,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 	// var postType PostType
 
 	if post.RepostID != nil {
-		repostID, err := findOriginalPostID(ctx, conn, *post.RepostID)
+		repostID, err := s.findOriginalPostID(*post.RepostID)
 		post.RepostID = &repostID
 		if err != nil {
 			return nil, err
@@ -130,7 +151,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 	}
 
 	if post.ReplyToPostID != nil {
-		ReplyToPostID, err := findOriginalPostID(ctx, conn, *post.ReplyToPostID)
+		ReplyToPostID, err := s.findOriginalPostID(*post.ReplyToPostID)
 		post.ReplyToPostID = &ReplyToPostID
 		if err != nil {
 			return nil, err
@@ -139,7 +160,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 
 	if post.RepostID != nil && post.Content == nil {
 		// Repost
-		repostable, err := checkRepostable(ctx, conn, *post.RepostID)
+		repostable, err := s.checkRepostable(*post.RepostID)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +170,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 		}
 
 		// check if already reposted
-		reposted, err := checkIfReposted(ctx, conn, *post.RepostID, post.PosterID)
+		reposted, err := s.checkIfReposted(*post.RepostID, post.PosterID)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +184,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 		// postType = PostTypeRepost
 	} else if post.RepostID != nil && post.Content != nil {
 		// Quote
-		quotable, err := checkRepostable(ctx, conn, *post.RepostID) // condition is same as repost
+		quotable, err := s.checkRepostable(*post.RepostID) // condition is same as repost
 		if err != nil {
 			return nil, err
 		}
@@ -180,7 +201,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 	} else if post.ReplyToPostID != nil {
 		// Reply
 		// check if post is visible to poster
-		visible, err := IsPostVisibleToUser(ctx, conn, *post.ReplyToPostID, post.PosterID)
+		visible, err := s.postVisibility.IsPostVisibleToUser(*post.ReplyToPostID, post.PosterID)
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +224,7 @@ func CreatePost(ctx context.Context, conn db.DBConn, post CreateRequest) (*Creat
 	}
 
 	// insert into db
-	tx := conn.DB().Begin()
+	tx := conn.Begin()
 	defer tx.Rollback()
 
 	// generate poll id if any

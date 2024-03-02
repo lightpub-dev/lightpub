@@ -1,16 +1,6 @@
 package api
 
-import (
-	"net/http"
-
-	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
-	"github.com/lightpub-dev/lightpub/db"
-	"github.com/lightpub-dev/lightpub/models"
-	"github.com/lightpub-dev/lightpub/posts"
-	"github.com/lightpub-dev/lightpub/reactions"
-)
-
+/*
 func (h *Handler) PostPost(c echo.Context) error {
 	var body models.PostRequest
 	if err := c.Bind(&body); err != nil {
@@ -230,3 +220,4 @@ func (h *Handler) GetPost(c echo.Context) error {
 		"post": post,
 	})
 }
+*/

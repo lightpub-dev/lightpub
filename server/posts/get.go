@@ -1,7 +1,6 @@
 package posts
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 
@@ -15,6 +14,21 @@ import (
 const (
 	MaxPostExpandDepth = 1
 )
+
+type PostFetchService interface {
+	FetchSinglePost(postID db.UUID, viewerUserID db.UUID) (*models.UserPostEntry, error)
+	FetchSinglePostWithDepth(postID db.UUID, viewerUserID db.UUID, currentDepth int) (*models.UserPostEntry, error)
+}
+
+type DBPostFetchService struct {
+	conn           db.DBConn
+	postVisibility PostVisibilityService
+	postCount      PostCountService
+}
+
+func ProvideDBPostFetchService(conn db.DBConn, postVisibility PostVisibilityService, postCount PostCountService) *DBPostFetchService {
+	return &DBPostFetchService{conn, postVisibility, postCount}
+}
 
 type postWithUser struct {
 	db.Post
@@ -50,12 +64,12 @@ func fillUserPostEntry(result *models.UserPostEntry, post postWithUser,
 }
 
 // fetchSinglePostOrURL returns *models.UserPostEntry || string
-func fetchSinglePostOrURL(ctx context.Context, conn db.DBConn, postID db.UUID, viewerUserID db.UUID, currentDepth int) (interface{}, error) {
+func (s *DBPostFetchService) fetchSinglePostOrURL(postID db.UUID, viewerUserID db.UUID, currentDepth int) (interface{}, error) {
 	if currentDepth >= MaxPostExpandDepth {
 		return CreatePostURL(postID), nil
 	}
 
-	post, err := FetchSinglePostWithDepth(ctx, conn, postID, viewerUserID, currentDepth+1)
+	post, err := s.FetchSinglePostWithDepth(postID, viewerUserID, currentDepth+1)
 	if err != nil {
 		return nil, err
 	}
@@ -67,13 +81,15 @@ func fetchSinglePostOrURL(ctx context.Context, conn db.DBConn, postID db.UUID, v
 	return post, nil
 }
 
-func FetchSinglePost(ctx context.Context, conn db.DBConn, postID db.UUID, viewerUserID db.UUID) (*models.UserPostEntry, error) {
-	return FetchSinglePostWithDepth(ctx, conn, postID, viewerUserID, 0)
+func (s *DBPostFetchService) FetchSinglePost(postID db.UUID, viewerUserID db.UUID) (*models.UserPostEntry, error) {
+	return s.FetchSinglePostWithDepth(postID, viewerUserID, 0)
 }
 
-func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUID, viewerUserID db.UUID, currentDepth int) (*models.UserPostEntry, error) {
+func (s *DBPostFetchService) FetchSinglePostWithDepth(postID db.UUID, viewerUserID db.UUID, currentDepth int) (*models.UserPostEntry, error) {
+	conn := s.conn.DB
+
 	var post db.Post
-	err := conn.DB().Find(&post, "id = ?", postID).Joins("JOIN users ON users.id = posts.poster_id").Error
+	err := conn.Find(&post, "id = ?", postID).Joins("JOIN users ON users.id = posts.poster_id").Error
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -87,21 +103,21 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 
 	if viewerUserID != (db.UUID{}) {
 		var repostedByMeCount, favoritedByMeCount, bookmarkedByMeCount int64
-		err := conn.DB().Model(&db.Post{}).Where("repost_of_id = ? AND poster_id = ? AND content IS NULL", postID, viewerUserID).Count(&repostedByMeCount).Error
+		err := conn.Model(&db.Post{}).Where("repost_of_id = ? AND poster_id = ? AND content IS NULL", postID, viewerUserID).Count(&repostedByMeCount).Error
 		if err != nil {
 			return nil, err
 		}
 		repostedByMe = new(bool)
 		*repostedByMe = repostedByMeCount > 0
 
-		err = conn.DB().Model(&db.PostFavorite{}).Where("post_id = ? AND user_id = ? AND is_bookmark = 0", postID, viewerUserID).Count(&favoritedByMeCount).Error
+		err = conn.Model(&db.PostFavorite{}).Where("post_id = ? AND user_id = ? AND is_bookmark = 0", postID, viewerUserID).Count(&favoritedByMeCount).Error
 		if err != nil {
 			return nil, err
 		}
 		favoritedByMe = new(bool)
 		*favoritedByMe = favoritedByMeCount > 0
 
-		err = conn.DB().Model(&db.PostFavorite{}).Where("post_id = ? AND user_id = ? AND is_bookmark = 1", postID, viewerUserID).Count(&bookmarkedByMeCount).Error
+		err = conn.Model(&db.PostFavorite{}).Where("post_id = ? AND user_id = ? AND is_bookmark = 1", postID, viewerUserID).Count(&bookmarkedByMeCount).Error
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +137,7 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 			return nil, nil
 		}
 	} else {
-		visible, err := IsPostVisibleToUser(ctx, conn, postID, viewerUserID)
+		visible, err := s.postVisibility.IsPostVisibleToUser(postID, viewerUserID)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +152,7 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 	var replyToPost interface{}
 	if post.ReplyToID.Valid {
 		var err error
-		replyToPost, err = fetchSinglePostOrURL(ctx, conn, post.ReplyToID.UUID, viewerUserID, currentDepth)
+		replyToPost, err = s.fetchSinglePostOrURL(post.ReplyToID.UUID, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +162,7 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 	var repostOfPost interface{}
 	if post.RepostOfID.Valid {
 		var err error
-		repostOfPost, err = fetchSinglePostOrURL(ctx, conn, post.RepostOfID.UUID, viewerUserID, currentDepth)
+		repostOfPost, err = s.fetchSinglePostOrURL(post.RepostOfID.UUID, viewerUserID, currentDepth)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +179,7 @@ func FetchSinglePostWithDepth(ctx context.Context, conn db.DBConn, postID db.UUI
 		BookmarkedByMe: bookmarkedByMe,
 	}, replyToPost, repostOfPost)
 
-	FillCounts(ctx, conn, result)
+	s.postCount.FillCounts(result)
 
 	return result, nil
 }

@@ -1,42 +1,57 @@
 package posts
 
 import (
-	"context"
-
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 )
 
-func CountReply(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
+type PostCountService interface {
+	CountReply(postID db.UUID) (int64, error)
+	CountFavorite(postID db.UUID) (int64, error)
+	CountRepost(postID db.UUID) (int64, error)
+	CountQuote(postID db.UUID) (int64, error)
+	CountReactions(postID db.UUID) (models.ReactionCountMap, error)
+	FillCounts(fillable CountFillable) error
+}
+
+type DBPostCountService struct {
+	conn db.DBConn
+}
+
+func ProvideDBPostCountService(conn db.DBConn) *DBPostCountService {
+	return &DBPostCountService{conn}
+}
+
+func (s *DBPostCountService) CountReply(postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().Model(&db.Post{}).Where("reply_to_id = ?", postID).Count(&count).Error
+	err := s.conn.DB.Model(&db.Post{}).Where("reply_to_id = ?", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func CountFavorite(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
+func (s *DBPostCountService) CountFavorite(postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().Model(&db.PostFavorite{}).Where("post_id = ? AND is_bookmark = 0", postID).Count(&count).Error
+	err := s.conn.DB.Model(&db.PostFavorite{}).Where("post_id = ? AND is_bookmark = 0", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func CountRepost(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
+func (s *DBPostCountService) CountRepost(postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().Model(&db.Post{}).Where("repost_of_id = ? AND content IS NULL", postID).Count(&count).Error
+	err := s.conn.DB.Model(&db.Post{}).Where("repost_of_id = ? AND content IS NULL", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func CountQuote(ctx context.Context, conn db.DBConn, postID db.UUID) (int64, error) {
+func (s *DBPostCountService) CountQuote(postID db.UUID) (int64, error) {
 	var count int64
-	err := conn.DB().Model(&db.Post{}).Where("repost_of_id = ? AND content IS NOT NULL", postID).Count(&count).Error
+	err := s.conn.DB.Model(&db.Post{}).Where("repost_of_id = ? AND content IS NOT NULL", postID).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
@@ -48,9 +63,9 @@ type reactionCountRow struct {
 	Count    int64
 }
 
-func CountReactions(ctx context.Context, conn db.DBConn, postID db.UUID) (models.ReactionCountMap, error) {
+func (s *DBPostCountService) CountReactions(postID db.UUID) (models.ReactionCountMap, error) {
 	var rows []reactionCountRow
-	err := conn.DB().Model(&db.PostReaction{}).Select("post_reactions.reaction_id", "COUNT(post_reactions.user_id) AS count", "Reaction.name AS reaction").Joins("Reaction").Where("post_reactions.post_id = ?", postID).Group("reaction_id").Find(&rows).Error
+	err := s.conn.DB.Model(&db.PostReaction{}).Select("post_reactions.reaction_id", "COUNT(post_reactions.user_id) AS count", "Reaction.name AS reaction").Joins("Reaction").Where("post_reactions.post_id = ?", postID).Group("reaction_id").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -67,25 +82,25 @@ type CountFillable interface {
 	UpdateCounts(reply, favorite, repost, quote int64, reactions models.ReactionCountMap)
 }
 
-func FillCounts(ctx context.Context, conn db.DBConn, fillable CountFillable) error {
+func (s *DBPostCountService) FillCounts(fillable CountFillable) error {
 	postID := fillable.PostID()
-	reply, err := CountReply(ctx, conn, postID)
+	reply, err := s.CountReply(postID)
 	if err != nil {
 		return err
 	}
-	favorite, err := CountFavorite(ctx, conn, postID)
+	favorite, err := s.CountFavorite(postID)
 	if err != nil {
 		return err
 	}
-	repost, err := CountRepost(ctx, conn, postID)
+	repost, err := s.CountRepost(postID)
 	if err != nil {
 		return err
 	}
-	quote, err := CountQuote(ctx, conn, postID)
+	quote, err := s.CountQuote(postID)
 	if err != nil {
 		return err
 	}
-	reactions, err := CountReactions(ctx, conn, postID)
+	reactions, err := s.CountReactions(postID)
 	if err != nil {
 		return err
 	}

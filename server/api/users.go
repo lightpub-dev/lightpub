@@ -1,20 +1,6 @@
 package api
 
-import (
-	"net/http"
-	"sort"
-	"strconv"
-	"time"
-
-	"github.com/labstack/echo/v4"
-	"github.com/lightpub-dev/lightpub/db"
-	"github.com/lightpub-dev/lightpub/models"
-	"github.com/lightpub-dev/lightpub/posts"
-	"github.com/lightpub-dev/lightpub/users"
-	"github.com/lightpub-dev/lightpub/utils"
-	"gorm.io/gorm/clause"
-)
-
+/*
 const (
 	DefaultUserPostLimit   = 10
 	DefaultFollowViewLimit = 10
@@ -458,3 +444,4 @@ func (h *Handler) GetUser(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, response)
 }
+*/

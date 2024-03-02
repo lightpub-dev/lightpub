@@ -1,14 +1,6 @@
 package api
 
-import (
-	"strconv"
-	"time"
-
-	"github.com/labstack/echo/v4"
-	"github.com/lightpub-dev/lightpub/db"
-	"github.com/lightpub-dev/lightpub/trend"
-)
-
+/*
 func (h *Handler) GetTrend(c echo.Context) error {
 	trends, err := trend.GetCurrentTrend(c.Request().Context(), h.MakeDB())
 	if err != nil {
@@ -58,3 +50,4 @@ func (h *Handler) GetTrendPosts(c echo.Context) error {
 
 	return c.JSON(200, posts)
 }
+*/
