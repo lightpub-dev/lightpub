@@ -97,6 +97,13 @@ func initializeTrendServices(c echo.Context, h *Handler) trend.TrendService {
 	return dbTrendService
 }
 
+func initializeUserFinderService(c echo.Context, h *Handler) users.UserFinderService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	return dbUserFinderService
+}
+
 // services.go:
 
 func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {

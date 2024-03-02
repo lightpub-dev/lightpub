@@ -70,17 +70,17 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	e.POST("/register", h.PostRegister)
 
 	authed := e.Group("", h.AuthMiddleware(false))
-	// unAuthed := e.Group("", h.AuthMiddleware(true))
+	unAuthed := e.Group("", h.AuthMiddleware(true))
 	// APIs with auth
 	// Posts
-	// authed.POST("/post", h.PostPost)
-	// unAuthed.GET("/post/:post_id", h.GetPost)
-	// authed.PUT("/post/:post_id/reaction/:reaction", h.PutPostReaction)
-	// authed.DELETE("/post/:post_id/reaction/:reaction", h.DeletePostReaction)
-	// authed.PUT("/post/:post_id/favorite", h.PutPostFavorite)
-	// authed.DELETE("/post/:post_id/favorite", h.DeletePostFavorite)
-	// authed.PUT("/post/:post_id/bookmark", h.PutPostBookmark)
-	// authed.DELETE("/post/:post_id/bookmark", h.DeletePostBookmark)
+	authed.POST("/post", h.PostPost)
+	unAuthed.GET("/post/:post_id", h.GetPost)
+	authed.PUT("/post/:post_id/reaction/:reaction", h.PutPostReaction)
+	authed.DELETE("/post/:post_id/reaction/:reaction", h.DeletePostReaction)
+	authed.PUT("/post/:post_id/favorite", h.PutPostFavorite)
+	authed.DELETE("/post/:post_id/favorite", h.DeletePostFavorite)
+	authed.PUT("/post/:post_id/bookmark", h.PutPostBookmark)
+	authed.DELETE("/post/:post_id/bookmark", h.DeletePostBookmark)
 
 	// Users
 	// unAuthed.GET("/user/:username/posts", h.GetUserPosts)
@@ -97,15 +97,15 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	authed.GET("/timeline", h.GetTimeline)
 
 	// Trend
-	// unAuthed.GET("/trend", h.GetTrend)
-	// unAuthed.GET("/trend/posts", h.GetTrendPosts)
+	unAuthed.GET("/trend", h.GetTrend)
+	unAuthed.GET("/trend/posts", h.GetTrendPosts)
 
 	// webfinger
-	// unAuthed.GET("/.well-known/webfinger", h.GetWebfinger)
-	// unAuthed.GET("/.well-known/nodeinfo", h.GetNodeInfo)
-	// unAuthed.GET("/.well-known/host-meta", h.GetHostMeta)
-	// unAuthed.GET("/nodeinfo/2.0", h.Nodeinfo20)
-	// unAuthed.GET("/nodeinfo/2.1", h.Nodeinfo21)
+	unAuthed.GET("/.well-known/webfinger", h.GetWebfinger)
+	unAuthed.GET("/.well-known/nodeinfo", h.GetNodeInfo)
+	unAuthed.GET("/.well-known/host-meta", h.GetHostMeta)
+	unAuthed.GET("/nodeinfo/2.0", h.Nodeinfo20)
+	unAuthed.GET("/nodeinfo/2.1", h.Nodeinfo21)
 
 	// swagger
 	e.GET("/docs/*", echo.WrapHandler(httpSwagger.Handler(

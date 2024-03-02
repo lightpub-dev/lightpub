@@ -1,6 +1,14 @@
 package api
 
-/*
+import (
+	"bytes"
+	"html/template"
+	"net/http"
+
+	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/webfinger"
+)
+
 var (
 	hostMetaTemplate = template.Must(template.ParseFiles("templates/host-meta.xml"))
 )
@@ -40,7 +48,8 @@ func (h *Handler) GetNodeInfo(c echo.Context) error {
 }
 
 func (h *Handler) NodeInfo2(c echo.Context, version string) error {
-	userCount, err := users.CountLocalUsers(c.Request().Context(), h.MakeDB())
+	userService := initializeUserFinderService(c, h)
+	userCount, err := userService.CountLocalUsers()
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "internal server error")
 	}
@@ -90,4 +99,3 @@ func (h *Handler) GetHostMeta(c echo.Context) error {
 	}
 	return c.Blob(http.StatusOK, "application/xrd+xml", buf.Bytes())
 }
-*/

@@ -110,3 +110,11 @@ func initializeTrendServices(c echo.Context, h *Handler) trend.TrendService {
 	)
 	return nil
 }
+
+func initializeUserFinderService(c echo.Context, h *Handler) users.UserFinderService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+	)
+	return nil
+}

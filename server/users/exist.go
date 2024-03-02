@@ -22,10 +22,10 @@ type UserFinderService interface {
 }
 
 type DBUserFinderService struct {
-	conn *db.DBConn
+	conn db.DBConn
 }
 
-func ProvideDBUserFinder(conn *db.DBConn) *DBUserFinderService {
+func ProvideDBUserFinder(conn db.DBConn) *DBUserFinderService {
 	return &DBUserFinderService{conn: conn}
 }
 
