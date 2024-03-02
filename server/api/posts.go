@@ -8,6 +8,7 @@ import (
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/reactions"
 )
 
 func (h *Handler) PostPost(c echo.Context) error {
@@ -67,6 +68,12 @@ func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) e
 	}
 	postId := db.UUID(postIdUUID)
 
+	// find reaction id
+	reactionObj, err := reactions.FindReactionByID(c.Request().Context(), h.MakeDB(), reaction)
+	if err != nil {
+		return c.String(http.StatusNotFound, "Reaction not found")
+	}
+
 	// check if post is available to user
 	visible, err := posts.IsPostVisibleToUser(c.Request().Context(), h.MakeDB(), postId, userId)
 	if err != nil {
@@ -90,7 +97,7 @@ func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) e
 		// add a reaction
 		var postReaction db.PostReaction
 		postReaction.PostID = postId
-		postReaction.Reaction = reaction
+		postReaction.ReactionID = reactionObj.ID
 		postReaction.UserID = userId
 		err := h.DB.Create(&postReaction).Error
 		if err != nil {
@@ -99,7 +106,7 @@ func (h *Handler) modPostReaction(c echo.Context, reaction string, isAdd bool) e
 		}
 	} else {
 		// delete a reaction
-		err := h.DB.Delete(&db.PostReaction{}, "post_id = ? AND user_id = ? AND reaction = ?", postId, userId, reaction).Error
+		err := h.DB.Delete(&db.PostReaction{}, "post_id = ? AND user_id = ? AND reaction_id = ?", postId, userId, reactionObj.ID).Error
 		if err != nil {
 			c.Logger().Error(err)
 			return c.String(500, "Internal Server Error")

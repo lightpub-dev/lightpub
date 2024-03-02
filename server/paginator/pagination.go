@@ -6,4 +6,4 @@ type PaginatedResponse[T any] struct {
 	Results  T      `json:"results"`
 }
 
-func Paginate[T any](results []T)
+// func Paginate[T any](results []T)

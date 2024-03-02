@@ -12,7 +12,8 @@ type User struct {
 	Bpasswd    string         `gorm:"size:60;not null"`
 	Nickname   string         `gorm:"size:255;not null"`
 	Bio        string         `gorm:"type:TEXT;not null"`
-	Avatar     *UserAvatar    `gorm:"foreignKey:UserID;references:ID;default:NULL"`
+	AvatarID   NullUUID       `gorm:"type:VARCHAR(32);default:NULL"`
+	Avatar     *UploadedFile  `gorm:"foreignKey:AvatarID"`
 	URL        sql.NullString `gorm:"size:512"`
 	Inbox      sql.NullString `gorm:"size:512"`
 	Outbox     sql.NullString `gorm:"size:512"`
@@ -24,13 +25,6 @@ type User struct {
 	Followers  []UserFollow  `gorm:"foreignKey:FolloweeID"`
 	Following  []UserFollow  `gorm:"foreignKey:FollowerID"`
 	UserTokens []UserToken   `gorm:"foreignKey:UserID"`
-}
-
-type UserAvatar struct {
-	UserID UUID `gorm:"not null;primaryKey"`
-	User   User
-	FileID UUID
-	File   UploadedFile
 }
 
 type FullUser struct {
@@ -73,12 +67,12 @@ type Post struct {
 	Privacy    string         `gorm:"type:ENUM('public','unlisted','follower','private');not null"` // enum treated as string
 	ReplyToID  NullUUID       // Nullable fields as pointers
 	RepostOfID NullUUID       // Nullable fields as pointers
-	PollID     NullUUID       // Nullable fields, assuming same type as ID
+	// PollID     NullUUID       // Nullable fields, assuming same type as ID
 
 	Poster   User
 	ReplyTo  *Post
 	RepostOf *Post
-	Poll     *PostPoll
+	// Poll     *PostPoll
 	Hashtags []PostHashtag `gorm:"foreignKey:PostID"`
 	Mentions []PostMention `gorm:"foreignKey:PostID"`
 }
@@ -120,40 +114,46 @@ type PostHashtag struct {
 	Post Post
 }
 
-type PostPoll struct {
-	ID            UUID         `gorm:"primaryKey"`
-	AllowMultiple bool         `gorm:"not null"`
-	Due           sql.NullTime `gorm:"type:DATETIME(6)"`
-}
+// type PostPoll struct {
+// 	ID            UUID         `gorm:"primaryKey"`
+// 	AllowMultiple bool         `gorm:"not null"`
+// 	Due           sql.NullTime `gorm:"type:DATETIME(6)"`
+// }
 
 type PostReaction struct {
-	ID        uint64    `gorm:"primaryKey"`
-	PostID    UUID      `gorm:"not null"`
-	Reaction  string    `gorm:"size:128;not null"`
-	UserID    UUID      `gorm:"not null"`
-	CreatedAt time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
+	ID         uint64    `gorm:"primaryKey"`
+	PostID     UUID      `gorm:"not null"`
+	ReactionID uint64    `gorm:"not null"`
+	Reaction   Reaction  `gorm:"foreignKey:ReactionID"`
+	UserID     UUID      `gorm:"not null"`
+	CreatedAt  time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
 
 	Post Post
 	User User
 }
 
-type PollChoice struct {
-	ID     uint64 `gorm:"primaryKey"`
-	PollID UUID   `gorm:"not null"`
-	Title  string `gorm:"type:TEXT;not null"`
-	Count  int64  `gorm:"default:0;not null"`
-
-	Poll PostPoll
+type Reaction struct {
+	ID   uint64 `gorm:"primaryKey"`
+	Name string `gorm:"size:128;not null"`
 }
 
-type PollVote struct {
-	ID     uint64 `gorm:"primaryKey"`
-	PollID UUID   `gorm:"not null"`
-	UserID UUID   `gorm:"not null"`
+// type PollChoice struct {
+// 	ID     uint64 `gorm:"primaryKey"`
+// 	PollID UUID   `gorm:"not null"`
+// 	Title  string `gorm:"type:TEXT;not null"`
+// 	Count  int64  `gorm:"default:0;not null"`
 
-	Poll PostPoll
-	User User
-}
+// 	Poll PostPoll
+// }
+
+// type PollVote struct {
+// 	ID     uint64 `gorm:"primaryKey"`
+// 	PollID UUID   `gorm:"not null"`
+// 	UserID UUID   `gorm:"not null"`
+
+// 	Poll PostPoll
+// 	User User
+// }
 
 type PostMention struct {
 	ID           uint64 `gorm:"primaryKey"`

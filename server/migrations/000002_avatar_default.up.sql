@@ -1,0 +1,4 @@
+ALTER TABLE
+    `users`
+MODIFY
+    COLUMN `avatar_id` VARCHAR(32) NULL DEFAULT NULL;

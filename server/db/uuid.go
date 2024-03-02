@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql/driver"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -18,10 +19,14 @@ func ParseTo(u *UUID, s string) error {
 	return nil
 }
 
+func UuidToString(u uuid.UUID) string {
+	return strings.Replace(u.String(), "-", "", -1)
+}
+
 func (us *UUID) Scan(dbValue interface{}) error {
 	switch value := dbValue.(type) {
-	case []byte:
-		u, err := uuid.FromBytes(value)
+	case string:
+		u, err := uuid.Parse(value)
 		if err != nil {
 			return err
 		}
@@ -33,13 +38,11 @@ func (us *UUID) Scan(dbValue interface{}) error {
 }
 
 func (us UUID) Value() (driver.Value, error) {
-	bs := [16]byte(uuid.UUID(us))
-	slice := bs[:]
-	return slice, nil
+	return UuidToString(uuid.UUID(us)), nil
 }
 
 func (UUID) GormDataType() string {
-	return "BINARY(16)"
+	return "VARCHAR(32)"
 }
 
 func (us UUID) String() string {
@@ -65,8 +68,8 @@ func (us *NullUUID) Scan(dbValue interface{}) error {
 	}
 
 	switch value := dbValue.(type) {
-	case []byte:
-		u, err := uuid.FromBytes(value)
+	case string:
+		u, err := uuid.Parse(value)
 		if err != nil {
 			return err
 		}
