@@ -6,6 +6,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
+	"github.com/lightpub-dev/lightpub/users"
+	"github.com/lightpub-dev/lightpub/utils"
 )
 
 /*
@@ -395,7 +397,6 @@ func (h *Handler) PutUser(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-/*
 func (h *Handler) GetUser(c echo.Context) error {
 	userspec := c.Param("username")
 
@@ -404,7 +405,8 @@ func (h *Handler) GetUser(c echo.Context) error {
 		viewerID = c.Get(ContextUserID).(db.UUID)
 	}
 
-	user, err := users.GetProfile(c.Request().Context(), h.MakeDB(), userspec, viewerID)
+	userProfileService := initializeUserProfileService(c, h)
+	user, err := userProfileService.GetProfile(userspec, viewerID)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(http.StatusInternalServerError, "internal server error")
@@ -452,4 +454,3 @@ func (h *Handler) GetUser(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, response)
 }
-*/
