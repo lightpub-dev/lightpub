@@ -13,6 +13,7 @@ import (
 	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/lightpub-dev/lightpub/reactions"
 	"github.com/lightpub-dev/lightpub/timeline"
+	"github.com/lightpub-dev/lightpub/trend"
 	"github.com/lightpub-dev/lightpub/users"
 )
 
@@ -86,6 +87,14 @@ func initializePostFetchService(c echo.Context, h *Handler) posts.PostFetchServi
 	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
 	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
 	return dbPostFetchService
+}
+
+func initializeTrendServices(c echo.Context, h *Handler) trend.TrendService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
+	dbTrendService := trend.ProvideDBTrendService(dbConn, dbPostCountService)
+	return dbTrendService
 }
 
 // services.go:

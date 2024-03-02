@@ -11,6 +11,7 @@ import (
 	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/lightpub-dev/lightpub/reactions"
 	"github.com/lightpub-dev/lightpub/timeline"
+	"github.com/lightpub-dev/lightpub/trend"
 	"github.com/lightpub-dev/lightpub/users"
 )
 
@@ -97,6 +98,15 @@ func initializePostFetchService(c echo.Context, h *Handler) posts.PostFetchServi
 		DBSet,
 		users.DBUserServices,
 		posts.DBPostServices,
+	)
+	return nil
+}
+
+func initializeTrendServices(c echo.Context, h *Handler) trend.TrendService {
+	wire.Build(
+		DBSet,
+		posts.DBPostServices,
+		trend.DBTrendServices,
 	)
 	return nil
 }

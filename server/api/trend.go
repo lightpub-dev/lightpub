@@ -1,8 +1,16 @@
 package api
 
-/*
+import (
+	"strconv"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/db"
+)
+
 func (h *Handler) GetTrend(c echo.Context) error {
-	trends, err := trend.GetCurrentTrend(c.Request().Context(), h.MakeDB())
+	trendService := initializeTrendServices(c, h)
+	trends, err := trendService.GetCurrentTrend()
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -42,7 +50,8 @@ func (h *Handler) GetTrendPosts(c echo.Context) error {
 		beforeDate = &beforeDateT
 	}
 
-	posts, err := trend.GetTrendPosts(c.Request().Context(), h.MakeDB(), hashtag, viewerID, beforeDate, limit)
+	trendService := initializeTrendServices(c, h)
+	posts, err := trendService.GetTrendPosts(hashtag, viewerID, beforeDate, limit)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -50,4 +59,3 @@ func (h *Handler) GetTrendPosts(c echo.Context) error {
 
 	return c.JSON(200, posts)
 }
-*/

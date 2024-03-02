@@ -4,10 +4,19 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/wire"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/posts"
 	"github.com/lightpub-dev/lightpub/utils"
+)
+
+var (
+	DBTrendServices = wire.NewSet(ProvideDBTrendService,
+		wire.Bind(
+			new(TrendService), new(*DBTrendService),
+		),
+	)
 )
 
 type TrendService interface {
