@@ -91,3 +91,12 @@ func initializePostLikeService(c echo.Context, h *Handler) posts.PostLikeService
 	)
 	return nil
 }
+
+func initializePostFetchService(c echo.Context, h *Handler) posts.PostFetchService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+		posts.DBPostServices,
+	)
+	return nil
+}

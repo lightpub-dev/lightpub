@@ -161,7 +161,6 @@ func (h *Handler) DeletePostBookmark(c echo.Context) error {
 	return h.modPostBookmark(c, false, true)
 }
 
-/*
 func (h *Handler) GetPost(c echo.Context) error {
 	var viewerUserID db.UUID
 	if c.Get(ContextAuthed).(bool) {
@@ -175,7 +174,8 @@ func (h *Handler) GetPost(c echo.Context) error {
 	}
 	postID := db.UUID(postIDUUID)
 
-	post, err := posts.FetchSinglePost(c.Request().Context(), h.MakeDB(), postID, viewerUserID)
+	fetchService := initializePostFetchService(c, h)
+	post, err := fetchService.FetchSinglePost(postID, viewerUserID)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "Internal Server Error")
@@ -189,4 +189,3 @@ func (h *Handler) GetPost(c echo.Context) error {
 		"post": post,
 	})
 }
-*/

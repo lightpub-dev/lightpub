@@ -78,6 +78,16 @@ func initializePostLikeService(c echo.Context, h *Handler) posts.PostLikeService
 	return dbPostLikeService
 }
 
+func initializePostFetchService(c echo.Context, h *Handler) posts.PostFetchService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
+	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
+	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
+	return dbPostFetchService
+}
+
 // services.go:
 
 func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {
