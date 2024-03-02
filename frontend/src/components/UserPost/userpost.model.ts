@@ -1,7 +1,7 @@
-export const PRIVACY_PUBLIC = 'public' as const
-export const PRIVACY_UNLISTED = 'unlisted' as const
-export const PRIVACY_FOLLOWERS = 'follower' as const
-export const PRIVACY_PRIVATE = 'private' as const
+export const PRIVACY_PUBLIC = 0 as const
+export const PRIVACY_UNLISTED = 1 as const
+export const PRIVACY_FOLLOWERS = 2 as const
+export const PRIVACY_PRIVATE = 3 as const
 
 export type Privacy =
     | typeof PRIVACY_PUBLIC
@@ -23,7 +23,13 @@ export interface UserPostEntry {
     reply_count: number
     quote_count: number
     favorite_count: number
-    reactions: Record<string, number>
+    reactions: Record<
+        string,
+        {
+            count: number
+            reacted_by_me?: boolean
+        }
+    >
     reposted_by_me?: string
     favorited_by_me?: boolean
     bookmarked_by_me?: boolean
@@ -42,11 +48,11 @@ export interface UserPostDetail {
 export interface UserPostEntryAuthor {
     id: string
     username: string
-    host: string
+    host: string | null
     nickname: string
     avatar: string
 }
 
 export interface TimelineResponse {
-    posts: UserPostEntry[]
+    results: UserPostEntry[]
 }

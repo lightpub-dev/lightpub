@@ -22,7 +22,7 @@ const startNicknameEdit = () => {
 }
 const endNicknameEdit = async () => {
     try {
-        await axios.patch(`/user/${id.value}`, {
+        await axios.patch(`/users/${id.value}`, {
             nickname: nickname.value
         })
     } catch (ex) {
@@ -33,7 +33,7 @@ const endNicknameEdit = async () => {
     nicknameEditing.value = false
 }
 
-const hostname = ref('')
+const hostname = ref(null as string | null)
 
 // bio
 const bio = ref('')
@@ -50,7 +50,7 @@ const startBioEdit = () => {
 }
 const endBioEdit = () => {
     try {
-        axios.patch(`/user/${id.value}`, {
+        axios.patch(`/users/${id.value}`, {
             bio: bio.value
         })
     } catch (ex) {
@@ -81,7 +81,7 @@ const avatarClick = async (ev: any) => {
                 'Content-Type': 'multipart/form-data'
             }
         })
-        await axios.patch(`/user/${id.value}`, {
+        await axios.patch(`/users/${id.value}`, {
             avatar_id: res.data.id
         })
         await fetchProfile()
@@ -91,24 +91,24 @@ const avatarClick = async (ev: any) => {
     }
 }
 
-const nPosts = ref(0)
-const nFollowers = ref(0)
-const nFollowings = ref(0)
+const nPosts = ref(100)
+const nFollowers = ref(50)
+const nFollowings = ref(51)
 
 const isFollowing = ref<boolean | null>(null)
 
 const fetchProfile = async () => {
-    const res = await axios.get(`/user/${id.value}`)
+    const res = await axios.get(`/users/${id.value}`)
     username.value = res.data.username
     nickname.value = res.data.nickname
-    hostname.value = res.data.hostname
+    hostname.value = res.data.host
     bio.value = res.data.bio
     avatarURL.value = res.data.avatar
     labels.value = res.data.labels
     isFollowing.value = res.data.is_following
-    nPosts.value = res.data.counters.posts
-    nFollowers.value = res.data.counters.followers
-    nFollowings.value = res.data.counters.following
+    nPosts.value = res.data.n_posts
+    nFollowers.value = res.data.n_followers
+    nFollowings.value = res.data.n_followings
 }
 
 watchEffect(() => {
@@ -128,7 +128,7 @@ const posts = computed(() => {
     if (userPosts.posts.value === null) {
         return []
     }
-    return userPosts.posts.value.posts
+    return userPosts.posts.value.results
 })
 const divRef = ref<HTMLDivElement | null>(null)
 let loadingNow = false
@@ -169,9 +169,9 @@ const toggleFollow = async () => {
         return
     }
     if (isFollowing.value) {
-        await axios.delete(`/following/${id.value}`)
+        await axios.delete(`/followings/${id.value}`)
     } else {
-        await axios.post('/following', {
+        await axios.post('/followings', {
             followee_spec: id.value
         })
     }
@@ -181,7 +181,7 @@ const toggleFollow = async () => {
 }
 
 const followerLink = computed(() => `/user/${id.value}/followers`)
-const followingLink = computed(() => `/user/${id.value}/following`)
+const followingLink = computed(() => `/user/${id.value}/followings`)
 
 const isMe = computed(() => {
     const myUsername = getUsername()

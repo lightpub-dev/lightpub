@@ -6,6 +6,7 @@ import { eventBus } from '../../event'
 const emit = defineEmits<{
     (e: 'created'): void
     (e: 'canceled'): void
+    (e: 'on-close'): void
 }>()
 
 const props = defineProps<{
@@ -54,7 +55,7 @@ const postTweet = async () => {
     }
 
     const content = tweetText.value
-    const privacy = "public" // TODO
+    const privacy = 0 // TODO
 
     try {
         const req = {
@@ -66,7 +67,7 @@ const postTweet = async () => {
         if (uploadId) {
             req['attached_uploads'] = [uploadId]
         }
-        await authedAxios.post('/post', req)
+        await authedAxios.post('/posts', req)
 
         tweetText.value = ''
         selectedImage.value = null
@@ -83,6 +84,7 @@ const postTweet = async () => {
 const closePostMenu = () => {
     emit('canceled')
     showPostMenu.value = false
+    emit('on-close')
 }
 </script>
 

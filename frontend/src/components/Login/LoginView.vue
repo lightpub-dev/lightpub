@@ -42,12 +42,17 @@ export default {
 
         const login = async () => {
             try {
+                // Remove cookie
+                document.cookie =
+                    'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+
                 const specialAxios = axios.create({
                     baseURL: BASE_URL,
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 }) // disable auth header for login
+
                 const response = await specialAxios.post('/login', {
                     username: username.value,
                     password: password.value

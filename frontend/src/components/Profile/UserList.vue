@@ -68,10 +68,10 @@ const fetchUsers = async () => {
     let url = ''
     switch (props.mode) {
         case 'followers':
-            url = `/followers?user=${targetUserId}`
+            url = `/users/${targetUserId}/followers`
             break
         case 'followings':
-            url = `/followings?user=${targetUserId}`
+            url = `/users/${targetUserId}/following`
             break
     }
     const res = await axios.get(url)
