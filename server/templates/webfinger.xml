@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<XRD
+    xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+    <Subject>{{.subject}}</Subject>
+    <Link rel="self" type="application/activity+json"
+        href="{{.apiUrl}}" />
+    <Link rel="http://webfinger.net/rel/profile-page" type="text/html"
+        href="{{.profileUrl}}" />
+</XRD>

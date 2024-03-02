@@ -1,10 +1,10 @@
 package webfinger
 
 import (
-	"context"
 	"errors"
 	"strings"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -24,16 +24,16 @@ func extractResourceType(resource string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func HandleWebfinger(ctx context.Context, conn *gorm.DB, resource string) (interface{}, error) {
+func HandleWebfinger(c echo.Context, conn *gorm.DB, resource string) error {
 	resourceType, specifier, err := extractResourceType(resource)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	switch resourceType {
 	case "acct":
-		return handleAcct(ctx, conn, specifier)
+		return handleAcct(c, conn, specifier)
 	default:
-		return nil, ErrUnknown
+		return c.String(400, "invalid resource type")
 	}
 }

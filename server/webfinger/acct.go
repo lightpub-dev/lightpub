@@ -1,25 +1,30 @@
 package webfinger
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"text/template"
 
+	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"gorm.io/gorm"
 )
 
 var (
-	ErrInvalidHost = errors.New("invalid host")
-	ErrNotFound    = errors.New("not found")
+	ErrInvalidHost    = errors.New("invalid host")
+	ErrNotFound       = errors.New("not found")
+	webfingerTemplate = template.Must(template.ParseFiles("templates/webfinger.xml"))
 )
 
 func fetchUser(ctx context.Context, conn *gorm.DB, username string) (*db.User, error) {
 	var user db.User
-	err := conn.Find(&user, "username = ?", username).Error
+	err := conn.WithContext(ctx).Find(&user, "username = ? AND host IS NULL", username).Error
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -37,7 +42,7 @@ func createPersonURL(userID string) string {
 	return fmt.Sprintf("%s/user/%s", config.MyHostname, userID)
 }
 
-func handleAcct(ctx context.Context, conn *gorm.DB, specifier string) (interface{}, error) {
+func handleAcct(c echo.Context, conn *gorm.DB, specifier string) error {
 	// split by @
 	parts := strings.SplitN(specifier, "@", 2)
 
@@ -49,39 +54,56 @@ func handleAcct(ctx context.Context, conn *gorm.DB, specifier string) (interface
 		// the latter part is the domain
 		domain := parts[1]
 		if domain != config.MyHostname {
-			return nil, ErrInvalidHost
+			return c.String(http.StatusUnprocessableEntity, "invalid host")
 		}
 		username = parts[0]
 	} else {
-		return nil, ErrBadFormat
+		return c.String(http.StatusBadRequest, "bad format")
 	}
 
-	user, err := fetchUser(ctx, conn, username)
+	user, err := fetchUser(c.Request().Context(), conn, username)
 	if err != nil {
-		return nil, err
+		c.Logger().Error(err)
+		return c.String(http.StatusInternalServerError, "internal server error")
 	}
 
 	if user == nil {
-		return nil, ErrNotFound
+		return c.String(http.StatusNotFound, "user not found")
 	}
 
-	response := acctResponse{
-		Subject: fmt.Sprintf("acct:%s@%s", username, config.MyHostname),
-		Links: []acctLink{
-			{
-				Rel:  "self",
-				Ty:   "application/activity+json",
-				Href: createPersonURL(username),
-			},
-			{
-				Rel:  "http://webfinger.net/rel/profile-page",
-				Ty:   "text/html",
-				Href: createUserProfileURL(username),
-			},
-		},
-	}
+	subject := fmt.Sprintf("acct:%s@%s", username, config.MyHostname)
+	selfURL := createPersonURL(username)
+	profileURL := createUserProfileURL(username)
 
-	return response, nil
+	accept := c.Request().Header.Get("Accept")
+	if strings.Contains(accept, "application/xrd+xml") {
+		buf := new(bytes.Buffer)
+		if err := webfingerTemplate.Execute(buf, map[string]string{
+			"subject":    subject,
+			"apiUrl":     selfURL,
+			"profileUrl": profileURL,
+		}); err != nil {
+			return c.String(http.StatusInternalServerError, "internal server error")
+		}
+		return c.Blob(http.StatusOK, "application/xrd+xml", buf.Bytes())
+	} else {
+		response := acctResponse{
+			Subject: subject,
+			Links: []acctLink{
+				{
+					Rel:  "self",
+					Ty:   "application/activity+json",
+					Href: selfURL,
+				},
+				{
+					Rel:  "http://webfinger.net/rel/profile-page",
+					Ty:   "text/html",
+					Href: profileURL,
+				},
+			},
+		}
+		return c.JSON(http.StatusOK, response)
+	}
 }
 
 type acctResponse struct {

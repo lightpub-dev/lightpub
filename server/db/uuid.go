@@ -25,8 +25,8 @@ func UuidToString(u uuid.UUID) string {
 
 func (us *UUID) Scan(dbValue interface{}) error {
 	switch value := dbValue.(type) {
-	case string:
-		u, err := uuid.Parse(value)
+	case []byte:
+		u, err := uuid.Parse(string(value))
 		if err != nil {
 			return err
 		}
@@ -68,8 +68,8 @@ func (us *NullUUID) Scan(dbValue interface{}) error {
 	}
 
 	switch value := dbValue.(type) {
-	case string:
-		u, err := uuid.Parse(value)
+	case []byte:
+		u, err := uuid.Parse(string(value))
 		if err != nil {
 			return err
 		}
