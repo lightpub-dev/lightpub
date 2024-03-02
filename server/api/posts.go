@@ -22,6 +22,10 @@ func (h *Handler) PostPost(c echo.Context) error {
 		return c.String(400, err.Error())
 	}
 
+	if body.Content == nil && body.RepostOf == nil {
+		return c.String(400, "Content cannot be empty when not reposting")
+	}
+
 	var (
 		replyToUUID  *db.UUID
 		repostOfUUID *db.UUID
@@ -40,7 +44,7 @@ func (h *Handler) PostPost(c echo.Context) error {
 	post := posts.CreateRequest{
 		PosterID:       c.Get(ContextUserID).(db.UUID),
 		PosterUsername: c.Get(ContextUsername).(string),
-		Content:        &body.Content,
+		Content:        body.Content,
 		Privacy:        posts.PrivacyType(body.Privacy),
 
 		ReplyToPostID: replyToUUID,

@@ -7,7 +7,7 @@ import (
 )
 
 type PostRequest struct {
-	Content  string  `json:"content"`
+	Content  *string `json:"content"`
 	Privacy  string  `json:"privacy" validate:"oneof=public unlisted follower private"`
 	RepostOf *string `json:"repost_of_id,omitempty"`
 	ReplyTo  *string `json:"reply_to_id,omitempty"`
