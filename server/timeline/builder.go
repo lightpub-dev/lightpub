@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	pts "github.com/lightpub-dev/lightpub/posts"
 )
 
@@ -13,7 +14,7 @@ const (
 )
 
 type TimelineService interface {
-	FetchTimeline(userID string, options FetchOptions) ([]FetchedPost, error)
+	FetchTimeline(userID db.UUID, options FetchOptions) (*models.TimelineResponse, error)
 }
 
 type DBTimelineService struct {

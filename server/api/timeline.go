@@ -1,6 +1,13 @@
 package api
 
-/*
+import (
+	"strconv"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/timeline"
+)
 
 func (h *Handler) GetTimeline(c echo.Context) error {
 	userID := c.Get(ContextUserID).(db.UUID)
@@ -39,7 +46,8 @@ func (h *Handler) GetTimeline(c echo.Context) error {
 		limit = timeline.DefaultTimelineSize
 	}
 
-	tl, err := timeline.FetchTimeline(c.Request().Context(), h.MakeDB(), userID, timeline.FetchOptions{
+	timelineService := initializeTimelineService(c, h)
+	tl, err := timelineService.FetchTimeline(userID, timeline.FetchOptions{
 		AfterTime:  afterTime,
 		BeforeTime: beforeTime,
 		Limit:      limit,
@@ -51,4 +59,3 @@ func (h *Handler) GetTimeline(c echo.Context) error {
 
 	return c.JSON(200, tl)
 }
-*/

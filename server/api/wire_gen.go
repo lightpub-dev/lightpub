@@ -9,23 +9,37 @@ package api
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/timeline"
 	"github.com/lightpub-dev/lightpub/users"
 )
 
 // Injectors from services.go:
 
-func initializeUserCreateService(c echo.Context, h *Handler) *users.DBUserCreateService {
+func initializeUserCreateService(c echo.Context, h *Handler) users.UserCreateService {
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
 	dbUserCreateService := users.ProvideDBUserCreateService(dbConn)
 	return dbUserCreateService
 }
 
-func initializeUserLoginService(c echo.Context, h *Handler) *users.DBUserLoginService {
+func initializeUserLoginService(c echo.Context, h *Handler) users.UserLoginService {
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
 	dbUserLoginService := users.ProvideDBUserLoginService(dbConn)
 	return dbUserLoginService
+}
+
+func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbPostInteractionService := posts.ProvideDBPostInteractionService(dbConn)
+	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
+	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
+	dbTimelineService := timeline.ProvideDBTimelineService(dbConn, dbPostInteractionService, dbPostCountService, dbPostFetchService)
+	return dbTimelineService
 }
 
 // services.go:
