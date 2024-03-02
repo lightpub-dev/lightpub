@@ -119,6 +119,22 @@ func initializeUserProfileService(c echo.Context, h *Handler) users.UserProfileS
 	return dbUserProfileService
 }
 
+func initializeUserPostService(c echo.Context, h *Handler) posts.UserPostService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbPostInteractionService := posts.ProvideDBPostInteractionService(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	dbUserPostService := posts.ProvideDBUserPostService(dbConn, dbPostInteractionService, dbUserFollowService)
+	return dbUserPostService
+}
+
+func initializePostCountService(c echo.Context, h *Handler) posts.PostCountService {
+	context := db.ProvideContext(c)
+	dbConn := ProvideDBConnFromHandler(context, h)
+	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
+	return dbPostCountService
+}
+
 // services.go:
 
 func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {

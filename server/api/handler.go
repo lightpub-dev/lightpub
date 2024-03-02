@@ -83,15 +83,15 @@ func BuildEcho(h *Handler, options EchoOptions) *echo.Echo {
 	authed.DELETE("/post/:post_id/bookmark", h.DeletePostBookmark)
 
 	// Users
-	// unAuthed.GET("/user/:username/posts", h.GetUserPosts)
-	// unAuthed.GET("/user/:username/followers", h.GetUserFollowers)
-	// unAuthed.GET("/user/:username/following", h.GetUserFollowing)
-	// authed.PUT("/user/:username/follow", h.FollowAUser)
-	// authed.DELETE("/user/:username/follow", h.UnfollowAUser)
-	// authed.PATCH("/user/:userspec", h.PutUser)
-	// unAuthed.GET("/user/:username", h.GetUser)
-	// unAuthed.POST("/user/:userspec/inbox", h.UserInbox)
-	// unAuthed.GET("/user/:userspec/outbox", h.UserOutbox)
+	unAuthed.GET("/user/:username/posts", h.GetUserPosts)
+	unAuthed.GET("/user/:username/followers", h.GetUserFollowers)
+	unAuthed.GET("/user/:username/following", h.GetUserFollowing)
+	authed.PUT("/user/:username/follow", h.FollowAUser)
+	authed.DELETE("/user/:username/follow", h.UnfollowAUser)
+	authed.PATCH("/user/:userspec", h.PutUser)
+	unAuthed.GET("/user/:username", h.GetUser)
+	unAuthed.POST("/user/:userspec/inbox", h.UserInbox)
+	unAuthed.GET("/user/:userspec/outbox", h.UserOutbox)
 
 	// Timeline
 	authed.GET("/timeline", h.GetTimeline)

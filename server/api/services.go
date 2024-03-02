@@ -134,3 +134,20 @@ func initializeUserProfileService(c echo.Context, h *Handler) users.UserProfileS
 	)
 	return nil
 }
+
+func initializeUserPostService(c echo.Context, h *Handler) posts.UserPostService {
+	wire.Build(
+		DBSet,
+		users.DBUserServices,
+		posts.DBPostServices,
+	)
+	return nil
+}
+
+func initializePostCountService(c echo.Context, h *Handler) posts.PostCountService {
+	wire.Build(
+		DBSet,
+		posts.DBPostServices,
+	)
+	return nil
+}

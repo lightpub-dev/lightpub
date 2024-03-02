@@ -11,6 +11,7 @@ var (
 		ProvideDBPostVisibilityService,
 		ProvideDBPostReactionService,
 		ProvideDBPostLikeService,
+		ProvideDBUserPostService,
 		wire.Bind(
 			new(PostCountService), new(*DBPostCountService),
 		),
@@ -31,6 +32,9 @@ var (
 		),
 		wire.Bind(
 			new(PostLikeService), new(*DBPostLikeService),
+		),
+		wire.Bind(
+			new(UserPostService), new(*DBUserPostService),
 		),
 	)
 )
