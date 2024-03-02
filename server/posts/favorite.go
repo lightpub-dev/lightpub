@@ -62,7 +62,7 @@ func (s *DBPostLikeService) Unfavorite(postID, userID db.UUID) error {
 		return err
 	}
 
-	return s.conn.DB.Delete(&db.PostFavorite{
+	return s.conn.DB.Delete(&db.PostFavorite{}, &db.PostFavorite{
 		PostID:     postID,
 		UserID:     userID,
 		IsBookmark: false,
@@ -88,7 +88,7 @@ func (s *DBPostLikeService) Unbookmark(postID, userID db.UUID) error {
 		return err
 	}
 
-	return s.conn.DB.Delete(&db.PostFavorite{
+	return s.conn.DB.Delete(&db.PostFavorite{}, &db.PostFavorite{
 		PostID:     postID,
 		UserID:     userID,
 		IsBookmark: true,

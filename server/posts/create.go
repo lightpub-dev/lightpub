@@ -78,7 +78,7 @@ func (s *DBPostFetchService) findOriginalPostID(postID db.UUID) (db.UUID, error)
 	conn := s.conn.DB
 
 	var originalPost db.Post
-	err := conn.Model(&db.Post{}).Select("repost_of", "content").Where("id=UUID_TO_BIN(?)", postID).First(&originalPost).Error
+	err := conn.Model(&db.Post{}).Select("repost_of_id", "content").Where("id=?", postID).First(&originalPost).Error
 	if err != nil {
 		return db.UUID{}, err
 	}
