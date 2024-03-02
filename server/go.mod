@@ -16,6 +16,8 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/go-fed/activity v1.0.0 // indirect
+	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -61,5 +63,3 @@ require (
 	golang.org/x/tools v0.17.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/go-fed/activity v1.0.0 => github.com/tinaxd/activity v1.0.0
