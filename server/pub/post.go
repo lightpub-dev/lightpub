@@ -34,6 +34,12 @@ type PubCreateInfo struct {
 	TargetInboxes []*url.URL
 }
 
+type PubAnnounceInfo struct {
+	Post          *db.Post
+	Announce      vocab.ActivityStreamsAnnounce
+	TargetInboxes []*url.URL
+}
+
 func (s *PubPostService) CreateNoteCreate(note PubNoteInfo) (PubCreateInfo, error) {
 	obj := streams.NewActivityStreamsCreate()
 
@@ -102,7 +108,65 @@ func copyAddressing(dst vocab.ActivityStreamsCreate, src vocab.ActivityStreamsNo
 	}
 }
 
+func (s *PubPostService) CreateAnnounce(post *db.Post) (PubAnnounceInfo, error) {
+	// check if this is a repost
+	if !post.RepostOfID.Valid {
+		return PubAnnounceInfo{}, errors.New("cannot create an Announce out from a non-repost")
+	}
+	if post.Content.Valid {
+		return PubAnnounceInfo{}, errors.New("cannot create an Announce out from a quote")
+	}
+
+	announce := streams.NewActivityStreamsAnnounce()
+
+	announceID, err := s.getter.GetPostID(post, "activity")
+	if err != nil {
+		return PubAnnounceInfo{}, err
+	}
+	announceIDProp := streams.NewJSONLDIdProperty()
+	announceIDProp.Set(announceID)
+	announce.SetJSONLDId(announceIDProp)
+
+	toAndCc, err := s.calculateToAndCc(post)
+	if err != nil {
+		return PubAnnounceInfo{}, err
+	}
+	toProp := streams.NewActivityStreamsToProperty()
+	for _, to := range toAndCc.To {
+		toProp.AppendActivityStreamsObject(to)
+	}
+	announce.SetActivityStreamsTo(toProp)
+	ccProp := streams.NewActivityStreamsCcProperty()
+	for _, cc := range toAndCc.Cc {
+		ccProp.AppendActivityStreamsObject(cc)
+	}
+	announce.SetActivityStreamsCc(ccProp)
+
+	publishedProp := streams.NewActivityStreamsPublishedProperty()
+	publishedProp.Set(post.CreatedAt)
+	announce.SetActivityStreamsPublished(publishedProp)
+
+	repostedObjectID, err := s.getter.GetPostID(post.RepostOf, "")
+	if err != nil {
+		return PubAnnounceInfo{}, err
+	}
+	repostedObjectProp := streams.NewActivityStreamsObjectProperty()
+	repostedObjectProp.AppendIRI(repostedObjectID)
+	announce.SetActivityStreamsObject(repostedObjectProp)
+
+	return PubAnnounceInfo{
+		Post:          post,
+		Announce:      announce,
+		TargetInboxes: toAndCc.TargetInboxes,
+	}, nil
+}
+
 func (s *PubPostService) CreatePostObject(post *db.Post) (PubNoteInfo, error) {
+	// check that this is not a repost (repostId != null and content == null)
+	if post.RepostOfID.Valid && !post.Content.Valid {
+		return PubNoteInfo{}, errors.New("cannot create a Note out from a repost")
+	}
+
 	postURI, err := s.getter.GetPostID(post, "")
 	if err != nil {
 		return PubNoteInfo{}, err
