@@ -1,35 +1,47 @@
-package pub
+package users
 
 import (
 	"errors"
+	"net/url"
 
 	"github.com/go-fed/activity/streams"
 	"github.com/go-fed/activity/streams/vocab"
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/pub"
 )
 
 type PubFollowService struct {
-	getter IDGetterService
+	getter pub.IDGetterService
+	req    pub.RequesterService
+}
+
+func ProvidePubFollowService(getter pub.IDGetterService, req pub.RequesterService) *PubFollowService {
+	return &PubFollowService{getter: getter, req: req}
 }
 
 var (
-	ErrUserInboxNotValid = errors.New("user inbox not set or valid")
+	ErrUserInboxNotSet  = errors.New("user inbox not set or valid")
+	ErrUserInboxInvalid = errors.New("user inbox is invalid")
 )
 
-func (s *PubFollowService) SendFollowRequest(follower, following *db.User) error {
-	if !following.Inbox.Valid {
-		return ErrUserInboxNotValid
+func (s *PubFollowService) SendFollowRequest(reqID *url.URL, follower, following *db.User) error {
+	inboxURL, err := s.getter.GetUserID(following, "inbox")
+	if err != nil {
+		return ErrUserInboxInvalid
 	}
-	// inbox := following.Inbox.String
-	// follow, err := s.createFollowRequest(follower, following)
-	// if err != nil {
-	// 	return err
-	// }
-	return nil
+	follow, err := s.createFollowRequest(reqID, follower, following)
+	if err != nil {
+		return err
+	}
+	return s.req.PostToInbox(inboxURL, follow)
 }
 
-func (s *PubFollowService) createFollowRequest(follower, following *db.User) (vocab.ActivityStreamsFollow, error) {
+func (s *PubFollowService) createFollowRequest(reqID *url.URL, follower, following *db.User) (vocab.ActivityStreamsFollow, error) {
 	follow := streams.NewActivityStreamsFollow()
+
+	followID := streams.NewJSONLDIdProperty()
+	followID.Set(reqID)
+	follow.SetJSONLDId(followID)
 
 	followerURI, err := s.getter.GetUserID(follower, "")
 	if err != nil {
@@ -52,10 +64,15 @@ func (s *PubFollowService) createFollowRequest(follower, following *db.User) (vo
 }
 
 func (s *PubFollowService) SendAcceptFollowRequest(req *db.UserFollowRequest) error {
-	if req.Followee.Inbox.Valid {
-		return ErrUserInboxNotValid
+	inboxURL, err := s.getter.GetUserID(&req.Follower, "inbox")
+	if err != nil {
+		return ErrUserInboxInvalid
 	}
-	return nil
+	accept, err := s.createAccept(req)
+	if err != nil {
+		return err
+	}
+	return s.req.PostToInbox(inboxURL, accept)
 }
 
 func (s *PubFollowService) createAccept(req *db.UserFollowRequest) (vocab.ActivityStreamsAccept, error) {

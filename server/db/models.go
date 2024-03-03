@@ -197,7 +197,7 @@ type UserFollow struct {
 
 type UserFollowRequest struct {
 	ID         UUID           `gorm:"primaryKey"`
-	URI        sql.NullString `gorm:"size:512;not null;uniqueIndex"`
+	URI        sql.NullString `gorm:"size:512;uniqueIndex"`
 	Incoming   bool           `gorm:"not null"`
 	FollowerID UUID           `gorm:"not null"`
 	FolloweeID UUID           `gorm:"not null"`

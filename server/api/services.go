@@ -6,6 +6,7 @@ package api
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/pub"
 
 	"github.com/google/wire"
 	"github.com/lightpub-dev/lightpub/posts"
@@ -23,6 +24,9 @@ var (
 	DBSet = wire.NewSet(
 		ProvideDBConnFromHandler,
 		db.ProvideContext,
+		ProvideIDGetter,
+		pub.GoRequesterServices,
+		wire.Bind(new(pub.IDGetterService), new(*IDGetter)),
 	)
 )
 
@@ -51,10 +55,7 @@ func initializeUserLoginService(c echo.Context, h *Handler) users.UserLoginServi
 func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineService {
 	wire.Build(
 		DBSet,
-		wire.Bind(
-			new(users.UserFollowService), new(*users.DBUserFollowService),
-		),
-		users.ProvideDBUserFollowService,
+		users.DBUserServices,
 		posts.DBPostServices,
 		wire.Bind(
 			new(timeline.TimelineService),

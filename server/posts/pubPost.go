@@ -1,4 +1,4 @@
-package pub
+package posts
 
 import (
 	"errors"
@@ -8,17 +8,17 @@ import (
 	"github.com/go-fed/activity/streams"
 	"github.com/go-fed/activity/streams/vocab"
 	"github.com/lightpub-dev/lightpub/db"
-	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/pub"
 	"github.com/lightpub-dev/lightpub/users"
 )
 
 type PubPostService struct {
-	getter     IDGetterService
+	getter     pub.IDGetterService
 	userFinder users.UserFinderService
 	userFollow users.UserFollowService
 }
 
-func ProvidePubPostService(getter IDGetterService, userFinder users.UserFinderService, userFollow users.UserFollowService) *PubPostService {
+func ProvidePubPostService(getter pub.IDGetterService, userFinder users.UserFinderService, userFollow users.UserFollowService) *PubPostService {
 	return &PubPostService{getter: getter, userFinder: userFinder, userFollow: userFollow}
 }
 
@@ -282,21 +282,21 @@ func (s *PubPostService) calculateToAndCc(post *db.Post) (toAndCc, error) {
 	followersID.SetIRI(posterFollowers)
 	followersURI.SetJSONLDId(followersID)
 
-	privacy := posts.PrivacyType(post.Privacy)
+	privacy := PrivacyType(post.Privacy)
 	targetFollowers := false
 	switch privacy {
-	case posts.PrivacyPublic:
+	case PrivacyPublic:
 		to = append(to, publicURI)
 		cc = append(cc, followersURI)
 		targetFollowers = true
-	case posts.PrivacyUnlisted:
+	case PrivacyUnlisted:
 		to = append(to, followersURI)
 		cc = append(cc, publicURI)
 		targetFollowers = true
-	case posts.PrivacyFollower:
+	case PrivacyFollower:
 		to = append(to, followersURI)
 		targetFollowers = true
-	case posts.PrivacyPrivate:
+	case PrivacyPrivate:
 		// TODO: mentioned users
 	}
 

@@ -88,3 +88,15 @@ func (us NullUUID) Value() (driver.Value, error) {
 
 	return us.UUID.Value()
 }
+
+func GenerateUUID() (UUID, error) {
+	return UUID(uuid.New()), nil
+}
+
+func MustGenerateUUID() UUID {
+	u, err := GenerateUUID()
+	if err != nil {
+		panic(err)
+	}
+	return u
+}

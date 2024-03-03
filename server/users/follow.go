@@ -2,11 +2,13 @@ package users
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/pub"
 	"gorm.io/gorm"
 )
 
@@ -20,11 +22,14 @@ type UserFollowService interface {
 }
 
 type DBUserFollowService struct {
-	conn db.DBConn
+	conn       db.DBConn
+	pubFollow  *PubFollowService
+	userFinder UserFinderService
+	idGetter   pub.IDGetterService
 }
 
-func ProvideDBUserFollowService(conn db.DBConn) *DBUserFollowService {
-	return &DBUserFollowService{conn: conn}
+func ProvideDBUserFollowService(conn db.DBConn, pubFollow *PubFollowService, userFinder UserFinderService, idGetter pub.IDGetterService) *DBUserFollowService {
+	return &DBUserFollowService{conn: conn, pubFollow: pubFollow, userFinder: userFinder, idGetter: idGetter}
 }
 
 type FollowerInbox struct {
@@ -152,13 +157,61 @@ func (s *DBUserFollowService) FindFollowersInboxes(followeeID db.UUID) ([]Follow
 func (s *DBUserFollowService) Follow(followerID db.UUID, followeeID db.UUID) error {
 	conn := s.conn.DB
 
-	follow := db.UserFollow{
-		FollowerID: followerID,
-		FolloweeID: followeeID,
+	followee, err := s.userFinder.FetchUserByID(followeeID)
+	if err != nil {
+		return err
+	}
+	follower, err := s.userFinder.FetchUserByID(followerID)
+	if err != nil {
+		return err
 	}
 
-	err := conn.Create(&follow).Error
+	if !followee.Host.Valid {
+		// local user
+		follow := db.UserFollow{
+			FollowerID: followerID,
+			FolloweeID: followeeID,
+		}
+
+		if err := conn.Create(&follow).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	// remote user
+	// save follow request
+	// check existing request
+	tx := conn.Begin()
+	var req *db.UserFollowRequest
+	if err = tx.Where("follower_id = ? AND followee_id = ?", followerID, followeeID).First(&req).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		req := db.UserFollowRequest{
+			ID:         db.MustGenerateUUID(),
+			FollowerID: followerID,
+			FolloweeID: followeeID,
+			Incoming:   false,
+			URI:        sql.NullString{},
+		}
+		if err := s.conn.DB.Create(&req).Error; err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// send Follow to remote inbox
+	reqID, err := s.idGetter.GetFollowRequestID(req)
 	if err != nil {
+		return err
+	}
+	if err := s.pubFollow.SendFollowRequest(reqID, follower, followee); err != nil {
 		return err
 	}
 

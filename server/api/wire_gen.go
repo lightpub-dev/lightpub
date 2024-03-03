@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/pub"
 	"github.com/lightpub-dev/lightpub/reactions"
 	"github.com/lightpub-dev/lightpub/timeline"
 	"github.com/lightpub-dev/lightpub/trend"
@@ -38,7 +39,11 @@ func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineServ
 	dbConn := ProvideDBConnFromHandler(context, h)
 	dbPostInteractionService := posts.ProvideDBPostInteractionService(dbConn)
 	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
-	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	idGetter := ProvideIDGetter(h)
+	goRequesterService := pub.ProvideGoRequesterService()
+	pubFollowService := users.ProvidePubFollowService(idGetter, goRequesterService)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn, pubFollowService, dbUserFinderService, idGetter)
 	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
 	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
 	dbTimelineService := timeline.ProvideDBTimelineService(dbConn, dbPostInteractionService, dbPostCountService, dbPostFetchService)
@@ -48,7 +53,11 @@ func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineServ
 func initializePostCreateService(c echo.Context, h *Handler) posts.PostCreateService {
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
-	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	idGetter := ProvideIDGetter(h)
+	goRequesterService := pub.ProvideGoRequesterService()
+	pubFollowService := users.ProvidePubFollowService(idGetter, goRequesterService)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn, pubFollowService, dbUserFinderService, idGetter)
 	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
 	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
 	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
@@ -60,7 +69,11 @@ func initializePostReactionService(c echo.Context, h *Handler) posts.PostReactio
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
 	dbFindReactionService := reactions.ProvideDBFindReactionService(dbConn)
-	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	idGetter := ProvideIDGetter(h)
+	goRequesterService := pub.ProvideGoRequesterService()
+	pubFollowService := users.ProvidePubFollowService(idGetter, goRequesterService)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn, pubFollowService, dbUserFinderService, idGetter)
 	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
 	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
 	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
@@ -71,7 +84,11 @@ func initializePostReactionService(c echo.Context, h *Handler) posts.PostReactio
 func initializePostLikeService(c echo.Context, h *Handler) posts.PostLikeService {
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
-	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	idGetter := ProvideIDGetter(h)
+	goRequesterService := pub.ProvideGoRequesterService()
+	pubFollowService := users.ProvidePubFollowService(idGetter, goRequesterService)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn, pubFollowService, dbUserFinderService, idGetter)
 	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
 	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
 	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
@@ -82,7 +99,11 @@ func initializePostLikeService(c echo.Context, h *Handler) posts.PostLikeService
 func initializePostFetchService(c echo.Context, h *Handler) posts.PostFetchService {
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
-	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	idGetter := ProvideIDGetter(h)
+	goRequesterService := pub.ProvideGoRequesterService()
+	pubFollowService := users.ProvidePubFollowService(idGetter, goRequesterService)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn, pubFollowService, dbUserFinderService, idGetter)
 	dbPostVisibilityService := posts.ProvideDBPostVisibilityService(dbConn, dbUserFollowService)
 	dbPostCountService := posts.ProvideDBPostCountService(dbConn)
 	dbPostFetchService := posts.ProvideDBPostFetchService(dbConn, dbPostVisibilityService, dbPostCountService)
@@ -107,7 +128,11 @@ func initializeUserFinderService(c echo.Context, h *Handler) users.UserFinderSer
 func initializeUserFollowService(c echo.Context, h *Handler) users.UserFollowService {
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
-	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	idGetter := ProvideIDGetter(h)
+	goRequesterService := pub.ProvideGoRequesterService()
+	pubFollowService := users.ProvidePubFollowService(idGetter, goRequesterService)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn, pubFollowService, dbUserFinderService, idGetter)
 	return dbUserFollowService
 }
 
@@ -123,7 +148,11 @@ func initializeUserPostService(c echo.Context, h *Handler) posts.UserPostService
 	context := db.ProvideContext(c)
 	dbConn := ProvideDBConnFromHandler(context, h)
 	dbPostInteractionService := posts.ProvideDBPostInteractionService(dbConn)
-	dbUserFollowService := users.ProvideDBUserFollowService(dbConn)
+	idGetter := ProvideIDGetter(h)
+	goRequesterService := pub.ProvideGoRequesterService()
+	pubFollowService := users.ProvidePubFollowService(idGetter, goRequesterService)
+	dbUserFinderService := users.ProvideDBUserFinder(dbConn)
+	dbUserFollowService := users.ProvideDBUserFollowService(dbConn, pubFollowService, dbUserFinderService, idGetter)
 	dbUserPostService := posts.ProvideDBUserPostService(dbConn, dbPostInteractionService, dbUserFollowService)
 	return dbUserPostService
 }
@@ -143,6 +172,6 @@ func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {
 
 var (
 	DBSet = wire.NewSet(
-		ProvideDBConnFromHandler, db.ProvideContext,
+		ProvideDBConnFromHandler, db.ProvideContext, ProvideIDGetter, pub.GoRequesterServices, wire.Bind(new(pub.IDGetterService), new(*IDGetter)),
 	)
 )

@@ -13,12 +13,14 @@ import (
 var (
 	ErrInvalidUsername = errors.New("invalid username")
 	ErrInvalidUUID     = errors.New("invalid UUID")
+	ErrUserNotFound    = errors.New("user not found")
 )
 
 type UserFinderService interface {
 	ExistsByID(userID string) (bool, error)
 	FindIDByUsername(username string) (*db.User, error)
 	CountLocalUsers() (int64, error)
+	FetchUserByID(userID db.UUID) (*db.User, error)
 }
 
 type DBUserFinderService struct {
@@ -124,6 +126,19 @@ func (f *DBUserFinderService) FindIDByUsername(username string) (*db.User, error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (f *DBUserFinderService) FetchUserByID(userID db.UUID) (*db.User, error) {
+	var user db.User
+	err := f.conn.DB.WithContext(f.conn.Ctx.Ctx).First(&user, "id = ?", userID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
