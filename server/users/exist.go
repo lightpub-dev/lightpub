@@ -104,7 +104,7 @@ func (f *DBUserFinderService) FindIDByUsername(username string) (*db.User, error
 	var (
 		user db.User
 	)
-	selectColumns := "id, username, host, nickname, url, inbox, outbox, bio"
+	selectColumns := "id, username, host, nickname, url, shared_inbox, inbox, outbox, bio"
 	if parsedUsernameOrID.ID != (db.UUID{}) {
 		// parsed ID
 		parsedID := parsedUsernameOrID.ID

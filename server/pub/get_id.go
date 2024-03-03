@@ -8,5 +8,5 @@ import (
 
 type IDGetterService interface {
 	GetUserID(user *db.User, attribute string) (*url.URL, error)
-	GetPostID(post *db.Post) (*url.URL, error)
+	GetPostID(post *db.Post, attribute string) (*url.URL, error)
 }

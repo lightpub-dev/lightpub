@@ -1,6 +1,7 @@
 package users
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -13,6 +14,7 @@ type UserFollowService interface {
 	IsFollowedBy(followerID db.UUID, followeeID db.UUID) (bool, error)
 	FindFollowers(followeeID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
 	FindFollowing(followerID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
+	FindFollowersInboxes(followeeID db.UUID) ([]FollowerInbox, error)
 	Follow(followerID db.UUID, followeeID db.UUID) error
 	Unfollow(followerID db.UUID, followeeID db.UUID) error
 }
@@ -23,6 +25,12 @@ type DBUserFollowService struct {
 
 func ProvideDBUserFollowService(conn db.DBConn) *DBUserFollowService {
 	return &DBUserFollowService{conn: conn}
+}
+
+type FollowerInbox struct {
+	UserID      db.UUID `gorm:"column:id"`
+	Inbox       sql.NullString
+	SharedInbox sql.NullString
 }
 
 func (s *DBUserFollowService) IsFollowedBy(followerID db.UUID, followeeID db.UUID) (bool, error) {
@@ -75,7 +83,10 @@ func (s *DBUserFollowService) FindFollowers(followeeID db.UUID, viewerID db.UUID
 		tx = tx.Where("users.created_at < ?", beforeDate)
 	}
 
-	tx = tx.Order("users.created_at DESC").Limit(limit)
+	tx = tx.Order("users.created_at DESC")
+	if limit >= 0 {
+		tx = tx.Limit(limit)
+	}
 
 	err := tx.Find(&followers).Error
 	if err != nil {
@@ -107,7 +118,10 @@ func (s *DBUserFollowService) FindFollowing(followerID db.UUID, viewerID db.UUID
 		tx = tx.Where("users.created_at < ?", beforeDate)
 	}
 
-	tx = tx.Order("users.created_at DESC").Limit(limit)
+	tx = tx.Order("users.created_at DESC")
+	if limit >= 0 {
+		tx = tx.Limit(limit)
+	}
 
 	err := tx.Find(&followings).Error
 	if err != nil {
@@ -120,6 +134,19 @@ func (s *DBUserFollowService) FindFollowing(followerID db.UUID, viewerID db.UUID
 	}
 
 	return followings, nil
+}
+
+func (s *DBUserFollowService) FindFollowersInboxes(followeeID db.UUID) ([]FollowerInbox, error) {
+	conn := s.conn.DB
+
+	var inboxes []FollowerInbox
+	// TODO: follower が多すぎると IN の制限でエラーにならない?
+	err := conn.Model(&db.User{}).Select("id, inbox, shared_inbox").Where("id IN (SELECT follower_id FROM user_follows WHERE followee_id = ?)", followeeID).Find(&inboxes).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return inboxes, nil
 }
 
 func (s *DBUserFollowService) Follow(followerID db.UUID, followeeID db.UUID) error {

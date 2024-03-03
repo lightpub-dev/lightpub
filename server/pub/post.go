@@ -2,30 +2,114 @@ package pub
 
 import (
 	"errors"
+	"log"
 	"net/url"
 
 	"github.com/go-fed/activity/streams"
 	"github.com/go-fed/activity/streams/vocab"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/posts"
+	"github.com/lightpub-dev/lightpub/users"
 )
 
 type PubPostService struct {
-	getter IDGetterService
+	getter     IDGetterService
+	userFinder users.UserFinderService
+	userFollow users.UserFollowService
 }
 
-func ProvidePubPostService(getter IDGetterService) *PubPostService {
-	return &PubPostService{getter: getter}
+func ProvidePubPostService(getter IDGetterService, userFinder users.UserFinderService, userFollow users.UserFollowService) *PubPostService {
+	return &PubPostService{getter: getter, userFinder: userFinder, userFollow: userFollow}
 }
 
-func (s *PubPostService) CreatePostObject(post *db.Post) (vocab.ActivityStreamsNote, error) {
-	postURI, err := s.getter.GetPostID(post)
+type PubNoteInfo struct {
+	Post          *db.Post
+	Note          vocab.ActivityStreamsNote
+	TargetInboxes []*url.URL
+}
+
+type PubCreateInfo struct {
+	Post          *db.Post
+	Create        vocab.ActivityStreamsCreate
+	TargetInboxes []*url.URL
+}
+
+func (s *PubPostService) CreateNoteCreate(note PubNoteInfo) (PubCreateInfo, error) {
+	obj := streams.NewActivityStreamsCreate()
+
+	createID := streams.NewJSONLDIdProperty()
+	createPostID, err := s.getter.GetPostID(note.Post, "activity")
 	if err != nil {
-		return nil, err
+		return PubCreateInfo{}, err
+	}
+	createID.Set(createPostID)
+	obj.SetJSONLDId(createID)
+
+	copyAddressing(obj, note.Note)
+
+	publishedAt := streams.NewActivityStreamsPublishedProperty()
+	publishedAt.Set(note.Post.CreatedAt)
+	obj.SetActivityStreamsPublished(publishedAt)
+
+	copyActor(obj, note.Note)
+
+	noteObj := streams.NewActivityStreamsObjectProperty()
+	noteObj.AppendActivityStreamsNote(note.Note)
+	obj.SetActivityStreamsObject(noteObj)
+
+	return PubCreateInfo{
+		Post:          note.Post,
+		Create:        obj,
+		TargetInboxes: note.TargetInboxes,
+	}, nil
+}
+
+func copyActor(dst vocab.ActivityStreamsCreate, src vocab.ActivityStreamsNote) {
+	actorIter := src.GetActivityStreamsAttributedTo().Begin()
+	for actorIter != nil {
+		dst.GetActivityStreamsActor().AppendActivityStreamsObject(actorIter.GetActivityStreamsObject())
+		actorIter = actorIter.Next()
+	}
+}
+
+func copyAddressing(dst vocab.ActivityStreamsCreate, src vocab.ActivityStreamsNote) {
+	to := src.GetActivityStreamsTo()
+	toIter := to.Begin()
+	for toIter != nil {
+		dst.GetActivityStreamsTo().AppendActivityStreamsObject(toIter.GetActivityStreamsObject())
+		toIter = toIter.Next()
+	}
+
+	cc := src.GetActivityStreamsCc()
+	ccIter := cc.Begin()
+	for ccIter != nil {
+		dst.GetActivityStreamsCc().AppendActivityStreamsObject(ccIter.GetActivityStreamsObject())
+		ccIter = ccIter.Next()
+	}
+
+	bto := src.GetActivityStreamsBto()
+	btoIter := bto.Begin()
+	for btoIter != nil {
+		dst.GetActivityStreamsBto().AppendActivityStreamsObject(btoIter.GetActivityStreamsObject())
+		btoIter = btoIter.Next()
+	}
+
+	bcc := src.GetActivityStreamsBcc()
+	bccIter := bcc.Begin()
+	for bccIter != nil {
+		dst.GetActivityStreamsBcc().AppendActivityStreamsObject(bccIter.GetActivityStreamsObject())
+		bccIter = bccIter.Next()
+	}
+}
+
+func (s *PubPostService) CreatePostObject(post *db.Post) (PubNoteInfo, error) {
+	postURI, err := s.getter.GetPostID(post, "")
+	if err != nil {
+		return PubNoteInfo{}, err
 	}
 	posterURI, err := s.getter.GetUserID(&post.Poster, "")
 	if err != nil {
-		return nil, err
+		return PubNoteInfo{}, err
 	}
 
 	// Create the post object
@@ -41,7 +125,7 @@ func (s *PubPostService) CreatePostObject(post *db.Post) (vocab.ActivityStreamsN
 
 	toAndCc, err := s.calculateToAndCc(post)
 	if err != nil {
-		return nil, err
+		return PubNoteInfo{}, err
 	}
 	to := streams.NewActivityStreamsToProperty()
 	for _, t := range toAndCc.To {
@@ -63,9 +147,9 @@ func (s *PubPostService) CreatePostObject(post *db.Post) (vocab.ActivityStreamsN
 	obj.SetActivityStreamsPublished(published)
 
 	if post.ReplyToID.Valid {
-		replyToURI, err := s.getter.GetPostID(post.ReplyTo)
+		replyToURI, err := s.getter.GetPostID(post.ReplyTo, "")
 		if err != nil {
-			return nil, err
+			return PubNoteInfo{}, err
 		}
 		replyTo := streams.NewActivityStreamsInReplyToProperty()
 		replyTo.AppendIRI(replyToURI)
@@ -76,12 +160,36 @@ func (s *PubPostService) CreatePostObject(post *db.Post) (vocab.ActivityStreamsN
 	sense.AppendXMLSchemaBoolean(false)
 	obj.SetActivityStreamsSensitive(sense)
 
-	return obj, nil
+	return PubNoteInfo{
+		Note:          obj,
+		TargetInboxes: toAndCc.TargetInboxes,
+	}, nil
 }
 
 type toAndCc struct {
-	To []vocab.ActivityStreamsObject
-	Cc []vocab.ActivityStreamsObject
+	To            []vocab.ActivityStreamsObject
+	Cc            []vocab.ActivityStreamsObject
+	TargetInboxes []*url.URL
+}
+
+func (s *PubPostService) findBestInbox(user users.FollowerInbox) (*url.URL, error) {
+	if user.SharedInbox.Valid {
+		url, err := url.Parse(user.SharedInbox.String)
+		if err != nil {
+			log.Printf("invalid sharedInbox: %s", user.SharedInbox.String)
+			return nil, nil
+		}
+		return url, nil
+	}
+	if user.Inbox.Valid {
+		url, err := url.Parse(user.Inbox.String)
+		if err != nil {
+			log.Printf("invalid inbox: %s", user.Inbox.String)
+			return nil, nil
+		}
+		return url, nil
+	}
+	return nil, nil
 }
 
 func (s *PubPostService) calculateToAndCc(post *db.Post) (toAndCc, error) {
@@ -111,20 +219,41 @@ func (s *PubPostService) calculateToAndCc(post *db.Post) (toAndCc, error) {
 	followersURI.SetJSONLDId(followersID)
 
 	privacy := posts.PrivacyType(post.Privacy)
+	targetFollowers := false
 	switch privacy {
 	case posts.PrivacyPublic:
 		to = append(to, publicURI)
 		cc = append(cc, followersURI)
+		targetFollowers = true
 	case posts.PrivacyUnlisted:
 		to = append(to, followersURI)
 		cc = append(cc, publicURI)
+		targetFollowers = true
 	case posts.PrivacyFollower:
 		to = append(to, followersURI)
+		targetFollowers = true
 	case posts.PrivacyPrivate:
 		// TODO: mentioned users
 	}
 
-	return toAndCc{To: to, Cc: cc}, nil
+	targetInboxes := make([]*url.URL, 0)
+	if targetFollowers {
+		followers, err := s.userFollow.FindFollowersInboxes(post.Poster.ID)
+		if err != nil {
+			return toAndCc{}, err
+		}
+		for _, f := range followers {
+			inbox, err := s.findBestInbox(f)
+			if err != nil {
+				return toAndCc{}, err
+			}
+			if inbox != nil {
+				targetInboxes = append(targetInboxes, inbox)
+			}
+		}
+	}
+
+	return toAndCc{To: to, Cc: cc, TargetInboxes: targetInboxes}, nil
 }
 
 func urlMustParse(s string) *url.URL {

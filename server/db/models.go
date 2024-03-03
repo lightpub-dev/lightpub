@@ -6,20 +6,21 @@ import (
 )
 
 type User struct {
-	ID         UUID           `gorm:"primaryKey"`
-	Username   string         `gorm:"size:64;uniqueIndex;not null"`
-	Host       sql.NullString `gorm:"size:128"`
-	Bpasswd    string         `gorm:"size:60;not null"`
-	Nickname   string         `gorm:"size:255;not null"`
-	Bio        string         `gorm:"type:TEXT;not null"`
-	AvatarID   NullUUID       `gorm:"type:VARCHAR(32);default:NULL"`
-	Avatar     *UploadedFile  `gorm:"foreignKey:AvatarID"`
-	URL        sql.NullString `gorm:"size:512"`
-	Inbox      sql.NullString `gorm:"size:512"`
-	Outbox     sql.NullString `gorm:"size:512"`
-	PrivateKey sql.NullString `gorm:"type:TEXT"`
-	PublicKey  sql.NullString `gorm:"type:TEXT"`
-	CreatedAt  time.Time      `gorm:"autoCreateTime:nano;type:DATETIME(6);not null"`
+	ID          UUID           `gorm:"primaryKey"`
+	Username    string         `gorm:"size:64;uniqueIndex;not null"`
+	Host        sql.NullString `gorm:"size:128"`
+	Bpasswd     string         `gorm:"size:60;not null"`
+	Nickname    string         `gorm:"size:255;not null"`
+	Bio         string         `gorm:"type:TEXT;not null"`
+	AvatarID    NullUUID       `gorm:"type:VARCHAR(32);default:NULL"`
+	Avatar      *UploadedFile  `gorm:"foreignKey:AvatarID"`
+	URL         sql.NullString `gorm:"size:512"`
+	SharedInbox sql.NullString `gorm:"size:512"`
+	Inbox       sql.NullString `gorm:"size:512"`
+	Outbox      sql.NullString `gorm:"size:512"`
+	PrivateKey  sql.NullString `gorm:"type:TEXT"`
+	PublicKey   sql.NullString `gorm:"type:TEXT"`
+	CreatedAt   time.Time      `gorm:"autoCreateTime:nano;type:DATETIME(6);not null"`
 
 	UserLabels []UserLabelDB `gorm:"foreignKey:UserID"`
 	Followers  []UserFollow  `gorm:"foreignKey:FolloweeID"`
