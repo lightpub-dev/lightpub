@@ -6,5 +6,6 @@ var (
 	PubServices = wire.NewSet(
 		ProvidePubUserService,
 		ProvideWebfingerService,
+		ProvideSignatureService,
 	)
 )

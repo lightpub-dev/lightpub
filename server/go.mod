@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/go-fed/activity v1.0.0
+	github.com/go-fed/httpsig v0.1.1-0.20190914113940-c2de3672e5b5
 	github.com/go-playground/validator/v10 v10.16.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/golang-migrate/migrate/v4 v4.17.0

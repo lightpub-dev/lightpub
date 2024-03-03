@@ -207,8 +207,5 @@ func (s *DBUserCreateService) UpdateRemoteUser(u RemoteUser) (*db.User, error) {
 		return nil, err
 	}
 
-	// generate key in background
-	go s.key.GenerateKeyForUser(user.ID)
-
 	return &user, nil
 }

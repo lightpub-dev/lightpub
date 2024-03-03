@@ -1,6 +1,7 @@
 package pub
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/go-fed/activity/streams"
 	"github.com/go-fed/activity/streams/vocab"
 	"github.com/google/wire"
+	"github.com/lightpub-dev/lightpub/db"
 )
 
 const (
@@ -20,7 +22,7 @@ const (
 )
 
 type RequesterService interface {
-	PostToInbox(inboxURL *url.URL, activity interface{}) error
+	PostToInbox(inboxURL *url.URL, activity vocab.Type, actor *db.User) error
 	FetchUser(uri *url.URL) (vocab.ActivityStreamsPerson, error)
 	FetchWebfinger(username, host string) ([]byte, error)
 }
@@ -37,22 +39,63 @@ type GoRequesterOptions struct {
 }
 
 type GoRequesterService struct {
-	client  *http.Client
-	options GoRequesterOptions
+	client    *http.Client
+	options   GoRequesterOptions
+	signature *SignatureService
 }
 
-func ProvideGoRequesterService(client *http.Client, options GoRequesterOptions) *GoRequesterService {
-	return &GoRequesterService{client, options}
+func ProvideGoRequesterService(client *http.Client, options GoRequesterOptions, signature *SignatureService) *GoRequesterService {
+	return &GoRequesterService{client, options, signature}
 }
 
 func (s *GoRequesterService) makeContext() context.Context {
 	ctx, _ := context.WithTimeout(context.Background(), s.options.Timeout)
 	return ctx
-
 }
 
-func (s *GoRequesterService) PostToInbox(inboxURL *url.URL, activity interface{}) error {
-	log.Printf("Sending to %s: %v", inboxURL, activity)
+func (s *GoRequesterService) PostToInbox(inboxURL *url.URL, activity vocab.Type, actor *db.User) error {
+	jsonMap, err := activity.Serialize()
+	if err != nil {
+		return err
+	}
+	// jsonMap["@context"] = "https://www.w3.org/ns/activitystreams"
+	body, err := json.Marshal(jsonMap)
+	if err != nil {
+		return err
+	}
+	bodyBuf := bytes.NewBuffer(body)
+
+	req, err := http.NewRequestWithContext(s.makeContext(), "POST", inboxURL.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("accept", ActivityJsonType)
+	req.Header.Add("content-type", ActivityJsonType)
+	req.Body = io.NopCloser(bodyBuf)
+
+	// sign the request
+	if err := s.signature.Sign(actor, req, body); err != nil {
+		return err
+	}
+
+	log.Printf("posting body: %v", req.Body)
+	log.Printf("headers: %v", req.Header)
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// show body if the response is not 2xx
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		log.Printf("PostToInbox: status=%d %s", resp.StatusCode, body)
+		return fmt.Errorf("PostToInbox: status=%d %s", resp.StatusCode, body)
+	}
+
 	return nil
 }
 

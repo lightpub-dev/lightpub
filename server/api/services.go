@@ -31,6 +31,8 @@ var (
 		wire.Bind(new(pub.IDGetterService), new(*IDGetter)),
 		ProvideGoRequesterService,
 		wire.Bind(new(pub.RequesterService), new(*pub.GoRequesterService)),
+		ProvideDBKeyResolveService,
+		wire.Bind(new(pub.KeyResolveService), new(*DBKeyResolveService)),
 	)
 )
 

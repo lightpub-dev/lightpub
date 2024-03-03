@@ -1,11 +1,13 @@
 package api
 
 import (
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
 
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/pub"
 )
 
 type IDGetter struct {
@@ -16,18 +18,38 @@ func ProvideIDGetter(h *Handler) *IDGetter {
 	return &IDGetter{h: h}
 }
 
-func (g *IDGetter) GetUserID(user *db.User, attribute string) (*url.URL, error) {
+func (g *IDGetter) GetUserID(user *db.User, attribute pub.UserAttribute) (*url.URL, error) {
 	if user.URI.Valid {
-		// ignore attribute
-
-		return url.Parse(user.URI.String)
+		// remote user
+		switch attribute {
+		case pub.UserAttributeInbox:
+			if !user.Inbox.Valid {
+				return nil, pub.ErrUserInboxNotSet
+			}
+			return url.Parse(user.Inbox.String)
+		case pub.UserAttributeOutbox:
+			if !user.Outbox.Valid {
+				return nil, pub.ErrUserOutboxNotSet
+			}
+			return url.Parse(user.Outbox.String)
+		case pub.UserAttributeSharedInbox:
+			if !user.SharedInbox.Valid {
+				return nil, pub.ErrUserSharedInboxNotSet
+			}
+			return url.Parse(user.SharedInbox.String)
+		case "":
+			return url.Parse(user.URI.String)
+		default:
+			return nil, fmt.Errorf("unsupported attribute: %s", attribute)
+		}
 	}
 
+	// local user
 	userURL := g.h.BaseURL + "/user/" + user.ID.String()
-	if attribute == "publicKey" {
+	if attribute == pub.UserAttributePublicKey {
 		userURL += "#main-key"
 	} else if attribute != "" {
-		userURL += "/" + attribute
+		userURL += "/" + string(attribute)
 	}
 
 	return url.Parse(userURL)
@@ -35,10 +57,11 @@ func (g *IDGetter) GetUserID(user *db.User, attribute string) (*url.URL, error) 
 
 func (g *IDGetter) GetPostID(post *db.Post, attribute string) (*url.URL, error) {
 	if post.URI.Valid {
-		// ignore attribute
+		// remote post
 		return url.Parse(post.URI.String)
 	}
 
+	// local post
 	postURL := g.h.BaseURL + "/post/" + post.ID.String()
 	if attribute != "" {
 		postURL += "/" + attribute

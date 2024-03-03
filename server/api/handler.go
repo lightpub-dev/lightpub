@@ -43,10 +43,10 @@ func NewHandler(db *gorm.DB, rdb *redis.Client, baseURL string) *Handler {
 	}
 }
 
-func ProvideGoRequesterService(handler *Handler) *pub.GoRequesterService {
+func ProvideGoRequesterService(handler *Handler, signature *pub.SignatureService) *pub.GoRequesterService {
 	return pub.ProvideGoRequesterService(handler.Client, pub.GoRequesterOptions{
 		Timeout: 3 * time.Second,
-	})
+	}, signature)
 }
 
 type dbconn struct {

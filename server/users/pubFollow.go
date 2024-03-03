@@ -33,7 +33,7 @@ func (s *PubFollowService) SendFollowRequest(reqID *url.URL, follower, following
 	if err != nil {
 		return err
 	}
-	return s.req.PostToInbox(inboxURL, follow)
+	return s.req.PostToInbox(inboxURL, follow, follower)
 }
 
 func (s *PubFollowService) createFollowRequest(reqID *url.URL, follower, following *db.User) (vocab.ActivityStreamsFollow, error) {
@@ -72,7 +72,7 @@ func (s *PubFollowService) SendAcceptFollowRequest(req *db.UserFollowRequest) er
 	if err != nil {
 		return err
 	}
-	return s.req.PostToInbox(inboxURL, accept)
+	return s.req.PostToInbox(inboxURL, accept, &req.Followee)
 }
 
 func (s *PubFollowService) createAccept(req *db.UserFollowRequest) (vocab.ActivityStreamsAccept, error) {
