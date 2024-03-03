@@ -31,6 +31,8 @@ func attachRequiredHeaders(req *http.Request) error {
 		}
 		req.Header.Set("host", url.Host)
 	}
+
+	return nil
 }
 
 func attachSignatureToAuthorization(req *http.Request) {
