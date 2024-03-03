@@ -28,6 +28,25 @@ type User struct {
 	UserTokens []UserToken   `gorm:"foreignKey:UserID"`
 }
 
+type UserKey struct {
+	ID        string    `gorm:"primaryKey;size:512;not null"`
+	OwnerID   UUID      `gorm:"not null"`
+	PublicKey string    `gorm:"type:TEXT;not null"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime:nano;type:DATETIME(6);not null"`
+
+	Owner User `gorm:"foreignKey:OwnerID"`
+}
+
+type RemoteUser struct {
+	UserID    UUID      `gorm:"primaryKey"`
+	Following string    `gorm:"type:VARCHAR(512);default:NULL"`
+	Followers string    `gorm:"type:VARCHAR(512);default:NULL"`
+	Liked     string    `gorm:"type:VARCHAR(512);default:NULL"`
+	FetchedAt time.Time `gorm:"autoUpdateTime:nano;type:DATETIME(6);not null"`
+
+	User User `gorm:"foreignKey:UserID"`
+}
+
 type FullUser struct {
 	User
 	Labels              []UserLabelDB
@@ -169,6 +188,18 @@ type UserFollow struct {
 	ID         uint64    `gorm:"primaryKey"`
 	FollowerID UUID      `gorm:"uniqueIndex:idx_follower_followee;not null"`
 	FolloweeID UUID      `gorm:"uniqueIndex:idx_follower_followee;not null"`
+	CreatedAt  time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
+
+	Follower User `gorm:"foreignKey:FollowerID"`
+	Followee User `gorm:"foreignKey:FolloweeID"`
+}
+
+type UserFollowRequest struct {
+	ID         UUID      `gorm:"primaryKey"`
+	URI        string    `gorm:"size:512;not null;uniqueIndex"`
+	Incoming   bool      `gorm:"not null"`
+	FollowerID UUID      `gorm:"not null"`
+	FolloweeID UUID      `gorm:"not null"`
 	CreatedAt  time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
 
 	Follower User `gorm:"foreignKey:FollowerID"`

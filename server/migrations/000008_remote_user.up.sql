@@ -1,0 +1,8 @@
+CREATE TABLE remote_users(
+    user_id VARCHAR(32) NOT NULL PRIMARY KEY,
+    `following` VARCHAR(512) NULL DEFAULT NULL,
+    followers VARCHAR(512) NULL DEFAULT NULL,
+    liked VARCHAR(512) NULL DEFAULT NULL,
+    fetched_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_users_remote_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
