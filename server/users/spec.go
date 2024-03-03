@@ -52,14 +52,11 @@ func ParseUserSpec(s string) (Specifier, error) {
 	// if not s contains no @, it is an ID
 	if !strings.Contains(s, "@") {
 		// try to parse a UUID
-		var uuid *db.UUID
-		if err := db.ParseTo(uuid, s); err != nil {
+		var uuid db.UUID
+		if err := db.ParseTo(&uuid, s); err != nil {
 			return Specifier{}, ErrInvalidUserSpec
 		}
-		if uuid != nil {
-			return NewSpecifierFromID(*uuid), nil
-		}
-		return Specifier{}, ErrInvalidUserSpec
+		return NewSpecifierFromID(uuid), nil
 	}
 
 	// if not, must start with @
