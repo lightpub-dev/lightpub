@@ -10,6 +10,7 @@ var (
 		ProvideDBUserFinder,
 		ProvideDBUserProfileService,
 		ProvidePubFollowService,
+		ProvidePubUserService,
 		wire.Bind(
 			new(UserCreateService), new(*DBUserCreateService),
 		),

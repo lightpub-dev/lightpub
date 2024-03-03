@@ -12,13 +12,18 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	ErrFollowerNotFound = errors.New("follower not found")
+	ErrFolloweeNotFound = errors.New("followee not found")
+)
+
 type UserFollowService interface {
 	IsFollowedBy(followerID db.UUID, followeeID db.UUID) (bool, error)
 	FindFollowers(followeeID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
 	FindFollowing(followerID db.UUID, viewerID db.UUID, beforeDate *time.Time, limit int) ([]FollowerInfo, error)
 	FindFollowersInboxes(followeeID db.UUID) ([]FollowerInbox, error)
-	Follow(followerID db.UUID, followeeID db.UUID) error
-	Unfollow(followerID db.UUID, followeeID db.UUID) error
+	Follow(followerSpec Specifier, followeeSpec Specifier) error
+	Unfollow(followerSpec Specifier, followeeSpec Specifier) error
 }
 
 type DBUserFollowService struct {
@@ -154,23 +159,30 @@ func (s *DBUserFollowService) FindFollowersInboxes(followeeID db.UUID) ([]Follow
 	return inboxes, nil
 }
 
-func (s *DBUserFollowService) Follow(followerID db.UUID, followeeID db.UUID) error {
+func (s *DBUserFollowService) Follow(followerSpec Specifier, followeeSpec Specifier) error {
 	conn := s.conn.DB
 
-	followee, err := s.userFinder.FetchUserByID(followeeID)
+	follower, err := s.userFinder.FetchUser(followerSpec)
 	if err != nil {
 		return err
 	}
-	follower, err := s.userFinder.FetchUserByID(followerID)
+	if follower == nil {
+		return ErrFollowerNotFound
+	}
+
+	followee, err := s.userFinder.FetchUser(followeeSpec)
 	if err != nil {
 		return err
+	}
+	if followee == nil {
+		return ErrFolloweeNotFound
 	}
 
 	if !followee.Host.Valid {
 		// local user
 		follow := db.UserFollow{
-			FollowerID: followerID,
-			FolloweeID: followeeID,
+			FollowerID: follower.ID,
+			FolloweeID: followee.ID,
 		}
 
 		if err := conn.Create(&follow).Error; err != nil {
@@ -184,16 +196,17 @@ func (s *DBUserFollowService) Follow(followerID db.UUID, followeeID db.UUID) err
 	// save follow request
 	// check existing request
 	tx := conn.Begin()
+	defer tx.Rollback()
 	var req *db.UserFollowRequest
-	if err = tx.Where("follower_id = ? AND followee_id = ?", followerID, followeeID).First(&req).Error; err != nil {
+	if err = tx.Where("follower_id = ? AND followee_id = ?", follower.ID, followee.ID).First(&req).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
 
 		req := db.UserFollowRequest{
 			ID:         db.MustGenerateUUID(),
-			FollowerID: followerID,
-			FolloweeID: followeeID,
+			FollowerID: follower.ID,
+			FolloweeID: followee.ID,
 			Incoming:   false,
 			URI:        sql.NullString{},
 		}
@@ -218,10 +231,26 @@ func (s *DBUserFollowService) Follow(followerID db.UUID, followeeID db.UUID) err
 	return nil
 }
 
-func (s *DBUserFollowService) Unfollow(followerID db.UUID, followeeID db.UUID) error {
+func (s *DBUserFollowService) Unfollow(followerSpec Specifier, followeeSpec Specifier) error {
 	conn := s.conn.DB
 
-	err := conn.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", followerID, followeeID).Error
+	follower, err := s.userFinder.FetchUser(followerSpec)
+	if err != nil {
+		return err
+	}
+	if follower == nil {
+		return ErrFollowerNotFound
+	}
+
+	followee, err := s.userFinder.FetchUser(followeeSpec)
+	if err != nil {
+		return err
+	}
+	if followee == nil {
+		return ErrFolloweeNotFound
+	}
+
+	err = conn.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error
 	if err != nil {
 		return err
 	}

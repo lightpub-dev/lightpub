@@ -9,7 +9,7 @@ type User struct {
 	ID          UUID           `gorm:"primaryKey"`
 	Username    string         `gorm:"size:64;uniqueIndex;not null"`
 	Host        sql.NullString `gorm:"size:128"`
-	Bpasswd     string         `gorm:"size:60;not null"`
+	Bpasswd     sql.NullString `gorm:"size:60"`
 	Nickname    string         `gorm:"size:255;not null"`
 	Bio         string         `gorm:"type:TEXT;not null"`
 	AvatarID    NullUUID       `gorm:"type:VARCHAR(32);default:NULL"`
@@ -26,6 +26,8 @@ type User struct {
 	Followers  []UserFollow  `gorm:"foreignKey:FolloweeID"`
 	Following  []UserFollow  `gorm:"foreignKey:FollowerID"`
 	UserTokens []UserToken   `gorm:"foreignKey:UserID"`
+	Key        *UserKey      `gorm:"foreignKey:OwnerID"`
+	RemoteInfo *RemoteUser   `gorm:"foreignKey:UserID"`
 }
 
 type UserKey struct {
@@ -38,11 +40,11 @@ type UserKey struct {
 }
 
 type RemoteUser struct {
-	UserID    UUID      `gorm:"primaryKey"`
-	Following string    `gorm:"type:VARCHAR(512);default:NULL"`
-	Followers string    `gorm:"type:VARCHAR(512);default:NULL"`
-	Liked     string    `gorm:"type:VARCHAR(512);default:NULL"`
-	FetchedAt time.Time `gorm:"autoUpdateTime:nano;type:DATETIME(6);not null"`
+	UserID    UUID           `gorm:"primaryKey"`
+	Following sql.NullString `gorm:"type:VARCHAR(512);default:NULL"`
+	Followers sql.NullString `gorm:"type:VARCHAR(512);default:NULL"`
+	Liked     sql.NullString `gorm:"type:VARCHAR(512);default:NULL"`
+	FetchedAt time.Time      `gorm:"autoUpdateTime:nano;type:DATETIME(6);not null"`
 
 	User User `gorm:"foreignKey:UserID"`
 }

@@ -19,5 +19,14 @@ func ConvertSqlStringToPtr(s sql.NullString) *string {
 	}
 	result := s.String
 	return &result
+}
 
+func ConvertToSqlString(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{
+		String: s,
+		Valid:  true,
+	}
 }

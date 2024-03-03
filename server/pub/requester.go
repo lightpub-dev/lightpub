@@ -4,11 +4,13 @@ import (
 	"log"
 	"net/url"
 
+	"github.com/go-fed/activity/streams/vocab"
 	"github.com/google/wire"
 )
 
 type RequesterService interface {
 	PostToInbox(inboxURL *url.URL, activity interface{}) error
+	FetchUser(uri *url.URL) (vocab.ActivityStreamsPerson, error)
 }
 
 var (
@@ -27,4 +29,9 @@ func ProvideGoRequesterService() *GoRequesterService {
 func (s *GoRequesterService) PostToInbox(inboxURL *url.URL, activity interface{}) error {
 	log.Printf("Sending to %s: %v", inboxURL, activity)
 	return nil
+}
+
+func (s *GoRequesterService) FetchUser(uri *url.URL) (vocab.ActivityStreamsPerson, error) {
+	log.Fatalf("fetch user not implemented")
+	return nil, nil
 }

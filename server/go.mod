@@ -59,6 +59,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/go-fed/activity v1.0.0 => github.com/lightpub-dev/activity v0.0.0-20220119073622-b14b50eecad0
+replace github.com/go-fed/activity v1.0.0 => ./activity
 
-replace github.com/go-fed/httpsig => github.com/lightpub-dev/httpsig v0.0.0-20201223112313-55836744818e
+replace github.com/go-fed/httpsig => ./httpsig

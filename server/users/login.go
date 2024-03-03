@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	ErrBadAuth = errors.New("bad auth")
+	ErrBadAuth      = errors.New("bad auth")
+	ErrNotLoginable = errors.New("not local")
 )
 
 type AuthResult struct {
@@ -43,7 +44,10 @@ func (s *DBUserLoginService) Login(username string, password string) (string, er
 	}
 
 	// check password
-	if bcrypt.CompareHashAndPassword([]byte(user.Bpasswd), []byte(password)) != nil {
+	if !user.Bpasswd.Valid {
+		return "", ErrNotLoginable
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.Bpasswd.String), []byte(password)) != nil {
 		return "", ErrBadAuth
 	}
 

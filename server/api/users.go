@@ -215,9 +215,9 @@ func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	}
 
 	if isFollow {
-		err = userFollowService.Follow(myUserId, targetUser.ID)
+		err = userFollowService.Follow(users.NewSpecifierFromID(myUserId), users.NewSpecifierFromID(targetUser.ID))
 	} else {
-		err = userFollowService.Unfollow(myUserId, targetUser.ID)
+		err = userFollowService.Unfollow(users.NewSpecifierFromID(myUserId), users.NewSpecifierFromID(targetUser.ID))
 	}
 
 	if err != nil {

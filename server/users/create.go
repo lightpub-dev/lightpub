@@ -3,15 +3,29 @@ package users
 import (
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/utils"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 var (
 	ErrUsernameTaken = errors.New("username already taken")
 )
+
+type ErrorFieldNotSet struct {
+	Field string
+}
+
+func newErrorFieldNotSet(field string) ErrorFieldNotSet {
+	return ErrorFieldNotSet{Field: field}
+}
+
+func (e ErrorFieldNotSet) Error() string {
+	return e.Field + " not set"
+}
 
 type UserCreateRequest struct {
 	Username string `json:"username"`
@@ -19,8 +33,21 @@ type UserCreateRequest struct {
 	Password string `json:"password"`
 }
 
+type RemoteUser struct {
+	ID                string
+	PreferredUsername string
+	Name              string
+	Inbox             string
+	Outbox            string
+	SharedInbox       string
+	Following         string
+	Followers         string
+	Liked             string
+}
+
 type UserCreateService interface {
 	CreateUser(u UserCreateRequest) error
+	UpdateRemoteUser(u RemoteUser) (*db.User, error)
 }
 
 type DBUserCreateService struct {
@@ -63,7 +90,7 @@ func (s *DBUserCreateService) CreateUser(u UserCreateRequest) error {
 		ID:       db.UUID(userId),
 		Username: u.Username,
 		Nickname: u.Nickname,
-		Bpasswd:  string(hashedPassword),
+		Bpasswd:  sql.NullString{String: string(hashedPassword), Valid: true},
 		Host:     sql.NullString{}, // null for local user
 		Bio:      "",
 	}
@@ -84,4 +111,67 @@ func (s *DBUserCreateService) CreateUser(u UserCreateRequest) error {
 	go s.key.GenerateKeyForUser(user.ID)
 
 	return nil
+}
+
+func (s *DBUserCreateService) UpdateRemoteUser(u RemoteUser) (*db.User, error) {
+	if u.PreferredUsername == "" {
+		return nil, newErrorFieldNotSet("PreferredUsername")
+	}
+
+	tx := s.conn.DB.Begin()
+	defer tx.Rollback()
+
+	var userInDB *db.User
+	if err := tx.Where("uri = ?", u.ID).First(&userInDB).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+	var user db.User
+	if userInDB != nil {
+		user = db.User{
+			ID:       userInDB.ID,
+			Username: u.PreferredUsername,
+			Nickname: u.Name,
+			URI:      sql.NullString{String: u.ID, Valid: true},
+			Bpasswd:  sql.NullString{},
+			Host:     sql.NullString{},
+			Bio:      "",
+		}
+	} else {
+		user = db.User{
+			ID:       db.MustGenerateUUID(),
+			Username: u.PreferredUsername,
+			Nickname: u.Name,
+			URI:      sql.NullString{String: u.ID, Valid: true},
+			Bpasswd:  sql.NullString{},
+			Host:     sql.NullString{},
+			Bio:      "",
+		}
+	}
+	c := utils.ConvertToSqlString
+	remo := db.RemoteUser{
+		UserID:    user.ID,
+		Following: c(u.Following),
+		Followers: c(u.Followers),
+		Liked:     c(u.Liked),
+		FetchedAt: time.Now(),
+	}
+
+	if err := tx.Save(user).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.Save(remo).Error; err != nil {
+		return nil, err
+	}
+
+	// commit
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	// generate key in background
+	go s.key.GenerateKeyForUser(user.ID)
+
+	return &user, nil
 }
