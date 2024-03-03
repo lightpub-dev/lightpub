@@ -3,11 +3,14 @@ package api
 import (
 	"html/template"
 	"io"
+	"net/http"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"github.com/lightpub-dev/lightpub/pub"
 	"github.com/redis/go-redis/v9"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"gorm.io/gorm"
@@ -21,6 +24,7 @@ type Handler struct {
 	DB      *gorm.DB
 	RDB     *redis.Client
 	BaseURL string
+	Client  *http.Client
 }
 
 func NewHandler(db *gorm.DB, rdb *redis.Client, baseURL string) *Handler {
@@ -28,7 +32,14 @@ func NewHandler(db *gorm.DB, rdb *redis.Client, baseURL string) *Handler {
 		DB:      db,
 		RDB:     rdb,
 		BaseURL: baseURL,
+		Client:  &http.Client{},
 	}
+}
+
+func ProvideGoRequesterService(handler *Handler) *pub.GoRequesterService {
+	return pub.ProvideGoRequesterService(handler.Client, pub.GoRequesterOptions{
+		Timeout: 3 * time.Second,
+	})
 }
 
 type dbconn struct {

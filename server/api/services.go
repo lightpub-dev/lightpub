@@ -25,8 +25,9 @@ var (
 		ProvideDBConnFromHandler,
 		db.ProvideContext,
 		ProvideIDGetter,
-		pub.GoRequesterServices,
 		wire.Bind(new(pub.IDGetterService), new(*IDGetter)),
+		ProvideGoRequesterService,
+		wire.Bind(new(pub.RequesterService), new(*pub.GoRequesterService)),
 	)
 )
 

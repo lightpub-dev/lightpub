@@ -33,6 +33,11 @@ type UserCreateRequest struct {
 	Password string `json:"password"`
 }
 
+type RemoteUserKey struct {
+	ID           string
+	PublicKeyPem string
+}
+
 type RemoteUser struct {
 	ID                string
 	PreferredUsername string
@@ -43,6 +48,7 @@ type RemoteUser struct {
 	Following         string
 	Followers         string
 	Liked             string
+	Keys              []RemoteUserKey
 }
 
 type UserCreateService interface {
@@ -158,11 +164,27 @@ func (s *DBUserCreateService) UpdateRemoteUser(u RemoteUser) (*db.User, error) {
 		FetchedAt: time.Now(),
 	}
 
+	// save user and remote user
 	if err := tx.Save(user).Error; err != nil {
 		return nil, err
 	}
 	if err := tx.Save(remo).Error; err != nil {
 		return nil, err
+	}
+
+	// delete all existing keys for this user
+	if err := tx.Delete(&db.UserKey{}, "owner_id=?", user.ID).Error; err != nil {
+		return nil, err
+	}
+	// append keys
+	for _, key := range u.Keys {
+		if err := tx.Create(&db.UserKey{
+			ID:        key.ID,
+			OwnerID:   user.ID,
+			PublicKey: key.PublicKeyPem,
+		}).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	// commit

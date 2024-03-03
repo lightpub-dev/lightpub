@@ -82,6 +82,24 @@ func translatePerson(person vocab.ActivityStreamsPerson) RemoteUser {
 		name = person.GetActivityStreamsName().At(0).GetXMLSchemaString()
 	}
 
+	publicKeys := make([]RemoteUserKey, 0)
+	if person.GetW3IDSecurityV1PublicKey() != nil {
+		p := person.GetW3IDSecurityV1PublicKey()
+		iter := p.Begin()
+		for iter != nil {
+			k := iter.Get()
+
+			keyID := k.GetJSONLDId().Get().String()
+			publicKey := k.GetW3IDSecurityV1PublicKeyPem().Get()
+
+			publicKeys = append(publicKeys, RemoteUserKey{
+				ID:           keyID,
+				PublicKeyPem: publicKey})
+
+			iter = iter.Next()
+		}
+	}
+
 	return RemoteUser{
 		ID:                person.GetJSONLDId().Get().String(),
 		PreferredUsername: preferredUsername,
@@ -92,5 +110,6 @@ func translatePerson(person vocab.ActivityStreamsPerson) RemoteUser {
 		Following:         following,
 		Followers:         followers,
 		Liked:             liked,
+		Keys:              publicKeys,
 	}
 }
