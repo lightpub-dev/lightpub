@@ -1,0 +1,6 @@
+[submodule "server/activity"]
+	path = server/activity
+	url = git@github.com:lightpub-dev/activity
+[submodule "server/httpsig"]
+	path = server/httpsig
+	url = git@github.com:lightpub-dev/httpsig
