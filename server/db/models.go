@@ -87,6 +87,7 @@ type Post struct {
 	Privacy    string         `gorm:"type:ENUM('public','unlisted','follower','private');not null"` // enum treated as string
 	ReplyToID  NullUUID       // Nullable fields as pointers
 	RepostOfID NullUUID       // Nullable fields as pointers
+	URI        sql.NullString `gorm:"size:512:default:NULL"`
 	// PollID     NullUUID       // Nullable fields, assuming same type as ID
 
 	Poster   User `gorm:"foreignKey:PosterID"`
@@ -195,12 +196,12 @@ type UserFollow struct {
 }
 
 type UserFollowRequest struct {
-	ID         UUID      `gorm:"primaryKey"`
-	URI        string    `gorm:"size:512;not null;uniqueIndex"`
-	Incoming   bool      `gorm:"not null"`
-	FollowerID UUID      `gorm:"not null"`
-	FolloweeID UUID      `gorm:"not null"`
-	CreatedAt  time.Time `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
+	ID         UUID           `gorm:"primaryKey"`
+	URI        sql.NullString `gorm:"size:512;not null;uniqueIndex"`
+	Incoming   bool           `gorm:"not null"`
+	FollowerID UUID           `gorm:"not null"`
+	FolloweeID UUID           `gorm:"not null"`
+	CreatedAt  time.Time      `gorm:"autoCreateTime:nano;type:DATETIME(6)"`
 
 	Follower User `gorm:"foreignKey:FollowerID"`
 	Followee User `gorm:"foreignKey:FolloweeID"`
