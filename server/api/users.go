@@ -295,10 +295,10 @@ func (h *Handler) GetUser(c echo.Context) error {
 	}
 
 	var userURL string
-	if !user.URL.Valid {
+	if !user.URI.Valid {
 		userURL = users.CreateLocalUserURL(user.Username)
 	} else {
-		userURL = user.URL.String
+		userURL = user.URI.String
 	}
 
 	labels := []models.UserLabel{}

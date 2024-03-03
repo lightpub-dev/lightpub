@@ -14,7 +14,7 @@ type User struct {
 	Bio         string         `gorm:"type:TEXT;not null"`
 	AvatarID    NullUUID       `gorm:"type:VARCHAR(32);default:NULL"`
 	Avatar      *UploadedFile  `gorm:"foreignKey:AvatarID"`
-	URL         sql.NullString `gorm:"size:512"`
+	URI         sql.NullString `gorm:"size:512"`
 	SharedInbox sql.NullString `gorm:"size:512"`
 	Inbox       sql.NullString `gorm:"size:512"`
 	Outbox      sql.NullString `gorm:"size:512"`
