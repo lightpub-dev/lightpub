@@ -78,8 +78,6 @@ func (s *GoRequesterService) PostToInbox(inboxURL *url.URL, activity vocab.Type,
 		return err
 	}
 
-	log.Printf("posting body: %v", req.Body)
-	log.Printf("headers: %v", req.Header)
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return err

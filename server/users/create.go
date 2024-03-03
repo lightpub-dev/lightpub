@@ -3,7 +3,6 @@ package users
 import (
 	"database/sql"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
@@ -139,7 +138,6 @@ func (s *DBUserCreateService) UpdateRemoteUser(u RemoteUser) (*db.User, error) {
 	}
 	c := utils.ConvertToSqlString
 	var user db.User
-	log.Printf("userInDB: %v", userInDB)
 	if userInDBOk {
 		user = db.User{
 			ID:          userInDB.ID,

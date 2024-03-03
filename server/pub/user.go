@@ -97,6 +97,7 @@ func (s *PubUserService) CreateUserObject(user *db.User) (vocab.ActivityStreamsP
 		publicKeyPem.Set(user.PublicKey.String)
 		publicKey.SetW3IDSecurityV1PublicKeyPem(publicKeyPem)
 
+		publicKeys.AppendW3IDSecurityV1PublicKey(publicKey)
 		actor.SetW3IDSecurityV1PublicKey(publicKeys)
 	}
 

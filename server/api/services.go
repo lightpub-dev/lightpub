@@ -164,3 +164,10 @@ func initializePostCountService(c echo.Context, h *Handler) posts.PostCountServi
 	)
 	return nil
 }
+
+func initializePubUserService(c echo.Context, h *Handler) *pub.PubUserService {
+	wire.Build(
+		PubSet,
+	)
+	return nil
+}

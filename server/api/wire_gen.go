@@ -223,6 +223,12 @@ func initializePostCountService(c echo.Context, h *Handler) posts.PostCountServi
 	return dbPostCountService
 }
 
+func initializePubUserService(c echo.Context, h *Handler) *pub.PubUserService {
+	idGetter := ProvideIDGetter(h)
+	pubUserService := pub.ProvidePubUserService(idGetter)
+	return pubUserService
+}
+
 // services.go:
 
 func ProvideDBConnFromHandler(ctx db.Context, h *Handler) db.DBConn {

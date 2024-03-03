@@ -294,6 +294,39 @@ func (h *Handler) GetUser(c echo.Context) error {
 		viewerID = c.Get(ContextUserID).(db.UUID)
 	}
 
+	if isJsonLDRequested(c) {
+		finderService := initializeUserFinderService(c, h)
+		pubUserService := initializePubUserService(c, h)
+
+		spec, err := users.ParseUserSpec(userspec)
+		if err != nil {
+			return c.String(http.StatusBadRequest, "invalid userspec")
+		}
+		user, err := finderService.FetchUser(spec)
+		if err != nil {
+			c.Logger().Error(err)
+			return c.String(http.StatusInternalServerError, "internal server error")
+		}
+		if user == nil {
+			return c.String(http.StatusNotFound, "user not found")
+		}
+		obj, err := pubUserService.CreateUserObject(user)
+		if err != nil {
+			c.Logger().Error(err)
+			return c.String(http.StatusInternalServerError, "internal server error")
+		}
+		jsonMap, err := obj.Serialize()
+		if err != nil {
+			c.Logger().Error(err)
+			return c.String(http.StatusInternalServerError, "internal server error")
+		}
+		jsonMap["@context"] = []string{
+			"https://www.w3.org/ns/activitystreams",
+			"https://w3id.org/security/v1",
+		}
+		return ResponseActivityJson(c, jsonMap)
+	}
+
 	userProfileService := initializeUserProfileService(c, h)
 	user, err := userProfileService.GetProfile(userspec, viewerID)
 	if err != nil {

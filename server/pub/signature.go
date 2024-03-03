@@ -41,7 +41,7 @@ func attachSignatureToAuthorization(req *http.Request) {
 }
 
 func (s *SignatureService) Sign(actor *db.User, req *http.Request, body []byte) error {
-	prefs := []httpsig.Algorithm{httpsig.RSA_SHA512, httpsig.RSA_SHA256}
+	prefs := []httpsig.Algorithm{httpsig.RSA_SHA256, httpsig.RSA_SHA512}
 	digestAlgorithm := httpsig.DigestSha256
 
 	headersToSign := []string{httpsig.RequestTarget, "date", "content-type", "host"}

@@ -102,32 +102,11 @@ func (f *DBUserFinderService) FindIDByUsername(username string) (*db.User, error
 	// ctx := f.conn.Ctx.Ctx
 	conn := f.conn.DB
 
-	username = strings.ReplaceAll(username, "%40", "@")
-
-	parsedUsernameOrID, err := parseUsernameOrID(username)
-	if err != nil {
-		return nil, err
-	}
-
 	var (
 		user db.User
 	)
-	selectColumns := "id, username, host, nickname, uri, shared_inbox, inbox, outbox, bio"
-	if parsedUsernameOrID.ID != (db.UUID{}) {
-		// parsed ID
-		parsedID := parsedUsernameOrID.ID
-		err = conn.Select(selectColumns).First(&user, "id = ?", parsedID).Error
-	} else {
-		// parsed Username
-		parsedUsername := parsedUsernameOrID.Username
-		if parsedUsername.Host == "" {
-			// local user
-			err = conn.Select(selectColumns).First(&user, "username = ?", parsedUsername.Username).Error
-		} else {
-			// remote user
-			err = conn.Select(selectColumns).First(&user, "username = ? AND host = ?", parsedUsername.Username, parsedUsername.Host).Error
-		}
-	}
+	// local user
+	err := conn.Model(&db.User{}).First(&user, "username = ? AND host IS NULL", username).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
