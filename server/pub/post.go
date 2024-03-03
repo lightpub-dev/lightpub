@@ -44,6 +44,37 @@ func (s *PubPostService) CreatePostObject(post *db.Post) (vocab.ActivityStreamsN
 		return nil, err
 	}
 	to := streams.NewActivityStreamsToProperty()
+	for _, t := range toAndCc.To {
+		to.AppendActivityStreamsObject(t)
+	}
+	cc := streams.NewActivityStreamsCcProperty()
+	for _, c := range toAndCc.Cc {
+		cc.AppendActivityStreamsObject(c)
+	}
+	obj.SetActivityStreamsTo(to)
+	obj.SetActivityStreamsCc(cc)
+
+	content := streams.NewActivityStreamsContentProperty()
+	content.AppendXMLSchemaString(post.Content.String)
+	obj.SetActivityStreamsContent(content)
+
+	published := streams.NewActivityStreamsPublishedProperty()
+	published.Set(post.CreatedAt)
+	obj.SetActivityStreamsPublished(published)
+
+	if post.ReplyToID.Valid {
+		replyToURI, err := s.getter.GetPostID(post.ReplyTo)
+		if err != nil {
+			return nil, err
+		}
+		replyTo := streams.NewActivityStreamsInReplyToProperty()
+		replyTo.AppendIRI(replyToURI)
+		obj.SetActivityStreamsInReplyTo(replyTo)
+	}
+
+	sense := streams.NewActivityStreamsSensitiveProperty()
+	sense.AppendXMLSchemaBoolean(false)
+	obj.SetActivityStreamsSensitive(sense)
 
 	return obj, nil
 }

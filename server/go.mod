@@ -3,22 +3,23 @@ module github.com/lightpub-dev/lightpub
 go 1.20
 
 require (
+	github.com/go-fed/activity v1.0.0
 	github.com/go-playground/validator/v10 v10.16.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/google/uuid v1.5.0
+	github.com/google/wire v0.6.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/redis/go-redis/v9 v9.3.1
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.18.0
+	gorm.io/driver/mysql v1.5.2
+	gorm.io/gorm v1.25.5
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/go-fed/activity v1.0.0 // indirect
-	github.com/go-fed/httpsig v1.1.0 // indirect
-	github.com/google/wire v0.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -26,13 +27,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
-	golang.org/x/mod v0.14.0 // indirect
-	gorm.io/datatypes v1.2.0 // indirect
-	gorm.io/driver/mysql v1.5.2 // indirect
-	gorm.io/gen v0.3.25 // indirect
-	gorm.io/gorm v1.25.5 // indirect
-	gorm.io/hints v1.1.2 // indirect
-	gorm.io/plugin/dbresolver v1.5.0 // indirect
 )
 
 require (
@@ -64,3 +58,7 @@ require (
 	golang.org/x/tools v0.17.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/go-fed/activity v1.0.0 => github.com/lightpub-dev/activity v0.0.0-20220119073622-b14b50eecad0
+
+replace github.com/go-fed/httpsig => github.com/lightpub-dev/httpsig v0.0.0-20201223112313-55836744818e
