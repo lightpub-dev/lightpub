@@ -108,5 +108,9 @@ func (g *IDGetter) ExtractLocalFollowRequestID(uri string) (string, bool) {
 }
 
 func (g *IDGetter) MyHostname() string {
-	return g.h.BaseURL
+	url, err := url.Parse(g.h.BaseURL)
+	if err != nil {
+		panic(err)
+	}
+	return url.Host
 }
