@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/tls"
 	"html/template"
 	"io"
 	"net/http"
@@ -32,7 +33,13 @@ func NewHandler(db *gorm.DB, rdb *redis.Client, baseURL string) *Handler {
 		DB:      db,
 		RDB:     rdb,
 		BaseURL: baseURL,
-		Client:  &http.Client{},
+		Client: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
 	}
 }
 

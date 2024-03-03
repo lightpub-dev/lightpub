@@ -1,8 +1,10 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -199,13 +201,22 @@ func (h *Handler) GetUserFollowing(c echo.Context) error {
 func (h *Handler) modifyFollow(c echo.Context, isFollow bool) error {
 	myUserId := c.Get(ContextUserID).(db.UUID)
 	targetUsername := c.Param("username")
+	targetUsername = strings.ReplaceAll(targetUsername, "%40", "@")
+	targetSpec, err := users.ParseUserSpec(targetUsername)
+	if err != nil {
+		if errors.Is(err, users.ErrInvalidUserSpec) {
+			return c.String(http.StatusBadRequest, "invalid userspec")
+		}
+		c.Logger().Error(err)
+		return c.String(http.StatusInternalServerError, "internal server error")
+	}
 
 	// TODO: transaction
 
 	// existence check
 	userFinderService := initializeUserFinderService(c, h)
 	userFollowService := initializeUserFollowService(c, h)
-	targetUser, err := userFinderService.FindIDByUsername(targetUsername)
+	targetUser, err := userFinderService.FetchUser(targetSpec)
 	if err != nil {
 		c.Logger().Error(err)
 		return c.String(500, "internal server error")

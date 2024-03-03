@@ -24,6 +24,9 @@ var (
 	DBSet = wire.NewSet(
 		ProvideDBConnFromHandler,
 		db.ProvideContext,
+	)
+	PubSet = wire.NewSet(
+		pub.PubServices,
 		ProvideIDGetter,
 		wire.Bind(new(pub.IDGetterService), new(*IDGetter)),
 		ProvideGoRequesterService,
@@ -34,10 +37,7 @@ var (
 func initializeUserCreateService(c echo.Context, h *Handler) users.UserCreateService {
 	wire.Build(
 		DBSet,
-		users.ProvideDBUserCreateService,
-		wire.Bind(
-			new(users.UserCreateService), new(*users.DBUserCreateService),
-		),
+		users.DBUserServices,
 	)
 	return nil
 }
@@ -58,6 +58,7 @@ func initializeTimelineService(c echo.Context, h *Handler) timeline.TimelineServ
 		DBSet,
 		users.DBUserServices,
 		posts.DBPostServices,
+		PubSet,
 		wire.Bind(
 			new(timeline.TimelineService),
 			new(*timeline.DBTimelineService),
@@ -72,6 +73,7 @@ func initializePostCreateService(c echo.Context, h *Handler) posts.PostCreateSer
 		DBSet,
 		users.DBUserServices,
 		posts.DBPostServices,
+		PubSet,
 	)
 	return nil
 }
@@ -82,6 +84,7 @@ func initializePostReactionService(c echo.Context, h *Handler) posts.PostReactio
 		users.DBUserServices,
 		reactions.DBReactionServices,
 		posts.DBPostServices,
+		PubSet,
 	)
 	return nil
 }
@@ -91,6 +94,7 @@ func initializePostLikeService(c echo.Context, h *Handler) posts.PostLikeService
 		DBSet,
 		users.DBUserServices,
 		posts.DBPostServices,
+		PubSet,
 	)
 	return nil
 }
@@ -100,6 +104,7 @@ func initializePostFetchService(c echo.Context, h *Handler) posts.PostFetchServi
 		DBSet,
 		users.DBUserServices,
 		posts.DBPostServices,
+		PubSet,
 	)
 	return nil
 }
@@ -117,6 +122,7 @@ func initializeUserFinderService(c echo.Context, h *Handler) users.UserFinderSer
 	wire.Build(
 		DBSet,
 		users.DBUserServices,
+		PubSet,
 	)
 	return nil
 }
@@ -125,6 +131,7 @@ func initializeUserFollowService(c echo.Context, h *Handler) users.UserFollowSer
 	wire.Build(
 		DBSet,
 		users.DBUserServices,
+		PubSet,
 	)
 	return nil
 }
@@ -133,6 +140,7 @@ func initializeUserProfileService(c echo.Context, h *Handler) users.UserProfileS
 	wire.Build(
 		DBSet,
 		users.DBUserServices,
+		PubSet,
 	)
 	return nil
 }
@@ -142,6 +150,7 @@ func initializeUserPostService(c echo.Context, h *Handler) posts.UserPostService
 		DBSet,
 		users.DBUserServices,
 		posts.DBPostServices,
+		PubSet,
 	)
 	return nil
 }

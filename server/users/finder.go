@@ -33,8 +33,8 @@ type DBUserFinderService struct {
 	id      pub.IDGetterService
 }
 
-func ProvideDBUserFinder(conn db.DBConn, pubUser *PubUserService) *DBUserFinderService {
-	return &DBUserFinderService{conn: conn, pubUser: pubUser}
+func ProvideDBUserFinder(conn db.DBConn, pubUser *PubUserService, id pub.IDGetterService) *DBUserFinderService {
+	return &DBUserFinderService{conn: conn, pubUser: pubUser, id: id}
 }
 
 func (f *DBUserFinderService) ExistsByID(userID string) (bool, error) {
@@ -112,7 +112,7 @@ func (f *DBUserFinderService) FindIDByUsername(username string) (*db.User, error
 	var (
 		user db.User
 	)
-	selectColumns := "id, username, host, nickname, url, shared_inbox, inbox, outbox, bio"
+	selectColumns := "id, username, host, nickname, uri, shared_inbox, inbox, outbox, bio"
 	if parsedUsernameOrID.ID != (db.UUID{}) {
 		// parsed ID
 		parsedID := parsedUsernameOrID.ID
@@ -140,7 +140,16 @@ func (f *DBUserFinderService) FindIDByUsername(username string) (*db.User, error
 }
 
 func (f *DBUserFinderService) FetchUserByID(userID db.UUID) (*db.User, error) {
-	return f.FetchUser(NewSpecifierFromID(userID))
+	var user db.User
+	err := f.conn.DB.Model(&db.User{}).First(&user, "id = ?", userID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &user, nil
 }
 
 func (f *DBUserFinderService) FetchUserByURI(uri string) (*db.User, error) {

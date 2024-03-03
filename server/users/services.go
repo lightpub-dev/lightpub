@@ -11,6 +11,7 @@ var (
 		ProvideDBUserProfileService,
 		ProvidePubFollowService,
 		ProvidePubUserService,
+		ProvideDBUserKeyService,
 		wire.Bind(
 			new(UserCreateService), new(*DBUserCreateService),
 		),
@@ -25,6 +26,9 @@ var (
 		),
 		wire.Bind(
 			new(UserProfileService), new(*DBUserProfileService),
+		),
+		wire.Bind(
+			new(UserKeyService), new(*DBUserKeyService),
 		),
 	)
 )

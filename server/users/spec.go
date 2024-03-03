@@ -1,12 +1,18 @@
 package users
 
 import (
+	"errors"
 	"net/url"
+	"strings"
 
 	"github.com/lightpub-dev/lightpub/db"
 )
 
 type SpecifierType int
+
+var (
+	ErrInvalidUserSpec = errors.New("invalid user specifier")
+)
 
 const (
 	SpecifierTypeID SpecifierType = iota
@@ -40,4 +46,36 @@ func NewSpecifierFromUsernameAndHost(username, host string) Specifier {
 
 func NewSpecifierFromURI(uri *url.URL) Specifier {
 	return Specifier{Type: SpecifierURI, URI: uri}
+}
+
+func ParseUserSpec(s string) (Specifier, error) {
+	// if not s contains no @, it is an ID
+	if !strings.Contains(s, "@") {
+		// try to parse a UUID
+		var uuid *db.UUID
+		if err := db.ParseTo(uuid, s); err != nil {
+			return Specifier{}, ErrInvalidUserSpec
+		}
+		if uuid != nil {
+			return NewSpecifierFromID(*uuid), nil
+		}
+		return Specifier{}, ErrInvalidUserSpec
+	}
+
+	// if not, must start with @
+	if !strings.HasPrefix(s, "@") {
+		return Specifier{}, ErrInvalidUserSpec
+	}
+
+	rest := s[1:]
+	// split it by @ to separate username and host
+	parts := strings.Split(rest, "@")
+	switch len(parts) {
+	case 1:
+		return NewSpecifierFromUsernameAndHost(parts[0], ""), nil
+	case 2:
+		return NewSpecifierFromUsernameAndHost(parts[0], parts[1]), nil
+	default:
+		return Specifier{}, ErrInvalidUserSpec
+	}
 }

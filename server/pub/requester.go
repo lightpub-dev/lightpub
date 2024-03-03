@@ -3,6 +3,7 @@ package pub
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -21,6 +22,7 @@ const (
 type RequesterService interface {
 	PostToInbox(inboxURL *url.URL, activity interface{}) error
 	FetchUser(uri *url.URL) (vocab.ActivityStreamsPerson, error)
+	FetchWebfinger(username, host string) ([]byte, error)
 }
 
 var (
@@ -89,4 +91,26 @@ func (s *GoRequesterService) FetchUser(uri *url.URL) (vocab.ActivityStreamsPerso
 		return nil, err
 	}
 	return person, nil
+}
+
+func (s *GoRequesterService) FetchWebfinger(username, host string) ([]byte, error) {
+	u := url.URL{
+		Scheme: "https",
+		Host:   host,
+		Path:   "/.well-known/webfinger",
+	}
+	q := u.Query()
+	q.Add("resource", fmt.Sprintf("acct:%s@%s", username, host))
+	u.RawQuery = q.Encode()
+	log.Printf("Fetching webfinger: %s", u.String())
+	req, err := http.NewRequestWithContext(s.makeContext(), http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return io.ReadAll(resp.Body)
 }

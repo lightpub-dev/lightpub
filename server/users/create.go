@@ -3,6 +3,7 @@ package users
 import (
 	"database/sql"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
@@ -40,6 +41,7 @@ type RemoteUserKey struct {
 
 type RemoteUser struct {
 	ID                string
+	Host              string
 	PreferredUsername string
 	Name              string
 	Inbox             string
@@ -61,8 +63,8 @@ type DBUserCreateService struct {
 	key  UserKeyService
 }
 
-func ProvideDBUserCreateService(conn db.DBConn) *DBUserCreateService {
-	return &DBUserCreateService{conn: conn}
+func ProvideDBUserCreateService(conn db.DBConn, key UserKeyService) *DBUserCreateService {
+	return &DBUserCreateService{conn, key}
 }
 
 func (s *DBUserCreateService) CreateUser(u UserCreateRequest) error {
@@ -127,35 +129,46 @@ func (s *DBUserCreateService) UpdateRemoteUser(u RemoteUser) (*db.User, error) {
 	tx := s.conn.DB.Begin()
 	defer tx.Rollback()
 
-	var userInDB *db.User
+	var userInDB db.User
+	userInDBOk := true
 	if err := tx.Where("uri = ?", u.ID).First(&userInDB).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
+		userInDBOk = false
 	}
+	c := utils.ConvertToSqlString
 	var user db.User
-	if userInDB != nil {
+	log.Printf("userInDB: %v", userInDB)
+	if userInDBOk {
 		user = db.User{
-			ID:       userInDB.ID,
-			Username: u.PreferredUsername,
-			Nickname: u.Name,
-			URI:      sql.NullString{String: u.ID, Valid: true},
-			Bpasswd:  sql.NullString{},
-			Host:     sql.NullString{},
-			Bio:      "",
+			ID:          userInDB.ID,
+			Username:    u.PreferredUsername,
+			Nickname:    u.Name,
+			URI:         sql.NullString{String: u.ID, Valid: true},
+			Bpasswd:     sql.NullString{},
+			Host:        sql.NullString{String: u.Host, Valid: true},
+			Bio:         "",
+			Inbox:       c(u.Inbox),
+			Outbox:      c(u.Outbox),
+			SharedInbox: c(u.SharedInbox),
+			CreatedAt:   time.Now(),
 		}
 	} else {
 		user = db.User{
-			ID:       db.MustGenerateUUID(),
-			Username: u.PreferredUsername,
-			Nickname: u.Name,
-			URI:      sql.NullString{String: u.ID, Valid: true},
-			Bpasswd:  sql.NullString{},
-			Host:     sql.NullString{},
-			Bio:      "",
+			ID:          db.MustGenerateUUID(),
+			Username:    u.PreferredUsername,
+			Nickname:    u.Name,
+			URI:         sql.NullString{String: u.ID, Valid: true},
+			Bpasswd:     sql.NullString{},
+			Host:        sql.NullString{String: u.Host, Valid: true},
+			Bio:         "",
+			Inbox:       c(u.Inbox),
+			Outbox:      c(u.Outbox),
+			SharedInbox: c(u.SharedInbox),
+			CreatedAt:   time.Now(),
 		}
 	}
-	c := utils.ConvertToSqlString
 	remo := db.RemoteUser{
 		UserID:    user.ID,
 		Following: c(u.Following),
@@ -165,10 +178,10 @@ func (s *DBUserCreateService) UpdateRemoteUser(u RemoteUser) (*db.User, error) {
 	}
 
 	// save user and remote user
-	if err := tx.Save(user).Error; err != nil {
+	if err := tx.Save(&user).Error; err != nil {
 		return nil, err
 	}
-	if err := tx.Save(remo).Error; err != nil {
+	if err := tx.Save(&remo).Error; err != nil {
 		return nil, err
 	}
 
@@ -178,11 +191,13 @@ func (s *DBUserCreateService) UpdateRemoteUser(u RemoteUser) (*db.User, error) {
 	}
 	// append keys
 	for _, key := range u.Keys {
-		if err := tx.Create(&db.UserKey{
+		userKey := db.UserKey{
 			ID:        key.ID,
 			OwnerID:   user.ID,
 			PublicKey: key.PublicKeyPem,
-		}).Error; err != nil {
+			UpdatedAt: time.Now(),
+		}
+		if err := tx.Create(&userKey).Error; err != nil {
 			return nil, err
 		}
 	}

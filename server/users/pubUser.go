@@ -11,11 +11,11 @@ import (
 type PubUserService struct {
 	create    UserCreateService
 	requester pub.RequesterService
-	webfinger pub.WebfingerService
+	webfinger *pub.WebfingerService
 }
 
-func ProvidePubUserService(create UserCreateService, req pub.RequesterService) *PubUserService {
-	return &PubUserService{create: create, requester: req}
+func ProvidePubUserService(create UserCreateService, req pub.RequesterService, webFinger *pub.WebfingerService) *PubUserService {
+	return &PubUserService{create: create, requester: req, webfinger: webFinger}
 }
 
 func (s *PubUserService) FetchRemoteUserByUsername(username string, host string) (*db.User, error) {
@@ -31,9 +31,12 @@ func (s *PubUserService) FetchRemoteUser(uri *url.URL) (*db.User, error) {
 	if err != nil {
 		return nil, err
 	}
+	host := uri.Hostname()
 
 	// save the user
-	user, err := s.create.UpdateRemoteUser(translatePerson(fetched))
+	remoteUser := translatePerson(fetched)
+	remoteUser.Host = host
+	user, err := s.create.UpdateRemoteUser(remoteUser)
 	if err != nil {
 		return nil, err
 	}

@@ -36,7 +36,7 @@ type UserKey struct {
 	PublicKey string    `gorm:"type:TEXT;not null"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime:nano;type:DATETIME(6);not null"`
 
-	Owner User `gorm:"foreignKey:OwnerID"`
+	Owner *User `gorm:"foreignKey:OwnerID"`
 }
 
 type RemoteUser struct {
@@ -46,7 +46,7 @@ type RemoteUser struct {
 	Liked     sql.NullString `gorm:"type:VARCHAR(512);default:NULL"`
 	FetchedAt time.Time      `gorm:"autoUpdateTime:nano;type:DATETIME(6);not null"`
 
-	User User `gorm:"foreignKey:UserID"`
+	User *User `gorm:"foreignKey:UserID"`
 }
 
 type FullUser struct {
