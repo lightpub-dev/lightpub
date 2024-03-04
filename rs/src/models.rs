@@ -1,10 +1,9 @@
-use uuid::Uuid;
-
 pub struct User {
-    pub id: Uuid,
+    pub id: sqlx::types::uuid::fmt::Simple,
     pub username: String,
     pub host: Option<String>,
     pub bpasswd: Option<String>,
+    pub nickname: String,
     pub bio: String,
     pub uri: Option<String>,
     pub shared_inbox: Option<String>,

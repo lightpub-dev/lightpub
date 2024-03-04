@@ -2,7 +2,10 @@ use sqlx::MySqlPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::{models, utils};
+use crate::{
+    models,
+    utils::{self, generate_uuid},
+};
 
 #[derive(Debug)]
 pub struct DBUserService {
@@ -42,6 +45,12 @@ impl UserLoginRequest {
     }
 }
 
+impl UserLoginResponse {
+    pub fn token(&self) -> &str {
+        &self.token
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum UserCreateError {
     #[error("username already taken")]
@@ -56,6 +65,11 @@ pub enum UserLoginError {
     DBError(#[from] sqlx::Error),
 }
 
+struct LoginDB {
+    id: sqlx::types::Uuid,
+    bpasswd: Option<String>,
+}
+
 impl DBUserService {
     pub fn new(pool: MySqlPool) -> Self {
         Self { pool }
@@ -63,16 +77,20 @@ impl DBUserService {
 
     pub async fn register_local_user(
         &mut self,
-        req: UserCreateRequest,
+        req: &UserCreateRequest,
     ) -> Result<Uuid, UserCreateError> {
         let user_id = Uuid::new_v4();
         let user_id_str = utils::uuid_to_string(&user_id);
+
+        // bcrypt
+        let hashed = bcrypt::hash(req.password.clone(), bcrypt::DEFAULT_COST).unwrap();
+
         sqlx::query!(
             "INSERT INTO users (id, username, nickname, bpasswd) VALUES(?, ?, ?, ?)",
             user_id_str,
             req.username,
             req.email,
-            req.password
+            hashed,
         )
         .execute(&self.pool)
         .await?;
@@ -87,12 +105,19 @@ impl DBUserService {
         login: &UserLoginRequest,
     ) -> Result<Option<UserLoginResponse>, UserLoginError> {
         let user = sqlx::query_as!(
-            models::User,
-            "SELECT * FROM users WHERE username = ? AND host IS NULL",
+            LoginDB,
+            "SELECT id, bpasswd FROM users WHERE username = ? AND host IS NULL",
             &login.username
         )
         .fetch_one(&self.pool)
         .await?;
+
+        if let Some(bpasswd) = user.bpasswd {
+            if bcrypt::verify(login.password.clone(), &bpasswd).unwrap() {
+                let token = generate_uuid();
+                sqlx::query!("INSERT INTO user_tokens (user_id, token) VALUES(?, ?)",)
+            }
+        }
 
         panic!()
     }
