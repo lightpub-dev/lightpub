@@ -1,10 +1,20 @@
 mod config;
+pub mod models;
+pub mod services;
+pub mod state;
+pub mod utils;
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use config::Config;
+use serde::{Deserialize, Serialize};
 use sqlx::mysql::MySqlPoolOptions;
-use std::io::Read;
+use state::AppState;
+use std::{
+    fmt::{Display, Formatter},
+    io::Read,
+};
 use tracing;
+use uuid::Uuid;
 
 #[get("/api/")]
 async fn hello() -> impl Responder {
@@ -14,6 +24,51 @@ async fn hello() -> impl Responder {
 #[post("/echo")]
 async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
+}
+
+#[derive(Debug, Serialize)]
+struct ErrorResponse {
+    message: String,
+}
+
+impl Display for ErrorResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl actix_web::ResponseError for ErrorResponse {
+    fn status_code(&self) -> actix_web::http::StatusCode {
+        actix_web::http::StatusCode::BAD_REQUEST
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RegisterBody {
+    pub username: String,
+    pub nickname: String,
+    pub password: String,
+}
+
+impl Into<services::user::UserCreateRequest> for RegisterBody {
+    fn into(self) -> services::user::UserCreateRequest {
+        services::user::UserCreateRequest::new(self.username, self.nickname, self.password)
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct RegisterResponse {
+    user_id: Uuid,
+}
+
+#[post("/register")]
+async fn register(
+    body: web::Json<RegisterBody>,
+    data: web::Data<AppState>,
+) -> Result<impl Responder, ErrorResponse> {
+    let mut us = services::new_user_service(data.pool().clone());
+    let req = us.register_local_user(body.0.into()).await.unwrap();
+    Ok(HttpResponse::Ok().json(RegisterResponse { user_id: req }))
 }
 
 async fn manual_hello() -> impl Responder {
@@ -49,13 +104,17 @@ async fn main() -> std::io::Result<()> {
         .expect("connect to database");
     tracing::info!("Connected to database");
 
-    HttpServer::new(|| {
+    let app_state = state::AppState::new(pool);
+
+    HttpServer::new(move || {
         App::new()
+            .app_data(web::Data::new(app_state.clone()))
             .service(hello)
             .service(echo)
+            .service(register)
             .route("/hey", web::get().to(manual_hello))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("127.0.0.1", 8000))?
     .run()
     .await
 }

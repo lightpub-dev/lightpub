@@ -219,3 +219,13 @@ ALTER TABLE
     users
 MODIFY
     COLUMN bpasswd varchar(60) NULL;
+
+ALTER TABLE
+    lightpub.users
+MODIFY
+    COLUMN bio text DEFAULT '' NOT NULL;
+
+ALTER TABLE
+    lightpub.users
+MODIFY
+    COLUMN created_at datetime(6) DEFAULT current_timestamp NOT NULL;
