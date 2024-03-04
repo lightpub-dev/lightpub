@@ -94,37 +94,38 @@ var (
 	ReLocalFollowRequestID = regexp.MustCompile("^/follow-request/([a-f0-9]+)$")
 )
 
-func matchAndGet(re *regexp.Regexp, target string) (string, bool) {
+func matchAndGet(re *regexp.Regexp, target string) (string, error) {
 	matches := re.FindStringSubmatch(target)
 	if matches == nil {
-		return "", false
+		return "", pub.ErrInvalidLocalID
 	}
 
-	return matches[1], true
+	return matches[1], nil
 }
 
-func (g *IDGetter) ExtractLocalUserID(uri string) (string, bool) {
+func (g *IDGetter) ExtractLocalUserID(uri string) (string, error) {
 	parts, ok := g.removePrefix(uri)
 	if !ok {
-		return "", false
+		// it is a remote user
+		return "", nil
 	}
 
 	return matchAndGet(ReLocalUserID, parts)
 }
 
-func (g *IDGetter) ExtractLocalPostID(uri string) (string, bool) {
+func (g *IDGetter) ExtractLocalPostID(uri string) (string, error) {
 	parts, ok := g.removePrefix(uri)
 	if !ok {
-		return "", false
+		return "", nil
 	}
 
 	return matchAndGet(ReLocalPostID, parts)
 }
 
-func (g *IDGetter) ExtractLocalFollowRequestID(uri string) (string, bool) {
+func (g *IDGetter) ExtractLocalFollowRequestID(uri string) (string, error) {
 	parts, ok := g.removePrefix(uri)
 	if !ok {
-		return "", false
+		return "", nil
 	}
 
 	return matchAndGet(ReLocalFollowRequestID, parts)

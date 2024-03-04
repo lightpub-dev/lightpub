@@ -28,6 +28,7 @@ type UserFollowService interface {
 	Unfollow(followerSpec Specifier, followeeSpec Specifier) error
 
 	AcceptFollowRequest(accept vocab.ActivityStreamsAccept) error
+	RejectFollow(reject vocab.ActivityStreamsReject) error
 }
 
 type DBUserFollowService struct {
@@ -280,8 +281,12 @@ func (s *DBUserFollowService) AcceptFollowRequest(accept vocab.ActivityStreamsAc
 	)
 	if parsedAccept.ReqID != nil {
 		// find by request id
-		localReqID, ok := s.idGetter.ExtractLocalFollowRequestID(parsedAccept.ReqID.String())
-		if ok {
+		var localReqID string
+		localReqID, err = s.idGetter.ExtractLocalFollowRequestID(parsedAccept.ReqID.String())
+		if err != nil {
+			return err
+		}
+		if localReqID != "" {
 			// it is a local request
 			// find by id
 			err = tx.Model(&db.UserFollowRequest{}).Where("id = ?", localReqID).First(&req).Error
@@ -331,6 +336,41 @@ func (s *DBUserFollowService) AcceptFollowRequest(accept vocab.ActivityStreamsAc
 			DoNothing: true,
 		},
 	).Create(follow).Error; err != nil {
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *DBUserFollowService) RejectFollow(reject vocab.ActivityStreamsReject) error {
+	parsedReject, err := s.pubFollow.ProcessReject(reject)
+	if err != nil {
+		return fmt.Errorf("failed to analyze reject request: %w", err)
+	}
+
+	follower, err := s.userFinder.FetchUser(NewSpecifierFromURI(parsedReject.ActorURI))
+	if err != nil {
+		return err
+	}
+	if follower == nil {
+		return ErrFollowerNotFound
+	}
+	followee, err := s.userFinder.FetchUser(NewSpecifierFromURI(parsedReject.ObjectURI))
+	if err != nil {
+		return err
+	}
+	if followee == nil {
+		return ErrFolloweeNotFound
+	}
+
+	tx := s.conn.DB.Begin()
+	defer tx.Rollback()
+
+	// delete request and follow
+	if err := tx.Delete(&db.UserFollowRequest{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error; err != nil {
+		return err
+	}
+	if err := tx.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error; err != nil {
 		return err
 	}
 

@@ -40,6 +40,15 @@ func (h *Handler) inboxAccept(c echo.Context, accept vocab.ActivityStreamsAccept
 	return nil
 }
 
+func (h *Handler) inboxReject(c echo.Context, accept vocab.ActivityStreamsReject) error {
+	followService := initializeUserFollowService(c, h)
+	if err := followService.RejectFollow(accept); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (h *Handler) UserInbox(c echo.Context) error {
 	if err := contentTypeCheck(c); err != nil {
 		return err
@@ -64,8 +73,11 @@ func (h *Handler) UserInbox(c echo.Context) error {
 	inboxAccept := func(ctx context.Context, accept vocab.ActivityStreamsAccept) error {
 		return h.inboxAccept(c, accept)
 	}
+	inboxReject := func(ctx context.Context, reject vocab.ActivityStreamsReject) error {
+		return h.inboxReject(c, reject)
+	}
 
-	resolver, err := streams.NewJSONResolver(inboxAccept)
+	resolver, err := streams.NewJSONResolver(inboxAccept, inboxReject)
 	if err != nil {
 		c.Logger().Errorf("failed to resolve json: %s", err.Error())
 		return c.String(http.StatusBadRequest, "invalid body")

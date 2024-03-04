@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -168,7 +169,18 @@ func isUpToDate(t time.Time) bool {
 }
 
 func (f *DBUserFinderService) fetchUserByURI(uri *url.URL) (*db.User, error) {
-	// we can assume it is not a local user
+	// local user check
+	localUserURI, err := f.id.ExtractLocalUserID(uri.String())
+	if err != nil {
+		return nil, err
+	}
+	if localUserURI != "" {
+		var uuid db.UUID
+		if err := db.ParseTo(&uuid, localUserURI); err != nil {
+			return nil, fmt.Errorf("invalid local user URI: %w", err)
+		}
+		return f.FetchUserByID(uuid)
+	}
 
 	// check if the user is already in the local database
 	var user *db.User

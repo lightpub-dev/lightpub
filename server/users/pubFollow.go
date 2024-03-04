@@ -69,6 +69,49 @@ type parsedAcceptRequest struct {
 	ObjectURI *url.URL
 }
 
+type parsedRejectRequest struct {
+	ActorURI  *url.URL
+	ObjectURI *url.URL
+}
+
+func (s *PubFollowService) ProcessReject(reject vocab.ActivityStreamsReject) (parsedRejectRequest, error) {
+	var activityActor *url.URL
+	if reject.GetActivityStreamsActor() != nil && reject.GetActivityStreamsActor().Len() == 1 && reject.GetActivityStreamsActor().At(0).IsIRI() {
+		activityActor = reject.GetActivityStreamsActor().At(0).GetIRI()
+	}
+
+	if reject.GetActivityStreamsObject().Len() != 1 {
+		return parsedRejectRequest{}, errors.New("invalid reject request: not support multiple objects")
+	}
+	if !reject.GetActivityStreamsObject().At(0).IsActivityStreamsFollow() {
+		return parsedRejectRequest{}, errors.New("invalid reject request: object is not a follow activity")
+	}
+	object := reject.GetActivityStreamsObject().At(0).GetActivityStreamsFollow()
+	if object == nil {
+		return parsedRejectRequest{}, errors.New("invalid reject request: object is nil")
+	}
+
+	var parsed parsedRejectRequest
+	if object.GetActivityStreamsActor() != nil && object.GetActivityStreamsActor().Len() == 1 && object.GetActivityStreamsActor().At(0).IsIRI() {
+		actorURI := object.GetActivityStreamsActor().At(0).GetIRI()
+		parsed.ActorURI = actorURI
+	}
+	if object.GetActivityStreamsObject() != nil && object.GetActivityStreamsObject().Len() == 1 && object.GetActivityStreamsObject().At(0).IsIRI() {
+		objectURI := object.GetActivityStreamsObject().At(0).GetIRI()
+		parsed.ObjectURI = objectURI
+	}
+
+	if (*parsed.ActorURI != *activityActor) && (*parsed.ObjectURI != *activityActor) {
+		return parsed, errors.New("invalid reject request: actor URI does not match the actor of the reject activity")
+	}
+
+	if parsed.ActorURI == nil || parsed.ObjectURI == nil {
+		return parsed, errors.New("invalid reject request")
+	}
+
+	return parsed, nil
+}
+
 func (s *PubFollowService) ProcessAccept(accept vocab.ActivityStreamsAccept) (parsedAcceptRequest, error) {
 	var activityActor *url.URL
 	if accept.GetActivityStreamsActor() != nil && accept.GetActivityStreamsActor().Len() == 1 && accept.GetActivityStreamsActor().At(0).IsIRI() {
