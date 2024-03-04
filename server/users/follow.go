@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-fed/activity/streams/vocab"
@@ -260,9 +261,30 @@ func (s *DBUserFollowService) Unfollow(followerSpec Specifier, followeeSpec Spec
 		return ErrFolloweeNotFound
 	}
 
-	err = conn.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error
+	tx := conn.Begin()
+	defer tx.Rollback()
+	err = tx.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error
 	if err != nil {
 		return err
+	}
+	err = tx.Delete(&db.UserFollowRequest{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if followee.Host.Valid {
+		// followee is a remote user
+		// send a reject message
+		if err := s.pubFollow.SendUnfollowRequest(rejectUnfollowRequest{
+			Follower: follower,
+			Followee: followee,
+		}); err != nil {
+			log.Printf("failed to send unfollow request: %v", err)
+		}
 	}
 
 	return nil

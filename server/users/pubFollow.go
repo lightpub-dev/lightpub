@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/go-fed/activity/streams"
@@ -186,4 +187,62 @@ func (s *PubFollowService) createAccept(req *db.UserFollowRequest) (vocab.Activi
 	accept.SetActivityStreamsActor(actorProp)
 
 	return accept, nil
+}
+
+type rejectUnfollowRequest struct {
+	Follower *db.User
+	Followee *db.User
+}
+
+func (s *PubFollowService) SendUnfollowRequest(req rejectUnfollowRequest) error {
+	// prerequisite: req.Follower is local and req.Followee is remote
+	if req.Follower.Host.Valid {
+		return fmt.Errorf("follower is not a local user")
+	}
+	if !req.Followee.Host.Valid {
+		return fmt.Errorf("followee is not a remote user")
+	}
+
+	var inboxURL *url.URL
+	if req.Followee.Inbox.Valid {
+		var err error
+		inboxURL, err = url.Parse(req.Followee.Inbox.String)
+		if err != nil {
+			return fmt.Errorf("invalid inbox URL: %w", err)
+		}
+	} else {
+		return ErrUserInboxNotSet
+	}
+
+	unfollow := streams.NewActivityStreamsUndo()
+
+	actorID := streams.NewActivityStreamsActorProperty()
+	actorURI, err := s.getter.GetUserID(req.Follower, "")
+	if err != nil {
+		return err
+	}
+	actorID.AppendIRI(actorURI)
+	unfollow.SetActivityStreamsActor(actorID)
+
+	object := streams.NewActivityStreamsObjectProperty()
+
+	followObj := streams.NewActivityStreamsFollow()
+
+	followActor := streams.NewActivityStreamsActorProperty()
+	followActor.AppendIRI(actorURI)
+	followObj.SetActivityStreamsActor(followActor)
+
+	followObject := streams.NewActivityStreamsObjectProperty()
+	objectURL, err := url.Parse(req.Followee.URI.String)
+	if err != nil {
+		return err
+	}
+	followObject.AppendIRI(objectURL)
+	followObj.SetActivityStreamsObject(followObject)
+
+	object.AppendActivityStreamsFollow(followObj)
+
+	unfollow.SetActivityStreamsObject(object)
+
+	return s.req.PostToInbox(inboxURL, unfollow, req.Follower)
 }
