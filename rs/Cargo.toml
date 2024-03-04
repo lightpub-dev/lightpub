@@ -15,7 +15,5 @@ tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 uuid = "1.7.0"
 valico = "2"
-
-[dependencies.sea-orm]
-version = "0.12.14"
-features = ["sqlx-mysql", "runtime-tokio-rustls", "debug-print", "with-chrono", "with-json", "with-uuid"]
+refinery = { version = "0.8", features = ["mysql"]}
+sqlx = { version = "0.7", features = [ "runtime-tokio", "mysql", "chrono", "json", "uuid", "macros" ] }

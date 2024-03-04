@@ -1,10 +1,8 @@
 mod config;
-mod model;
-mod entity;
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use config::Config;
-use sea_orm::{ConnectOptions, Database};
+use sqlx::mysql::MySqlPoolOptions;
 use std::io::Read;
 use tracing;
 
@@ -36,7 +34,7 @@ async fn main() -> std::io::Result<()> {
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let db_opt = ConnectOptions::new(format!(
+    let conn_str = (format!(
         "mysql://{}:{}@{}:{}/{}",
         config.database.user,
         config.database.password,
@@ -44,12 +42,11 @@ async fn main() -> std::io::Result<()> {
         config.database.port,
         config.database.name
     ));
-    let db = Database::connect(db_opt)
+    let pool = MySqlPoolOptions::new()
+        .max_connections(5)
+        .connect(&conn_str)
         .await
-        .expect("Unable to connect to database");
-    if db.ping().await.is_err() {
-        panic!("Unable to ping database");
-    }
+        .expect("connect to database");
     tracing::info!("Connected to database");
 
     HttpServer::new(|| {
