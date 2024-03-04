@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-fed/activity/streams/vocab"
 	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/pub"
@@ -24,6 +25,8 @@ type UserFollowService interface {
 	FindFollowersInboxes(followeeID db.UUID) ([]FollowerInbox, error)
 	Follow(followerSpec Specifier, followeeSpec Specifier) error
 	Unfollow(followerSpec Specifier, followeeSpec Specifier) error
+
+	AcceptFollowRequest(accept vocab.ActivityStreamsAccept) error
 }
 
 type DBUserFollowService struct {
@@ -197,13 +200,13 @@ func (s *DBUserFollowService) Follow(followerSpec Specifier, followeeSpec Specif
 	// check existing request
 	tx := conn.Begin()
 	defer tx.Rollback()
-	var req *db.UserFollowRequest
+	var req db.UserFollowRequest
 	if err = tx.Where("follower_id = ? AND followee_id = ?", follower.ID, followee.ID).First(&req).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
 
-		req := db.UserFollowRequest{
+		req = db.UserFollowRequest{
 			ID:         db.MustGenerateUUID(),
 			FollowerID: follower.ID,
 			FolloweeID: followee.ID,
@@ -220,7 +223,7 @@ func (s *DBUserFollowService) Follow(followerSpec Specifier, followeeSpec Specif
 	}
 
 	// send Follow to remote inbox
-	reqID, err := s.idGetter.GetFollowRequestID(req)
+	reqID, err := s.idGetter.GetFollowRequestID(&req)
 	if err != nil {
 		return err
 	}
@@ -256,4 +259,70 @@ func (s *DBUserFollowService) Unfollow(followerSpec Specifier, followeeSpec Spec
 	}
 
 	return nil
+}
+
+func (s *DBUserFollowService) AcceptFollowRequest(accept vocab.ActivityStreamsAccept) error {
+	parsedAccept, err := s.pubFollow.ProcessAccept(accept)
+	if err != nil {
+		return fmt.Errorf("failed to analyze accept request: %w", err)
+	}
+
+	tx := s.conn.DB.Begin()
+	defer tx.Rollback()
+	var (
+		req db.UserFollowRequest
+	)
+	if parsedAccept.ReqID != nil {
+		// find by request id
+		localReqID, ok := s.idGetter.ExtractLocalFollowRequestID(parsedAccept.ReqID.String())
+		if ok {
+			// it is a local request
+			// find by id
+			err = tx.Model(&db.UserFollowRequest{}).Where("id = ?", localReqID).First(&req).Error
+		} else {
+			// it is a remote request
+			// find by uri
+			err = tx.Model(&db.UserFollowRequest{}).Where("uri = ?", parsedAccept.ReqID.String()).First(&req).Error
+		}
+	} else {
+		// find by follower and followee id
+		follower, err2 := s.userFinder.FetchUser(NewSpecifierFromURI(parsedAccept.ActorURI))
+		if err2 != nil {
+			return err2
+		}
+		if follower == nil {
+			return ErrFollowerNotFound
+		}
+		followee, err2 := s.userFinder.FetchUser(NewSpecifierFromURI(parsedAccept.ObjectURI))
+		if err2 != nil {
+			return err2
+		}
+		if followee == nil {
+			return ErrFolloweeNotFound
+		}
+
+		err = tx.Model(&db.UserFollowRequest{}).Where("follower_id = ? AND followee_id = ?", follower.ID, followee.ID).First(&req).Error
+	}
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("follow request not found")
+		}
+		return err
+	}
+
+	// delete request and insert actual follow
+	if err := tx.Delete(&req).Error; err != nil {
+		return err
+	}
+
+	follow := &db.UserFollow{
+		FollowerID: req.FollowerID,
+		FolloweeID: req.FolloweeID,
+	}
+	if err := tx.Create(follow).Error; err != nil {
+		return err
+	}
+
+	return tx.Commit().Error
 }

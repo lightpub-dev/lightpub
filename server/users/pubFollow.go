@@ -63,6 +63,54 @@ func (s *PubFollowService) createFollowRequest(reqID *url.URL, follower, followi
 	return follow, nil
 }
 
+type parsedAcceptRequest struct {
+	ReqID     *url.URL
+	ActorURI  *url.URL
+	ObjectURI *url.URL
+}
+
+func (s *PubFollowService) ProcessAccept(accept vocab.ActivityStreamsAccept) (parsedAcceptRequest, error) {
+	var activityActor *url.URL
+	if accept.GetActivityStreamsActor() != nil && accept.GetActivityStreamsActor().Len() == 1 && accept.GetActivityStreamsActor().At(0).IsIRI() {
+		activityActor = accept.GetActivityStreamsActor().At(0).GetIRI()
+	}
+
+	if accept.GetActivityStreamsObject().Len() != 1 {
+		return parsedAcceptRequest{}, errors.New("invalid accept request: not support multiple objects")
+	}
+	if !accept.GetActivityStreamsObject().At(0).IsActivityStreamsFollow() {
+		return parsedAcceptRequest{}, errors.New("invalid accept request: object is not a follow activity")
+	}
+	object := accept.GetActivityStreamsObject().At(0).GetActivityStreamsFollow()
+	if object == nil {
+		return parsedAcceptRequest{}, errors.New("invalid accept request: object is nil")
+	}
+
+	var parsed parsedAcceptRequest
+	if object.GetJSONLDId() != nil && object.GetJSONLDId().IsIRI() {
+		reqID := object.GetJSONLDId().GetIRI()
+		parsed.ReqID = reqID
+	}
+	if object.GetActivityStreamsActor() != nil && object.GetActivityStreamsActor().Len() == 1 && object.GetActivityStreamsActor().At(0).IsIRI() {
+		actorURI := object.GetActivityStreamsActor().At(0).GetIRI()
+		parsed.ActorURI = actorURI
+	}
+	if object.GetActivityStreamsObject() != nil && object.GetActivityStreamsObject().Len() == 1 && object.GetActivityStreamsObject().At(0).IsIRI() {
+		objectURI := object.GetActivityStreamsObject().At(0).GetIRI()
+		parsed.ObjectURI = objectURI
+	}
+
+	if parsed.ActorURI != nil && ((*parsed.ActorURI != *activityActor) && (*parsed.ObjectURI != *activityActor)) {
+		return parsed, errors.New("invalid accept request: actor URI does not match the actor of the accept activity")
+	}
+
+	if parsed.ReqID == nil && (parsed.ActorURI == nil || parsed.ObjectURI == nil) {
+		return parsed, errors.New("invalid accept request")
+	}
+
+	return parsed, nil
+}
+
 func (s *PubFollowService) SendAcceptFollowRequest(req *db.UserFollowRequest) error {
 	inboxURL, err := s.getter.GetUserID(&req.Follower, "inbox")
 	if err != nil {
