@@ -216,6 +216,10 @@ func (s *PubFollowService) SendAcceptFollowRequest(req *db.UserFollowRequest) er
 }
 
 func (s *PubFollowService) createAccept(req *db.UserFollowRequest) (vocab.ActivityStreamsAccept, error) {
+	if !req.Incoming {
+		return nil, fmt.Errorf("accepting an outgoing request is not possible")
+	}
+
 	accept := streams.NewActivityStreamsAccept()
 
 	reqID, err := s.getter.GetFollowRequestID(req)
@@ -226,7 +230,7 @@ func (s *PubFollowService) createAccept(req *db.UserFollowRequest) (vocab.Activi
 	objectProp.AppendIRI(reqID)
 	accept.SetActivityStreamsObject(objectProp)
 
-	actorURI, err := s.getter.GetUserID(&req.Follower, "")
+	actorURI, err := s.getter.GetUserID(&req.Followee, "")
 	if err != nil {
 		return nil, err
 	}

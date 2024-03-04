@@ -496,8 +496,9 @@ func (s *DBUserFollowService) ProcessFollow(follow vocab.ActivityStreamsFollow) 
 		URI:        sql.NullString{String: parsedFollow.RequestID.String(), Valid: true},
 		FollowerID: follower.ID,
 		FolloweeID: followee.ID,
+		Incoming:   true,
 	}
-	if err := tx.Create(req).Error; err != nil {
+	if err := tx.Create(&req).Error; err != nil {
 		return err
 	}
 	reqID := req.ID
@@ -511,12 +512,15 @@ func (s *DBUserFollowService) ProcessFollow(follow vocab.ActivityStreamsFollow) 
 	// send accept
 	go func() {
 		var req db.UserFollowRequest
-		if err := s.conn.DB.First(&req, "id = ?", reqID).Error; err != nil {
+		if err := s.conn.DB.Joins("Follower").Joins("Followee").First(&req, "user_follow_requests.id = ?", reqID).Error; err != nil {
 			log.Printf("failed to find follow request: %v", err)
 			return
 		}
 		if err := s.pubFollow.SendAcceptFollowRequest(&req); err != nil {
 			log.Printf("failed to send accept follow request: %v", err)
+		}
+		if err := s.conn.DB.Delete(&db.UserFollowRequest{}, "id = ?", reqID).Error; err != nil {
+			log.Printf("failed to delete follow request: %v", err)
 		}
 	}()
 

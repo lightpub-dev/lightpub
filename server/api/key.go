@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log"
 
 	"github.com/lightpub-dev/lightpub/db"
@@ -27,7 +28,7 @@ func (s *DBKeyResolveService) ResolvePublicKey(keyID string) (crypto.PublicKey, 
 
 func (s *DBKeyResolveService) ResolvePrivateKey(user *db.User) (pub.PrivateKey, error) {
 	if !user.PrivateKey.Valid {
-		return pub.PrivateKey{}, errors.New("private key not found")
+		return pub.PrivateKey{}, fmt.Errorf("private key not found for %s", user.Username)
 	}
 
 	keyID, err := s.idGetter.GetUserID(user, "publicKey")

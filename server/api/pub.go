@@ -49,6 +49,30 @@ func (h *Handler) inboxReject(c echo.Context, accept vocab.ActivityStreamsReject
 	return nil
 }
 
+func (h *Handler) inboxFollow(c echo.Context, follow vocab.ActivityStreamsFollow) error {
+	followService := initializeUserFollowService(c, h)
+	if err := followService.ProcessFollow(follow); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Handler) inboxUndo(c echo.Context, undo vocab.ActivityStreamsUndo) error {
+	followService := initializeUserFollowService(c, h)
+	if err := followService.ProcessUndo(undo); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func inboxWrap[T any](c echo.Context, f func(echo.Context, T) error) func(context.Context, T) error {
+	return func(ctx context.Context, t T) error {
+		return f(c, t)
+	}
+}
+
 func (h *Handler) UserInbox(c echo.Context) error {
 	if err := contentTypeCheck(c); err != nil {
 		return err
@@ -70,14 +94,12 @@ func (h *Handler) UserInbox(c echo.Context) error {
 	fmt.Println("inbox got:")
 	fmt.Println(pp.Sprint(jsonMap))
 
-	inboxAccept := func(ctx context.Context, accept vocab.ActivityStreamsAccept) error {
-		return h.inboxAccept(c, accept)
-	}
-	inboxReject := func(ctx context.Context, reject vocab.ActivityStreamsReject) error {
-		return h.inboxReject(c, reject)
-	}
+	inboxAccept := inboxWrap(c, h.inboxAccept)
+	inboxReject := inboxWrap(c, h.inboxReject)
+	inboxFollow := inboxWrap(c, h.inboxFollow)
+	inboxUndo := inboxWrap(c, h.inboxUndo)
 
-	resolver, err := streams.NewJSONResolver(inboxAccept, inboxReject)
+	resolver, err := streams.NewJSONResolver(inboxAccept, inboxReject, inboxFollow, inboxUndo)
 	if err != nil {
 		c.Logger().Errorf("failed to resolve json: %s", err.Error())
 		return c.String(http.StatusBadRequest, "invalid body")
