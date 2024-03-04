@@ -1,11 +1,10 @@
+use sqlx::prelude::*;
 use sqlx::MySqlPool;
 use thiserror::Error;
+use uuid::fmt::Simple;
 use uuid::Uuid;
 
-use crate::{
-    models,
-    utils::{self, generate_uuid},
-};
+use crate::utils::generate_uuid;
 
 #[derive(Debug)]
 pub struct DBUserService {
@@ -65,8 +64,9 @@ pub enum UserLoginError {
     DBError(#[from] sqlx::Error),
 }
 
+#[derive(FromRow)]
 struct LoginDB {
-    id: sqlx::types::Uuid,
+    id: uuid::fmt::Simple,
     bpasswd: Option<String>,
 }
 
@@ -78,16 +78,15 @@ impl DBUserService {
     pub async fn register_local_user(
         &mut self,
         req: &UserCreateRequest,
-    ) -> Result<Uuid, UserCreateError> {
-        let user_id = Uuid::new_v4();
-        let user_id_str = utils::uuid_to_string(&user_id);
+    ) -> Result<Simple, UserCreateError> {
+        let user_id = Uuid::new_v4().simple();
 
         // bcrypt
         let hashed = bcrypt::hash(req.password.clone(), bcrypt::DEFAULT_COST).unwrap();
 
         sqlx::query!(
             "INSERT INTO users (id, username, nickname, bpasswd) VALUES(?, ?, ?, ?)",
-            user_id_str,
+            user_id,
             req.username,
             req.email,
             hashed,
@@ -106,7 +105,7 @@ impl DBUserService {
     ) -> Result<Option<UserLoginResponse>, UserLoginError> {
         let user = sqlx::query_as!(
             LoginDB,
-            "SELECT id, bpasswd FROM users WHERE username = ? AND host IS NULL",
+            "SELECT id AS `id: Uuid`, bpasswd FROM users WHERE username = ? AND host IS NULL",
             &login.username
         )
         .fetch_one(&self.pool)
@@ -115,10 +114,20 @@ impl DBUserService {
         if let Some(bpasswd) = user.bpasswd {
             if bcrypt::verify(login.password.clone(), &bpasswd).unwrap() {
                 let token = generate_uuid();
-                sqlx::query!("INSERT INTO user_tokens (user_id, token) VALUES(?, ?)",)
+                sqlx::query!(
+                    "INSERT INTO user_tokens (user_id, token) VALUES(?, ?)",
+                    user.id,
+                    token
+                )
+                .execute(&self.pool)
+                .await?;
+                return Ok(Some(UserLoginResponse {
+                    token: token.to_string(),
+                }));
             }
+            return Ok(None);
+        } else {
+            return Ok(None);
         }
-
-        panic!()
     }
 }

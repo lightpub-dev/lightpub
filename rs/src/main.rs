@@ -15,7 +15,7 @@ use std::{
     io::Read,
 };
 use tracing;
-use uuid::Uuid;
+use uuid::{fmt::Simple, Uuid};
 
 #[get("/api/")]
 async fn hello() -> impl Responder {
@@ -67,7 +67,7 @@ impl Into<services::user::UserCreateRequest> for RegisterBody {
 
 #[derive(Debug, Serialize)]
 struct RegisterResponse {
-    user_id: Uuid,
+    user_id: Simple,
 }
 
 #[post("/register")]
