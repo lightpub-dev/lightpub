@@ -71,9 +71,8 @@ async fn register(
     Ok(HttpResponse::Ok().json(RegisterResponse { user_id: req }))
 }
 
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
-}
+#[post("/login")]
+async fn login() -> impl Responder {}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
