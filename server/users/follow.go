@@ -28,8 +28,10 @@ type UserFollowService interface {
 	Follow(followerSpec Specifier, followeeSpec Specifier) error
 	Unfollow(followerSpec Specifier, followeeSpec Specifier) error
 
-	AcceptFollowRequest(accept vocab.ActivityStreamsAccept) error
-	RejectFollow(reject vocab.ActivityStreamsReject) error
+	ProcessAccept(accept vocab.ActivityStreamsAccept) error
+	ProcessReject(reject vocab.ActivityStreamsReject) error
+	ProcessUndo(undo vocab.ActivityStreamsUndo) error
+	ProcessFollow(follow vocab.ActivityStreamsFollow) error
 }
 
 type DBUserFollowService struct {
@@ -290,7 +292,7 @@ func (s *DBUserFollowService) Unfollow(followerSpec Specifier, followeeSpec Spec
 	return nil
 }
 
-func (s *DBUserFollowService) AcceptFollowRequest(accept vocab.ActivityStreamsAccept) error {
+func (s *DBUserFollowService) ProcessAccept(accept vocab.ActivityStreamsAccept) error {
 	parsedAccept, err := s.pubFollow.ProcessAccept(accept)
 	if err != nil {
 		return fmt.Errorf("failed to analyze accept request: %w", err)
@@ -364,7 +366,7 @@ func (s *DBUserFollowService) AcceptFollowRequest(accept vocab.ActivityStreamsAc
 	return tx.Commit().Error
 }
 
-func (s *DBUserFollowService) RejectFollow(reject vocab.ActivityStreamsReject) error {
+func (s *DBUserFollowService) ProcessReject(reject vocab.ActivityStreamsReject) error {
 	parsedReject, err := s.pubFollow.ProcessReject(reject)
 	if err != nil {
 		return fmt.Errorf("failed to analyze reject request: %w", err)
@@ -397,4 +399,126 @@ func (s *DBUserFollowService) RejectFollow(reject vocab.ActivityStreamsReject) e
 	}
 
 	return tx.Commit().Error
+}
+
+func (s *DBUserFollowService) ProcessUndo(undo vocab.ActivityStreamsUndo) error {
+	parsedUndo, err := s.pubFollow.ProcessUndo(undo)
+	if err != nil {
+		return fmt.Errorf("failed to analyze undo request: %w", err)
+	}
+
+	// find by request id
+	var localReqID string
+	localReqID, err = s.idGetter.ExtractLocalFollowRequestID(parsedUndo.RequestID.String())
+	if err != nil {
+		return err
+	}
+
+	tx := s.conn.DB.Begin()
+	defer tx.Rollback()
+
+	if localReqID != "" {
+		// it is a local request
+		// find by id
+		err = tx.Delete(&db.UserFollowRequest{}, "id = ?", localReqID).Error
+	} else {
+		// it is a remote request
+		// find by uri
+		err = tx.Delete(&db.UserFollowRequest{}, "uri = ?", parsedUndo.RequestID.String()).Error
+	}
+	if err != nil {
+		return fmt.Errorf("failed to delete follow request: %w", err)
+	}
+
+	if parsedUndo.ActorURI == nil && parsedUndo.ObjectURI == nil {
+		// if actor and object are not set, finish here
+		return tx.Commit().Error
+	}
+
+	// otherwise, delete actual follow too
+	follower, err := s.userFinder.FetchUser(NewSpecifierFromURI(parsedUndo.ActorURI))
+	if err != nil {
+		return err
+	}
+	if follower == nil {
+		return ErrFollowerNotFound
+	}
+	followee, err := s.userFinder.FetchUser(NewSpecifierFromURI(parsedUndo.ObjectURI))
+	if err != nil {
+		return err
+	}
+
+	// delete follow
+	err = tx.Delete(&db.UserFollow{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *DBUserFollowService) ProcessFollow(follow vocab.ActivityStreamsFollow) error {
+	parsedFollow, err := s.pubFollow.ProcessFollow(follow)
+	if err != nil {
+		return fmt.Errorf("failed to analyze follow request: %w", err)
+	}
+
+	follower, err := s.userFinder.FetchUser(NewSpecifierFromURI(parsedFollow.ActorURI))
+	if err != nil {
+		return err
+	}
+	if follower == nil {
+		return ErrFollowerNotFound
+	}
+	followee, err := s.userFinder.FetchUser(NewSpecifierFromURI(parsedFollow.ObjectURI))
+	if err != nil {
+		return err
+	}
+	if followee == nil {
+		return ErrFolloweeNotFound
+	}
+
+	// check if followee is a local user
+	if followee.Host.Valid {
+		return errors.New("ProcessFollow: followee must be a local user")
+	}
+
+	tx := s.conn.DB.Begin()
+	defer tx.Rollback()
+
+	// delete existing requests
+	if err := tx.Delete(&db.UserFollowRequest{}, "follower_id = ? AND followee_id = ?", follower.ID, followee.ID).Error; err != nil {
+		return err
+	}
+
+	req := db.UserFollowRequest{
+		ID:         db.MustGenerateUUID(),
+		URI:        sql.NullString{String: parsedFollow.RequestID.String(), Valid: true},
+		FollowerID: follower.ID,
+		FolloweeID: followee.ID,
+	}
+	if err := tx.Create(req).Error; err != nil {
+		return err
+	}
+	reqID := req.ID
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// TODO: check if user is auto-accepting follows
+
+	// send accept
+	go func() {
+		var req db.UserFollowRequest
+		if err := s.conn.DB.First(&req, "id = ?", reqID).Error; err != nil {
+			log.Printf("failed to find follow request: %v", err)
+			return
+		}
+		if err := s.pubFollow.SendAcceptFollowRequest(&req); err != nil {
+			log.Printf("failed to send accept follow request: %v", err)
+		}
+	}()
+
+	return nil
 }

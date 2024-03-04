@@ -33,7 +33,7 @@ func contentTypeCheck(c echo.Context) error {
 
 func (h *Handler) inboxAccept(c echo.Context, accept vocab.ActivityStreamsAccept) error {
 	followService := initializeUserFollowService(c, h)
-	if err := followService.AcceptFollowRequest(accept); err != nil {
+	if err := followService.ProcessAccept(accept); err != nil {
 		return err
 	}
 
@@ -42,7 +42,7 @@ func (h *Handler) inboxAccept(c echo.Context, accept vocab.ActivityStreamsAccept
 
 func (h *Handler) inboxReject(c echo.Context, accept vocab.ActivityStreamsReject) error {
 	followService := initializeUserFollowService(c, h)
-	if err := followService.RejectFollow(accept); err != nil {
+	if err := followService.ProcessReject(accept); err != nil {
 		return err
 	}
 

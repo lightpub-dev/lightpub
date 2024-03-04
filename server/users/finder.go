@@ -4,11 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lightpub-dev/lightpub/config"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/pub"
 	"gorm.io/gorm"
@@ -46,57 +43,6 @@ func (f *DBUserFinderService) ExistsByID(userID string) (bool, error) {
 	}
 
 	return count > 0, nil
-}
-
-type parsedUsernameOrID struct {
-	ID       db.UUID
-	Username parsedUsername
-}
-
-type parsedUsername struct {
-	Username string
-	Host     string
-}
-
-func parseUsernameOrID(usernameOrID string) (parsedUsernameOrID, error) {
-	// if str starts with @, then it's a username
-	if strings.HasPrefix(usernameOrID, "@") {
-		pu, err := parseUsername(usernameOrID[1:])
-		if err != nil {
-			return parsedUsernameOrID{}, err
-		}
-		return parsedUsernameOrID{Username: pu}, nil
-	} else {
-		// otherwise, it's an ID
-		parsedID, err := uuid.Parse(usernameOrID)
-		if err != nil {
-			return parsedUsernameOrID{}, ErrInvalidUUID
-		}
-		return parsedUsernameOrID{
-			ID: db.UUID(parsedID),
-		}, nil
-	}
-}
-
-func parseUsername(username string) (parsedUsername, error) {
-	parts := strings.Split(username, "@")
-	if len(parts) == 1 {
-		return parsedUsername{
-			Username: parts[0],
-			Host:     "",
-		}, nil
-	} else if len(parts) == 2 {
-		realHost := parts[1]
-		if realHost == config.MyHostname {
-			realHost = ""
-		}
-		return parsedUsername{
-			Username: parts[0],
-			Host:     realHost,
-		}, nil
-	} else {
-		return parsedUsername{}, ErrInvalidUsername
-	}
 }
 
 func (f *DBUserFinderService) FindIDByUsername(username string) (*db.User, error) {

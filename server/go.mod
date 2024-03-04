@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.5.0
 	github.com/google/wire v0.6.0
 	github.com/jmoiron/sqlx v1.3.5
+	github.com/k0kubun/pp/v3 v3.2.0
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/redis/go-redis/v9 v9.3.1
 	github.com/stretchr/testify v1.8.4
@@ -25,7 +26,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/k0kubun/pp/v3 v3.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect

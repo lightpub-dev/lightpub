@@ -64,6 +64,54 @@ func (s *PubFollowService) createFollowRequest(reqID *url.URL, follower, followi
 	return follow, nil
 }
 
+type parsedUndoFollow struct {
+	RequestID *url.URL
+	ActorURI  *url.URL
+	ObjectURI *url.URL
+}
+
+func (s *PubFollowService) ProcessUndo(reject vocab.ActivityStreamsUndo) (parsedUndoFollow, error) {
+	var activityActor *url.URL
+	if reject.GetActivityStreamsActor() != nil && reject.GetActivityStreamsActor().Len() == 1 && reject.GetActivityStreamsActor().At(0).IsIRI() {
+		activityActor = reject.GetActivityStreamsActor().At(0).GetIRI()
+	}
+
+	if reject.GetActivityStreamsObject().Len() != 1 {
+		return parsedUndoFollow{}, errors.New("invalid reject request: not support multiple objects")
+	}
+	if !reject.GetActivityStreamsObject().At(0).IsActivityStreamsFollow() {
+		return parsedUndoFollow{}, errors.New("invalid reject request: object is not a follow activity")
+	}
+	object := reject.GetActivityStreamsObject().At(0).GetActivityStreamsFollow()
+	if object == nil {
+		return parsedUndoFollow{}, errors.New("invalid reject request: object is nil")
+	}
+
+	var parsed parsedUndoFollow
+	if object.GetJSONLDId() != nil && object.GetJSONLDId().IsIRI() {
+		reqID := object.GetJSONLDId().GetIRI()
+		parsed.RequestID = reqID
+	}
+	if object.GetActivityStreamsActor() != nil && object.GetActivityStreamsActor().Len() == 1 && object.GetActivityStreamsActor().At(0).IsIRI() {
+		actorURI := object.GetActivityStreamsActor().At(0).GetIRI()
+		parsed.ActorURI = actorURI
+	}
+	if object.GetActivityStreamsObject() != nil && object.GetActivityStreamsObject().Len() == 1 && object.GetActivityStreamsObject().At(0).IsIRI() {
+		objectURI := object.GetActivityStreamsObject().At(0).GetIRI()
+		parsed.ObjectURI = objectURI
+	}
+
+	if *parsed.ActorURI != *activityActor {
+		return parsed, errors.New("invalid reject request: actor URI does not match the actor of the reject activity")
+	}
+
+	if parsed.ActorURI == nil || parsed.ObjectURI == nil {
+		return parsed, errors.New("invalid reject request")
+	}
+
+	return parsed, nil
+}
+
 type parsedAcceptRequest struct {
 	ReqID     *url.URL
 	ActorURI  *url.URL
@@ -245,4 +293,52 @@ func (s *PubFollowService) SendUnfollowRequest(req rejectUnfollowRequest) error 
 	unfollow.SetActivityStreamsObject(object)
 
 	return s.req.PostToInbox(inboxURL, unfollow, req.Follower)
+}
+
+type parsedFollowRequest struct {
+	RequestID *url.URL
+	ActorURI  *url.URL
+	ObjectURI *url.URL
+}
+
+func (s *PubFollowService) ProcessFollow(follow vocab.ActivityStreamsFollow) (parsedFollowRequest, error) {
+	var activityActor *url.URL
+	if follow.GetActivityStreamsActor() != nil && follow.GetActivityStreamsActor().Len() == 1 && follow.GetActivityStreamsActor().At(0).IsIRI() {
+		activityActor = follow.GetActivityStreamsActor().At(0).GetIRI()
+	}
+
+	if follow.GetActivityStreamsObject().Len() != 1 {
+		return parsedFollowRequest{}, errors.New("invalid follow request: not support multiple objects")
+	}
+	if !follow.GetActivityStreamsObject().At(0).IsIRI() {
+		return parsedFollowRequest{}, errors.New("invalid follow request: object is not an IRI")
+	}
+	object := follow.GetActivityStreamsObject().At(0).GetIRI()
+	if object == nil {
+		return parsedFollowRequest{}, errors.New("invalid follow request: object is nil")
+	}
+
+	var parsed parsedFollowRequest
+	if follow.GetJSONLDId() != nil && follow.GetJSONLDId().IsIRI() {
+		reqID := follow.GetJSONLDId().GetIRI()
+		parsed.RequestID = reqID
+	}
+	if follow.GetActivityStreamsActor() != nil && follow.GetActivityStreamsActor().Len() == 1 && follow.GetActivityStreamsActor().At(0).IsIRI() {
+		actorURI := follow.GetActivityStreamsActor().At(0).GetIRI()
+		parsed.ActorURI = actorURI
+	}
+	if follow.GetActivityStreamsObject() != nil && follow.GetActivityStreamsObject().Len() == 1 && follow.GetActivityStreamsObject().At(0).IsIRI() {
+		objectURI := follow.GetActivityStreamsObject().At(0).GetIRI()
+		parsed.ObjectURI = objectURI
+	}
+
+	if *parsed.ActorURI != *activityActor {
+		return parsed, errors.New("invalid follow request: actor URI does not match the actor of the follow activity")
+	}
+
+	if parsed.RequestID == nil || parsed.ActorURI == nil || parsed.ObjectURI == nil {
+		return parsed, errors.New("invalid follow request")
+	}
+
+	return parsed, nil
 }
