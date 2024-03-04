@@ -7,6 +7,7 @@ pub mod utils;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use config::Config;
 use serde::{Deserialize, Serialize};
+use services::user::UserLoginRequest;
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
 use std::{
@@ -29,6 +30,14 @@ async fn echo(req_body: String) -> impl Responder {
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
     message: String,
+}
+
+impl ErrorResponse {
+    pub fn new_status(status: i32, message: impl Into<String>) -> Self {
+        Self {
+            message: format!("{}: {}", status, message.into()),
+        }
+    }
 }
 
 impl Display for ErrorResponse {
@@ -67,12 +76,45 @@ async fn register(
     data: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
     let mut us = services::new_user_service(data.pool().clone());
-    let req = us.register_local_user(body.0.into()).await.unwrap();
+    let req = us.register_local_user(&body.0.into()).await.unwrap();
     Ok(HttpResponse::Ok().json(RegisterResponse { user_id: req }))
 }
 
+#[derive(Debug, Deserialize)]
+struct LoginBody {
+    username: String,
+    password: String,
+}
+
+impl Into<UserLoginRequest> for LoginBody {
+    fn into(self) -> UserLoginRequest {
+        UserLoginRequest::new(self.username, self.password)
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct LoginResponse {
+    token: String,
+}
+
 #[post("/login")]
-async fn login() -> impl Responder {}
+async fn login(
+    body: web::Json<LoginBody>,
+    data: web::Data<AppState>,
+) -> Result<impl Responder, ErrorResponse> {
+    let mut us = services::new_user_service(data.pool().clone());
+    let req = us.login_user(&body.0.into()).await.unwrap();
+    if let Some(req) = req {
+        Ok(HttpResponse::Ok().json(LoginResponse {
+            token: req.token().to_string(),
+        }))
+    } else {
+        Err(ErrorResponse::new_status(
+            401,
+            "Invalid username or password",
+        ))
+    }
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -108,10 +150,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
-            .service(hello)
-            .service(echo)
             .service(register)
-            .route("/hey", web::get().to(manual_hello))
+            .service(login)
     })
     .bind(("127.0.0.1", 8000))?
     .run()

@@ -2,8 +2,8 @@ use uuid::Uuid;
 
 pub mod user;
 
-pub fn generate_uuid() -> Uuid {
-    Uuid::new_v4()
+pub fn generate_uuid() -> uuid::fmt::Simple {
+    Uuid::new_v4().simple()
 }
 
 pub fn uuid_to_string(uuid: &Uuid) -> String {
