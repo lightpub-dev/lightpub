@@ -11,6 +11,7 @@ import (
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/pub"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -181,6 +182,11 @@ func (s *DBUserFollowService) Follow(followerSpec Specifier, followeeSpec Specif
 		return ErrFolloweeNotFound
 	}
 
+	// follower must be a local user
+	if follower.Host.Valid {
+		return errors.New("follower must be a local user")
+	}
+
 	if !followee.Host.Valid {
 		// local user
 		follow := db.UserFollow{
@@ -320,7 +326,11 @@ func (s *DBUserFollowService) AcceptFollowRequest(accept vocab.ActivityStreamsAc
 		FollowerID: req.FollowerID,
 		FolloweeID: req.FolloweeID,
 	}
-	if err := tx.Create(follow).Error; err != nil {
+	if err := tx.Clauses(
+		clause.OnConflict{
+			DoNothing: true,
+		},
+	).Create(follow).Error; err != nil {
 		return err
 	}
 
