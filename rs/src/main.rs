@@ -5,8 +5,8 @@ pub mod state;
 pub mod utils;
 
 use crate::services::{
-    db::new_follow_service, PostCreateRequestBuilder, UserAuthService, UserCreateService,
-    UserFollowService,
+    db::new_follow_service, LocalUserFinderService, PostCreateRequestBuilder, UserAuthService,
+    UserCreateService, UserFollowService,
 };
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
@@ -15,10 +15,11 @@ use actix_web::{
 use config::Config;
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use services::{
     db::{new_auth_service, new_local_user_finder_service, post::new_post_create_service},
-    AuthError, PostCreateService, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
-    UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
+    AuthError, LocalUserFindError, PostCreateService, ServiceError, UserCreateRequest,
+    UserCreateRequestBuilder, UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
 };
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
@@ -342,6 +343,63 @@ async fn user_delete_follow(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[derive(Debug, Deserialize)]
+struct WebfingerQuery {
+    resource: String,
+}
+
+#[get("/.well-known/webfinger")]
+async fn webfinger(
+    query: web::Query<WebfingerQuery>,
+    app: web::Data<AppState>,
+) -> Result<impl Responder, ErrorResponse> {
+    let parts: Vec<&str> = query.resource.split(":").collect();
+    if parts.len() != 2 {
+        return Ok(HttpResponse::BadRequest().body("Invalid resource"));
+    }
+    if parts[0] != "acct" {
+        return Ok(HttpResponse::BadRequest().body("Invalid resource"));
+    }
+
+    let acct_id = parts[1];
+    let user_spec = if !acct_id.contains("@") {
+        // contains username only
+        UserSpecifier::from_username(acct_id.to_string(), None)
+    } else {
+        let parts: Vec<&str> = acct_id.split("@").collect();
+        if parts.len() != 2 {
+            return Ok(HttpResponse::BadRequest().body("Invalid resource"));
+        }
+        UserSpecifier::from_username(parts[0].to_string(), Some(parts[1].to_string()))
+    };
+    let mut user_finder = new_local_user_finder_service(app.pool().clone());
+    let user = user_finder
+        .find_user_by_specifier(&user_spec)
+        .await
+        .map_err(|e| match e {
+            ServiceError::SpecificError(LocalUserFindError::NotLocalUser) => {
+                ErrorResponse::new_status(404, "user not found")
+            }
+            _ => e.into(),
+        })?;
+
+    let base_url = app.base_url();
+
+    Ok(HttpResponse::Ok().body(
+        json!({
+            "subject": acct_id,
+            "links": [
+                {
+                    "rel": "self",
+                    "type": "application/activity+json",
+                    "href": format!("{}/user/{}", base_url, user.id.to_string())
+                }
+            ]
+        })
+        .to_string(),
+    ))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -371,7 +429,7 @@ async fn main() -> std::io::Result<()> {
         .expect("connect to database");
     tracing::info!("Connected to database");
 
-    let app_state = state::AppState::new(pool);
+    let app_state = state::AppState::new(pool, "http://localhost:8000".to_string());
 
     #[derive(OpenApi)]
     #[openapi(
@@ -396,6 +454,7 @@ async fn main() -> std::io::Result<()> {
             .service(post_post)
             .service(user_create_follow)
             .service(user_delete_follow)
+            .service(webfinger)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

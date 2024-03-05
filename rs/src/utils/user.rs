@@ -44,6 +44,10 @@ impl UserSpecifier {
     pub fn from_id(id: impl Into<Uuid>) -> Self {
         UserSpecifier::ID(id.into())
     }
+
+    pub fn from_username(username: String, hostname: Option<String>) -> Self {
+        UserSpecifier::Username(username, hostname)
+    }
 }
 
 impl<'de> Deserialize<'de> for UserSpecifier {
