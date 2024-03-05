@@ -23,6 +23,7 @@ use uuid::fmt::Simple;
 
 use crate::services::db::new_user_service;
 use utoipa::OpenApi;
+use utoipa::ToSchema;
 use utoipa_swagger_ui::SwaggerUi;
 
 #[get("/api/")]
@@ -35,7 +36,7 @@ async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
 }
 
-#[derive(Debug, Serialize)]
+#[derive(ToSchema, Debug, Serialize)]
 struct ErrorResponse {
     message: String,
     status: i32,
@@ -85,7 +86,7 @@ fn ise<T: Into<ErrorResponse> + Debug, S>(error: T) -> Result<S, ErrorResponse> 
     Err(error.into())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(ToSchema, Debug, Deserialize)]
 struct RegisterBody {
     pub username: String,
     pub nickname: String,
@@ -103,7 +104,7 @@ impl Into<UserCreateRequest> for RegisterBody {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(ToSchema, Debug, Serialize)]
 struct RegisterResponse {
     user_id: Simple,
 }
@@ -120,7 +121,7 @@ async fn register(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(ToSchema, Debug, Deserialize)]
 struct LoginBody {
     username: String,
     password: String,
@@ -136,7 +137,7 @@ impl Into<UserLoginRequest> for LoginBody {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(ToSchema, Debug, Serialize)]
 struct LoginResponse {
     token: String,
 }
@@ -201,7 +202,7 @@ async fn main() -> std::io::Result<()> {
     let app_state = state::AppState::new(pool);
 
     #[derive(OpenApi)]
-    #[openapi(paths(login))]
+    #[openapi(paths(login), components(schemas(LoginResponse, LoginBody)))]
     struct ApiDoc1;
 
     HttpServer::new(move || {
