@@ -22,4 +22,4 @@ thiserror = "1.0"
 derive_builder = "0.20.0"
 derive-getters = "0.3.0"
 utoipa = { version = "4.2.0", features = ["actix_extras"] }
-utoipa-swagger-ui = { version = "3", features = ["actix-web"] }
+utoipa-swagger-ui = { version = "4", features = ["actix-web"] }

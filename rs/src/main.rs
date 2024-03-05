@@ -22,6 +22,7 @@ use tracing;
 use uuid::fmt::Simple;
 
 use crate::services::db::new_user_service;
+use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 #[get("/api/")]
@@ -199,12 +200,19 @@ async fn main() -> std::io::Result<()> {
 
     let app_state = state::AppState::new(pool);
 
+    #[derive(OpenApi)]
+    #[openapi(paths(login))]
+    struct ApiDoc1;
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .service(register)
             .service(login)
-            .service(SwaggerUi::new("/swagger-ui/{_:.*}"))
+            .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
+                utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
+                ApiDoc1::openapi(),
+            )]))
     })
     .bind(("127.0.0.1", 8000))?
     .run()
