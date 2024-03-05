@@ -32,6 +32,9 @@ use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
 use crate::services::db::new_user_service;
+use utoipa::OpenApi;
+use utoipa::ToSchema;
+use utoipa_swagger_ui::SwaggerUi;
 
 async fn validator(
     req: ServiceRequest,
@@ -112,7 +115,7 @@ async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
 }
 
-#[derive(Debug, Serialize)]
+#[derive(ToSchema, Debug, Serialize)]
 struct ErrorResponse {
     message: String,
     status: i32,
@@ -167,7 +170,7 @@ fn ise<T: Into<ErrorResponse> + Debug, S>(error: T) -> Result<S, ErrorResponse> 
     Err(error.into())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(ToSchema, Debug, Deserialize)]
 struct RegisterBody {
     pub username: String,
     pub nickname: String,
@@ -185,11 +188,18 @@ impl Into<UserCreateRequest> for RegisterBody {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(ToSchema, Debug, Serialize)]
 struct RegisterResponse {
     user_id: Simple,
 }
 
+#[utoipa::path(
+    post,
+    request_body = RegisterBody,
+    responses(
+        (status = 200, description = "Registered User", body = RegisterResponse),
+    ),
+)]
 #[post("/register")]
 async fn register(
     body: web::Json<RegisterBody>,
@@ -202,7 +212,7 @@ async fn register(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(ToSchema, Debug, Deserialize)]
 struct LoginBody {
     username: String,
     password: String,
@@ -218,11 +228,19 @@ impl Into<UserLoginRequest> for LoginBody {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(ToSchema, Debug, Serialize)]
 struct LoginResponse {
     token: String,
 }
 
+#[utoipa::path(
+    post,
+    request_body = LoginBody,
+    responses(
+        (status = 200, description = "Logged in", body = LoginResponse),
+        (status = 401, description = "Auth failed")
+    ),
+)]
 #[post("/login")]
 async fn login(
     body: web::Json<LoginBody>,
@@ -311,12 +329,23 @@ async fn main() -> std::io::Result<()> {
 
     let app_state = state::AppState::new(pool);
 
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(login, register),
+        components(schemas(LoginResponse, LoginBody, RegisterBody, RegisterResponse))
+    )]
+    struct ApiDoc1;
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .service(register)
             .service(login)
             .service(post_post)
+            .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
+                utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
+                ApiDoc1::openapi(),
+            )]))
     })
     .bind(("127.0.0.1", 8000))?
     .run()
