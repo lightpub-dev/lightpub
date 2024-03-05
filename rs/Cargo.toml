@@ -22,3 +22,4 @@ thiserror = "1.0"
 derive_builder = "0.20.0"
 derive-getters = "0.3.0"
 derive_more = { version = "=1.0.0-beta.6", features = ["constructor"] }
+actix-web-httpauth = "0.8.1"

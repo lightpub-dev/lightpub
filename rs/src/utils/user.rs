@@ -1,4 +1,4 @@
-use uuid::Uuid;
+use uuid::{fmt::Simple, Uuid};
 
 type URL = String;
 
@@ -38,5 +38,9 @@ impl UserSpecifier {
         }
 
         Err(UserSpecifierParseError::InvalidFormat)
+    }
+
+    pub fn from_id(id: impl Into<Uuid>) -> Self {
+        UserSpecifier::ID(id.into())
     }
 }

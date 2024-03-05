@@ -43,9 +43,21 @@ pub enum ServiceError<T> {
     MiscError(Box<dyn MiscError>),
 }
 
+impl<T> ServiceError<T> {
+    pub fn from_se(e: T) -> Self {
+        ServiceError::SpecificError(e)
+    }
+}
+
 impl<T> From<Box<dyn MiscError>> for ServiceError<T> {
     fn from(value: Box<dyn MiscError>) -> Self {
         ServiceError::MiscError(value)
+    }
+}
+
+impl<T> From<sqlx::Error> for ServiceError<T> {
+    fn from(value: sqlx::Error) -> Self {
+        ServiceError::MiscError(Box::new(value))
     }
 }
 
@@ -84,6 +96,7 @@ pub trait UserCreateService {
 #[derive(Debug, Clone)]
 pub enum LocalUserFindError {
     UserNotFound,
+    NotLocalUser,
 }
 
 pub trait LocalUserFinderService {
@@ -112,4 +125,16 @@ pub trait PostCreateService {
         &mut self,
         req: &PostCreateRequest,
     ) -> Result<(), ServiceError<PostCreateError>>;
+}
+
+#[derive(Debug)]
+pub enum AuthError {
+    TokenNotSet,
+}
+
+pub trait UserAuthService {
+    async fn authenticate_user(
+        &mut self,
+        token: &str,
+    ) -> Result<models::User, ServiceError<AuthError>>;
 }

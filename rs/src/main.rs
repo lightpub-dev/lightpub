@@ -4,24 +4,103 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::services::UserCreateService;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use crate::services::{
+    PostCreateRequest, PostCreateRequestBuilder, UserAuthService, UserCreateService,
+};
+use actix_web::{
+    dev::ServiceRequest, get, post, web, App, FromRequest, HttpResponse, HttpServer, Responder,
+};
+use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use config::Config;
+use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use services::{
-    ServiceError, UserCreateRequest, UserCreateRequestBuilder, UserLoginError, UserLoginRequest,
-    UserLoginRequestBuilder,
+    db::{new_auth_service, new_local_user_finder_service, post::new_post_create_service},
+    AuthError, PostCreateService, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
+    UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
 };
-use sqlx::mysql::MySqlPoolOptions;
+use sqlx::{mysql::MySqlPoolOptions, MySqlPool};
 use state::AppState;
 use std::{
     fmt::{Debug, Display, Formatter},
+    future::Future,
     io::Read,
+    pin::Pin,
 };
 use tracing;
-use uuid::fmt::Simple;
+use utils::user::UserSpecifier;
+use uuid::{fmt::Simple, Uuid};
 
 use crate::services::db::new_user_service;
+
+async fn validator(
+    req: ServiceRequest,
+    _credentials: BearerAuth,
+) -> Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
+    Ok(req)
+}
+
+#[derive(Debug)]
+struct AuthUser {
+    authed_user: Option<User>,
+}
+
+impl AuthUser {
+    pub fn from_user(user: User) -> Self {
+        Self {
+            authed_user: Some(user),
+        }
+    }
+
+    pub fn must_auth(&self) -> Result<&User, ErrorResponse> {
+        match &self.authed_user {
+            Some(u) => Ok(&u),
+            None => Err(ErrorResponse::new_status(401, "unauthorized")),
+        }
+    }
+}
+
+impl FromRequest for AuthUser {
+    type Error = ErrorResponse;
+    type Future = Pin<Box<dyn Future<Output = Result<AuthUser, Self::Error>>>>;
+
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
+        let req = req.clone();
+        Box::pin(async move {
+            let authorization = req
+                .headers()
+                .get("Authorization")
+                .ok_or(ErrorResponse::new_status(401, "unauthorized"))?;
+            let header_value = authorization
+                .to_str()
+                .map_err(|_| ErrorResponse::new_status(401, "unauthorized"))?;
+            let bearer = if header_value.starts_with("Bearer ") {
+                &header_value[7..]
+            } else {
+                return Err(ErrorResponse::new_status(401, "unauthorized").into());
+            };
+
+            let data = web::Data::<AppState>::extract(&req).await.unwrap();
+
+            let mut auth_service = new_auth_service(data.pool().clone());
+
+            let authed_user = auth_service.authenticate_user(bearer).await;
+
+            match authed_user {
+                Ok(u) => Ok(AuthUser::from_user(u)),
+                Err(e) => match e {
+                    ServiceError::SpecificError(AuthError::TokenNotSet) => {
+                        todo!()
+                    }
+                    _ => todo!(),
+                },
+            }
+        })
+    }
+}
 
 #[get("/api/")]
 async fn hello() -> impl Responder {
@@ -41,8 +120,10 @@ struct ErrorResponse {
 
 impl ErrorResponse {
     pub fn new_status(status: i32, message: impl Into<String>) -> Self {
+        let msg = message.into();
+        tracing::debug!("new error: {} {}", status, &msg);
         Self {
-            message: message.into(),
+            message: msg.clone(),
             status,
         }
     }
@@ -61,7 +142,10 @@ impl<T: Debug> From<ServiceError<T>> for ErrorResponse {
                 tracing::error!("Specific error not handled: {:?}", &e);
                 ErrorResponse::new_status(500, "internal server error")
             }
-            ServiceError::MiscError(e) => ErrorResponse::new_status(e.status_code(), e.message()),
+            ServiceError::MiscError(e) => {
+                tracing::error!("Misc error: {:?}", &e);
+                ErrorResponse::new_status(e.status_code(), e.message())
+            }
         }
     }
 }
@@ -74,7 +158,7 @@ impl Display for ErrorResponse {
 
 impl actix_web::ResponseError for ErrorResponse {
     fn status_code(&self) -> actix_web::http::StatusCode {
-        actix_web::http::StatusCode::BAD_REQUEST
+        actix_web::http::StatusCode::from_u16(self.status as u16).unwrap()
     }
 }
 
@@ -159,6 +243,43 @@ async fn login(
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PostRequest {
+    pub content: String,
+    pub privacy: PostPrivacy,
+    pub reply_to_id: Option<Uuid>,
+    pub repost_of_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PostCreateResponse {}
+
+#[post("/post")]
+async fn post_post(
+    body: web::Json<PostRequest>,
+    data: web::Data<AppState>,
+    auth: AuthUser,
+) -> Result<impl Responder, ErrorResponse> {
+    let user = auth.must_auth()?;
+
+    let pool = data.pool().clone();
+    let mut post_service =
+        new_post_create_service(pool.clone(), new_local_user_finder_service(pool));
+
+    let req = post_service
+        .create_post(
+            &PostCreateRequestBuilder::default()
+                .poster(UserSpecifier::from_id(user.id))
+                .content(body.content.clone())
+                .privacy(body.privacy.clone())
+                .build()
+                .unwrap(),
+        )
+        .await?;
+
+    Ok(HttpResponse::Ok().json(PostCreateResponse {}))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -195,6 +316,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(app_state.clone()))
             .service(register)
             .service(login)
+            .service(post_post)
     })
     .bind(("127.0.0.1", 8000))?
     .run()
