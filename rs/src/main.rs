@@ -261,7 +261,7 @@ async fn login(
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PostRequest {
     pub content: String,
     pub privacy: PostPrivacy,
@@ -269,9 +269,16 @@ pub struct PostRequest {
     pub repost_of_id: Option<Uuid>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PostCreateResponse {}
 
+#[utoipa::path(
+    post,
+    request_body = PostRequest,
+    responses(
+        (status = 200, description = "Created post", body = PostCreateResponse),
+    ),
+)]
 #[post("/post")]
 async fn post_post(
     body: web::Json<PostRequest>,
@@ -331,8 +338,15 @@ async fn main() -> std::io::Result<()> {
 
     #[derive(OpenApi)]
     #[openapi(
-        paths(login, register),
-        components(schemas(LoginResponse, LoginBody, RegisterBody, RegisterResponse))
+        paths(login, register, post_post),
+        components(schemas(
+            LoginResponse,
+            LoginBody,
+            RegisterBody,
+            RegisterResponse,
+            PostRequest,
+            PostCreateResponse
+        ))
     )]
     struct ApiDoc1;
 
