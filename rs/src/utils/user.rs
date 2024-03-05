@@ -50,6 +50,12 @@ impl UserSpecifier {
     }
 }
 
+impl<T: Into<Uuid>> From<T> for UserSpecifier {
+    fn from(id: T) -> Self {
+        UserSpecifier::ID(id.into())
+    }
+}
+
 impl<'de> Deserialize<'de> for UserSpecifier {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

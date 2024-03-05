@@ -116,11 +116,62 @@ pub trait LocalUserFinderService {
     ) -> Result<models::User, ServiceError<LocalUserFindError>>;
 }
 
+#[derive(Debug, Clone)]
+pub enum PostCreateRequest {
+    Normal(PostCreateRequestNormal),
+    Repost(PostCreateRequestRepost),
+    Quote(PostCreateRequestQuote),
+    Reply(PostCreateRequestReply),
+}
+
+impl PostCreateRequest {
+    pub fn poster(&self) -> &UserSpecifier {
+        match self {
+            PostCreateRequest::Normal(r) => &r.poster,
+            PostCreateRequest::Repost(r) => &r.poster,
+            PostCreateRequest::Quote(r) => &r.poster,
+            PostCreateRequest::Reply(r) => &r.poster,
+        }
+    }
+
+    pub fn privacy(&self) -> PostPrivacy {
+        match self {
+            PostCreateRequest::Normal(r) => r.privacy,
+            PostCreateRequest::Repost(r) => r.privacy,
+            PostCreateRequest::Quote(r) => r.privacy,
+            PostCreateRequest::Reply(r) => r.privacy,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Builder)]
-pub struct PostCreateRequest {
+pub struct PostCreateRequestNormal {
     poster: UserSpecifier,
     content: String,
     privacy: PostPrivacy,
+}
+
+#[derive(Debug, Clone, Builder)]
+pub struct PostCreateRequestRepost {
+    poster: UserSpecifier,
+    privacy: PostPrivacy,
+    repost_of: Simple,
+}
+
+#[derive(Debug, Clone, Builder)]
+pub struct PostCreateRequestQuote {
+    poster: UserSpecifier,
+    content: String,
+    privacy: PostPrivacy,
+    repost_of: Simple,
+}
+
+#[derive(Debug, Clone, Builder)]
+pub struct PostCreateRequestReply {
+    poster: UserSpecifier,
+    content: String,
+    privacy: PostPrivacy,
+    reply_to: Simple,
 }
 
 #[derive(Debug)]

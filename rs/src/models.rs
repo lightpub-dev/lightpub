@@ -17,7 +17,7 @@ pub struct User {
     pub created_at: chrono::NaiveDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum PostPrivacy {
     Public,
     Unlisted,

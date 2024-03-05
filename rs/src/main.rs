@@ -5,8 +5,9 @@ pub mod state;
 pub mod utils;
 
 use crate::services::{
-    db::new_follow_service, LocalUserFinderService, PostCreateRequestBuilder, UserAuthService,
-    UserCreateService, UserFollowService,
+    db::new_follow_service, LocalUserFinderService, PostCreateError, PostCreateRequest,
+    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
+    PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
 };
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
@@ -258,7 +259,7 @@ async fn login(
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct PostRequest {
-    pub content: String,
+    pub content: Option<String>,
     pub privacy: PostPrivacy,
     pub reply_to_id: Option<Uuid>,
     pub repost_of_id: Option<Uuid>,
@@ -288,16 +289,73 @@ async fn post_post(
     let mut post_service =
         new_post_create_service(pool.clone(), new_local_user_finder_service(pool));
 
-    let req = post_service
-        .create_post(
-            &PostCreateRequestBuilder::default()
-                .poster(UserSpecifier::from_id(user.id))
-                .content(body.content.clone())
-                .privacy(body.privacy.clone())
+    let post = match (body.repost_of_id, body.reply_to_id) {
+        (None, None) => PostCreateRequest::Normal(
+            PostCreateRequestNormalBuilder::default()
+                .poster(user.id.into())
+                .content(
+                    body.content
+                        .clone()
+                        .ok_or(ErrorResponse::new_status(400, "content is null"))?,
+                )
+                .privacy(body.privacy)
                 .build()
                 .unwrap(),
-        )
-        .await?;
+        ),
+        (Some(repost_of_id), None) => {
+            if let Some(content) = body.content.clone() {
+                PostCreateRequest::Quote(
+                    PostCreateRequestQuoteBuilder::default()
+                        .poster(user.id.into())
+                        .content(content)
+                        .privacy(body.privacy)
+                        .repost_of(repost_of_id.into())
+                        .build()
+                        .unwrap(),
+                )
+            } else {
+                PostCreateRequest::Repost(
+                    PostCreateRequestRepostBuilder::default()
+                        .poster(user.id.into())
+                        .privacy(body.privacy)
+                        .repost_of(repost_of_id.into())
+                        .build()
+                        .unwrap(),
+                )
+            }
+        }
+        (None, Some(reply_to_id)) => PostCreateRequest::Reply(
+            PostCreateRequestReplyBuilder::default()
+                .poster(user.id.into())
+                .content(
+                    body.content
+                        .clone()
+                        .ok_or(ErrorResponse::new_status(400, "content is null"))?,
+                )
+                .privacy(body.privacy)
+                .reply_to(reply_to_id.into())
+                .build()
+                .unwrap(),
+        ),
+        _ => {
+            return Err(ErrorResponse::new_status(
+                400,
+                "repost_of_id and reply_to_id cannot be set at the same time",
+            ))
+        }
+    };
+
+    let req = post_service.create_post(&post).await.map_err(|e| {
+        use PostCreateError::*;
+        match &e {
+            ServiceError::SpecificError(s) => match s {
+                RepostOfNotFound => ErrorResponse::new_status(404, "repost_of_id not found"),
+                ReplyToNotFound => ErrorResponse::new_status(404, "reply_to not found"),
+                _ => e.into(),
+            },
+            _ => e.into(),
+        }
+    })?;
 
     Ok(HttpResponse::Ok().json(PostCreateResponse { post_id: req }))
 }
