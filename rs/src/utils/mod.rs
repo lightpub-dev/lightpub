@@ -1,5 +1,6 @@
 use uuid::Uuid;
 
+pub mod post;
 pub mod user;
 
 pub fn generate_uuid() -> uuid::fmt::Simple {

@@ -3,6 +3,11 @@ use uuid::fmt::Simple;
 
 use derive_getters::Getters;
 
+use crate::{
+    models::{self, PostPrivacy},
+    utils::user::UserSpecifier,
+};
+
 pub mod db;
 
 pub trait MiscError: std::fmt::Debug + Send + Sync {
@@ -38,9 +43,9 @@ pub enum ServiceError<T> {
     MiscError(Box<dyn MiscError>),
 }
 
-impl<T, S: MiscError + 'static> From<S> for ServiceError<T> {
-    fn from(value: S) -> Self {
-        ServiceError::MiscError(Box::new(value))
+impl<T> From<Box<dyn MiscError>> for ServiceError<T> {
+    fn from(value: Box<dyn MiscError>) -> Self {
+        ServiceError::MiscError(value)
     }
 }
 
@@ -74,4 +79,37 @@ pub trait UserCreateService {
         &mut self,
         req: &UserLoginRequest,
     ) -> Result<UserLoginResult, ServiceError<UserLoginError>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum LocalUserFindError {
+    UserNotFound,
+}
+
+pub trait LocalUserFinderService {
+    async fn find_user_by_specifier(
+        &mut self,
+        spec: &UserSpecifier,
+    ) -> Result<models::User, ServiceError<LocalUserFindError>>;
+}
+
+#[derive(Debug, Clone, Builder)]
+pub struct PostCreateRequest {
+    poster: UserSpecifier,
+    content: String,
+    privacy: PostPrivacy,
+}
+
+#[derive(Debug)]
+pub enum PostCreateError {
+    PosterNotFound,
+    RepostOfNotFound,
+    ReplyToNotFound,
+}
+
+pub trait PostCreateService {
+    async fn create_post(
+        &mut self,
+        req: &PostCreateRequest,
+    ) -> Result<(), ServiceError<PostCreateError>>;
 }
