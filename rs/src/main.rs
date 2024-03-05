@@ -4,13 +4,8 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::services::{
-    PostCreateRequest, PostCreateRequestBuilder, UserAuthService, UserCreateService,
-};
-use actix_web::{
-    dev::ServiceRequest, get, post, web, App, FromRequest, HttpResponse, HttpServer, Responder,
-};
-use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
+use crate::services::{PostCreateRequestBuilder, UserAuthService, UserCreateService};
+use actix_web::{get, post, web, App, FromRequest, HttpResponse, HttpServer, Responder};
 use config::Config;
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
@@ -19,7 +14,7 @@ use services::{
     AuthError, PostCreateService, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
     UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
 };
-use sqlx::{mysql::MySqlPoolOptions, MySqlPool};
+use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -35,13 +30,6 @@ use crate::services::db::new_user_service;
 use utoipa::OpenApi;
 use utoipa::ToSchema;
 use utoipa_swagger_ui::SwaggerUi;
-
-async fn validator(
-    req: ServiceRequest,
-    _credentials: BearerAuth,
-) -> Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
-    Ok(req)
-}
 
 #[derive(Debug)]
 struct AuthUser {
@@ -69,7 +57,7 @@ impl FromRequest for AuthUser {
 
     fn from_request(
         req: &actix_web::HttpRequest,
-        payload: &mut actix_web::dev::Payload,
+        _payload: &mut actix_web::dev::Payload,
     ) -> Self::Future {
         let req = req.clone();
         Box::pin(async move {
@@ -270,7 +258,9 @@ pub struct PostRequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct PostCreateResponse {}
+pub struct PostCreateResponse {
+    pub post_id: Simple,
+}
 
 #[utoipa::path(
     post,
@@ -302,7 +292,7 @@ async fn post_post(
         )
         .await?;
 
-    Ok(HttpResponse::Ok().json(PostCreateResponse {}))
+    Ok(HttpResponse::Ok().json(PostCreateResponse { post_id: req }))
 }
 
 #[actix_web::main]
@@ -319,14 +309,14 @@ async fn main() -> std::io::Result<()> {
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let conn_str = (format!(
+    let conn_str = format!(
         "mysql://{}:{}@{}:{}/{}",
         config.database.user,
         config.database.password,
         config.database.host,
         config.database.port,
         config.database.name
-    ));
+    );
     let pool = MySqlPoolOptions::new()
         .max_connections(5)
         .connect(&conn_str)

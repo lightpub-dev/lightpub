@@ -1,6 +1,4 @@
-use sqlx::prelude::*;
 use sqlx::MySqlPool;
-use thiserror::Error;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
@@ -144,7 +142,7 @@ impl LocalUserFinderService for DBLocalUserFinderService {
                 "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host IS NULL", username).fetch_one(&self.pool).await?;
                 return Ok(u);
             }
-            UserSpecifier::URL(url) => {
+            UserSpecifier::URL(_url) => {
                 // check if url is remote
                 todo!()
             }

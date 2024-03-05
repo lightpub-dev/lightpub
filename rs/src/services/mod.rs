@@ -83,10 +83,12 @@ pub enum UserLoginError {
 }
 
 pub trait UserCreateService {
+    #[allow(async_fn_in_trait)]
     async fn create_user(
         &mut self,
         req: &UserCreateRequest,
     ) -> Result<UserCreateResult, ServiceError<UserCreateError>>;
+    #[allow(async_fn_in_trait)]
     async fn login_user(
         &mut self,
         req: &UserLoginRequest,
@@ -100,6 +102,7 @@ pub enum LocalUserFindError {
 }
 
 pub trait LocalUserFinderService {
+    #[allow(async_fn_in_trait)]
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
@@ -121,10 +124,11 @@ pub enum PostCreateError {
 }
 
 pub trait PostCreateService {
+    #[allow(async_fn_in_trait)]
     async fn create_post(
         &mut self,
         req: &PostCreateRequest,
-    ) -> Result<(), ServiceError<PostCreateError>>;
+    ) -> Result<Simple, ServiceError<PostCreateError>>;
 }
 
 #[derive(Debug)]
@@ -133,6 +137,7 @@ pub enum AuthError {
 }
 
 pub trait UserAuthService {
+    #[allow(async_fn_in_trait)]
     async fn authenticate_user(
         &mut self,
         token: &str,

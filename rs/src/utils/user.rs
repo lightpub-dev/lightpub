@@ -1,4 +1,4 @@
-use uuid::{fmt::Simple, Uuid};
+use uuid::Uuid;
 
 type URL = String;
 

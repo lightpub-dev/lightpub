@@ -1,6 +1,4 @@
 use serde::Deserialize;
-use serde_yaml;
-use std::io::Read;
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct Config {
