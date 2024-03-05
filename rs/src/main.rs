@@ -9,7 +9,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use config::Config;
 use serde::{Deserialize, Serialize};
 use services::{
-    ServiceError, UserCreateRequest, UserCreateRequestBuilder, UserLoginRequest,
+    ServiceError, UserCreateRequest, UserCreateRequestBuilder, UserLoginError, UserLoginRequest,
     UserLoginRequestBuilder,
 };
 use sqlx::mysql::MySqlPoolOptions;
@@ -48,6 +48,12 @@ impl ErrorResponse {
     }
 }
 
+impl<T> Into<Result<T, ErrorResponse>> for ErrorResponse {
+    fn into(self) -> Result<T, ErrorResponse> {
+        Err(self)
+    }
+}
+
 impl<T: Debug> From<ServiceError<T>> for ErrorResponse {
     fn from(value: ServiceError<T>) -> Self {
         match value {
@@ -70,6 +76,11 @@ impl actix_web::ResponseError for ErrorResponse {
     fn status_code(&self) -> actix_web::http::StatusCode {
         actix_web::http::StatusCode::BAD_REQUEST
     }
+}
+
+fn ise<T: Into<ErrorResponse> + Debug, S>(error: T) -> Result<S, ErrorResponse> {
+    tracing::error!("Internal server error: {:?}", &error);
+    Err(error.into())
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,15 +146,16 @@ async fn login(
 ) -> Result<impl Responder, ErrorResponse> {
     let mut us = new_user_service(data.pool().clone());
     let req = us.login_user(&body.0.into()).await;
-    if let Ok(req) = req {
-        Ok(HttpResponse::Ok().json(LoginResponse {
+    match req {
+        Ok(req) => Ok(HttpResponse::Ok().json(LoginResponse {
             token: req.user_token().to_string(),
-        }))
-    } else {
-        Err(ErrorResponse::new_status(
-            401,
-            "Invalid username or password",
-        ))
+        })),
+        Err(e) => match e {
+            ServiceError::SpecificError(e) => match e {
+                UserLoginError::AuthFailed => Err(ErrorResponse::new_status(401, "auth failed")),
+            },
+            _ => ise(e),
+        },
     }
 }
 

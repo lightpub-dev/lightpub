@@ -61,7 +61,7 @@ impl UserCreateService for DBUserService {
     ) -> Result<UserLoginResult, ServiceError<UserLoginError>> {
         let user = sqlx::query_as!(
             LoginDB,
-            "SELECT id AS `id: Uuid`, bpasswd FROM users WHERE username = ? AND host IS NULL",
+            "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
             &req.username
         )
         .fetch_one(&self.pool)
