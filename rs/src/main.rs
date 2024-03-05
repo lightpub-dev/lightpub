@@ -4,18 +4,24 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
+use crate::services::UserCreateService;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use config::Config;
 use serde::{Deserialize, Serialize};
-use services::user::UserLoginRequest;
+use services::{
+    ServiceError, UserCreateRequest, UserCreateRequestBuilder, UserLoginRequest,
+    UserLoginRequestBuilder,
+};
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
 use std::{
-    fmt::{Display, Formatter},
+    fmt::{Debug, Display, Formatter},
     io::Read,
 };
 use tracing;
-use uuid::{fmt::Simple, Uuid};
+use uuid::fmt::Simple;
+
+use crate::services::db::new_user_service;
 
 #[get("/api/")]
 async fn hello() -> impl Responder {
@@ -30,12 +36,26 @@ async fn echo(req_body: String) -> impl Responder {
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
     message: String,
+    status: i32,
 }
 
 impl ErrorResponse {
     pub fn new_status(status: i32, message: impl Into<String>) -> Self {
         Self {
-            message: format!("{}: {}", status, message.into()),
+            message: message.into(),
+            status,
+        }
+    }
+}
+
+impl<T: Debug> From<ServiceError<T>> for ErrorResponse {
+    fn from(value: ServiceError<T>) -> Self {
+        match value {
+            ServiceError::SpecificError(e) => {
+                tracing::error!("Specific error not handled: {:?}", &e);
+                ErrorResponse::new_status(500, "internal server error")
+            }
+            ServiceError::MiscError(e) => ErrorResponse::new_status(e.status_code(), e.message()),
         }
     }
 }
@@ -59,9 +79,14 @@ struct RegisterBody {
     pub password: String,
 }
 
-impl Into<services::user::UserCreateRequest> for RegisterBody {
-    fn into(self) -> services::user::UserCreateRequest {
-        services::user::UserCreateRequest::new(self.username, self.nickname, self.password)
+impl Into<UserCreateRequest> for RegisterBody {
+    fn into(self) -> UserCreateRequest {
+        UserCreateRequestBuilder::default()
+            .username(self.username)
+            .password(self.password)
+            .nickname(self.nickname)
+            .build()
+            .unwrap()
     }
 }
 
@@ -75,9 +100,11 @@ async fn register(
     body: web::Json<RegisterBody>,
     data: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
-    let mut us = services::new_user_service(data.pool().clone());
-    let req = us.register_local_user(&body.0.into()).await.unwrap();
-    Ok(HttpResponse::Ok().json(RegisterResponse { user_id: req }))
+    let mut us = new_user_service(data.pool().clone());
+    let req = us.create_user(&body.0.into()).await.unwrap();
+    Ok(HttpResponse::Ok().json(RegisterResponse {
+        user_id: *req.user_id(),
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -88,7 +115,11 @@ struct LoginBody {
 
 impl Into<UserLoginRequest> for LoginBody {
     fn into(self) -> UserLoginRequest {
-        UserLoginRequest::new(self.username, self.password)
+        UserLoginRequestBuilder::default()
+            .username(self.username)
+            .password(self.password)
+            .build()
+            .unwrap()
     }
 }
 
@@ -102,11 +133,11 @@ async fn login(
     body: web::Json<LoginBody>,
     data: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
-    let mut us = services::new_user_service(data.pool().clone());
-    let req = us.login_user(&body.0.into()).await.unwrap();
-    if let Some(req) = req {
+    let mut us = new_user_service(data.pool().clone());
+    let req = us.login_user(&body.0.into()).await;
+    if let Ok(req) = req {
         Ok(HttpResponse::Ok().json(LoginResponse {
-            token: req.token().to_string(),
+            token: req.user_token().to_string(),
         }))
     } else {
         Err(ErrorResponse::new_status(

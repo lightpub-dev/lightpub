@@ -19,3 +19,5 @@ refinery = { version = "0.8", features = ["mysql"]}
 sqlx = { version = "0.7", features = [ "runtime-tokio", "mysql", "chrono", "json", "uuid", "macros" ] }
 regex = "1"
 thiserror = "1.0"
+derive_builder = "0.20.0"
+derive-getters = "0.3.0"

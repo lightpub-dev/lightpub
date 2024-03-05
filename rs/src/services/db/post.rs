@@ -1,3 +1,6 @@
+use sqlx::MySqlPool;
+use uuid::fmt::Simple;
+
 #[derive(Debug)]
 pub struct DBUserService {
     pool: MySqlPool,
