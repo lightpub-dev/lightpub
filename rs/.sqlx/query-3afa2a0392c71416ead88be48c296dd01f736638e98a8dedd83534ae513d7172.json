@@ -1,11 +1,11 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT id AS `id!: Uuid`, bpasswd FROM users WHERE username = ? AND host IS NULL",
+  "query": "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id!: Uuid",
+        "name": "id!: Simple",
         "type_info": {
           "type": "String",
           "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
@@ -32,5 +32,5 @@
       true
     ]
   },
-  "hash": "4a0c02b47b99046550267497107481b0b68565b0068e7426af04e0fa6dd4155f"
+  "hash": "3afa2a0392c71416ead88be48c296dd01f736638e98a8dedd83534ae513d7172"
 }
