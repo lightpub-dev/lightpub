@@ -7,11 +7,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: MySqlPool, baseURL: String) -> Self {
-        Self {
-            pool,
-            base_url: baseURL,
-        }
+    pub fn new(pool: MySqlPool, base_url: String) -> Self {
+        Self { pool, base_url }
     }
 
     pub fn pool(&self) -> &MySqlPool {
