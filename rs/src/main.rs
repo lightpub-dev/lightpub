@@ -22,6 +22,7 @@ use tracing;
 use uuid::fmt::Simple;
 
 use crate::services::db::new_user_service;
+use utoipa_swagger_ui::SwaggerUi;
 
 #[get("/api/")]
 async fn hello() -> impl Responder {
@@ -139,6 +140,14 @@ struct LoginResponse {
     token: String,
 }
 
+#[utoipa::path(
+    post,
+    request_body = LoginBody,
+    responses(
+        (status = 200, description = "Logged in", body = LoginResponse),
+        (status = 401, description = "Auth failed")
+    ),
+)]
 #[post("/login")]
 async fn login(
     body: web::Json<LoginBody>,
@@ -195,6 +204,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(app_state.clone()))
             .service(register)
             .service(login)
+            .service(SwaggerUi::new("/swagger-ui/{_:.*}"))
     })
     .bind(("127.0.0.1", 8000))?
     .run()
