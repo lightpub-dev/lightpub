@@ -4,8 +4,14 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::services::{PostCreateRequestBuilder, UserAuthService, UserCreateService};
-use actix_web::{get, post, web, App, FromRequest, HttpResponse, HttpServer, Responder};
+use crate::services::{
+    db::new_follow_service, PostCreateRequestBuilder, UserAuthService, UserCreateService,
+    UserFollowService,
+};
+use actix_web::{
+    delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
+    Responder,
+};
 use config::Config;
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
@@ -295,6 +301,47 @@ async fn post_post(
     Ok(HttpResponse::Ok().json(PostCreateResponse { post_id: req }))
 }
 
+#[derive(Debug, Deserialize)]
+struct CreateFollowParams {
+    user_spec: UserSpecifier,
+}
+
+#[put("/user/{user_spec}/follow")]
+async fn user_create_follow(
+    path: web::Path<CreateFollowParams>,
+    data: web::Data<AppState>,
+    auth: AuthUser,
+) -> Result<impl Responder, ErrorResponse> {
+    let user = auth.must_auth()?;
+
+    let pool = data.pool().clone();
+    let mut follow_service = new_follow_service(pool.clone());
+
+    follow_service
+        .follow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
+        .await?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[delete("/user/{user_spec}/follow")]
+async fn user_delete_follow(
+    path: web::Path<CreateFollowParams>,
+    data: web::Data<AppState>,
+    auth: AuthUser,
+) -> Result<impl Responder, ErrorResponse> {
+    let user = auth.must_auth()?;
+
+    let pool = data.pool().clone();
+    let mut follow_service = new_follow_service(pool.clone());
+
+    follow_service
+        .unfollow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
+        .await?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -343,9 +390,12 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
+            .wrap(Logger::default())
             .service(register)
             .service(login)
             .service(post_post)
+            .service(user_create_follow)
+            .service(user_delete_follow)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

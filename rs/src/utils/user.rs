@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use uuid::Uuid;
 
 type URL = String;
@@ -42,5 +43,31 @@ impl UserSpecifier {
 
     pub fn from_id(id: impl Into<Uuid>) -> Self {
         UserSpecifier::ID(id.into())
+    }
+}
+
+impl<'de> Deserialize<'de> for UserSpecifier {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(UserSpecifierVisitor {})
+    }
+}
+
+struct UserSpecifierVisitor {}
+
+impl<'de> serde::de::Visitor<'de> for UserSpecifierVisitor {
+    type Value = UserSpecifier;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a user specifier")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<UserSpecifier, E>
+    where
+        E: serde::de::Error,
+    {
+        UserSpecifier::parse(value).map_err(|e| E::custom(format!("{:?}", e)))
     }
 }

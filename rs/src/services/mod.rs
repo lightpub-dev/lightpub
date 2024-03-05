@@ -43,9 +43,16 @@ pub enum ServiceError<T> {
     MiscError(Box<dyn MiscError>),
 }
 
-impl<T> ServiceError<T> {
+impl<T: std::fmt::Debug> ServiceError<T> {
     pub fn from_se(e: T) -> Self {
         ServiceError::SpecificError(e)
+    }
+
+    pub fn convert<S>(self) -> ServiceError<S> {
+        match self {
+            ServiceError::SpecificError(e) => panic!("unhandled error: {:?}", e),
+            ServiceError::MiscError(e) => ServiceError::MiscError(e),
+        }
     }
 }
 
@@ -142,4 +149,25 @@ pub trait UserAuthService {
         &mut self,
         token: &str,
     ) -> Result<models::User, ServiceError<AuthError>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum FollowError {
+    FollowerNotFound,
+    FolloweeNotFound,
+}
+
+pub trait UserFollowService {
+    #[allow(async_fn_in_trait)]
+    async fn follow_user(
+        &mut self,
+        follower_spec: &UserSpecifier,
+        followee_spec: &UserSpecifier,
+    ) -> Result<(), ServiceError<FollowError>>;
+    #[allow(async_fn_in_trait)]
+    async fn unfollow_user(
+        &mut self,
+        follower_spec: &UserSpecifier,
+        followee_spec: &UserSpecifier,
+    ) -> Result<(), ServiceError<FollowError>>;
 }
