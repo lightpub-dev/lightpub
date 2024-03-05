@@ -302,13 +302,13 @@ async fn post_post(
 }
 
 #[derive(Debug, Deserialize)]
-struct CreateFollowParams {
+struct UserChooseParams {
     user_spec: UserSpecifier,
 }
 
 #[put("/user/{user_spec}/follow")]
 async fn user_create_follow(
-    path: web::Path<CreateFollowParams>,
+    path: web::Path<UserChooseParams>,
     data: web::Data<AppState>,
     auth: AuthUser,
 ) -> Result<impl Responder, ErrorResponse> {
@@ -326,7 +326,7 @@ async fn user_create_follow(
 
 #[delete("/user/{user_spec}/follow")]
 async fn user_delete_follow(
-    path: web::Path<CreateFollowParams>,
+    path: web::Path<UserChooseParams>,
     data: web::Data<AppState>,
     auth: AuthUser,
 ) -> Result<impl Responder, ErrorResponse> {
