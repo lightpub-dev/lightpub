@@ -109,6 +109,13 @@ struct RegisterResponse {
     user_id: Simple,
 }
 
+#[utoipa::path(
+    post,
+    request_body = RegisterBody,
+    responses(
+        (status = 200, description = "Registered User", body = RegisterResponse),
+    ),
+)]
 #[post("/register")]
 async fn register(
     body: web::Json<RegisterBody>,
@@ -202,7 +209,10 @@ async fn main() -> std::io::Result<()> {
     let app_state = state::AppState::new(pool);
 
     #[derive(OpenApi)]
-    #[openapi(paths(login), components(schemas(LoginResponse, LoginBody)))]
+    #[openapi(
+        paths(login, register),
+        components(schemas(LoginResponse, LoginBody, RegisterBody, RegisterResponse))
+    )]
     struct ApiDoc1;
 
     HttpServer::new(move || {
