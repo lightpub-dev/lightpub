@@ -13,3 +13,6 @@
 1. `cd frontend`
 2. `yarn install`
 3. `yarn run dev`
+
+
+Rust version is available in rs directory.
