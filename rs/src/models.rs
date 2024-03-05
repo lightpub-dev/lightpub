@@ -13,3 +13,24 @@ pub struct User {
     pub public_key: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PostPrivacy {
+    Public,
+    Unlisted,
+    Followers,
+    Private,
+}
+
+impl PostPrivacy {
+    pub fn to_db(&self) -> String {
+        use PostPrivacy::*;
+        match self {
+            Public => "public",
+            Unlisted => "unlisted",
+            Followers => "followers",
+            Private => "private",
+        }
+        .to_string()
+    }
+}
