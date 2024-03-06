@@ -54,3 +54,18 @@ impl PostPrivacy {
         .to_string()
     }
 }
+
+#[derive(Debug)]
+pub struct ApubWebfingerResponse {
+    api_url: String,
+    profile_url: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct ApubPerson {}
+
+#[derive(Debug)]
+pub enum ApubActivity {}
+
+#[derive(Debug)]
+pub struct ApubActor {}

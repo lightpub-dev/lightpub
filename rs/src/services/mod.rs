@@ -1,13 +1,15 @@
 use derive_builder::Builder;
+use reqwest::Url;
 use uuid::fmt::Simple;
 
 use derive_getters::Getters;
 
 use crate::{
-    models::{self, PostPrivacy},
+    models::{self, ApubActivity, ApubActor, ApubPerson, ApubWebfingerResponse, PostPrivacy},
     utils::user::UserSpecifier,
 };
 
+pub mod apub;
 pub mod db;
 pub mod id;
 
@@ -17,6 +19,16 @@ pub trait MiscError: std::fmt::Debug + Send + Sync {
 }
 
 impl MiscError for sqlx::Error {
+    fn message(&self) -> &str {
+        "internal server error"
+    }
+
+    fn status_code(&self) -> i32 {
+        500
+    }
+}
+
+impl MiscError for reqwest::Error {
     fn message(&self) -> &str {
         "internal server error"
     }
@@ -222,4 +234,33 @@ pub trait UserFollowService {
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
     ) -> Result<(), ServiceError<FollowError>>;
+}
+
+pub enum PostToInboxError {}
+#[derive(Debug)]
+pub enum ApubFetchUserError {
+    NotFound,
+}
+#[derive(Debug)]
+pub enum WebfingerError {
+    ApiUrlNotFound,
+    NotFound,
+}
+
+pub trait ApubRequestService {
+    #[allow(async_fn_in_trait)]
+    async fn post_to_inbox(
+        url: impl Into<Url>,
+        activity: &ApubActivity,
+        actor: impl Into<ApubActor>,
+    ) -> Result<(), ServiceError<PostToInboxError>>;
+    #[allow(async_fn_in_trait)]
+    async fn fetch_user(
+        url: impl Into<Url>,
+    ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
+    #[allow(async_fn_in_trait)]
+    async fn fetch_webfinger(
+        username: &str,
+        host: &str,
+    ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>>;
 }
