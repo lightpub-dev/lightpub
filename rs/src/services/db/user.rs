@@ -14,8 +14,10 @@ use crate::services::UserCreateService;
 use crate::services::UserLoginError;
 use crate::services::UserLoginRequest;
 use crate::services::UserLoginResult;
+use crate::utils;
 use crate::utils::generate_uuid;
 use crate::utils::user::UserSpecifier;
+use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 
 #[derive(Debug)]
 pub struct DBUserCreateService {
@@ -54,12 +56,28 @@ impl UserCreateService for DBUserCreateService {
         // bcrypt
         let hashed = bcrypt::hash(req.password.clone(), bcrypt::DEFAULT_COST).unwrap();
 
+        // generate rsa keys
+        let (private_key, public_key) = tokio::task::spawn_blocking(|| {
+            let private_key = utils::key::generate();
+            let public_key = private_key.to_public_key();
+            let private_key = private_key
+                .to_pkcs8_pem(pkcs8::LineEnding::LF)
+                .unwrap()
+                .to_string();
+            let public_key = public_key.to_public_key_pem(pkcs8::LineEnding::LF).unwrap();
+            (private_key, public_key)
+        })
+        .await
+        .unwrap();
+
         sqlx::query!(
-            "INSERT INTO users (id, username, nickname, bpasswd) VALUES(?, ?, ?, ?)",
+            "INSERT INTO users (id, username, nickname, bpasswd, private_key, public_key) VALUES(?, ?, ?, ?, ?, ?)",
             user_id,
             req.username,
             req.nickname,
             hashed,
+            private_key,
+            public_key
         )
         .execute(&self.pool)
         .await?;
