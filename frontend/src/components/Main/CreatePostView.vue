@@ -71,7 +71,7 @@ const postTweet = async () => {
 
         tweetText.value = ''
         selectedImage.value = null
-        closePostMenu()
+        closePostMenu(false)
 
         emit('created')
         eventBus.emit('post-created')
@@ -81,11 +81,16 @@ const postTweet = async () => {
     }
 }
 
-const closePostMenu = () => {
-    emit('canceled')
+const closeByCancel = () => {
+    closePostMenu(true)
+}
+
+const closePostMenu = (isCanceled: boolean) => {
+    if(isCanceled) emit('canceled')
     showPostMenu.value = false
     emit('on-close')
 }
+
 </script>
 
 <template>
@@ -118,7 +123,7 @@ const closePostMenu = () => {
                 </div>
                 <div class="flex space-x-4">
                     <button
-                        @click="closePostMenu"
+                        @click="closeByCancel"
                         class="px-4 py-2 border border-gray-400 rounded-lg transition duration-300 ease-in-out hover:bg-gray-200"
                     >
                         Cancel

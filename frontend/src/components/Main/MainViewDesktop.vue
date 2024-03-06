@@ -28,6 +28,11 @@ const isCreatePostOpen = ref(false)
 const handleToggleCreatePost = () => {
     isCreatePostOpen.value = !isCreatePostOpen.value
 }
+
+const handleCreatePostViewClose = () => {
+    isCreatePostOpen.value = false
+}
+
 </script>
 
 <template>
@@ -42,7 +47,7 @@ const handleToggleCreatePost = () => {
             <MainRightMenu />
         </template>
         <template #create-post>
-            <CreatePostView :showPostMenu="isCreatePostOpen" />
+            <CreatePostView :showPostMenu="isCreatePostOpen" @on-close="handleCreatePostViewClose"/>
         </template>
         <template #feed>
             <MainFeed v-if="props.mode === 'feed'" />
