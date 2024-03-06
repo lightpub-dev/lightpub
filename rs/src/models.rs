@@ -67,5 +67,11 @@ pub struct ApubPerson {}
 #[derive(Debug)]
 pub enum ApubActivity {}
 
+impl ApubActivity {
+    pub fn to_json(&self) -> String {
+        todo!()
+    }
+}
+
 #[derive(Debug)]
 pub struct ApubActor {}

@@ -250,16 +250,19 @@ pub enum WebfingerError {
 pub trait ApubRequestService {
     #[allow(async_fn_in_trait)]
     async fn post_to_inbox(
+        &mut self,
         url: impl Into<Url>,
         activity: &ApubActivity,
         actor: impl Into<ApubActor>,
     ) -> Result<(), ServiceError<PostToInboxError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_user(
+        &mut self,
         url: impl Into<Url>,
     ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_webfinger(
+        &mut self,
         username: &str,
         host: &str,
     ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>>;
