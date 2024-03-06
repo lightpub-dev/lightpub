@@ -8,6 +8,12 @@ pub struct Config {
     pub database: DatabaseConfig,
 }
 
+impl Config {
+    pub fn base_url(&self) -> String {
+        format!("{}://{}", self.http_scheme, self.hostname)
+    }
+}
+
 #[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct DatabaseConfig {
     pub host: String,

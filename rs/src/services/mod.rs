@@ -9,6 +9,7 @@ use crate::{
 };
 
 pub mod db;
+pub mod id;
 
 pub trait MiscError: std::fmt::Debug + Send + Sync {
     fn message(&self) -> &str;

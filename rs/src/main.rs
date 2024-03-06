@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use services::{
     db::{new_auth_service, new_local_user_finder_service, post::new_post_create_service},
+    id::IDGetterService,
     AuthError, LocalUserFindError, PostCreateService, ServiceError, UserCreateRequest,
     UserCreateRequestBuilder, UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
 };
@@ -109,6 +110,10 @@ async fn hello() -> impl Responder {
 #[post("/echo")]
 async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
+}
+
+fn new_id_getter_service(app: &AppState) -> IDGetterService {
+    IDGetterService::new(std::borrow::Cow::Borrowed(app.config()))
 }
 
 #[derive(ToSchema, Debug, Serialize)]
