@@ -1,9 +1,16 @@
 use derive_builder::Builder;
 use derive_getters::Getters;
-use reqwest::IntoUrl;
+use reqwest::{
+    header::{self, HeaderMap, HeaderValue},
+    IntoUrl,
+};
+use serde::Deserialize;
 use tracing::warn;
 
-use crate::services::ServiceError;
+use crate::{
+    models::ApubWebfingerResponseBuilder,
+    services::{ServiceError, WebfingerError},
+};
 
 use super::{ApubRequestService, MiscError};
 
@@ -15,6 +22,19 @@ pub struct ApubReqwestConfig {
 #[derive(Debug, Clone)]
 pub struct ApubReqwester {
     client: reqwest::Client,
+}
+
+impl ApubReqwester {
+    pub fn new() -> Self {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::USER_AGENT, HeaderValue::from_static("lightpub/0.1"));
+        Self {
+            client: reqwest::ClientBuilder::new()
+                .default_headers(headers)
+                .build()
+                .expect("failed to build reqwest client"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -69,6 +89,8 @@ impl ApubRequestService for ApubReqwest {
         let client = self.client();
         let actor = actor.into();
 
+        // TODO: sign the request
+
         // send to the inbox
         let res = client
             .post(url)
@@ -76,8 +98,7 @@ impl ApubRequestService for ApubReqwest {
             .header("Accept", "application/activity+json")
             .body(body)
             .send()
-            .await
-            .unwrap();
+            .await?;
 
         if res.status().is_success() {
             return Ok(());
@@ -102,6 +123,53 @@ impl ApubRequestService for ApubReqwest {
         host: &str,
     ) -> Result<crate::models::ApubWebfingerResponse, super::ServiceError<super::WebfingerError>>
     {
-        todo!()
+        let url = format!(
+            "https://{}/.well-known/webfinger?resource=acct:{}@{}",
+            host, username, host
+        );
+        let res = self
+            .client()
+            .get(url)
+            .header("accept", "application/json")
+            .send()
+            .await?;
+
+        let json_body = res.json::<WebfingerResponse>().await?;
+
+        let result = ApubWebfingerResponseBuilder::default()
+            .api_url(
+                json_body
+                    .links
+                    .iter()
+                    .find(|link| link.rel == "self" || link.r#type == "application/activity+json")
+                    .map(|link| link.href.clone())
+                    .ok_or(ServiceError::from_se(WebfingerError::ApiUrlNotFound))?,
+            )
+            .profile_url(
+                json_body
+                    .links
+                    .iter()
+                    .find(|link| {
+                        link.rel == "http://webfinger.net/rel/profile-page"
+                            || link.r#type == "text/html"
+                    })
+                    .map(|link| link.href.clone()),
+            )
+            .build()
+            .unwrap();
+        Ok(result)
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct WebfingerResponse {
+    subject: String,
+    links: Vec<WebfingerLinks>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WebfingerLinks {
+    href: String,
+    rel: String,
+    r#type: String,
 }

@@ -1,3 +1,5 @@
+use derive_builder::Builder;
+use derive_getters::Getters;
 use serde::Deserialize;
 
 #[derive(Debug)]
@@ -55,7 +57,7 @@ impl PostPrivacy {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Builder, Getters)]
 pub struct ApubWebfingerResponse {
     api_url: String,
     profile_url: Option<String>,
