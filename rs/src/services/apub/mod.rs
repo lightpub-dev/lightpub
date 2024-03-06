@@ -1,6 +1,11 @@
 use derive_builder::Builder;
+use derive_getters::Getters;
+use reqwest::IntoUrl;
+use tracing::warn;
 
-use super::ApubRequestService;
+use crate::services::ServiceError;
+
+use super::{ApubRequestService, MiscError};
 
 #[derive(Debug, Builder)]
 pub struct ApubReqwestConfig {
@@ -28,10 +33,34 @@ impl ApubReqwest {
     }
 }
 
+#[derive(Debug, Builder, Getters)]
+pub struct ApubReqwestError {
+    status: reqwest::StatusCode,
+    body: String,
+}
+
+impl MiscError for ApubReqwestError {
+    fn message(&self) -> &str {
+        "internal server error"
+    }
+
+    fn status_code(&self) -> i32 {
+        500
+    }
+}
+
+impl ApubReqwestError {
+    pub async fn from_response(res: reqwest::Response) -> Self {
+        let status = res.status();
+        let body = res.text().await.unwrap_or_else(|_| "no body".to_string());
+        Self { status, body }
+    }
+}
+
 impl ApubRequestService for ApubReqwest {
     async fn post_to_inbox(
         &mut self,
-        url: impl Into<reqwest::Url>,
+        url: impl IntoUrl,
         activity: &crate::models::ApubActivity,
         actor: impl Into<crate::models::ApubActor>,
     ) -> Result<(), super::ServiceError<super::PostToInboxError>> {
@@ -48,14 +77,21 @@ impl ApubRequestService for ApubReqwest {
             .body(body)
             .send()
             .await
-            .map_err(super::ServiceError::from)?;
+            .unwrap();
 
-        todo!()
+        if res.status().is_success() {
+            return Ok(());
+        }
+
+        warn!("Failed to send to inbox: {:?}", res);
+        return Err(ServiceError::MiscError(Box::new(
+            ApubReqwestError::from_response(res).await,
+        )));
     }
 
     async fn fetch_user(
         &mut self,
-        url: impl Into<reqwest::Url>,
+        url: impl IntoUrl,
     ) -> Result<crate::models::ApubPerson, super::ServiceError<super::ApubFetchUserError>> {
         todo!()
     }
