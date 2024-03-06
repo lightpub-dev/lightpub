@@ -13,6 +13,7 @@ import { useRouter } from 'vue-router'
 import EmojiPicker from 'vue3-emoji-picker'
 import 'vue3-emoji-picker/css'
 import ReactionBadge from '@/components/UserPost/ReactionBadge.vue'
+import UserPostContent from '@/components/UserPost/UserPostContent.vue'
 
 const props = defineProps({
     user_post: {
@@ -291,9 +292,8 @@ const onReaction = async (emoji: { i: string, n: string[]; r: string }) => {
             </div>
         </div>
 
-        <p class="pt-5 text-gray-600 text-lg mb-4">
-            {{ content }}
-        </p>
+        <UserPostContent :content="content" />
+
         <div>
             <div class="flex flex-row">
                 <reaction-badge v-for="(count, emojiName) in reactions" :key="emojiName" :emoji-name="emojiName"
