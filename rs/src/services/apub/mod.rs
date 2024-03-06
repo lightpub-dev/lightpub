@@ -2,18 +2,20 @@ use derive_builder::Builder;
 use derive_getters::Getters;
 use reqwest::{
     header::{self, HeaderMap, HeaderValue},
-    IntoUrl,
+    IntoUrl, Method, Request, RequestBuilder, Url,
 };
 use serde::Deserialize;
 use tracing::warn;
 
 use crate::{
-    models::ApubWebfingerResponseBuilder,
+    models::{ApubSigner, ApubWebfingerResponseBuilder},
     services::{ServiceError, WebfingerError},
+    utils::key::{attach_signature, SignKeyBuilder},
 };
 
 use super::{ApubRequestService, MiscError};
 
+pub mod render;
 #[derive(Debug, Clone)]
 pub struct ApubReqwester {
     client: reqwest::Client,
@@ -81,26 +83,38 @@ fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
 impl ApubRequestService for ApubReqwest {
     async fn post_to_inbox(
         &mut self,
-        url: impl IntoUrl,
+        url: impl Into<Url>,
         activity: &crate::models::ApubActivity,
-        actor: impl Into<crate::models::ApubActor>,
+        actor: &impl ApubSigner,
     ) -> Result<(), super::ServiceError<super::PostToInboxError>> {
         let body = activity.to_json();
 
         let client = self.client();
-        let actor = actor.into();
+        let actor_id = actor.get_user_id();
 
-        // TODO: sign the request
+        let mut req =
+            RequestBuilder::from_parts(self.client(), Request::new(Method::POST, url.into()))
+                .header("Content-Type", "application/activity+json")
+                .header("Accept", "application/activity+json")
+                .body(body)
+                .build()
+                .unwrap();
+
+        // sign the request
+        let priv_key = actor.get_private_key();
+        let key_id = actor.get_private_key_id();
+        attach_signature(
+            &mut req,
+            SignKeyBuilder::default()
+                .private_key(priv_key)
+                .id(key_id)
+                .build()
+                .unwrap(),
+        )
+        .expect("failed to attach http-signature");
 
         // send to the inbox
-        let res = client
-            .post(url)
-            .header("Content-Type", "application/activity+json")
-            .header("Accept", "application/activity+json")
-            .body(body)
-            .send()
-            .await
-            .map_err(map_error)?;
+        let res = client.execute(req).await.map_err(map_error)?;
 
         if res.status().is_success() {
             return Ok(());
@@ -114,7 +128,7 @@ impl ApubRequestService for ApubReqwest {
 
     async fn fetch_user(
         &mut self,
-        url: impl IntoUrl,
+        url: impl Into<Url>,
     ) -> Result<crate::models::ApubPerson, super::ServiceError<super::ApubFetchUserError>> {
         todo!()
     }

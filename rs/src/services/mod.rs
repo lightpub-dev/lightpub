@@ -5,7 +5,7 @@ use uuid::fmt::Simple;
 use derive_getters::Getters;
 
 use crate::{
-    models::{self, ApubActivity, ApubActor, ApubPerson, ApubWebfingerResponse, PostPrivacy},
+    models::{self, ApubActivity, ApubPerson, ApubSigner, ApubWebfingerResponse, PostPrivacy},
     utils::user::UserSpecifier,
 };
 
@@ -254,14 +254,14 @@ pub trait ApubRequestService {
     #[allow(async_fn_in_trait)]
     async fn post_to_inbox(
         &mut self,
-        url: impl IntoUrl,
+        url: impl Into<Url>,
         activity: &ApubActivity,
-        actor: impl Into<ApubActor>,
+        actor: &impl ApubSigner,
     ) -> Result<(), ServiceError<PostToInboxError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_user(
         &mut self,
-        url: impl IntoUrl,
+        url: impl Into<Url>,
     ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_webfinger(
