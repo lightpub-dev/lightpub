@@ -9,7 +9,6 @@ use sqlx::MySqlPool;
 use tracing::{info, warn};
 
 use uuid::fmt::Simple;
-use uuid::Uuid;
 
 use crate::{
     models::{
