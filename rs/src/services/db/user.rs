@@ -206,6 +206,58 @@ fn map_to_local_error(e: ServiceError<LocalUserFindError>) -> ServiceError<UserF
     }
 }
 
+async fn find_user_by_url(
+    url: impl Into<String>,
+    req: &mut impl ApubRequestService,
+    pool: &MySqlPool,
+) -> Result<models::User, ServiceError<crate::services::UserFindError>> {
+    let url = url.into();
+
+    // TODO: check if url is remote
+
+    let parsed_url = url.parse::<reqwest::Url>().unwrap();
+    let host = parsed_url.host_str().unwrap().to_string();
+
+    let actor = req.fetch_user(parsed_url).await.unwrap();
+
+    let user_id = generate_uuid();
+    let user = models::User {
+        id: user_id,
+        username: actor
+            .preferred_username()
+            .clone()
+            .ok_or(ServiceError::from_se(UserFindError::RemoteError))?,
+        host: Some(host),
+        nickname: actor.name().clone().unwrap_or({
+            actor
+                .preferred_username()
+                .clone()
+                .ok_or(ServiceError::from_se(UserFindError::RemoteError))?
+        }),
+        bio: "".to_string(),
+        uri: Some(actor.id().to_owned()),
+        shared_inbox: actor.shared_inbox().to_owned(),
+        inbox: Some(actor.inbox().to_owned()),
+        outbox: Some(actor.outbox().to_owned()),
+        public_key: None,
+        created_at: chrono::Utc::now().naive_utc(),
+    };
+
+    sqlx::query!(
+        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox) VALUES (?,?,?,NULL,?,?,?,?,?)",
+        user.id.to_string(),
+        user.username,
+        user.host,
+        user.nickname,
+        user.uri,
+        user.shared_inbox,
+        user.inbox,
+        user.outbox
+    ).execute(pool).await?;
+
+    return Ok(user);
+}
+
 impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
     for DBAllUserFinderService<R, F>
 {
@@ -229,49 +281,7 @@ impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
                         .fetch_webfinger(username, host)
                         .await
                         .map_err(|e| e.convert())?;
-                    let api_url = wf.api_url();
-                    let actor = self
-                        .req
-                        .fetch_user(api_url.parse::<reqwest::Url>().unwrap())
-                        .await
-                        .unwrap();
-
-                    let user_id = generate_uuid();
-                    let user = models::User {
-                        id: user_id,
-                        username: actor
-                            .preferred_username()
-                            .clone()
-                            .ok_or(ServiceError::from_se(UserFindError::RemoteError))?,
-                        host: Some(host.clone()),
-                        nickname: actor.name().clone().unwrap_or({
-                            actor
-                                .preferred_username()
-                                .clone()
-                                .ok_or(ServiceError::from_se(UserFindError::RemoteError))?
-                        }),
-                        bio: "".to_string(),
-                        uri: Some(actor.id().to_owned()),
-                        shared_inbox: actor.shared_inbox().to_owned(),
-                        inbox: Some(actor.inbox().to_owned()),
-                        outbox: Some(actor.outbox().to_owned()),
-                        public_key: None,
-                        created_at: chrono::Utc::now().naive_utc(),
-                    };
-
-                    sqlx::query!(
-                        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox) VALUES (?,?,?,NULL,?,?,?,?,?)",
-                        user.id.to_string(),
-                        user.username,
-                        user.host,
-                        user.nickname,
-                        user.uri,
-                        user.shared_inbox,
-                        user.inbox,
-                        user.outbox
-                    ).execute(&self.pool).await?;
-
-                    return Ok(user);
+                    find_user_by_url(wf.api_url(), &mut self.req, &self.pool).await
                 } else {
                     self.local
                         .find_user_by_specifier(spec)
@@ -279,11 +289,10 @@ impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
                         .map_err(map_to_local_error)
                 }
             }
-            UserSpecifier::URL(_url) => {
-                // check if url is remote
-                todo!()
+            UserSpecifier::URL(api_url) => {
+                find_user_by_url(api_url, &mut self.req, &self.pool).await
             }
-            UserSpecifier::ID(id) => self
+            UserSpecifier::ID(_) => self
                 .local
                 .find_user_by_specifier(spec)
                 .await
