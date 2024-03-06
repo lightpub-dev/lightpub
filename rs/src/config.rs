@@ -1,8 +1,6 @@
 use serde::Deserialize;
-use serde_yaml;
-use std::io::Read;
 
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct Config {
     pub hostname: String,
     pub http_scheme: String,
@@ -10,7 +8,13 @@ pub struct Config {
     pub database: DatabaseConfig,
 }
 
-#[derive(Debug, PartialEq, Deserialize)]
+impl Config {
+    pub fn base_url(&self) -> String {
+        format!("{}://{}", self.http_scheme, self.hostname)
+    }
+}
+
+#[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct DatabaseConfig {
     pub host: String,
     pub port: u16,
@@ -21,6 +25,8 @@ pub struct DatabaseConfig {
 
 #[test]
 fn read_config_yaml() {
+    use std::io::Read;
+
     // read from lightpub.yml.sample
     let mut file = std::fs::File::open("lightpub.yml.sample").unwrap();
     let mut contents = String::new();
