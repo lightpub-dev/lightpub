@@ -14,11 +14,6 @@ use crate::{
 
 use super::{ApubRequestService, MiscError};
 
-#[derive(Debug, Builder)]
-pub struct ApubReqwestConfig {
-    timeout: std::time::Duration,
-}
-
 #[derive(Debug, Clone)]
 pub struct ApubReqwester {
     client: reqwest::Client,
@@ -31,6 +26,7 @@ impl ApubReqwester {
         Self {
             client: reqwest::ClientBuilder::new()
                 .default_headers(headers)
+                .timeout(std::time::Duration::from_secs(10)) // TODO: make this configurable
                 .build()
                 .expect("failed to build reqwest client"),
         }
@@ -40,12 +36,11 @@ impl ApubReqwester {
 #[derive(Debug)]
 pub struct ApubReqwest {
     client: ApubReqwester,
-    config: ApubReqwestConfig,
 }
 
 impl ApubReqwest {
-    pub fn new(client: ApubReqwester, config: ApubReqwestConfig) -> Self {
-        Self { client, config }
+    pub fn new(client: ApubReqwester) -> Self {
+        Self { client }
     }
 
     fn client(&self) -> reqwest::Client {
@@ -77,6 +72,12 @@ impl ApubReqwestError {
     }
 }
 
+fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
+    ServiceError::MiscError(Box::new(
+        ApubReqwestErrorBuilder::default().build().unwrap(),
+    ))
+}
+
 impl ApubRequestService for ApubReqwest {
     async fn post_to_inbox(
         &mut self,
@@ -98,7 +99,8 @@ impl ApubRequestService for ApubReqwest {
             .header("Accept", "application/activity+json")
             .body(body)
             .send()
-            .await?;
+            .await
+            .map_err(map_error)?;
 
         if res.status().is_success() {
             return Ok(());
@@ -132,9 +134,10 @@ impl ApubRequestService for ApubReqwest {
             .get(url)
             .header("accept", "application/json")
             .send()
-            .await?;
+            .await
+            .map_err(map_error)?;
 
-        let json_body = res.json::<WebfingerResponse>().await?;
+        let json_body = res.json::<WebfingerResponse>().await.map_err(map_error)?;
 
         let result = ApubWebfingerResponseBuilder::default()
             .api_url(
