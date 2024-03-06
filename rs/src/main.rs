@@ -401,6 +401,71 @@ async fn user_delete_follow(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[get("/nodeinfo/2.0")]
+async fn node_info_2_0(app: web::Data<AppState>) -> impl Responder {
+    let config = app.config();
+    let node_info = gen_node_info("2.0", config);
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(node_info.to_string())
+}
+
+#[get("/nodeinfo/2.1")]
+async fn node_info_2_1(app: web::Data<AppState>) -> impl Responder {
+    let config = app.config();
+    let node_info = gen_node_info("2.1", config);
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(node_info.to_string())
+}
+
+fn gen_node_info(node_info_version: &str, _config: &Config) -> serde_json::Value {
+    json!({
+        "version": node_info_version,
+        "software": {
+            "name": "lightpub",
+            "version": "0.1",
+            "repository": "https://github.com/lightpub-dev/lightpub",
+        },
+        "protocol": [
+            "activitypub",
+        ],
+        "services": {"inbound": [], "outbound": []},
+        "openRegistrations": false,
+        "usage": {
+            // "users": {
+                // "total": get_total_users(),
+            // }
+        },
+        "metadata": {
+            // "nodeName": INSTANCE_NAME,
+            // "nodeDescription": INSTANCE_DESCRIPTION,
+        },
+    })
+}
+
+#[get("/.well-known/nodeinfo")]
+async fn well_known_node_info(app: web::Data<AppState>) -> impl Responder {
+    let link_2_0 = format!("{}/nodeinfo/2.0", app.base_url());
+    let link_2_1 = format!("{}/nodeinfo/2.1", app.base_url());
+    let body = json!({
+        "links": [
+            {
+                "rel": "http://nodeinfo.diaspora.software/ns/schema/2.1",
+                "href": link_2_0,
+            },
+            {
+                "rel": "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                "href": link_2_1,
+            },
+        ]
+    });
+
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(body.to_string())
+}
+
 #[derive(Debug, Deserialize)]
 struct WebfingerQuery {
     resource: String,
@@ -443,7 +508,7 @@ async fn webfinger(
 
     let base_url = app.base_url();
 
-    Ok(HttpResponse::Ok().body(
+    Ok(HttpResponse::Ok().content_type("application/json").body(
         json!({
             "subject": acct_id,
             "links": [
@@ -487,7 +552,7 @@ async fn main() -> std::io::Result<()> {
         .expect("connect to database");
     tracing::info!("Connected to database");
 
-    let app_state = state::AppState::new(pool, "http://localhost:8000".to_string());
+    let app_state = state::AppState::new(pool, config.clone());
 
     #[derive(OpenApi)]
     #[openapi(
@@ -513,6 +578,9 @@ async fn main() -> std::io::Result<()> {
             .service(user_create_follow)
             .service(user_delete_follow)
             .service(webfinger)
+            .service(node_info_2_0)
+            .service(node_info_2_1)
+            .service(well_known_node_info)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),
