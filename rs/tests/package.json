@@ -9,9 +9,6 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@types/chai": "^4.3.12",
-    "@types/mocha": "^10.0.6",
-    "axios": "^1.6.7",
-    "chai": "^5.1.0"
+    "axios": "^1.6.7"
   }
 }

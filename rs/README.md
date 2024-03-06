@@ -3,7 +3,7 @@
 Initialization commands:
 ``` bash
 docker compose up
-refiniery migrate
+refinery migrate
 cargo run --release
 ```
 
