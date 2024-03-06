@@ -31,7 +31,7 @@ use std::{
     io::Read,
     pin::Pin,
 };
-use tracing;
+use tracing::{self, info};
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -59,6 +59,8 @@ impl AuthUser {
         }
     }
 }
+
+type HandlerResponse<T: Responder> = Result<T, ErrorResponse>;
 
 impl FromRequest for AuthUser {
     type Error = ErrorResponse;
@@ -528,6 +530,18 @@ async fn webfinger(
     ))
 }
 
+#[get("/user/{user_spec}/inbox")]
+async fn user_inbox(
+    params: web::Path<UserChooseParams>,
+    app: web::Data<AppState>,
+    body: web::Json<serde_json::Value>,
+) -> HandlerResponse<impl Responder> {
+    info!("user_inbox: {:?}", params);
+    info!("{:?}", body);
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -586,6 +600,7 @@ async fn main() -> std::io::Result<()> {
             .service(node_info_2_0)
             .service(node_info_2_1)
             .service(well_known_node_info)
+            .service(user_inbox)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),
