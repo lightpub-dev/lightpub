@@ -3,6 +3,8 @@ use uuid::fmt::Simple;
 use uuid::Uuid;
 
 use crate::models;
+use crate::services::AllUserFinderService;
+use crate::services::ApubRequestService;
 use crate::services::LocalUserFindError;
 use crate::services::LocalUserFinderService;
 use crate::services::ServiceError;
@@ -11,6 +13,7 @@ use crate::services::UserCreateError;
 use crate::services::UserCreateRequest;
 use crate::services::UserCreateResult;
 use crate::services::UserCreateService;
+use crate::services::UserFindError;
 use crate::services::UserLoginError;
 use crate::services::UserLoginRequest;
 use crate::services::UserLoginResult;
@@ -174,6 +177,117 @@ impl LocalUserFinderService for DBLocalUserFinderService {
                 }
                 return Ok(u);
             }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DBAllUserFinderService<R, F> {
+    pool: MySqlPool,
+    req: R,
+    local: F,
+}
+
+impl<R, F> DBAllUserFinderService<R, F> {
+    pub fn new(pool: MySqlPool, req: R, local: F) -> Self {
+        Self { pool, req, local }
+    }
+}
+
+fn map_to_local_error(e: ServiceError<LocalUserFindError>) -> ServiceError<UserFindError> {
+    match e {
+        ServiceError::SpecificError(e) => match e {
+            LocalUserFindError::NotLocalUser => {
+                panic!("should not happen")
+            }
+            LocalUserFindError::UserNotFound => ServiceError::from_se(UserFindError::UserNotFound),
+        },
+        _ => e.convert(),
+    }
+}
+
+impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
+    for DBAllUserFinderService<R, F>
+{
+    async fn find_user_by_specifier(
+        &mut self,
+        spec: &UserSpecifier,
+    ) -> Result<models::User, ServiceError<crate::services::UserFindError>> {
+        match spec {
+            UserSpecifier::Username(username, host) => {
+                if let Some(host) = host {
+                    // check if already exists in local db
+                    let u = sqlx::query_as!(models::User,
+                        "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host = ?", username, host).fetch_optional(&self.pool).await?;
+                    if let Some(u) = u {
+                        // TODO: check if user is up-to-date
+                        return Ok(u);
+                    }
+
+                    let wf = self
+                        .req
+                        .fetch_webfinger(username, host)
+                        .await
+                        .map_err(|e| e.convert())?;
+                    let api_url = wf.api_url();
+                    let actor = self
+                        .req
+                        .fetch_user(api_url.parse::<reqwest::Url>().unwrap())
+                        .await
+                        .unwrap();
+
+                    let user_id = generate_uuid();
+                    let user = models::User {
+                        id: user_id,
+                        username: actor
+                            .preferred_username()
+                            .clone()
+                            .ok_or(ServiceError::from_se(UserFindError::RemoteError))?,
+                        host: Some(host.clone()),
+                        nickname: actor.name().clone().unwrap_or({
+                            actor
+                                .preferred_username()
+                                .clone()
+                                .ok_or(ServiceError::from_se(UserFindError::RemoteError))?
+                        }),
+                        bio: "".to_string(),
+                        uri: Some(actor.id().to_owned()),
+                        shared_inbox: actor.shared_inbox().to_owned(),
+                        inbox: Some(actor.inbox().to_owned()),
+                        outbox: Some(actor.outbox().to_owned()),
+                        public_key: None,
+                        created_at: chrono::Utc::now().naive_utc(),
+                    };
+
+                    sqlx::query!(
+                        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox) VALUES (?,?,?,NULL,?,?,?,?,?)",
+                        user.id.to_string(),
+                        user.username,
+                        user.host,
+                        user.nickname,
+                        user.uri,
+                        user.shared_inbox,
+                        user.inbox,
+                        user.outbox
+                    ).execute(&self.pool).await?;
+
+                    return Ok(user);
+                } else {
+                    self.local
+                        .find_user_by_specifier(spec)
+                        .await
+                        .map_err(map_to_local_error)
+                }
+            }
+            UserSpecifier::URL(_url) => {
+                // check if url is remote
+                todo!()
+            }
+            UserSpecifier::ID(id) => self
+                .local
+                .find_user_by_specifier(spec)
+                .await
+                .map_err(map_to_local_error),
         }
     }
 }

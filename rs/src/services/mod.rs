@@ -1,6 +1,7 @@
 use derive_builder::Builder;
-use reqwest::{IntoUrl, Url};
-use uuid::fmt::Simple;
+use reqwest::Url;
+use serde::{Deserialize, Serialize};
+use uuid::{fmt::Simple, Uuid};
 
 use derive_getters::Getters;
 
@@ -127,6 +128,20 @@ pub trait LocalUserFinderService {
         &mut self,
         spec: &UserSpecifier,
     ) -> Result<models::User, ServiceError<LocalUserFindError>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum UserFindError {
+    UserNotFound,
+    RemoteError,
+}
+
+pub trait AllUserFinderService {
+    #[allow(async_fn_in_trait)]
+    async fn find_user_by_specifier(
+        &mut self,
+        spec: &UserSpecifier,
+    ) -> Result<models::User, ServiceError<UserFindError>>;
 }
 
 #[derive(Debug, Clone)]
@@ -269,4 +284,15 @@ pub trait ApubRequestService {
         username: &str,
         host: &str,
     ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BackgroundJob {
+    RemoteFollowRequest(Uuid),
+    RemoteFollowAccept(Uuid),
+}
+
+pub trait QueueService {
+    #[allow(async_fn_in_trait)]
+    async fn process_job(&self, job: BackgroundJob) -> Result<(), ServiceError<()>>;
 }

@@ -15,6 +15,7 @@ use crate::{
 
 use super::{ApubRequestService, MiscError};
 
+pub mod queue;
 pub mod render;
 #[derive(Debug, Clone)]
 pub struct ApubReqwester {

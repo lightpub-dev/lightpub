@@ -128,7 +128,7 @@ impl Serialize for ApubNote {
     }
 }
 
-#[derive(Debug, Deserialize, Builder, Clone)]
+#[derive(Debug, Deserialize, Builder, Clone, Getters)]
 #[serde(rename_all = "camelCase")]
 pub struct ApubPerson {
     id: String,

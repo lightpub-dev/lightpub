@@ -5,7 +5,7 @@ use crate::{
     services::{
         FollowError, LocalUserFindError, LocalUserFinderService, ServiceError, UserFollowService,
     },
-    utils::user::UserSpecifier,
+    utils::{generate_uuid, user::UserSpecifier},
 };
 
 #[derive(Debug, Clone)]
@@ -54,16 +54,31 @@ impl<F: LocalUserFinderService> UserFollowService for DBUserFollowService<F> {
         let follower_id = &follower.id;
         let followee_id = &followee.id;
 
-        sqlx::query!(
-            r#"
+        if let Some(followee_host) = followee.host {
+            // remote follow
+            let request_id = generate_uuid();
+            sqlx::query!(
+                r#"
+                INSERT INTO user_follow_requests (id, incoming, follower_id, followee_id) VALUES (?, ?, ?, ?)
+                "#,
+                request_id.to_string(),
+                0,
+                follower_id.to_string(),
+                followee_id.to_string()
+            ).execute(&self.pool).await?;
+        } else {
+            // local follow
+            sqlx::query!(
+                r#"
             INSERT INTO user_follows (follower_id, followee_id) VALUES(?,?)
             ON DUPLICATE KEY UPDATE id=id
             "#,
-            follower_id.to_string(),
-            followee_id.to_string()
-        )
-        .execute(&self.pool)
-        .await?;
+                follower_id.to_string(),
+                followee_id.to_string()
+            )
+            .execute(&self.pool)
+            .await?;
+        }
 
         Ok(())
     }
