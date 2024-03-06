@@ -21,9 +21,13 @@ import {
     faPlus
 } from '@fortawesome/free-solid-svg-icons'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import RegisterView from './components/Register/RegisterView.vue'
+import RegistrationSuccessView from './components/Register/RegistrationSuccessView.vue'
 
 const routes = [
     { path: '/login', component: LoginView },
+    { path: '/register', component: RegisterView },
+    { path: '/registration-success', component: RegistrationSuccessView },
     {
         path: '/',
         component: MainView,
