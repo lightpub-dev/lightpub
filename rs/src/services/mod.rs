@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use reqwest::Url;
+use reqwest::{IntoUrl, Url};
 use uuid::fmt::Simple;
 
 use derive_getters::Getters;
@@ -236,11 +236,14 @@ pub trait UserFollowService {
     ) -> Result<(), ServiceError<FollowError>>;
 }
 
+#[derive(Debug)]
 pub enum PostToInboxError {}
+
 #[derive(Debug)]
 pub enum ApubFetchUserError {
     NotFound,
 }
+
 #[derive(Debug)]
 pub enum WebfingerError {
     ApiUrlNotFound,
@@ -251,14 +254,14 @@ pub trait ApubRequestService {
     #[allow(async_fn_in_trait)]
     async fn post_to_inbox(
         &mut self,
-        url: impl Into<Url>,
+        url: impl IntoUrl,
         activity: &ApubActivity,
         actor: impl Into<ApubActor>,
     ) -> Result<(), ServiceError<PostToInboxError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_user(
         &mut self,
-        url: impl Into<Url>,
+        url: impl IntoUrl,
     ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_webfinger(
