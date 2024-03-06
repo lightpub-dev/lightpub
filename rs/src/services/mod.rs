@@ -300,17 +300,22 @@ pub trait QueueService {
     async fn process_job(&self, job: BackgroundJob) -> Result<(), ServiceError<()>>;
 }
 
+#[derive(Debug, Clone)]
+pub enum ApubFollowError {
+    RequestNotFound,
+}
+
 pub trait ApubFollowService {
     #[allow(async_fn_in_trait)]
     async fn create_follow_request(
         &mut self,
         follow_req_id: Uuid,
-    ) -> Result<ApubFollow, ServiceError<()>>;
+    ) -> Result<ApubFollow, ServiceError<ApubFollowError>>;
     #[allow(async_fn_in_trait)]
     async fn create_follow_accept(
         &mut self,
         follow_req_id: Uuid,
-    ) -> Result<ApubAccept, ServiceError<()>>;
+    ) -> Result<ApubAccept, ServiceError<ApubFollowError>>;
 }
 
 #[derive(Debug, Clone)]

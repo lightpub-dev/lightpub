@@ -6,7 +6,7 @@ use reqwest::{
 };
 use serde::Deserialize;
 use sqlx::MySqlPool;
-use tracing::warn;
+use tracing::{info, warn};
 
 use uuid::fmt::Simple;
 use uuid::Uuid;
@@ -19,7 +19,9 @@ use crate::{
     utils::key::{attach_signature, SignKeyBuilder},
 };
 
-use super::{id::IDGetterService, ApubFollowService, ApubRequestService, MiscError};
+use super::{
+    id::IDGetterService, ApubFollowError, ApubFollowService, ApubRequestService, MiscError,
+};
 
 pub mod queue;
 pub mod render;
@@ -30,10 +32,12 @@ pub struct ApubReqwester {
 
 impl ApubReqwester {
     pub fn new() -> Self {
+        let no_ssl_verify = true;
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, HeaderValue::from_static("lightpub/0.1"));
         Self {
             client: reqwest::ClientBuilder::new()
+                .danger_accept_invalid_certs(no_ssl_verify)
                 .default_headers(headers)
                 .timeout(std::time::Duration::from_secs(10)) // TODO: make this configurable
                 .build()
@@ -87,9 +91,16 @@ impl ApubReqwestError {
     }
 }
 
-fn map_error<T>(_e: reqwest::Error) -> ServiceError<T> {
+fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
     ServiceError::MiscError(Box::new(
-        ApubReqwestErrorBuilder::default().build().unwrap(),
+        ApubReqwestErrorBuilder::default()
+            .status(
+                e.status()
+                    .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR),
+            )
+            .body(e.to_string())
+            .build()
+            .unwrap(),
     ))
 }
 
@@ -107,7 +118,7 @@ impl ApubRequestService for ApubReqwest {
         let mut req =
             RequestBuilder::from_parts(self.client(), Request::new(Method::POST, url.into()))
                 .header("Content-Type", "application/activity+json")
-                .header("Accept", "application/activity+json")
+                // .header("Accept", "application/activity+json")
                 .body(body)
                 .build()
                 .unwrap();
@@ -126,6 +137,7 @@ impl ApubRequestService for ApubReqwest {
         .expect("failed to attach http-signature");
 
         // send to the inbox
+        info!("sending to inbox: {:?}", req);
         let res = client.execute(req).await.map_err(map_error)?;
 
         if res.status().is_success() {
@@ -174,25 +186,32 @@ impl ApubRequestService for ApubReqwest {
             .map_err(map_error)?;
 
         let json_body = res.json::<WebfingerResponse>().await.map_err(map_error)?;
+        let links: Vec<_> = json_body
+            .links
+            .iter()
+            .filter_map(
+                |l| match (l.rel.clone(), l.r#type.clone(), l.href.clone()) {
+                    (Some(r), Some(t), Some(h)) => Some((r, t, h)),
+                    _ => None,
+                },
+            )
+            .collect();
 
         let result = ApubWebfingerResponseBuilder::default()
             .api_url(
-                json_body
-                    .links
+                links
                     .iter()
-                    .find(|link| link.rel == "self" || link.r#type == "application/activity+json")
-                    .map(|link| link.href.clone())
+                    .find(|link| link.0 == "self" || link.1 == "application/activity+json")
+                    .map(|link| link.2.clone())
                     .ok_or(ServiceError::from_se(WebfingerError::ApiUrlNotFound))?,
             )
             .profile_url(
-                json_body
-                    .links
+                links
                     .iter()
                     .find(|link| {
-                        link.rel == "http://webfinger.net/rel/profile-page"
-                            || link.r#type == "text/html"
+                        link.0 == "http://webfinger.net/rel/profile-page" || link.1 == "text/html"
                     })
-                    .map(|link| link.href.clone()),
+                    .map(|link| link.2.clone()),
             )
             .build()
             .unwrap();
@@ -209,9 +228,9 @@ struct WebfingerResponse {
 
 #[derive(Debug, Deserialize)]
 struct WebfingerLinks {
-    href: String,
-    rel: String,
-    r#type: String,
+    href: Option<String>,
+    rel: Option<String>,
+    r#type: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -263,21 +282,25 @@ impl ApubFollowService for DBApubFollowService {
     async fn create_follow_accept(
         &mut self,
         _follow_req_id: uuid::Uuid,
-    ) -> Result<crate::models::ApubAccept, ServiceError<()>> {
+    ) -> Result<crate::models::ApubAccept, ServiceError<ApubFollowError>> {
         todo!()
     }
 
     async fn create_follow_request(
         &mut self,
         follow_req_id: uuid::Uuid,
-    ) -> Result<crate::models::ApubFollow, ServiceError<()>> {
+    ) -> Result<crate::models::ApubFollow, ServiceError<ApubFollowError>> {
         let uf = sqlx::query_as!(UserFollowInfo, r#"
-        SELECT r.id AS `req_id: Uuid`, r.follower_id AS `follower_id: Uuid`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Uuid`, u2.uri AS followee_uri
+        SELECT r.id AS `req_id: Simple`, r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri
         FROM user_follow_requests AS r
         INNER JOIN users u1 ON r.follower_id = u1.id
         INNER JOIN users u2 ON r.followee_id = u2.id
         WHERE r.id = ? AND r.uri IS NULL AND r.incoming = 0
-        "#, follow_req_id.to_string()).fetch_one(&self.pool).await?;
+        "#, follow_req_id.simple().to_string()).fetch_optional(&self.pool).await?;
+        let uf = match uf {
+            None => return Err(ServiceError::from_se(ApubFollowError::RequestNotFound)),
+            Some(uf) => uf,
+        };
         let uf_id = self.id_getter.get_follower_request_id(&uf);
 
         let follower_id = self.id_getter.get_user_id(&UserFollowUser {

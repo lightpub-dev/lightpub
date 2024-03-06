@@ -3,8 +3,10 @@ use derive_builder::Builder;
 use linked_hash_map::LinkedHashMap;
 use reqwest::Method;
 use rsa::pkcs1v15::Signature;
+use rsa::signature::SignatureEncoding;
 use rsa::signature::Signer;
 use rsa::{pkcs1v15::SigningKey, sha2::Sha256, RsaPrivateKey};
+use tracing::info;
 
 pub fn generate() -> RsaPrivateKey {
     let mut rng = rand::thread_rng();
@@ -36,10 +38,18 @@ fn make_signed_message(
     let mut added_headers: LinkedHashMap<String, Vec<String>> = LinkedHashMap::new();
     for h in signed_headers {
         let h = h.to_lowercase();
-        let value = headers
-            .get(&h)
-            .map(|v| v.to_str().unwrap().replace("\n\r", "").replace("\n", ""))
-            .ok_or(NotIncludedHeader(h.to_string()))?;
+        let value = if h == "(request-target)" {
+            format!(
+                "{} {}",
+                req.method().as_str().to_lowercase(),
+                req.url().path()
+            )
+        } else {
+            headers
+                .get(&h)
+                .map(|v| v.to_str().unwrap().replace("\n\r", "").replace("\n", ""))
+                .ok_or(NotIncludedHeader(h.to_string()))?
+        };
         if let Some(array) = added_headers.get_mut(&h) {
             array.push(value);
         } else {
@@ -52,7 +62,8 @@ fn make_signed_message(
         .map(|(k, v)| format!("{}: {}", k, v.join(", ")))
         .collect();
 
-    let message_to_sign = BASE64_STANDARD.encode(lines.join("\n"));
+    let message_to_sign = lines.join("\n");
+    info!("message_to_sign: {}", message_to_sign);
 
     Ok(SignedHeaderBuilder::default()
         .message_to_sign(message_to_sign)
@@ -66,10 +77,10 @@ fn sign_message(message: &str, key: RsaPrivateKey) -> Signature {
 }
 
 pub fn attach_signature(req: &mut reqwest::Request, key: SignKey) -> Result<(), NotIncludedHeader> {
-    let mut signed_headers = vec!["(request-target)", "digest", "content-type"];
+    let mut signed_headers = vec!["(request-target)", "content-type", "host", "date"];
 
     let hostname = req.url().host().expect("hostname not set").to_owned();
-    let date = chrono::Utc::now().to_rfc2822();
+    let date = httpdate::fmt_http_date(std::time::SystemTime::now());
 
     {
         let headers = req.headers_mut();
@@ -95,6 +106,7 @@ pub fn attach_signature(req: &mut reqwest::Request, key: SignKey) -> Result<(), 
 
     let message = make_signed_message(req, &signed_headers)?;
     let signature = sign_message(&message.message_to_sign, key.private_key);
+    let signature = BASE64_STANDARD.encode(signature.to_bytes());
 
     let signature_header = format!(
         r#"keyId="{}",algorithm="rsa-sha256",headers="{}",signature="{}""#,

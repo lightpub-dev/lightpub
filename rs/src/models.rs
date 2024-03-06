@@ -120,7 +120,11 @@ pub enum ApubActivity {
 
 impl ApubActivity {
     pub fn to_json(&self) -> String {
-        todo!()
+        use ApubActivity::*;
+        match self {
+            Follow(f) => serde_json::to_string(f).unwrap(),
+            _ => todo!("implement the rest of the activity types"),
+        }
     }
 }
 
@@ -129,6 +133,20 @@ pub struct ApubFollow {
     pub id: String,
     pub actor: ApubMaybeId<ApubPerson>,
     pub object: ApubMaybeId<ApubPerson>,
+}
+
+impl Serialize for ApubFollow {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("ApubFollow", 4)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("actor", &self.actor)?;
+        state.serialize_field("object", &self.object)?;
+        state.serialize_field("type", "Follow")?;
+        state.end()
+    }
 }
 
 #[derive(Debug, Builder, Clone)]
@@ -248,6 +266,21 @@ pub enum ApubMaybeId<T> {
 impl<T> From<String> for ApubMaybeId<T> {
     fn from(s: String) -> Self {
         ApubMaybeId::Id(s)
+    }
+}
+
+impl<T> Serialize for ApubMaybeId<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            ApubMaybeId::Id(id) => id.serialize(serializer),
+            ApubMaybeId::Body(body) => body.serialize(serializer),
+        }
     }
 }
 
