@@ -6,7 +6,10 @@ use uuid::{fmt::Simple, Uuid};
 use derive_getters::Getters;
 
 use crate::{
-    models::{self, ApubActivity, ApubPerson, ApubSigner, ApubWebfingerResponse, PostPrivacy},
+    models::{
+        self, ApubAccept, ApubActivity, ApubFollow, ApubPerson, ApubSigner, ApubWebfingerResponse,
+        PostPrivacy,
+    },
     utils::user::UserSpecifier,
 };
 
@@ -295,4 +298,32 @@ pub enum BackgroundJob {
 pub trait QueueService {
     #[allow(async_fn_in_trait)]
     async fn process_job(&self, job: BackgroundJob) -> Result<(), ServiceError<()>>;
+}
+
+pub trait ApubFollowService {
+    #[allow(async_fn_in_trait)]
+    async fn create_follow_request(
+        &mut self,
+        follow_req_id: Uuid,
+    ) -> Result<ApubFollow, ServiceError<()>>;
+    #[allow(async_fn_in_trait)]
+    async fn create_follow_accept(
+        &mut self,
+        follow_req_id: Uuid,
+    ) -> Result<ApubAccept, ServiceError<()>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum SignerError {
+    UserNotFound,
+    PrivateKeyNotSet,
+}
+
+pub trait SignerService {
+    type Signer: ApubSigner;
+    #[allow(async_fn_in_trait)]
+    async fn fetch_signer(
+        &mut self,
+        user: &UserSpecifier,
+    ) -> Result<Self::Signer, ServiceError<SignerError>>;
 }

@@ -1,10 +1,8 @@
-use std::borrow::Cow;
-
 use crate::{config::Config, models::HasRemoteUri};
 
-#[derive(Debug)]
-pub struct IDGetterService<'a> {
-    config: Cow<'a, Config>,
+#[derive(Debug, Clone)]
+pub struct IDGetterService {
+    config: Config,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,23 +12,25 @@ pub enum UserAttribute {
     Following,
     Followers,
     Liked,
+    PublicKey,
 }
 
 impl UserAttribute {
-    pub fn to_string(&self) -> String {
+    pub fn as_url(&self) -> String {
         match self {
-            Self::Inbox => "inbox",
-            Self::Outbox => "outbox",
-            Self::Following => "following",
-            Self::Followers => "followers",
-            Self::Liked => "liked",
+            Self::Inbox => "/inbox",
+            Self::Outbox => "/outbox",
+            Self::Following => "/following",
+            Self::Followers => "/followers",
+            Self::Liked => "/liked",
+            Self::PublicKey => "#main-key",
         }
         .to_string()
     }
 }
 
-impl<'a> IDGetterService<'a> {
-    pub fn new(config: Cow<'a, Config>) -> Self {
+impl IDGetterService {
+    pub fn new(config: Config) -> Self {
         Self { config }
     }
 
@@ -51,7 +51,7 @@ impl<'a> IDGetterService<'a> {
             Some(_) => None,
             None => {
                 let base = self.get_user_id(user);
-                Some(format!("{}/{}", base, attr.to_string()))
+                Some(format!("{}{}", base, attr.as_url()))
             }
         }
     }
@@ -64,7 +64,7 @@ impl<'a> IDGetterService<'a> {
         }
     }
 
-    pub fn get_follower_request_id(&self, follow_req: impl HasRemoteUri) -> String {
+    pub fn get_follower_request_id(&self, follow_req: &impl HasRemoteUri) -> String {
         if let Some(uri) = follow_req.get_remote_uri() {
             uri
         } else {

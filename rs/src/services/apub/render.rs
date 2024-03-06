@@ -5,15 +5,15 @@ use crate::services::id::UserAttribute;
 use crate::{models::ApubNote, models::ApubNoteBuilder, services::id::IDGetterService};
 
 #[derive(Debug)]
-pub struct ApubRendererService<'a> {
-    id_getter: IDGetterService<'a>,
+pub struct ApubRendererService {
+    id_getter: IDGetterService,
 }
 
 #[derive(Debug)]
 pub enum ApubRendererServiceError {}
 
-impl<'a> ApubRendererService<'a> {
-    pub fn new(id_getter: IDGetterService<'a>) -> Self {
+impl ApubRendererService {
+    pub fn new(id_getter: IDGetterService) -> Self {
         Self { id_getter }
     }
 

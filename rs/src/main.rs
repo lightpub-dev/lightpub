@@ -60,7 +60,7 @@ impl AuthUser {
     }
 }
 
-type HandlerResponse<T: Responder> = Result<T, ErrorResponse>;
+type HandlerResponse<T> = Result<T, ErrorResponse>;
 
 impl FromRequest for AuthUser {
     type Error = ErrorResponse;
@@ -114,8 +114,8 @@ async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
 }
 
-fn new_id_getter_service(app: &AppState) -> IDGetterService {
-    IDGetterService::new(std::borrow::Cow::Borrowed(app.config()))
+fn new_id_getter_service(config: Config) -> IDGetterService {
+    IDGetterService::new(config)
 }
 
 #[derive(ToSchema, Debug, Serialize)]
@@ -381,7 +381,7 @@ async fn user_create_follow(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone());
+    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
 
     follow_service
         .follow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
@@ -399,7 +399,7 @@ async fn user_delete_follow(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone());
+    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
 
     follow_service
         .unfollow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
@@ -533,7 +533,7 @@ async fn webfinger(
 #[get("/user/{user_spec}/inbox")]
 async fn user_inbox(
     params: web::Path<UserChooseParams>,
-    app: web::Data<AppState>,
+    _app: web::Data<AppState>,
     body: web::Json<serde_json::Value>,
 ) -> HandlerResponse<impl Responder> {
     info!("user_inbox: {:?}", params);

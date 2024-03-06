@@ -1,13 +1,20 @@
+use rsa::pkcs8::DecodePrivateKey;
+use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
 use crate::models;
+use crate::models::ApubSigner;
+use crate::services::id::IDGetterService;
+use crate::services::id::UserAttribute;
 use crate::services::AllUserFinderService;
 use crate::services::ApubRequestService;
 use crate::services::LocalUserFindError;
 use crate::services::LocalUserFinderService;
 use crate::services::ServiceError;
+use crate::services::SignerError;
+use crate::services::SignerService;
 use crate::services::UserAuthService;
 use crate::services::UserCreateError;
 use crate::services::UserCreateRequest;
@@ -298,5 +305,86 @@ impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
                 .await
                 .map_err(map_to_local_error),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct DBSignerService<F> {
+    pool: MySqlPool,
+    fetch: F,
+    id_getter: IDGetterService,
+}
+
+pub fn new_db_user_signer_service<F>(
+    pool: MySqlPool,
+    fetch: F,
+    id_getter: IDGetterService,
+) -> DBSignerService<F> {
+    DBSignerService {
+        pool,
+        fetch,
+        id_getter,
+    }
+}
+
+#[derive(Debug)]
+pub struct DBSigner {
+    user_id: String,
+    private_key: RsaPrivateKey,
+    private_key_id: String,
+}
+
+impl ApubSigner for DBSigner {
+    fn get_user_id(&self) -> String {
+        self.user_id.clone()
+    }
+
+    fn get_private_key(&self) -> RsaPrivateKey {
+        self.private_key.clone()
+    }
+
+    fn get_private_key_id(&self) -> String {
+        self.private_key_id.clone()
+    }
+}
+
+impl<F: LocalUserFinderService> SignerService for DBSignerService<F> {
+    type Signer = DBSigner;
+
+    async fn fetch_signer(
+        &mut self,
+        user: &UserSpecifier,
+    ) -> Result<Self::Signer, ServiceError<crate::services::SignerError>> {
+        let u = self
+            .fetch
+            .find_user_by_specifier(user)
+            .await
+            .map_err(|e| match e {
+                ServiceError::SpecificError(
+                    LocalUserFindError::NotLocalUser | LocalUserFindError::UserNotFound,
+                ) => ServiceError::from_se(SignerError::UserNotFound),
+                _ => e.convert(),
+            })?;
+
+        let private_key = sqlx::query!(
+            "SELECT private_key FROM users WHERE id = ?",
+            u.id.to_string()
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        let private_key = private_key
+            .private_key
+            .ok_or(ServiceError::from_se(SignerError::PrivateKeyNotSet))?;
+        let private_key_id = self
+            .id_getter
+            .get_user_id_attr(&u, UserAttribute::PublicKey)
+            .unwrap();
+
+        Ok(DBSigner {
+            user_id: u.id.to_string(),
+            private_key: RsaPrivateKey::from_pkcs8_pem(private_key.as_ref())
+                .map_err(|_| ServiceError::from_se(SignerError::PrivateKeyNotSet))?,
+            private_key_id,
+        })
     }
 }

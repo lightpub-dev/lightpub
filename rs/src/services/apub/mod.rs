@@ -2,18 +2,24 @@ use derive_builder::Builder;
 use derive_getters::Getters;
 use reqwest::{
     header::{self, HeaderMap, HeaderValue},
-    IntoUrl, Method, Request, RequestBuilder, Url,
+    Method, Request, RequestBuilder, Url,
 };
 use serde::Deserialize;
+use sqlx::MySqlPool;
 use tracing::warn;
 
+use uuid::fmt::Simple;
+use uuid::Uuid;
+
 use crate::{
-    models::{ApubSigner, ApubWebfingerResponseBuilder},
+    models::{
+        ApubFollowBuilder, ApubPerson, ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri,
+    },
     services::{ServiceError, WebfingerError},
     utils::key::{attach_signature, SignKeyBuilder},
 };
 
-use super::{ApubRequestService, MiscError};
+use super::{id::IDGetterService, ApubFollowService, ApubRequestService, MiscError};
 
 pub mod queue;
 pub mod render;
@@ -33,6 +39,12 @@ impl ApubReqwester {
                 .build()
                 .expect("failed to build reqwest client"),
         }
+    }
+}
+
+pub fn new_apub_reqwester_service() -> ApubReqwest {
+    ApubReqwest {
+        client: ApubReqwester::new(),
     }
 }
 
@@ -75,7 +87,7 @@ impl ApubReqwestError {
     }
 }
 
-fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
+fn map_error<T>(_e: reqwest::Error) -> ServiceError<T> {
     ServiceError::MiscError(Box::new(
         ApubReqwestErrorBuilder::default().build().unwrap(),
     ))
@@ -91,7 +103,6 @@ impl ApubRequestService for ApubReqwest {
         let body = activity.to_json();
 
         let client = self.client();
-        let actor_id = actor.get_user_id();
 
         let mut req =
             RequestBuilder::from_parts(self.client(), Request::new(Method::POST, url.into()))
@@ -131,7 +142,17 @@ impl ApubRequestService for ApubReqwest {
         &mut self,
         url: impl Into<Url>,
     ) -> Result<crate::models::ApubPerson, super::ServiceError<super::ApubFetchUserError>> {
-        todo!()
+        let url = url.into();
+        // TODO: sign req with maintenance user
+        let req = RequestBuilder::from_parts(self.client(), Request::new(Method::GET, url))
+            .header("Accept", "application/activity+json")
+            .build()
+            .unwrap();
+
+        let res = self.client().execute(req).await.map_err(map_error)?;
+        let person = res.json::<ApubPerson>().await.map_err(map_error)?;
+
+        Ok(person)
     }
 
     async fn fetch_webfinger(
@@ -181,6 +202,7 @@ impl ApubRequestService for ApubReqwest {
 
 #[derive(Debug, Deserialize)]
 struct WebfingerResponse {
+    #[allow(unused)]
     subject: String,
     links: Vec<WebfingerLinks>,
 }
@@ -190,4 +212,88 @@ struct WebfingerLinks {
     href: String,
     rel: String,
     r#type: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DBApubFollowService {
+    pool: MySqlPool,
+    id_getter: IDGetterService,
+}
+
+pub fn new_apub_follow_service(pool: MySqlPool, id_getter: IDGetterService) -> DBApubFollowService {
+    DBApubFollowService { pool, id_getter }
+}
+
+#[derive(Debug)]
+struct UserFollowInfo {
+    req_id: Simple,
+    follower_id: Simple,
+    follower_uri: Option<String>,
+    followee_id: Simple,
+    followee_uri: Option<String>,
+}
+
+#[derive(Debug)]
+struct UserFollowUser {
+    id: Simple,
+    uri: Option<String>,
+}
+
+impl HasRemoteUri for UserFollowUser {
+    fn get_local_id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
+impl HasRemoteUri for UserFollowInfo {
+    fn get_local_id(&self) -> String {
+        self.req_id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        None
+    }
+}
+
+impl ApubFollowService for DBApubFollowService {
+    async fn create_follow_accept(
+        &mut self,
+        _follow_req_id: uuid::Uuid,
+    ) -> Result<crate::models::ApubAccept, ServiceError<()>> {
+        todo!()
+    }
+
+    async fn create_follow_request(
+        &mut self,
+        follow_req_id: uuid::Uuid,
+    ) -> Result<crate::models::ApubFollow, ServiceError<()>> {
+        let uf = sqlx::query_as!(UserFollowInfo, r#"
+        SELECT r.id AS `req_id: Uuid`, r.follower_id AS `follower_id: Uuid`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Uuid`, u2.uri AS followee_uri
+        FROM user_follow_requests AS r
+        INNER JOIN users u1 ON r.follower_id = u1.id
+        INNER JOIN users u2 ON r.followee_id = u2.id
+        WHERE r.id = ? AND r.uri IS NULL AND r.incoming = 0
+        "#, follow_req_id.to_string()).fetch_one(&self.pool).await?;
+        let uf_id = self.id_getter.get_follower_request_id(&uf);
+
+        let follower_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: uf.follower_id,
+            uri: uf.follower_uri.clone(),
+        });
+        let followee_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: uf.followee_id,
+            uri: uf.followee_uri.clone(),
+        });
+
+        Ok(ApubFollowBuilder::default()
+            .id(uf_id)
+            .actor(follower_id.into())
+            .object(followee_id.into())
+            .build()
+            .unwrap())
+    }
 }

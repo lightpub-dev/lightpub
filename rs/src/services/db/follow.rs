@@ -1,26 +1,39 @@
 use sqlx::MySqlPool;
+use tracing::warn;
 
 use crate::{
-    models,
+    models::{self, ApubActivity},
     services::{
-        FollowError, LocalUserFindError, LocalUserFinderService, ServiceError, UserFollowService,
+        AllUserFinderService, ApubFollowService, ApubRequestService, FollowError, ServiceError,
+        SignerError, SignerService, UserFindError, UserFollowService,
     },
     utils::{generate_uuid, user::UserSpecifier},
 };
 
 #[derive(Debug, Clone)]
-pub struct DBUserFollowService<F> {
+pub struct DBUserFollowService<F, AF, R, S> {
     pool: MySqlPool,
     finder: F,
+    pubfollow: AF,
+    req: R,
+    signfetch: S,
 }
 
-impl<F: LocalUserFinderService> DBUserFollowService<F> {
-    pub fn new(pool: MySqlPool, finder: F) -> Self {
-        Self { pool, finder }
+impl<F: AllUserFinderService, AF: ApubFollowService, R, S> DBUserFollowService<F, AF, R, S> {
+    pub fn new(pool: MySqlPool, finder: F, pubfollow: AF, req: R, signfetch: S) -> Self {
+        Self {
+            pool,
+            finder,
+            pubfollow,
+            req,
+            signfetch,
+        }
     }
 }
 
-impl<F: LocalUserFinderService> DBUserFollowService<F> {
+impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: SignerService>
+    DBUserFollowService<F, AF, R, S>
+{
     async fn find_user(
         &mut self,
         user: &UserSpecifier,
@@ -30,7 +43,7 @@ impl<F: LocalUserFinderService> DBUserFollowService<F> {
             .find_user_by_specifier(user)
             .await
             .map_err(|e| match e {
-                ServiceError::SpecificError(LocalUserFindError::UserNotFound) => {
+                ServiceError::SpecificError(UserFindError::UserNotFound) => {
                     ServiceError::from_se(not_found_error)
                 }
                 _ => e.convert(),
@@ -38,7 +51,9 @@ impl<F: LocalUserFinderService> DBUserFollowService<F> {
     }
 }
 
-impl<F: LocalUserFinderService> UserFollowService for DBUserFollowService<F> {
+impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: SignerService>
+    UserFollowService for DBUserFollowService<F, AF, R, S>
+{
     async fn follow_user(
         &mut self,
         follower_spec: &UserSpecifier,
@@ -51,11 +66,17 @@ impl<F: LocalUserFinderService> UserFollowService for DBUserFollowService<F> {
             .find_user(followee_spec, FollowError::FolloweeNotFound)
             .await?;
 
+        // follower must be a local user
+        assert!(follower.host.is_none());
+
         let follower_id = &follower.id;
         let followee_id = &followee.id;
 
-        if let Some(followee_host) = followee.host {
-            // remote follow
+        if let Some(_) = followee.host {
+            let followee_inbox = followee.inbox.clone().ok_or_else(|| {
+                warn!("followee inbox not set: {:?}", followee);
+                ServiceError::from_se(FollowError::FolloweeNotFound)
+            })?;
             let request_id = generate_uuid();
             sqlx::query!(
                 r#"
@@ -66,6 +87,31 @@ impl<F: LocalUserFinderService> UserFollowService for DBUserFollowService<F> {
                 follower_id.to_string(),
                 followee_id.to_string()
             ).execute(&self.pool).await?;
+
+            // send request
+            let actor = self
+                .signfetch
+                .fetch_signer(&UserSpecifier::from_id(follower.id))
+                .await
+                .map_err(|e| match e {
+                    ServiceError::SpecificError(SignerError::UserNotFound) => {
+                        ServiceError::from_se(FollowError::FollowerNotFound)
+                    }
+                    _ => e.convert(),
+                })?;
+            let activity = self
+                .pubfollow
+                .create_follow_request(request_id.into())
+                .await
+                .unwrap();
+            self.req
+                .post_to_inbox(
+                    followee_inbox.parse::<reqwest::Url>().unwrap(),
+                    &ApubActivity::Follow(activity),
+                    &actor,
+                )
+                .await
+                .map_err(|e| e.convert())?;
         } else {
             // local follow
             sqlx::query!(

@@ -21,6 +21,26 @@ pub struct User {
     pub created_at: chrono::NaiveDateTime,
 }
 
+impl HasRemoteUri for User {
+    fn get_local_id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
+impl HasRemoteUri for &User {
+    fn get_local_id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum PostPrivacy {
     Public,
@@ -90,13 +110,46 @@ pub struct ApubWebfingerResponse {
     profile_url: Option<String>,
 }
 
-#[derive(Debug)]
-pub enum ApubActivity {}
+#[derive(Debug, Clone)]
+pub enum ApubActivity {
+    Follow(ApubFollow),
+    Accept(ApubAccept),
+    Reject(ApubReject),
+    Undo(ApubUndo),
+}
 
 impl ApubActivity {
     pub fn to_json(&self) -> String {
         todo!()
     }
+}
+
+#[derive(Debug, Builder, Clone)]
+pub struct ApubFollow {
+    pub id: String,
+    pub actor: ApubMaybeId<ApubPerson>,
+    pub object: ApubMaybeId<ApubPerson>,
+}
+
+#[derive(Debug, Builder, Clone)]
+pub struct ApubAccept {
+    pub id: String,
+    pub actor: ApubMaybeId<ApubPerson>,
+    pub object: ApubMaybeId<ApubFollow>,
+}
+
+#[derive(Debug, Builder, Clone)]
+pub struct ApubReject {
+    pub id: String,
+    pub actor: ApubMaybeId<ApubPerson>,
+    pub object: ApubMaybeId<ApubFollow>,
+}
+
+#[derive(Debug, Builder, Clone)]
+pub struct ApubUndo {
+    pub id: String,
+    pub actor: ApubMaybeId<ApubPerson>,
+    pub object: ApubMaybeId<ApubFollow>,
 }
 
 #[derive(Debug, Builder)]
@@ -143,6 +196,27 @@ pub struct ApubPerson {
     public_key: Option<ApubPublicKey>,
 }
 
+impl Serialize for ApubPerson {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut s = serializer.serialize_struct("ApubPerson", 9)?;
+        s.serialize_field("id", &self.id)?;
+        s.serialize_field("inbox", &self.inbox)?;
+        s.serialize_field("outbox", &self.outbox)?;
+        s.serialize_field("following", &self.following)?;
+        s.serialize_field("followers", &self.followers)?;
+        s.serialize_field("liked", &self.liked)?;
+        s.serialize_field("type", "Person")?;
+        s.serialize_field("preferredUsername", &self.preferred_username)?;
+        s.serialize_field("name", &self.name)?;
+        s.serialize_field("publicKey", &self.public_key)?;
+        s.serialize_field("sharedInbox", &self.shared_inbox)?;
+        s.end()
+    }
+}
+
 #[derive(Debug, Deserialize, Builder, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ApubPublicKey {
@@ -169,6 +243,12 @@ impl Serialize for ApubPublicKey {
 pub enum ApubMaybeId<T> {
     Id(String),
     Body(T),
+}
+
+impl<T> From<String> for ApubMaybeId<T> {
+    fn from(s: String) -> Self {
+        ApubMaybeId::Id(s)
+    }
 }
 
 pub trait ApubSigner {
