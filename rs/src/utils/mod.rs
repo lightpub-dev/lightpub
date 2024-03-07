@@ -1,5 +1,6 @@
 use uuid::Uuid;
 
+pub mod key;
 pub mod post;
 pub mod user;
 

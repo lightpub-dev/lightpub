@@ -1,11 +1,15 @@
 use derive_builder::Builder;
-use reqwest::{IntoUrl, Url};
-use uuid::fmt::Simple;
+use reqwest::Url;
+use serde::{Deserialize, Serialize};
+use uuid::{fmt::Simple, Uuid};
 
 use derive_getters::Getters;
 
 use crate::{
-    models::{self, ApubActivity, ApubActor, ApubPerson, ApubWebfingerResponse, PostPrivacy},
+    models::{
+        self, ApubAccept, ApubActivity, ApubFollow, ApubPayload, ApubPerson, ApubSigner,
+        ApubWebfingerResponse, PostPrivacy,
+    },
     utils::user::UserSpecifier,
 };
 
@@ -127,6 +131,20 @@ pub trait LocalUserFinderService {
         &mut self,
         spec: &UserSpecifier,
     ) -> Result<models::User, ServiceError<LocalUserFindError>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum UserFindError {
+    UserNotFound,
+    RemoteError,
+}
+
+pub trait AllUserFinderService {
+    #[allow(async_fn_in_trait)]
+    async fn find_user_by_specifier(
+        &mut self,
+        spec: &UserSpecifier,
+    ) -> Result<models::User, ServiceError<UserFindError>>;
 }
 
 #[derive(Debug, Clone)]
@@ -252,16 +270,16 @@ pub enum WebfingerError {
 
 pub trait ApubRequestService {
     #[allow(async_fn_in_trait)]
-    async fn post_to_inbox(
+    async fn post_to_inbox<T: Serialize>(
         &mut self,
-        url: impl IntoUrl,
-        activity: &ApubActivity,
-        actor: impl Into<ApubActor>,
+        url: impl Into<Url>,
+        activity: &ApubPayload<T>,
+        actor: &impl ApubSigner,
     ) -> Result<(), ServiceError<PostToInboxError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_user(
         &mut self,
-        url: impl IntoUrl,
+        url: impl Into<Url>,
     ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_webfinger(
@@ -269,4 +287,48 @@ pub trait ApubRequestService {
         username: &str,
         host: &str,
     ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>>;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BackgroundJob {
+    RemoteFollowRequest(Uuid),
+    RemoteFollowAccept(Uuid),
+}
+
+pub trait QueueService {
+    #[allow(async_fn_in_trait)]
+    async fn process_job(&self, job: BackgroundJob) -> Result<(), ServiceError<()>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum ApubFollowError {
+    RequestNotFound,
+}
+
+pub trait ApubFollowService {
+    #[allow(async_fn_in_trait)]
+    async fn create_follow_request(
+        &mut self,
+        follow_req_id: Uuid,
+    ) -> Result<ApubFollow, ServiceError<ApubFollowError>>;
+    #[allow(async_fn_in_trait)]
+    async fn create_follow_accept(
+        &mut self,
+        follow_req_id: Uuid,
+    ) -> Result<ApubAccept, ServiceError<ApubFollowError>>;
+}
+
+#[derive(Debug, Clone)]
+pub enum SignerError {
+    UserNotFound,
+    PrivateKeyNotSet,
+}
+
+pub trait SignerService {
+    type Signer: ApubSigner;
+    #[allow(async_fn_in_trait)]
+    async fn fetch_signer(
+        &mut self,
+        user: &UserSpecifier,
+    ) -> Result<Self::Signer, ServiceError<SignerError>>;
 }
