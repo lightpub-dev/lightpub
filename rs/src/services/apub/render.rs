@@ -1,5 +1,6 @@
 use crate::models::{
-    ApubPerson, ApubPersonBuilder, ApubRenderablePost, ApubRenderableUser, HasRemoteUri,
+    ApubPerson, ApubPersonBuilder, ApubPublicKeyBuilder, ApubRenderablePost, ApubRenderableUser,
+    HasRemoteUri,
 };
 use crate::services::id::UserAttribute;
 use crate::{models::ApubNote, models::ApubNoteBuilder, services::id::IDGetterService};
@@ -47,6 +48,7 @@ impl ApubRendererService {
             .id_getter
             .get_user_id_attr(user, UserAttribute::Inbox)
             .unwrap();
+        let shared_inbox = None; // TODO
         let outbox = self
             .id_getter
             .get_user_id_attr(user, UserAttribute::Outbox)
@@ -64,6 +66,23 @@ impl ApubRendererService {
             .get_user_id_attr(user, UserAttribute::Liked)
             .unwrap();
 
+        let public_key = {
+            let pem = user.public_key().unwrap();
+            let owner = user_id.clone();
+            let key_id = self
+                .id_getter
+                .get_user_id_attr(user, UserAttribute::PublicKey)
+                .unwrap();
+            Some(
+                ApubPublicKeyBuilder::default()
+                    .id(key_id)
+                    .owner(owner)
+                    .public_key_pem(pem)
+                    .build()
+                    .unwrap(),
+            )
+        };
+
         let name = user.nickname();
         let preferred_username = user.username();
 
@@ -76,6 +95,8 @@ impl ApubRendererService {
             .liked(Some(liked))
             .name(Some(name))
             .preferred_username(Some(preferred_username))
+            .shared_inbox(shared_inbox)
+            .public_key(public_key)
             .build()
             .unwrap())
     }
