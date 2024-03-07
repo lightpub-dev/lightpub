@@ -4,7 +4,7 @@ use reqwest::{
     header::{self, HeaderMap, HeaderValue},
     Method, Request, RequestBuilder, Url,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
 use tracing::{info, warn};
 
@@ -12,7 +12,8 @@ use uuid::fmt::Simple;
 
 use crate::{
     models::{
-        ApubFollowBuilder, ApubPerson, ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri,
+        ApubFollowBuilder, ApubPayload, ApubPerson, ApubSigner, ApubWebfingerResponseBuilder,
+        HasRemoteUri,
     },
     services::{ServiceError, WebfingerError},
     utils::key::{attach_signature, SignKeyBuilder},
@@ -104,13 +105,14 @@ fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
 }
 
 impl ApubRequestService for ApubReqwest {
-    async fn post_to_inbox(
+    async fn post_to_inbox<T: Serialize>(
         &mut self,
         url: impl Into<Url>,
-        activity: &crate::models::ApubActivity,
+        activity: &ApubPayload<T>,
         actor: &impl ApubSigner,
     ) -> Result<(), super::ServiceError<super::PostToInboxError>> {
         let body = activity.to_json();
+        info!("body: {:?}", &body);
 
         let client = self.client();
 

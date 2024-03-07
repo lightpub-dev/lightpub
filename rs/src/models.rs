@@ -110,12 +110,53 @@ pub struct ApubWebfingerResponse {
     profile_url: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+pub struct ApubPayload<T> {
+    #[serde(rename = "@context")]
+    pub context: Vec<String>,
+    #[serde(flatten)]
+    pub content: T,
+}
+
+pub struct ApubPayloadBuilder<T> {
+    context: Vec<String>,
+    content: T,
+}
+
+impl<T> ApubPayloadBuilder<T> {
+    pub fn new(content: T) -> Self {
+        Self {
+            context: vec![],
+            content,
+        }
+    }
+
+    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+        self.context.push(context.into());
+        self
+    }
+
+    pub fn build(self) -> ApubPayload<T> {
+        ApubPayload {
+            context: self.context,
+            content: self.content,
+        }
+    }
+}
+
+impl<T: Serialize> ApubPayload<T> {
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum ApubActivity {
     Follow(ApubFollow),
-    Accept(ApubAccept),
-    Reject(ApubReject),
-    Undo(ApubUndo),
+    // Accept(ApubAccept),
+    // Reject(ApubReject),
+    // Undo(ApubUndo),
 }
 
 impl ApubActivity {

@@ -7,8 +7,8 @@ use derive_getters::Getters;
 
 use crate::{
     models::{
-        self, ApubAccept, ApubActivity, ApubFollow, ApubPerson, ApubSigner, ApubWebfingerResponse,
-        PostPrivacy,
+        self, ApubAccept, ApubActivity, ApubFollow, ApubPayload, ApubPerson, ApubSigner,
+        ApubWebfingerResponse, PostPrivacy,
     },
     utils::user::UserSpecifier,
 };
@@ -270,10 +270,10 @@ pub enum WebfingerError {
 
 pub trait ApubRequestService {
     #[allow(async_fn_in_trait)]
-    async fn post_to_inbox(
+    async fn post_to_inbox<T: Serialize>(
         &mut self,
         url: impl Into<Url>,
-        activity: &ApubActivity,
+        activity: &ApubPayload<T>,
         actor: &impl ApubSigner,
     ) -> Result<(), ServiceError<PostToInboxError>>;
     #[allow(async_fn_in_trait)]

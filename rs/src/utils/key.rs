@@ -5,7 +5,7 @@ use reqwest::Method;
 use rsa::pkcs1v15::Signature;
 use rsa::signature::SignatureEncoding;
 use rsa::signature::Signer;
-use rsa::{pkcs1v15::SigningKey, sha2::Sha256, RsaPrivateKey};
+use rsa::{pkcs1v15::SigningKey, sha2::Digest, sha2::Sha256, RsaPrivateKey};
 use tracing::info;
 
 pub fn generate() -> RsaPrivateKey {
@@ -96,10 +96,10 @@ pub fn attach_signature(req: &mut reqwest::Request, key: SignKey) -> Result<(), 
         signed_headers.push("digest");
 
         let body = req.body().expect("body not set");
-        let digest = format!(
-            "SHA-256={}",
-            BASE64_STANDARD.encode(sha256::digest(body.as_bytes().unwrap()))
-        );
+        let mut hasher = Sha256::new();
+        hasher.update(body.as_bytes().unwrap());
+        let digest = hasher.finalize();
+        let digest = format!("SHA-256={}", BASE64_STANDARD.encode(digest));
         let headers = req.headers_mut();
         headers.insert("digest", digest.parse().unwrap());
     }
