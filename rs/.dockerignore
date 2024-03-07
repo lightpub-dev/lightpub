@@ -3,3 +3,5 @@ Dockerfile
 .dockerignore
 .git
 .gitignore
+docker-compose.yml
+docker-compose.test.yml
