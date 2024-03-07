@@ -1,6 +1,7 @@
 target
 Dockerfile
 .dockerignore
+.env
 .git
 .gitignore
 docker-compose.yml

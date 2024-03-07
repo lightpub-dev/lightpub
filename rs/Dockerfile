@@ -1,10 +1,10 @@
 FROM rust:1.76
 
 WORKDIR /usr/src/myapp
-COPY . .
 RUN cargo install refinery_cli
-ENV PATH="${PATH}:/sbin"
 RUN apt-get update && apt-get install netcat-openbsd
-
-
-CMD echo "sleep 1"&&sleep infinity&&refinery migrate&&cargo run --release
+COPY . .
+ENV PATH="${PATH}:/sbin"
+ENV DATABASE_URL="mysql://root:lightpub@lightpub-db:3306/lightpub"
+RUN mv lightpub.yml.test lightpub.yml
+CMD refinery migrate -e DATABASE_URL&&cargo run --release
