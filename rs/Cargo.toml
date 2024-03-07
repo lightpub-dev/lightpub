@@ -37,3 +37,4 @@ linked-hash-map = "0.5.6"
 async-recursion = "1.0.5"
 httpdate = "1.0.3"
 digest = "0.10.7"
+clap = { version = "4.5.2", features = ["derive"] }
