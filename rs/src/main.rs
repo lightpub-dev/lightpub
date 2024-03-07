@@ -569,11 +569,13 @@ async fn user_get(
         ErrorResponse::new_status(500, "internal server error")
     })?;
 
-    Ok(HttpResponse::Ok().json(
-        ApubPayloadBuilder::new(user)
-            .with_context("https://www.w3.org/ns/activitystreams")
-            .build(),
-    ))
+    Ok(HttpResponse::Ok()
+        .content_type("application/activity+json")
+        .json(
+            ApubPayloadBuilder::new(user)
+                .with_context("https://www.w3.org/ns/activitystreams")
+                .build(),
+        ))
 }
 
 #[actix_web::main]
