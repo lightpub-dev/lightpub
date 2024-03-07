@@ -48,6 +48,10 @@ impl UserSpecifier {
     pub fn from_username(username: String, hostname: Option<String>) -> Self {
         UserSpecifier::Username(username, hostname)
     }
+
+    pub fn from_url(url: impl Into<String>) -> Self {
+        UserSpecifier::URL(url.into())
+    }
 }
 
 impl<T: Into<Uuid>> From<T> for UserSpecifier {

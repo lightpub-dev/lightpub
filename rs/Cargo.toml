@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 actix-web = "4"
 bcrypt = "0.15"
-chrono = "0.4.34"
+chrono = { version = "0.4.34", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"]}
 serde_yaml = "0.9"
 tracing = "0.1.40"
@@ -28,3 +28,13 @@ utoipa-swagger-ui = { version = "4", features = ["actix-web"] }
 json-ld = "0.15.1"
 serde_json = "1.0.114"
 reqwest = {version="0.11.24", features=["json"]}
+rsa = {version="0.9.6", features=["sha2"]}
+rand = "0.8.5"
+pkcs8 = "0.10.2"
+tokio = { version = "1", features = ["full"] }
+base64 = "0.22.0"
+linked-hash-map = "0.5.6"
+async-recursion = "1.0.5"
+httpdate = "1.0.3"
+digest = "0.10.7"
+clap = { version = "4.5.2", features = ["derive"] }

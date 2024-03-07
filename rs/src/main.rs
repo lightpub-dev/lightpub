@@ -13,6 +13,7 @@ use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
     Responder,
 };
+use clap::Parser;
 use config::Config;
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
@@ -25,13 +26,14 @@ use services::{
 };
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
+use std::path::PathBuf;
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
     io::Read,
     pin::Pin,
 };
-use tracing;
+use tracing::{self, info};
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -59,6 +61,8 @@ impl AuthUser {
         }
     }
 }
+
+type HandlerResponse<T> = Result<T, ErrorResponse>;
 
 impl FromRequest for AuthUser {
     type Error = ErrorResponse;
@@ -112,8 +116,8 @@ async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
 }
 
-fn new_id_getter_service(app: &AppState) -> IDGetterService {
-    IDGetterService::new(std::borrow::Cow::Borrowed(app.config()))
+fn new_id_getter_service(config: Config) -> IDGetterService {
+    IDGetterService::new(config)
 }
 
 #[derive(ToSchema, Debug, Serialize)]
@@ -379,7 +383,7 @@ async fn user_create_follow(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone());
+    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
 
     follow_service
         .follow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
@@ -397,7 +401,7 @@ async fn user_delete_follow(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone());
+    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
 
     follow_service
         .unfollow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
@@ -528,6 +532,26 @@ async fn webfinger(
     ))
 }
 
+#[get("/user/{user_spec}/inbox")]
+async fn user_inbox(
+    params: web::Path<UserChooseParams>,
+    _app: web::Data<AppState>,
+    body: web::Json<serde_json::Value>,
+) -> HandlerResponse<impl Responder> {
+    info!("user_inbox: {:?}", params);
+    info!("{:?}", body);
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Sets a custom config file
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -535,7 +559,10 @@ async fn main() -> std::io::Result<()> {
         .with_test_writer()
         .init();
 
-    let mut file = std::fs::File::open("lightpub.yml.sample").unwrap();
+    let cli = Cli::parse();
+    let config = cli.config.unwrap_or("lightpub.yml.sample".into());
+
+    let mut file = std::fs::File::open(config).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
@@ -586,6 +613,7 @@ async fn main() -> std::io::Result<()> {
             .service(node_info_2_0)
             .service(node_info_2_1)
             .service(well_known_node_info)
+            .service(user_inbox)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),
