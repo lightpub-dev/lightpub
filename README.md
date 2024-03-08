@@ -7,7 +7,7 @@
 4. `./manage.py migrate`
 5. `./manage.py runserver`
 
-完成を急ぐため Python で書いていますが、一通り実装し終わった後、性能次第では Rust などのより"軽量"な言語に移行します。
+master は Python ですが、rs ブランチで Rust に書き換えています
 
 ## Frontend 建て方
 1. `cd frontend`

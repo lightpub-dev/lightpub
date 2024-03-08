@@ -11,6 +11,7 @@ use tracing::{info, warn};
 use uuid::fmt::Simple;
 
 use crate::{
+    config::Config,
     models::{
         ApubFollowBuilder, ApubPayload, ApubPerson, ApubSigner, ApubWebfingerResponseBuilder,
         HasRemoteUri,
@@ -18,6 +19,8 @@ use crate::{
     services::{ServiceError, WebfingerError},
     utils::key::{attach_signature, SignKeyBuilder},
 };
+
+use self::render::ApubRendererService;
 
 use super::{
     id::IDGetterService, ApubFollowError, ApubFollowService, ApubRequestService, MiscError,
@@ -320,4 +323,8 @@ impl ApubFollowService for DBApubFollowService {
             .build()
             .unwrap())
     }
+}
+
+pub fn new_apub_renderer_service(config: Config) -> ApubRendererService {
+    ApubRendererService::new(IDGetterService::new(config))
 }

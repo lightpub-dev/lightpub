@@ -4,10 +4,14 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::services::{
-    db::new_follow_service, LocalUserFinderService, PostCreateError, PostCreateRequest,
-    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
-    PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
+use crate::{
+    models::ApubPayloadBuilder,
+    services::{
+        apub::new_apub_renderer_service, db::new_follow_service, LocalUserFinderService,
+        PostCreateError, PostCreateRequest, PostCreateRequestNormalBuilder,
+        PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
+        PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
+    },
 };
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
@@ -544,6 +548,38 @@ async fn user_inbox(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[get("/user/{user_spec}")]
+async fn user_get(
+    params: web::Path<UserChooseParams>,
+    app: web::Data<AppState>,
+) -> HandlerResponse<impl Responder> {
+    let renderer_service = new_apub_renderer_service(app.config().clone());
+    let user_spec = &params.user_spec;
+    let mut user_finder = new_local_user_finder_service(app.pool().clone());
+    let user = user_finder
+        .find_user_by_specifier(user_spec)
+        .await
+        .map_err(|e| match e {
+            ServiceError::SpecificError(LocalUserFindError::NotLocalUser) => {
+                ErrorResponse::new_status(404, "user not found")
+            }
+            _ => e.into(),
+        })?;
+
+    let user = renderer_service.render_user(&user).map_err(|e| {
+        tracing::error!("Failed to render user: {:?}", e);
+        ErrorResponse::new_status(500, "internal server error")
+    })?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/activity+json")
+        .json(
+            ApubPayloadBuilder::new(user)
+                .with_context("https://www.w3.org/ns/activitystreams")
+                .build(),
+        ))
+}
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -614,6 +650,7 @@ async fn main() -> std::io::Result<()> {
             .service(node_info_2_1)
             .service(well_known_node_info)
             .service(user_inbox)
+            .service(user_get)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

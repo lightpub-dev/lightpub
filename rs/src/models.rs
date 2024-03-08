@@ -74,6 +74,32 @@ pub trait ApubRenderableUser {
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
 }
 
+impl ApubRenderableUser for User {
+    fn id(&self) -> Simple {
+        self.id
+    }
+
+    fn uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+
+    fn username(&self) -> String {
+        self.username.clone()
+    }
+
+    fn nickname(&self) -> String {
+        self.nickname.clone()
+    }
+
+    fn public_key(&self) -> Option<String> {
+        self.public_key.clone()
+    }
+
+    fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(self.created_at, chrono::Utc)
+    }
+}
+
 impl<'de> Deserialize<'de> for PostPrivacy {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
