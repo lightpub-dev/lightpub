@@ -136,7 +136,7 @@ pub struct ApubWebfingerResponse {
     profile_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ApubPayload<T> {
     #[serde(rename = "@context")]
     pub context: Vec<String>,

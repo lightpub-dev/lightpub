@@ -1,3 +1,0 @@
-[submodule "rs/activitypub-federation-rust"]
-	path = rs/activitypub-federation-rust
-	url = git@github.com:lightpub-dev/activitypub-federation-rust.git
