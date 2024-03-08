@@ -14,8 +14,8 @@ use crate::{
     },
 };
 use actix_web::{
-    delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
-    Responder,
+    delete, get, http::header, middleware::Logger, post, put, web, App, FromRequest, HttpResponse,
+    HttpServer, Responder,
 };
 use config::Config;
 use models::{PostPrivacy, User};
@@ -534,12 +534,25 @@ async fn webfinger(
     ))
 }
 
-#[get("/user/{user_spec}/inbox")]
+#[post("/user/{user_spec}/inbox")]
 async fn user_inbox(
     params: web::Path<UserChooseParams>,
     _app: web::Data<AppState>,
     body: web::Json<serde_json::Value>,
+    _accept_header: web::Header<header::Accept>,
 ) -> HandlerResponse<impl Responder> {
+    // if !accept_header
+    //     .iter()
+    //     .filter(|h| h.item == "application/activity+json")
+    //     .count()
+    //     > 0
+    // {
+    //     return Err(ErrorResponse::new_status(
+    //         400,
+    //         "please include application/activity+json in ACCEPT header",
+    //     ));
+    // }
+
     info!("user_inbox: {:?}", params);
     info!("{:?}", body);
 
