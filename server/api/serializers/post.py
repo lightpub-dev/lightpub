@@ -1,17 +1,21 @@
+import copy
+from typing import Any, cast
+
+from django.db.models import Count, Q
+from django.urls import reverse
 from rest_framework import serializers
 
 from api.models import (
-    PostReaction,
-    User,
-    PostHashtag,
     Post,
-    UploadedFile,
     PostAttachment,
+    PostMention,
+    PostReaction,
+    UploadedFile,
+    User,
 )
-from typing import Any, cast
-from django.db.models import Q, Count
-from django.db import transaction
-from django.urls import reverse
+from api.utils.get_id import get_post_id, get_user_id
+from api.utils.posts.db import CreatePostData, create_post
+from api.utils.posts.privacy import PostPrivacy
 
 
 class PostAuthorSerializer(serializers.ModelSerializer):
@@ -65,37 +69,6 @@ class RepostOfIdField(serializers.PrimaryKeyRelatedField):
         return posts
 
 
-def _find_hashtags(content: str) -> list[str]:
-    hashtags = []
-    in_hashtag = False
-    hashtag_start_index = 0
-    for i, ch in enumerate(content):
-        if ch == "#":
-            if not in_hashtag:
-                in_hashtag = True
-                hashtag_start_index = i
-            else:
-                # Reset if another # is found immediately after
-                in_hashtag = False
-        elif not ch.isalnum() and ch not in ["_", "-"]:
-            # Word boundary detected
-            if in_hashtag:
-                hashtag = content[hashtag_start_index:i]
-                if hashtag != "#":  # Ignore single '#' entries
-                    hashtags.append(hashtag[1:])
-                in_hashtag = False
-        # Note: The Go code snippet handles end-of-content logic implicitly
-    # Check if the content ends with a hashtag
-    if in_hashtag:
-        hashtag = content[hashtag_start_index:]
-        if hashtag != "#":
-            hashtags.append(hashtag[1:])
-
-    # Remove duplicates
-    unique_hashtags = list(set(hashtags))
-    return unique_hashtags
-
-
 class UploadedFileSerializer(serializers.ModelSerializer):
     file = serializers.ImageField(write_only=True)
 
@@ -143,6 +116,17 @@ class PostReactionInfoSerializer(serializers.Serializer):
     reacted_by_me = serializers.BooleanField(required=False, allow_null=True)
 
 
+class MentionedUserSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="target_user.id", read_only=True)
+    username = serializers.CharField(source="target_user.username", read_only=True)
+    host = serializers.CharField(source="target_user.host", read_only=True)
+    nickname = serializers.CharField(source="target_user.nickname", read_only=True)
+
+    class Meta:
+        model = PostMention
+        fields = ["id", "username", "host", "nickname"]
+
+
 class PostSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(read_only=True)
     author = PostAuthorSerializer(read_only=True, source="poster")
@@ -151,6 +135,7 @@ class PostSerializer(serializers.ModelSerializer):
 
     reply_to = serializers.SerializerMethodField()
     repost_of = serializers.SerializerMethodField()
+    external_uri = serializers.URLField(read_only=True, source="uri", allow_null=True)
 
     attached_uploads = AttachedFileField(
         allow_null=True, many=True, required=False, write_only=True
@@ -166,6 +151,7 @@ class PostSerializer(serializers.ModelSerializer):
     favorited_by_me = serializers.SerializerMethodField()
     bookmarked_by_me = serializers.SerializerMethodField()
 
+    mentions = MentionedUserSerializer(many=True, read_only=True)
     reactions = serializers.SerializerMethodField()
 
     def validate_repost_of_id(self, repost_of_id):
@@ -207,7 +193,14 @@ class PostSerializer(serializers.ModelSerializer):
     def get_repost_of(self, post):
         if post.repost_of is None:
             return None
-        return PostSerializer(post.repost_of, context=self.context).data
+
+        repost_nest_level = self.context.get("nested_repost", 1)
+        if repost_nest_level == 0:
+            return None
+
+        new_ctx = copy.copy(self.context)
+        new_ctx["nested_repost"] = repost_nest_level - 1
+        return PostSerializer(post.repost_of, context=new_ctx).data
 
     def get_reply_count(self, post):
         return post.replies.count()
@@ -255,36 +248,40 @@ class PostSerializer(serializers.ModelSerializer):
         if not poster.id:
             raise serializers.ValidationError("User not authenticated")
 
-        # begins transaction
-        with transaction.atomic():
-            post_data = validated_data.copy()
-            if "attached_uploads" in post_data:
-                del post_data["attached_uploads"]
-            if "reply_to_id" in post_data:
-                post_data["reply_to"] = post_data["reply_to_id"]
-                del post_data["reply_to_id"]
-            if "repost_of_id" in post_data:
-                post_data["repost_of"] = post_data["repost_of_id"]
-                del post_data["repost_of_id"]
-            post = Post.objects.create(poster=poster, **post_data)
+        try:
+            privacy = PostPrivacy(validated_data["privacy"])
+        except ValueError:
+            raise serializers.ValidationError("Invalid privacy value")
 
-            # find hashtags
-            if post.content is not None:
-                hashtags = _find_hashtags(post.content)
-            else:
-                # fetch hashtags of the original post
-                repost_of = Post.objects.get(id=post.repost_of_id)
-                hashtags = PostHashtag.objects.filter(post=repost_of).values_list(
-                    "hashtag", flat=True
-                )
-
-            for hashtag in hashtags:
-                PostHashtag.objects.create(post=post, hashtag=hashtag)
-
-            for uploaded_file in validated_data.get("attached_uploads", []):
-                PostAttachment.objects.create(post=post, file=uploaded_file)
-
-        return post
+        repost_of_id = None
+        if (
+            "repost_of_id" in validated_data
+            and validated_data["repost_of_id"] is not None
+        ):
+            repost_of_id = validated_data["repost_of_id"].id
+        reply_to_id = None
+        if (
+            "reply_to_id" in validated_data
+            and validated_data["reply_to_id"] is not None
+        ):
+            reply_to_id = validated_data["reply_to_id"].id
+        attached_uploads = []
+        if (
+            "attached_uploads" in validated_data
+            and validated_data["attached_uploads"] is not None
+        ):
+            attached_uploads = [
+                upload.id for upload in validated_data["attached_uploads"]
+            ]
+        post_data = CreatePostData(
+            poster=poster,
+            content=validated_data.get("content", None),
+            repost_of_id=repost_of_id,
+            reply_to_id=reply_to_id,
+            attached_uploads=attached_uploads,
+            privacy=privacy,
+        )
+        return create_post(post_data)
 
     def get_reactions(self, post):
         reactions = (
@@ -331,7 +328,9 @@ class PostSerializer(serializers.ModelSerializer):
             "bookmarked_by_me",
             "attached_files",
             "attached_uploads",
+            "mentions",
             "reactions",
+            "external_uri",
         ]
         read_only_fields = ["created_at"]
 
@@ -341,17 +340,6 @@ class HashtagSerializer(serializers.Serializer):
     recent_post_count = serializers.IntegerField()
 
 
-# class ReplyListSerializer(serializers.Serializer):
-#     replies = PostSerializer(read_only=True, many=True)
-
-
-# class RepostListSerializer(serializers.Serializer):
-#     reposts = PostSerializer(read_only=True, many=True)
-
-
-# class QuoteListSerializer(serializers.Serializer):
-#     quotes = PostSerializer(read_only=True, many=True)
-
-
-# class FavoriteListSerializer(serializers.Serializer):
-#     favorites = PostSerializer(read_only=True, many=True)
+class PostAddToListSerializer(serializers.Serializer):
+    # no fields required
+    pass

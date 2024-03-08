@@ -1,21 +1,23 @@
-from django.urls import path, include
-
-from .views import users, posts, browsable_login, interaction
+from django.urls import include, path, register_converter
 from rest_framework.routers import DefaultRouter
-from .views.posts import PostViewSet, UploadFileView
-from .views.interaction import PostFavoriteView, PostBookmarkView
-from .views.users import UserFollowingViewset, UserFollowerViewset, UserViewset
-from .views.timeline import TimelineView
+
+from .utils.users import UserSpecifierPath
+from .views import browsable_login, follow, interaction, nodeinfo, posts, users
 from .views.hashtags import PopularHashtagsView
+from .views.posts import PostViewSet, UploadFileView
+from .views.timeline import TimelineView
+from .views.users import UserViewset
 
 app_name = "api"
 
-router = DefaultRouter()
-router.register(r"posts", PostViewSet, basename="post")
-router.register(r"favorites", PostFavoriteView, basename="favorite")
-router.register(r"bookmarks", PostBookmarkView, basename="bookmark")
-router.register(r"followings", UserFollowingViewset, basename="following")
-router.register(r"followers", UserFollowerViewset, basename="follower")
+register_converter(UserSpecifierPath, "user_spec")
+
+router = DefaultRouter(trailing_slash=False)
+router.register(
+    r"posts",
+    PostViewSet,
+    basename="post",
+)
 router.register(r"users", UserViewset, basename="user")
 router.register(r"uploads", UploadFileView, basename="upload")
 router.register(r"reactions", interaction.PostReactionView, basename="reaction")
@@ -34,10 +36,14 @@ urlpatterns = [
         users.UserAvatarView.as_view(),
         name="user-avatar",
     ),
-    path("replies/<uuid:pk>", posts.ReplyListView.as_view(), name="reply-list"),
-    path("quotes/<uuid:pk>", posts.QuoteListView.as_view(), name="quote-list"),
-    path("reposts/<uuid:pk>", posts.RepostListView.as_view(), name="repost-list"),
-    path("favorites/<uuid:pk>", posts.FavoriteListView.as_view(), name="favorite-list"),
+    path("follow", follow.CreateFollowView.as_view(), name="create-follow"),
+    path(
+        "follow/<user_spec:user>",
+        follow.FollowView.as_view(),
+        name="delete-follow",
+    ),
+    path("nodeinfo/2.0", nodeinfo.version_2_0, name="nodeinfo-2.0"),
+    path("nodeinfo/2.1", nodeinfo.version_2_1, name="nodeinfo-2.1"),
 ]
 
 urlpatterns += router.urls
