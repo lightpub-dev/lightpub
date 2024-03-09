@@ -4,14 +4,11 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::{
-    models::ApubPayloadBuilder,
-    services::{
-        apub::new_apub_renderer_service, db::new_follow_service, LocalUserFinderService,
-        PostCreateError, PostCreateRequest, PostCreateRequestNormalBuilder,
-        PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
-        PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
-    },
+use crate::services::{
+    apub::new_apub_renderer_service, db::new_follow_service, LocalUserFinderService,
+    PostCreateError, PostCreateRequest, PostCreateRequestNormalBuilder,
+    PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder,
+    UserAuthService, UserCreateService, UserFollowService,
 };
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
@@ -35,7 +32,7 @@ use std::{
     io::Read,
     pin::Pin,
 };
-use tracing::{self, info};
+use tracing::info;
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -571,11 +568,7 @@ async fn user_get(
 
     Ok(HttpResponse::Ok()
         .content_type("application/activity+json")
-        .json(
-            ApubPayloadBuilder::new(user)
-                .with_context("https://www.w3.org/ns/activitystreams")
-                .build(),
-        ))
+        .json(serde_json::to_string(&user).unwrap()))
 }
 
 #[actix_web::main]

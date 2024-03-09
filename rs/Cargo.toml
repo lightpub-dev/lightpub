@@ -13,7 +13,7 @@ serde = { version = "1.0", features = ["derive"]}
 serde_yaml = "0.9"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-uuid = { version = "1.7.0", features = ["v4", "serde", "fast-rng"] }
+uuid = { version = "1.7.0", features = ["v4", "v7", "serde", "fast-rng"] }
 valico = "2"
 refinery = { version = "0.8", features = ["mysql"]}
 sqlx = { version = "0.7", features = [ "runtime-tokio", "mysql", "chrono", "json", "uuid", "macros" ] }
@@ -37,3 +37,5 @@ linked-hash-map = "0.5.6"
 async-recursion = "1.0.5"
 httpdate = "1.0.3"
 digest = "0.10.7"
+activitystreams = "0.6.2"
+anyhow = { version="1.0.80", features=["backtrace"] }

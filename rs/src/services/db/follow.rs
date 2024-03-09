@@ -2,7 +2,7 @@ use sqlx::MySqlPool;
 use tracing::warn;
 
 use crate::{
-    models::{self, ApubActivity, ApubPayload, ApubPayloadBuilder},
+    models::{self},
     services::{
         AllUserFinderService, ApubFollowService, ApubRequestService, FollowError, ServiceError,
         SignerError, SignerService, UserFindError, UserFollowService,
@@ -104,12 +104,11 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: S
                 .create_follow_request(request_id.into())
                 .await
                 .unwrap();
+
             self.req
                 .post_to_inbox(
                     followee_inbox.parse::<reqwest::Url>().unwrap(),
-                    &ApubPayloadBuilder::new(ApubActivity::Follow(activity))
-                        .with_context("https://www.w3.org/ns/activitystreams")
-                        .build(),
+                    activity,
                     &actor,
                 )
                 .await

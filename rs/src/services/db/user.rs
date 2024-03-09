@@ -1,3 +1,4 @@
+use activitystreams::actor::properties::ApActorProperties;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
@@ -27,6 +28,7 @@ use crate::services::UserLoginResult;
 use crate::utils;
 use crate::utils::generate_uuid;
 use crate::utils::user::UserSpecifier;
+use activitystreams::Actor;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 
 #[derive(Debug)]
@@ -227,27 +229,33 @@ async fn find_user_by_url(
 
     let actor = req.fetch_user(parsed_url).await.unwrap();
 
+    let username = actor.base.extension.get_preferred_username().unwrap();
+    let nickname = actor.as_ref().get_name_xsd_string().unwrap_or(&username);
+    let uri = actor.as_ref().get_id().expect("id not set").to_string();
+    let shared_inbox = actor
+        .base
+        .extension
+        .get_endpoints()
+        .map(|e| e.get_shared_inbox())
+        .flatten()
+        .map(|s| s.to_string());
+    let inbox = actor.base.extension.get_inbox().to_string();
+    let outbox = actor.base.extension.get_outbox().to_string();
+    let created_at = chrono::Utc::now().naive_utc();
+
     let user_id = generate_uuid();
     let user = models::User {
         id: user_id,
-        username: actor
-            .preferred_username()
-            .clone()
-            .ok_or(ServiceError::from_se(UserFindError::RemoteError))?,
+        username: username.to_string(),
         host: Some(host),
-        nickname: actor.name().clone().unwrap_or({
-            actor
-                .preferred_username()
-                .clone()
-                .ok_or(ServiceError::from_se(UserFindError::RemoteError))?
-        }),
+        nickname: nickname.to_string(),
         bio: "".to_string(),
-        uri: Some(actor.id().to_owned()),
-        shared_inbox: actor.shared_inbox().to_owned(),
-        inbox: Some(actor.inbox().to_owned()),
-        outbox: Some(actor.outbox().to_owned()),
+        uri: uri.into(),
+        shared_inbox,
+        inbox: inbox.into(),
+        outbox: outbox.into(),
         public_key: None,
-        created_at: chrono::Utc::now().naive_utc(),
+        created_at,
     };
 
     sqlx::query!(
