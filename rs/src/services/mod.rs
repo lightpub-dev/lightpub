@@ -239,6 +239,20 @@ pub trait UserAuthService {
 pub enum FollowError {
     FollowerNotFound,
     FolloweeNotFound,
+    RequestNotFound,
+}
+
+#[derive(Debug, Clone)]
+pub enum FollowRequestSpecifier {
+    LocalURI(String),
+    ActorPair(UserSpecifier, UserSpecifier),
+}
+
+#[derive(Debug, Clone, Getters)]
+pub struct FollowRequestAccepted {
+    pub follow_req_id: Uuid,
+    pub follower_id: Uuid,
+    pub followee_id: Uuid,
 }
 
 pub trait UserFollowService {
@@ -254,6 +268,11 @@ pub trait UserFollowService {
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
     ) -> Result<(), ServiceError<FollowError>>;
+    #[allow(async_fn_in_trait)]
+    async fn follow_request_accepted(
+        &mut self,
+        accepted_request: &FollowRequestSpecifier,
+    ) -> Result<FollowRequestAccepted, ServiceError<FollowError>>;
 }
 
 #[derive(Debug)]

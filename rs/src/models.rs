@@ -146,3 +146,14 @@ pub trait ApubSigner {
     fn get_private_key(&self) -> RsaPrivateKey;
     fn get_private_key_id(&self) -> String;
 }
+
+pub mod apub {
+    use activitystreams::activity::Accept;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(untagged)]
+    pub enum Activity {
+        Accept(Accept),
+    }
+}

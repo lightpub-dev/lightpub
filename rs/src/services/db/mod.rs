@@ -47,7 +47,8 @@ pub fn new_follow_service(pool: MySqlPool, config: Config) -> impl UserFollowSer
         new_db_user_signer_service(
             pool.clone(),
             new_local_user_finder_service(pool),
-            new_id_getter_service(config),
+            new_id_getter_service(config.clone()),
         ),
+        new_id_getter_service(config),
     )
 }
