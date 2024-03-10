@@ -27,6 +27,7 @@ use crate::services::UserLoginRequest;
 use crate::services::UserLoginResult;
 use crate::utils;
 use crate::utils::generate_uuid;
+use crate::utils::generate_uuid_random;
 use crate::utils::user::UserSpecifier;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 
@@ -112,7 +113,7 @@ impl UserCreateService for DBUserCreateService {
 
         if let Some(bpasswd) = user.bpasswd {
             if bcrypt::verify(req.password.clone(), &bpasswd).unwrap() {
-                let token = generate_uuid();
+                let token = generate_uuid_random();
                 sqlx::query!(
                     "INSERT INTO user_tokens (user_id, token) VALUES(?, ?)",
                     user.id,
