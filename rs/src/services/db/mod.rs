@@ -30,8 +30,9 @@ pub fn new_all_user_finder_service(
     pool: MySqlPool,
     req: impl ApubRequestService,
     finder: impl LocalUserFinderService,
+    config: Config,
 ) -> impl AllUserFinderService {
-    user::DBAllUserFinderService::new(pool, req, finder)
+    user::DBAllUserFinderService::new(pool, req, finder, new_id_getter_service(config.clone()))
 }
 
 pub fn new_follow_service(pool: MySqlPool, config: Config) -> impl UserFollowService {
@@ -41,6 +42,7 @@ pub fn new_follow_service(pool: MySqlPool, config: Config) -> impl UserFollowSer
             pool.clone(),
             new_apub_reqwester_service(),
             new_local_user_finder_service(pool.clone()),
+            config.clone(),
         ),
         new_apub_follow_service(pool.clone(), new_id_getter_service(config.clone())),
         new_apub_reqwester_service(),

@@ -31,6 +31,7 @@ use crate::utils::generate_uuid;
 use crate::utils::generate_uuid_random;
 use crate::utils::user::UserSpecifier;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct DBUserCreateService {
@@ -174,8 +175,7 @@ impl LocalUserFinderService for DBLocalUserFinderService {
                 return Ok(u);
             }
             UserSpecifier::URL(_url) => {
-                // check if url is remote
-                todo!()
+                return Err(ServiceError::from_se(LocalUserFindError::NotLocalUser));
             }
             UserSpecifier::ID(id) => {
                 let u = sqlx::query_as!(models::User,
@@ -196,11 +196,17 @@ pub struct DBAllUserFinderService<R, F> {
     pool: MySqlPool,
     req: R,
     local: F,
+    id_getter: IDGetterService,
 }
 
 impl<R, F> DBAllUserFinderService<R, F> {
-    pub fn new(pool: MySqlPool, req: R, local: F) -> Self {
-        Self { pool, req, local }
+    pub fn new(pool: MySqlPool, req: R, local: F, id_getter: IDGetterService) -> Self {
+        Self {
+            pool,
+            req,
+            local,
+            id_getter,
+        }
     }
 }
 
@@ -231,8 +237,7 @@ async fn find_user_by_url(
     pool: &MySqlPool,
 ) -> Result<models::User, ServiceError<crate::services::UserFindError>> {
     let url = url.into();
-
-    // TODO: check if url is remote
+    // we can assume that the url is a remote-user url
 
     // try to fetch user from db
     let u = sqlx::query_as!(models::User,
@@ -369,7 +374,17 @@ impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
                 }
             }
             UserSpecifier::URL(api_url) => {
-                find_user_by_url(api_url, &mut self.req, &self.pool).await
+                let local_user_id = self.id_getter.extract_local_user_id(api_url);
+                if let Some(local_user_id) = local_user_id {
+                    let id = uuid::Uuid::from_str(&local_user_id)
+                        .map_err(|_e| ServiceError::SpecificError(UserFindError::UserNotFound))?;
+                    self.local
+                        .find_user_by_specifier(&UserSpecifier::ID(id))
+                        .await
+                        .map_err(map_to_local_error)
+                } else {
+                    find_user_by_url(api_url, &mut self.req, &self.pool).await
+                }
             }
             UserSpecifier::ID(_) => self
                 .local
