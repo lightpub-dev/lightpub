@@ -28,7 +28,6 @@ use crate::services::UserLoginResult;
 use crate::utils;
 use crate::utils::generate_uuid;
 use crate::utils::user::UserSpecifier;
-use activitystreams::Actor;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 
 #[derive(Debug)]
@@ -215,6 +214,15 @@ fn map_to_local_error(e: ServiceError<LocalUserFindError>) -> ServiceError<UserF
     }
 }
 
+#[derive(Debug)]
+struct RemoteUser {
+    user_id: Simple,
+    following: Option<String>,
+    followers: Option<String>,
+    liked: Option<String>,
+    fetched_at: chrono::NaiveDateTime,
+}
+
 async fn find_user_by_url(
     url: impl Into<String>,
     req: &mut impl ApubRequestService,
@@ -223,6 +231,24 @@ async fn find_user_by_url(
     let url = url.into();
 
     // TODO: check if url is remote
+
+    // try to fetch user from db
+    let u = sqlx::query_as!(models::User,
+        "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE uri = ?", url).fetch_optional(pool).await?;
+    if let Some(u) = u {
+        // try to fetch remote_users
+        let ru = sqlx::query_as!(RemoteUser,
+            "SELECT user_id AS `user_id!: Simple`, following, followers, liked, fetched_at FROM remote_users WHERE user_id = ?", u.id.to_string()).fetch_optional(pool).await?;
+        if let Some(ru) = ru {
+            // check if info is up-to-date
+            let now = chrono::Utc::now().naive_utc();
+            if now - ru.fetched_at < chrono::Duration::hours(1) {
+                return Ok(u);
+            }
+        }
+    }
+
+    // data is not up-to-date, fetch from remote
 
     let parsed_url = url.parse::<reqwest::Url>().unwrap();
     let host = parsed_url.host_str().unwrap().to_string();
@@ -241,6 +267,9 @@ async fn find_user_by_url(
         .map(|s| s.to_string());
     let inbox = actor.base.extension.get_inbox().to_string();
     let outbox = actor.base.extension.get_outbox().to_string();
+    let following = actor.base.extension.get_following().map(|s| s.to_string());
+    let followers = actor.base.extension.get_followers().map(|s| s.to_string());
+    let liked = actor.base.extension.get_liked().map(|s| s.to_string());
     let created_at = chrono::Utc::now().naive_utc();
 
     let user_id = generate_uuid();
@@ -257,9 +286,17 @@ async fn find_user_by_url(
         public_key: None,
         created_at,
     };
+    let ru = RemoteUser {
+        user_id: user_id,
+        following: following,
+        followers: followers,
+        liked: liked,
+        fetched_at: created_at,
+    };
 
+    let mut tx = pool.begin().await?;
     sqlx::query!(
-        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox) VALUES (?,?,?,NULL,?,?,?,?,?)",
+        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox) VALUES (?,?,?,NULL,?,?,?,?,?) ON DUPLICATE KEY UPDATE username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?",
         user.id.to_string(),
         user.username,
         user.host,
@@ -267,8 +304,26 @@ async fn find_user_by_url(
         user.uri,
         user.shared_inbox,
         user.inbox,
-        user.outbox
-    ).execute(pool).await?;
+        user.outbox,
+        user.username,
+        user.host,
+        user.nickname,
+        user.uri,
+        user.shared_inbox,
+        user.inbox,
+        user.outbox,
+    ).execute(&mut *tx).await?;
+
+    sqlx::query!(
+        "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?)",
+        ru.user_id.to_string(),
+        ru.following,
+        ru.followers,
+        ru.liked,
+        ru.fetched_at,
+    ).execute(&mut *tx).await?;
+
+    tx.commit().await?;
 
     return Ok(user);
 }

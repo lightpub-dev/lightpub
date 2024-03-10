@@ -37,7 +37,7 @@ use std::{
     io::Read,
     pin::Pin,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -640,14 +640,22 @@ async fn user_get(
             _ => e.into(),
         })?;
 
-    let user = renderer_service.render_user(&user).map_err(|e| {
+    let mut user = renderer_service.render_user(&user).map_err(|e| {
         error!("Failed to render user: {:?}", e);
         ErrorResponse::new_status(500, "internal server error")
     })?;
+    user.as_mut()
+        .set_many_context_xsd_any_uris(vec![
+            "https://www.w3.org/ns/activitystreams".to_string(),
+            "https://w3id.org/security/v1".to_string(),
+        ])
+        .unwrap();
+    let user_json = serde_json::to_string(&user).unwrap();
+    debug!("user_json: {}", user_json);
 
     Ok(HttpResponse::Ok()
         .content_type("application/activity+json")
-        .json(serde_json::to_string(&user).unwrap()))
+        .body(user_json))
 }
 
 #[actix_web::main]

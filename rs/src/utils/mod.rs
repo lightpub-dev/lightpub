@@ -16,17 +16,12 @@ pub fn uuid_to_string(uuid: &Uuid) -> String {
 }
 
 pub mod apub_key {
-    use activitystreams::{
-        activity::properties::ActorAndObjectProperties,
-        actor::{Actor, ActorBox},
-        ext::Extension,
-        object::{Object, ObjectBox},
-        properties, Base, BaseBox, PropRefs, UnitString,
-    };
+    use activitystreams::{actor::Actor, ext::Extension};
     use derive_builder::Builder;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]
+    #[serde(rename_all = "camelCase")]
     pub struct PublicKey {
         id: String,
         owner: String,

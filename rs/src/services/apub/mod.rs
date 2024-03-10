@@ -12,7 +12,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use uuid::fmt::Simple;
 
@@ -167,6 +167,8 @@ impl ApubRequestService for ApubReqwest {
             .unwrap();
 
         let res = self.client().execute(req).await.map_err(map_error)?;
+        // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
+        // debug!("body: {:#?}", body);
         let person = res.json::<ApubPerson>().await.map_err(map_error)?;
 
         Ok(person)
