@@ -2,6 +2,7 @@ use activitystreams::actor::properties::ApActorProperties;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
+use tracing::debug;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
@@ -236,7 +237,7 @@ async fn find_user_by_url(
     // try to fetch user from db
     let u = sqlx::query_as!(models::User,
         "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE uri = ?", url).fetch_optional(pool).await?;
-    if let Some(u) = u {
+    let u = if let Some(u) = u {
         // try to fetch remote_users
         let ru = sqlx::query_as!(RemoteUser,
             "SELECT user_id AS `user_id!: Simple`, following, followers, liked, fetched_at FROM remote_users WHERE user_id = ?", u.id.to_string()).fetch_optional(pool).await?;
@@ -247,7 +248,10 @@ async fn find_user_by_url(
                 return Ok(u);
             }
         }
-    }
+        Some(u)
+    } else {
+        None
+    };
 
     // data is not up-to-date, fetch from remote
 
@@ -273,7 +277,7 @@ async fn find_user_by_url(
     let liked = actor.base.extension.get_liked().map(|s| s.to_string());
     let created_at = chrono::Utc::now().naive_utc();
 
-    let user_id = generate_uuid();
+    let user_id = u.map(|u| u.id).unwrap_or_else(|| generate_uuid());
     let user = models::User {
         id: user_id,
         username: username.to_string(),
@@ -316,8 +320,12 @@ async fn find_user_by_url(
     ).execute(&mut *tx).await?;
 
     sqlx::query!(
-        "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?)",
+        "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE following = ?, followers = ?, liked = ?, fetched_at = ?",
         ru.user_id.to_string(),
+        ru.following,
+        ru.followers,
+        ru.liked,
+        ru.fetched_at,
         ru.following,
         ru.followers,
         ru.liked,

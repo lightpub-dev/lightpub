@@ -542,8 +542,8 @@ async fn user_inbox(
     app: web::Data<AppState>,
     body: web::Json<serde_json::Value>,
 ) -> HandlerResponse<impl Responder> {
-    info!("user_inbox: {:?}", params);
-    info!("{:?}", body);
+    debug!("user_inbox: {:?}", params);
+    debug!("{:?}", body);
 
     // deserialize into ActivityPub activity
     let activity = models::apub::Activity::deserialize(&body.0).map_err(|e| {
@@ -551,7 +551,7 @@ async fn user_inbox(
         ErrorResponse::new_status(400, "invalid activity")
     })?;
 
-    info!("parsed activity {:#?}", activity);
+    debug!("parsed activity {:#?}", activity);
     use models::apub::Activity::*;
     match activity {
         Accept(a) => {
@@ -580,7 +580,7 @@ async fn user_inbox(
                             })?;
                         let actor_id = base
                             .follow_props
-                            .get_object_xsd_any_uri()
+                            .get_actor_xsd_any_uri()
                             .map(|s| s.to_string())
                             .ok_or_else(|| {
                                 warn!("Accept object id not found");
@@ -599,18 +599,18 @@ async fn user_inbox(
                         "cannot handle multiple objects",
                     ));
                 };
-            if actor_id != object_actor_id {
+            if actor_id != object_object_id {
                 return Err(ErrorResponse::new_status(400, "invalid activity"));
             }
             // TODO: check if the actor is the followee of the object
 
             let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
-            let result = follow_service
-                .follow_request_accepted(&FollowRequestSpecifier::ActorPair(
-                    UserSpecifier::URL(actor_id),
-                    UserSpecifier::URL(object_object_id),
-                ))
-                .await?;
+            let actor_pair = FollowRequestSpecifier::ActorPair(
+                UserSpecifier::URL(object_actor_id),
+                UserSpecifier::URL(object_object_id),
+            );
+            info!("accepting follow request of {:#?}", actor_pair);
+            let result = follow_service.follow_request_accepted(&actor_pair).await?;
             info!(
                 "follow request accepted: FollowRequestID: {} -> {}",
                 result.follower_id.simple(),
