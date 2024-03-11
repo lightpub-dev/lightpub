@@ -146,6 +146,18 @@ pub trait AllUserFinderService {
         &mut self,
         spec: &UserSpecifier,
     ) -> Result<models::User, ServiceError<UserFindError>>;
+
+    #[allow(async_fn_in_trait)]
+    async fn find_followers_inboxes(
+        &mut self,
+        user: &UserSpecifier,
+    ) -> Result<Vec<InboxPair>, ServiceError<UserFindError>>;
+}
+
+#[derive(Debug, Clone, Getters)]
+pub struct InboxPair {
+    inbox: Option<String>,
+    shared_inbox: Option<String>,
 }
 
 #[derive(Debug, Clone)]

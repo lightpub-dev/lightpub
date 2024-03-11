@@ -26,6 +26,7 @@ use self::render::{ApubPerson, ApubRendererService};
 
 use super::{id::IDGetterService, ApubFollowService, ApubRequestService, MiscError};
 
+pub mod inbox;
 pub mod queue;
 pub mod render;
 #[derive(Debug, Clone)]

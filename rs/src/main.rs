@@ -4,11 +4,14 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
+use crate::services::PostCreateService;
 use crate::services::{
-    apub::new_apub_renderer_service, db::new_follow_service, FollowRequestSpecifier,
-    IncomingFollowRequest, LocalUserFinderService, PostCreateError, PostCreateRequest,
-    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
-    PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
+    apub::new_apub_renderer_service,
+    db::{new_follow_service, new_post_create_service},
+    FollowRequestSpecifier, IncomingFollowRequest, LocalUserFinderService, PostCreateError,
+    PostCreateRequest, PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder,
+    PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder, UserAuthService,
+    UserCreateService, UserFollowService,
 };
 use activitystreams::activity::{
     self, kind,
@@ -23,10 +26,10 @@ use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use services::{
-    db::{new_auth_service, new_local_user_finder_service, post::new_post_create_service},
+    db::{new_auth_service, new_local_user_finder_service},
     id::IDGetterService,
-    AuthError, LocalUserFindError, PostCreateService, ServiceError, UserCreateRequest,
-    UserCreateRequestBuilder, UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
+    AuthError, LocalUserFindError, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
+    UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
 };
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
@@ -298,8 +301,7 @@ async fn post_post(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut post_service =
-        new_post_create_service(pool.clone(), new_local_user_finder_service(pool));
+    let mut post_service = new_post_create_service(pool.clone(), data.config().clone());
 
     let post = match (body.repost_of_id, body.reply_to_id) {
         (None, None) => PostCreateRequest::Normal(
