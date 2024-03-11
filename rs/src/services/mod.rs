@@ -248,6 +248,11 @@ pub enum FollowRequestSpecifier {
     ActorPair(UserSpecifier, UserSpecifier),
 }
 
+#[derive(Debug, Clone)]
+pub enum IncomingFollowRequest {
+    ActorPair(String, UserSpecifier, UserSpecifier),
+}
+
 #[derive(Debug, Clone, Getters)]
 pub struct FollowRequestAccepted {
     pub follow_req_id: Uuid,
@@ -273,6 +278,11 @@ pub trait UserFollowService {
         &mut self,
         accepted_request: &FollowRequestSpecifier,
     ) -> Result<FollowRequestAccepted, ServiceError<FollowError>>;
+    #[allow(async_fn_in_trait)]
+    async fn incoming_follow_request(
+        &mut self,
+        incoming_follow_request: &IncomingFollowRequest,
+    ) -> Result<(), ServiceError<FollowError>>;
 }
 
 #[derive(Debug)]

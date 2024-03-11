@@ -148,12 +148,13 @@ pub trait ApubSigner {
 }
 
 pub mod apub {
-    use activitystreams::activity::Accept;
+    use activitystreams::activity::{Accept, Follow};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(untagged)]
     pub enum Activity {
         Accept(Accept),
+        Follow(Follow),
     }
 }

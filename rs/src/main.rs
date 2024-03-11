@@ -6,12 +6,12 @@ pub mod utils;
 
 use crate::services::{
     apub::new_apub_renderer_service, db::new_follow_service, FollowRequestSpecifier,
-    LocalUserFinderService, PostCreateError, PostCreateRequest, PostCreateRequestNormalBuilder,
-    PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder,
-    UserAuthService, UserCreateService, UserFollowService,
+    IncomingFollowRequest, LocalUserFinderService, PostCreateError, PostCreateRequest,
+    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
+    PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
 };
 use activitystreams::activity::{
-    kind,
+    self, kind,
     properties::{ActorAndObjectPropertiesObjectEnum, ActorAndObjectPropertiesObjectTermEnum},
     Follow,
 };
@@ -569,7 +569,7 @@ async fn user_inbox(
                         if !base.is_kind(kind::FollowType) {
                             return Err(ErrorResponse::new_status(400, "invalid activity"));
                         }
-                        let base: Follow = base.into_concrete().unwrap();
+                        let base: activity::Follow = base.into_concrete().unwrap();
                         let object_id = base
                             .follow_props
                             .get_object_xsd_any_uri()
@@ -616,6 +616,39 @@ async fn user_inbox(
                 result.follower_id.simple(),
                 result.followee_id.simple()
             );
+        }
+        Follow(follow) => {
+            let follow_id = follow
+                .object_props
+                .get_id()
+                .map(|s| s.to_string())
+                .ok_or(ErrorResponse::new_status(400, "follow has no id"))?;
+            let actor_id = follow
+                .follow_props
+                .get_actor_xsd_any_uri()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("Follow actor id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+            let object_id = follow
+                .follow_props
+                .get_object_xsd_any_uri()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("Follow object id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+
+            debug!("accepting follow request of {} -> {}", actor_id, object_id);
+            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+            follow_service
+                .incoming_follow_request(&IncomingFollowRequest::ActorPair(
+                    follow_id,
+                    UserSpecifier::URL(actor_id),
+                    UserSpecifier::URL(object_id),
+                ))
+                .await?;
         }
     }
 

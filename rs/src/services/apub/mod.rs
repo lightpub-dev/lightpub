@@ -260,6 +260,15 @@ struct UserFollowInfo {
 }
 
 #[derive(Debug)]
+struct UserFollowInfoWithUri {
+    follower_id: Simple,
+    follower_uri: Option<String>,
+    followee_id: Simple,
+    followee_uri: Option<String>,
+    req_uri: String,
+}
+
+#[derive(Debug)]
 struct UserFollowUser {
     id: Simple,
     uri: Option<String>,
@@ -288,9 +297,49 @@ impl HasRemoteUri for UserFollowInfo {
 impl ApubFollowService for DBApubFollowService {
     async fn create_follow_accept(
         &mut self,
-        _follow_req_id: uuid::Uuid,
+        follow_req_id: uuid::Uuid,
     ) -> Result<Accept, anyhow::Error> {
-        todo!()
+        let uf = sqlx::query_as!(UserFollowInfoWithUri, r#"
+        SELECT r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri, r.uri AS `req_uri!`
+        FROM user_follow_requests AS r
+        INNER JOIN users u1 ON r.follower_id = u1.id
+        INNER JOIN users u2 ON r.followee_id = u2.id
+        WHERE r.id = ? AND r.incoming = 1
+        "#, follow_req_id.simple().to_string()).fetch_optional(&self.pool).await?;
+        let uf = match uf {
+            None => return Err(anyhow!("follow request not found")),
+            Some(uf) => uf,
+        };
+
+        let follower_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: uf.follower_id,
+            uri: uf.follower_uri.clone(),
+        });
+        let followee_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: uf.followee_id,
+            uri: uf.followee_uri.clone(),
+        });
+
+        let mut accept = Accept::new();
+        let mut follow = Follow::new();
+        /*
+        Accept {
+            actor: followee_id
+            object: {
+                id: follow_req_id
+                actor: follower_id
+                object: followee_id
+            }
+        }
+        */
+        accept
+            .accept_props
+            .set_actor_xsd_any_uri(followee_id.clone())?;
+        follow.object_props.set_id(uf.req_uri)?;
+        follow.follow_props.set_actor_xsd_any_uri(follower_id)?;
+        follow.follow_props.set_object_xsd_any_uri(followee_id)?;
+        accept.accept_props.set_object_base_box(follow)?;
+        Ok(accept)
     }
 
     async fn create_follow_request(
