@@ -488,7 +488,8 @@ async fn webfinger(
     query: web::Query<WebfingerQuery>,
     app: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
-    let parts: Vec<&str> = query.resource.split(":").collect();
+    let resource = urlencoding::decode(&query.resource).expect("url decode");
+    let parts: Vec<&str> = resource.split(":").collect();
     if parts.len() != 2 {
         return Ok(HttpResponse::BadRequest().body("Invalid resource"));
     }
@@ -505,7 +506,10 @@ async fn webfinger(
         if parts.len() != 2 {
             return Ok(HttpResponse::BadRequest().body("Invalid resource"));
         }
-        UserSpecifier::from_username(parts[0].to_string(), Some(parts[1].to_string()))
+        if parts[1] != app.config().hostname {
+            return Ok(HttpResponse::NotFound().body("user not found"));
+        }
+        UserSpecifier::from_username(parts[0].to_string(), None)
     };
     let mut user_finder = new_local_user_finder_service(app.pool().clone());
     let user = user_finder

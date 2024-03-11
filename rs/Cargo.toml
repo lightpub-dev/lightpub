@@ -41,3 +41,4 @@ activitystreams = "0.6.2"
 anyhow = { version="1.0.80", features=["backtrace"] }
 async-trait = "0.1.77"
 lazy_static = "1.4.0"
+urlencoding = "2.1.3"
