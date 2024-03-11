@@ -1,8 +1,6 @@
-use activitystreams::actor::properties::ApActorProperties;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
-use tracing::debug;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 

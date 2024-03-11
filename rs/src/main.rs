@@ -13,7 +13,6 @@ use crate::services::{
 use activitystreams::activity::{
     self, kind,
     properties::{ActorAndObjectPropertiesObjectEnum, ActorAndObjectPropertiesObjectTermEnum},
-    Follow,
 };
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,

@@ -1,6 +1,5 @@
 use activitystreams::{
     activity::{properties::ActorAndObjectProperties, Accept, Follow},
-    actor::Person,
     object::properties::ObjectProperties,
 };
 use anyhow::anyhow;
@@ -12,7 +11,7 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::MySqlPool;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use uuid::fmt::Simple;
 

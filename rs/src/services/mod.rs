@@ -11,7 +11,6 @@ use crate::{
 };
 
 use activitystreams::activity::{Accept, Follow};
-use activitystreams::actor::Person;
 
 use self::apub::render::ApubPerson;
 

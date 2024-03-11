@@ -1,7 +1,7 @@
 use derive_builder::Builder;
 use derive_getters::Getters;
 use rsa::RsaPrivateKey;
-use serde::{ser::SerializeStruct, Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::fmt::Simple;
 
 #[derive(Debug)]

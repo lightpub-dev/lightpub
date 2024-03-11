@@ -23,6 +23,7 @@ pub struct SignKey {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct NotIncludedHeader(String);
 #[derive(Debug, Clone, Builder)]
 struct SignedHeader {

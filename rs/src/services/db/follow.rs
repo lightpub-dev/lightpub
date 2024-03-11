@@ -325,7 +325,9 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: S
 #[derive(Debug)]
 struct UserFollowRequest {
     id: Simple,
+    #[allow(dead_code)]
     uri: Option<String>,
+    #[allow(dead_code)]
     incoming: bool,
     follower_id: Simple,
     followee_id: Simple,
