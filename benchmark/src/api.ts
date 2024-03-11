@@ -12,7 +12,7 @@ import {
 import process from "process";
 import http from "http";
 
-axios.defaults.baseURL = "http://localhost:8000/api";
+axios.defaults.baseURL = "http://localhost:8000";
 
 const httpAgent = new http.Agent({ keepAlive: true });
 
@@ -62,7 +62,7 @@ export async function post(
     privacy: post.privacy,
   } as any;
 
-  let url = "/posts";
+  let url = "/post";
   if ("replyTo" in post) {
     body["reply_to_id"] = post.replyTo;
   } else if ("repostOf" in post) {
@@ -81,11 +81,9 @@ export async function post(
 }
 
 export async function followUser(info: FollowRequest) {
-  await axios.post(
-    `/follow`,
-    {
-      user_spec: `@${info.target}`,
-    },
+  await axios.put(
+    `/user/@${info.target}/follow`,
+    {},
     {
       headers: {
         Authorization: `Bearer ${info.token}`,
