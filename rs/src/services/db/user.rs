@@ -10,6 +10,7 @@ use crate::services::id::IDGetterService;
 use crate::services::id::UserAttribute;
 use crate::services::AllUserFinderService;
 use crate::services::ApubRequestService;
+use crate::services::InboxPair;
 use crate::services::LocalUserFindError;
 use crate::services::LocalUserFinderService;
 use crate::services::ServiceError;
@@ -390,6 +391,28 @@ impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
                 .await
                 .map_err(map_to_local_error),
         }
+    }
+
+    async fn find_followers_inboxes(
+        &mut self,
+        user: &UserSpecifier,
+    ) -> Result<Vec<InboxPair>, ServiceError<UserFindError>> {
+        let user_id = self.find_user_by_specifier(user).await?.id;
+
+        let follower_inboxes = sqlx::query_as!(
+            InboxPair,
+            r#"
+            SELECT u.inbox, u.shared_inbox
+            FROM user_follows uf
+            INNER JOIN users u ON uf.follower_id = u.id
+            WHERE uf.followee_id = ?
+            "#,
+            user_id.to_string()
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(follower_inboxes)
     }
 }
 
