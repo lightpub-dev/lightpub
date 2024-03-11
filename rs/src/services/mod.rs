@@ -6,12 +6,13 @@ use uuid::{fmt::Simple, Uuid};
 use derive_getters::Getters;
 
 use crate::{
-    models::{
-        self, ApubAccept, ApubActivity, ApubFollow, ApubPayload, ApubPerson, ApubSigner,
-        ApubWebfingerResponse, PostPrivacy,
-    },
+    models::{self, ApubSigner, ApubWebfingerResponse, PostPrivacy},
     utils::user::UserSpecifier,
 };
+
+use activitystreams::activity::{Accept, Follow};
+
+use self::apub::render::ApubPerson;
 
 pub mod apub;
 pub mod db;
@@ -237,6 +238,25 @@ pub trait UserAuthService {
 pub enum FollowError {
     FollowerNotFound,
     FolloweeNotFound,
+    RequestNotFound,
+}
+
+#[derive(Debug, Clone)]
+pub enum FollowRequestSpecifier {
+    LocalURI(String),
+    ActorPair(UserSpecifier, UserSpecifier),
+}
+
+#[derive(Debug, Clone)]
+pub enum IncomingFollowRequest {
+    ActorPair(String, UserSpecifier, UserSpecifier),
+}
+
+#[derive(Debug, Clone, Getters)]
+pub struct FollowRequestAccepted {
+    pub follow_req_id: Uuid,
+    pub follower_id: Uuid,
+    pub followee_id: Uuid,
 }
 
 pub trait UserFollowService {
@@ -251,6 +271,16 @@ pub trait UserFollowService {
         &mut self,
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
+    ) -> Result<(), ServiceError<FollowError>>;
+    #[allow(async_fn_in_trait)]
+    async fn follow_request_accepted(
+        &mut self,
+        accepted_request: &FollowRequestSpecifier,
+    ) -> Result<FollowRequestAccepted, ServiceError<FollowError>>;
+    #[allow(async_fn_in_trait)]
+    async fn incoming_follow_request(
+        &mut self,
+        incoming_follow_request: &IncomingFollowRequest,
     ) -> Result<(), ServiceError<FollowError>>;
 }
 
@@ -270,12 +300,15 @@ pub enum WebfingerError {
 
 pub trait ApubRequestService {
     #[allow(async_fn_in_trait)]
-    async fn post_to_inbox<T: Serialize>(
+    async fn post_to_inbox<T>(
         &mut self,
         url: impl Into<Url>,
-        activity: &ApubPayload<T>,
+        activity: T,
         actor: &impl ApubSigner,
-    ) -> Result<(), ServiceError<PostToInboxError>>;
+    ) -> Result<(), ServiceError<PostToInboxError>>
+    where
+        T: Serialize;
+
     #[allow(async_fn_in_trait)]
     async fn fetch_user(
         &mut self,
@@ -307,15 +340,10 @@ pub enum ApubFollowError {
 
 pub trait ApubFollowService {
     #[allow(async_fn_in_trait)]
-    async fn create_follow_request(
-        &mut self,
-        follow_req_id: Uuid,
-    ) -> Result<ApubFollow, ServiceError<ApubFollowError>>;
+    async fn create_follow_request(&mut self, follow_req_id: Uuid)
+        -> Result<Follow, anyhow::Error>;
     #[allow(async_fn_in_trait)]
-    async fn create_follow_accept(
-        &mut self,
-        follow_req_id: Uuid,
-    ) -> Result<ApubAccept, ServiceError<ApubFollowError>>;
+    async fn create_follow_accept(&mut self, follow_req_id: Uuid) -> Result<Accept, anyhow::Error>;
 }
 
 #[derive(Debug, Clone)]

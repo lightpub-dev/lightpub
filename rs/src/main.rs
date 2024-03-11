@@ -4,14 +4,15 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::{
-    models::ApubPayloadBuilder,
-    services::{
-        apub::new_apub_renderer_service, db::new_follow_service, LocalUserFinderService,
-        PostCreateError, PostCreateRequest, PostCreateRequestNormalBuilder,
-        PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
-        PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
-    },
+use crate::services::{
+    apub::new_apub_renderer_service, db::new_follow_service, FollowRequestSpecifier,
+    IncomingFollowRequest, LocalUserFinderService, PostCreateError, PostCreateRequest,
+    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
+    PostCreateRequestRepostBuilder, UserAuthService, UserCreateService, UserFollowService,
+};
+use activitystreams::activity::{
+    self, kind,
+    properties::{ActorAndObjectPropertiesObjectEnum, ActorAndObjectPropertiesObjectTermEnum},
 };
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
@@ -35,7 +36,7 @@ use std::{
     io::Read,
     pin::Pin,
 };
-use tracing::{self, info};
+use tracing::{debug, error, info, warn};
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -149,11 +150,11 @@ impl<T: Debug> From<ServiceError<T>> for ErrorResponse {
     fn from(value: ServiceError<T>) -> Self {
         match value {
             ServiceError::SpecificError(e) => {
-                tracing::error!("Specific error not handled: {:?}", &e);
+                error!("Specific error not handled: {:?}", &e);
                 ErrorResponse::new_status(500, "internal server error")
             }
             ServiceError::MiscError(e) => {
-                tracing::error!("Misc error: {:?}", &e);
+                error!("Misc error: {:?}", &e);
                 ErrorResponse::new_status(e.status_code(), e.message())
             }
         }
@@ -173,7 +174,7 @@ impl actix_web::ResponseError for ErrorResponse {
 }
 
 fn ise<T: Into<ErrorResponse> + Debug, S>(error: T) -> Result<S, ErrorResponse> {
-    tracing::error!("Internal server error: {:?}", &error);
+    error!("Internal server error: {:?}", &error);
     Err(error.into())
 }
 
@@ -534,14 +535,121 @@ async fn webfinger(
     ))
 }
 
-#[get("/user/{user_spec}/inbox")]
+#[post("/user/{user_spec}/inbox")]
 async fn user_inbox(
     params: web::Path<UserChooseParams>,
-    _app: web::Data<AppState>,
+    app: web::Data<AppState>,
     body: web::Json<serde_json::Value>,
 ) -> HandlerResponse<impl Responder> {
-    info!("user_inbox: {:?}", params);
-    info!("{:?}", body);
+    debug!("user_inbox: {:?}", params);
+    debug!("{:?}", body);
+
+    // deserialize into ActivityPub activity
+    let activity = models::apub::Activity::deserialize(&body.0).map_err(|e| {
+        warn!("Failed to deserialize activity: {:?}", e);
+        ErrorResponse::new_status(400, "invalid activity")
+    })?;
+
+    debug!("parsed activity {:#?}", activity);
+    use models::apub::Activity::*;
+    match activity {
+        Accept(a) => {
+            let actor_id = a
+                .accept_props
+                .get_actor_xsd_any_uri()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("Accept object id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+            let (object_actor_id, object_object_id) =
+                if let ActorAndObjectPropertiesObjectEnum::Term(object) = a.accept_props.object {
+                    if let ActorAndObjectPropertiesObjectTermEnum::BaseBox(base) = object {
+                        if !base.is_kind(kind::FollowType) {
+                            return Err(ErrorResponse::new_status(400, "invalid activity"));
+                        }
+                        let base: activity::Follow = base.into_concrete().unwrap();
+                        let object_id = base
+                            .follow_props
+                            .get_object_xsd_any_uri()
+                            .map(|s| s.to_string())
+                            .ok_or_else(|| {
+                                warn!("Accept object id not found");
+                                ErrorResponse::new_status(400, "invalid activity")
+                            })?;
+                        let actor_id = base
+                            .follow_props
+                            .get_actor_xsd_any_uri()
+                            .map(|s| s.to_string())
+                            .ok_or_else(|| {
+                                warn!("Accept object id not found");
+                                ErrorResponse::new_status(400, "invalid activity")
+                            })?;
+                        (actor_id, object_id)
+                    } else {
+                        return Err(ErrorResponse::new_status(
+                            400,
+                            "follow object only contains id, which is not supported",
+                        ));
+                    }
+                } else {
+                    return Err(ErrorResponse::new_status(
+                        400,
+                        "cannot handle multiple objects",
+                    ));
+                };
+            if actor_id != object_object_id {
+                return Err(ErrorResponse::new_status(400, "invalid activity"));
+            }
+            // TODO: check if the actor is the followee of the object
+
+            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+            let actor_pair = FollowRequestSpecifier::ActorPair(
+                UserSpecifier::URL(object_actor_id),
+                UserSpecifier::URL(object_object_id),
+            );
+            info!("accepting follow request of {:#?}", actor_pair);
+            let result = follow_service.follow_request_accepted(&actor_pair).await?;
+            info!(
+                "follow request accepted: FollowRequestID: {} -> {}",
+                result.follower_id.simple(),
+                result.followee_id.simple()
+            );
+        }
+        Follow(follow) => {
+            let follow_id = follow
+                .object_props
+                .get_id()
+                .map(|s| s.to_string())
+                .ok_or(ErrorResponse::new_status(400, "follow has no id"))?;
+            let actor_id = follow
+                .follow_props
+                .get_actor_xsd_any_uri()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("Follow actor id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+            let object_id = follow
+                .follow_props
+                .get_object_xsd_any_uri()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("Follow object id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+
+            debug!("accepting follow request of {} -> {}", actor_id, object_id);
+            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+            follow_service
+                .incoming_follow_request(&IncomingFollowRequest::ActorPair(
+                    follow_id,
+                    UserSpecifier::URL(actor_id),
+                    UserSpecifier::URL(object_id),
+                ))
+                .await?;
+        }
+    }
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -564,18 +672,22 @@ async fn user_get(
             _ => e.into(),
         })?;
 
-    let user = renderer_service.render_user(&user).map_err(|e| {
-        tracing::error!("Failed to render user: {:?}", e);
+    let mut user = renderer_service.render_user(&user).map_err(|e| {
+        error!("Failed to render user: {:?}", e);
         ErrorResponse::new_status(500, "internal server error")
     })?;
+    user.as_mut()
+        .set_many_context_xsd_any_uris(vec![
+            "https://www.w3.org/ns/activitystreams".to_string(),
+            "https://w3id.org/security/v1".to_string(),
+        ])
+        .unwrap();
+    let user_json = serde_json::to_string(&user).unwrap();
+    debug!("user_json: {}", user_json);
 
     Ok(HttpResponse::Ok()
         .content_type("application/activity+json")
-        .json(
-            ApubPayloadBuilder::new(user)
-                .with_context("https://www.w3.org/ns/activitystreams")
-                .build(),
-        ))
+        .body(user_json))
 }
 
 #[actix_web::main]

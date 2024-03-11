@@ -1,3 +1,8 @@
+use activitystreams::{
+    activity::{properties::ActorAndObjectProperties, Accept, Follow},
+    object::properties::ObjectProperties,
+};
+use anyhow::anyhow;
 use derive_builder::Builder;
 use derive_getters::Getters;
 use reqwest::{
@@ -12,19 +17,14 @@ use uuid::fmt::Simple;
 
 use crate::{
     config::Config,
-    models::{
-        ApubFollowBuilder, ApubPayload, ApubPerson, ApubSigner, ApubWebfingerResponseBuilder,
-        HasRemoteUri,
-    },
+    models::{ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri},
     services::{ServiceError, WebfingerError},
     utils::key::{attach_signature, SignKeyBuilder},
 };
 
-use self::render::ApubRendererService;
+use self::render::{ApubPerson, ApubRendererService};
 
-use super::{
-    id::IDGetterService, ApubFollowError, ApubFollowService, ApubRequestService, MiscError,
-};
+use super::{id::IDGetterService, ApubFollowService, ApubRequestService, MiscError};
 
 pub mod queue;
 pub mod render;
@@ -111,10 +111,10 @@ impl ApubRequestService for ApubReqwest {
     async fn post_to_inbox<T: Serialize>(
         &mut self,
         url: impl Into<Url>,
-        activity: &ApubPayload<T>,
+        activity: T,
         actor: &impl ApubSigner,
     ) -> Result<(), super::ServiceError<super::PostToInboxError>> {
-        let body = activity.to_json();
+        let body = serde_json::to_string(&activity).expect("failed to serialize activity");
         info!("body: {:?}", &body);
 
         let client = self.client();
@@ -157,7 +157,7 @@ impl ApubRequestService for ApubReqwest {
     async fn fetch_user(
         &mut self,
         url: impl Into<Url>,
-    ) -> Result<crate::models::ApubPerson, super::ServiceError<super::ApubFetchUserError>> {
+    ) -> Result<ApubPerson, super::ServiceError<super::ApubFetchUserError>> {
         let url = url.into();
         // TODO: sign req with maintenance user
         let req = RequestBuilder::from_parts(self.client(), Request::new(Method::GET, url))
@@ -166,6 +166,8 @@ impl ApubRequestService for ApubReqwest {
             .unwrap();
 
         let res = self.client().execute(req).await.map_err(map_error)?;
+        // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
+        // debug!("body: {:#?}", body);
         let person = res.json::<ApubPerson>().await.map_err(map_error)?;
 
         Ok(person)
@@ -257,6 +259,15 @@ struct UserFollowInfo {
 }
 
 #[derive(Debug)]
+struct UserFollowInfoWithUri {
+    follower_id: Simple,
+    follower_uri: Option<String>,
+    followee_id: Simple,
+    followee_uri: Option<String>,
+    req_uri: String,
+}
+
+#[derive(Debug)]
 struct UserFollowUser {
     id: Simple,
     uri: Option<String>,
@@ -285,15 +296,55 @@ impl HasRemoteUri for UserFollowInfo {
 impl ApubFollowService for DBApubFollowService {
     async fn create_follow_accept(
         &mut self,
-        _follow_req_id: uuid::Uuid,
-    ) -> Result<crate::models::ApubAccept, ServiceError<ApubFollowError>> {
-        todo!()
+        follow_req_id: uuid::Uuid,
+    ) -> Result<Accept, anyhow::Error> {
+        let uf = sqlx::query_as!(UserFollowInfoWithUri, r#"
+        SELECT r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri, r.uri AS `req_uri!`
+        FROM user_follow_requests AS r
+        INNER JOIN users u1 ON r.follower_id = u1.id
+        INNER JOIN users u2 ON r.followee_id = u2.id
+        WHERE r.id = ? AND r.incoming = 1
+        "#, follow_req_id.simple().to_string()).fetch_optional(&self.pool).await?;
+        let uf = match uf {
+            None => return Err(anyhow!("follow request not found")),
+            Some(uf) => uf,
+        };
+
+        let follower_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: uf.follower_id,
+            uri: uf.follower_uri.clone(),
+        });
+        let followee_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: uf.followee_id,
+            uri: uf.followee_uri.clone(),
+        });
+
+        let mut accept = Accept::new();
+        let mut follow = Follow::new();
+        /*
+        Accept {
+            actor: followee_id
+            object: {
+                id: follow_req_id
+                actor: follower_id
+                object: followee_id
+            }
+        }
+        */
+        accept
+            .accept_props
+            .set_actor_xsd_any_uri(followee_id.clone())?;
+        follow.object_props.set_id(uf.req_uri)?;
+        follow.follow_props.set_actor_xsd_any_uri(follower_id)?;
+        follow.follow_props.set_object_xsd_any_uri(followee_id)?;
+        accept.accept_props.set_object_base_box(follow)?;
+        Ok(accept)
     }
 
     async fn create_follow_request(
         &mut self,
         follow_req_id: uuid::Uuid,
-    ) -> Result<crate::models::ApubFollow, ServiceError<ApubFollowError>> {
+    ) -> Result<Follow, anyhow::Error> {
         let uf = sqlx::query_as!(UserFollowInfo, r#"
         SELECT r.id AS `req_id: Simple`, r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri
         FROM user_follow_requests AS r
@@ -302,7 +353,7 @@ impl ApubFollowService for DBApubFollowService {
         WHERE r.id = ? AND r.uri IS NULL AND r.incoming = 0
         "#, follow_req_id.simple().to_string()).fetch_optional(&self.pool).await?;
         let uf = match uf {
-            None => return Err(ServiceError::from_se(ApubFollowError::RequestNotFound)),
+            None => return Err(anyhow!("follow request not found")),
             Some(uf) => uf,
         };
         let uf_id = self.id_getter.get_follower_request_id(&uf);
@@ -316,12 +367,12 @@ impl ApubFollowService for DBApubFollowService {
             uri: uf.followee_uri.clone(),
         });
 
-        Ok(ApubFollowBuilder::default()
-            .id(uf_id)
-            .actor(follower_id.into())
-            .object(followee_id.into())
-            .build()
-            .unwrap())
+        let mut follow = Follow::new();
+        <Follow as AsMut<ObjectProperties>>::as_mut(&mut follow).set_id(uf_id)?;
+        <Follow as AsMut<ActorAndObjectProperties>>::as_mut(&mut follow)
+            .set_actor_xsd_any_uri(follower_id)?
+            .set_object_xsd_any_uri(followee_id)?;
+        Ok(follow)
     }
 }
 

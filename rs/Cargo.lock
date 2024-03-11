@@ -3,6 +3,32 @@
 version = 3
 
 [[package]]
+name = "activitystreams"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "464cb473bfb402b857cc15b1153974c203a43f1485da4dda15cd17a738548958"
+dependencies = [
+ "activitystreams-derive",
+ "chrono",
+ "mime",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "url 2.5.0",
+]
+
+[[package]]
+name = "activitystreams-derive"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c39ba5929399e9f921055bac76dd8f47419fa5b6b6da1ac4c1e82b94ed0ac7b4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -281,6 +307,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.80"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
+dependencies = [
+ "backtrace",
+]
+
+[[package]]
 name = "async-recursion"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -310,6 +345,12 @@ checksum = "f28d99ec8bfea296261ca1af174f24225171fea9664ba9003cbebee704810528"
 dependencies = [
  "num-traits",
 ]
+
+[[package]]
+name = "atomic"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c59bdb34bc650a32731b31bd8f0829cc15d24a708ee31559e0bb34f2bc320cba"
 
 [[package]]
 name = "atomic-write-file"
@@ -1822,8 +1863,10 @@ dependencies = [
 name = "lightpub"
 version = "0.1.0"
 dependencies = [
+ "activitystreams",
  "actix-web",
  "actix-web-httpauth",
+ "anyhow",
  "async-recursion",
  "base64 0.22.0",
  "bcrypt",
@@ -3889,6 +3932,7 @@ version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f00cc9702ca12d3c81455259621e676d0f7251cec66a21e98fe2e9a37db93b2a"
 dependencies = [
+ "atomic",
  "getrandom",
  "rand 0.8.5",
  "serde",

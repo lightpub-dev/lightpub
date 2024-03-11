@@ -1,11 +1,13 @@
 use sqlx::MySqlPool;
-use tracing::warn;
+use tracing::{debug, warn};
+use uuid::fmt::Simple;
 
 use crate::{
-    models::{self, ApubActivity, ApubPayload, ApubPayloadBuilder},
+    models,
     services::{
-        AllUserFinderService, ApubFollowService, ApubRequestService, FollowError, ServiceError,
-        SignerError, SignerService, UserFindError, UserFollowService,
+        id::IDGetterService, AllUserFinderService, ApubFollowService, ApubRequestService,
+        FollowError, FollowRequestAccepted, FollowRequestSpecifier, IncomingFollowRequest,
+        ServiceError, SignerError, SignerService, UserFindError, UserFollowService,
     },
     utils::{generate_uuid, user::UserSpecifier},
 };
@@ -17,16 +19,25 @@ pub struct DBUserFollowService<F, AF, R, S> {
     pubfollow: AF,
     req: R,
     signfetch: S,
+    id_getter: IDGetterService,
 }
 
 impl<F: AllUserFinderService, AF: ApubFollowService, R, S> DBUserFollowService<F, AF, R, S> {
-    pub fn new(pool: MySqlPool, finder: F, pubfollow: AF, req: R, signfetch: S) -> Self {
+    pub fn new(
+        pool: MySqlPool,
+        finder: F,
+        pubfollow: AF,
+        req: R,
+        signfetch: S,
+        id_getter: IDGetterService,
+    ) -> Self {
         Self {
             pool,
             finder,
             pubfollow,
             req,
             signfetch,
+            id_getter,
         }
     }
 }
@@ -104,12 +115,11 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: S
                 .create_follow_request(request_id.into())
                 .await
                 .unwrap();
+
             self.req
                 .post_to_inbox(
                     followee_inbox.parse::<reqwest::Url>().unwrap(),
-                    &ApubPayloadBuilder::new(ApubActivity::Follow(activity))
-                        .with_context("https://www.w3.org/ns/activitystreams")
-                        .build(),
+                    activity,
                     &actor,
                 )
                 .await
@@ -158,4 +168,167 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: S
 
         Ok(())
     }
+
+    async fn follow_request_accepted(
+        &mut self,
+        accepted_request: &crate::services::FollowRequestSpecifier,
+    ) -> Result<FollowRequestAccepted, ServiceError<FollowError>> {
+        let mut tx = self.pool.begin().await?;
+
+        let follow_req = match accepted_request {
+            FollowRequestSpecifier::LocalURI(uri) => {
+                debug!("follow request uri: {}", uri);
+                let id = self.id_getter.extract_follow_request_id(uri).ok_or_else(|| {
+                    ServiceError::from_se(FollowError::RequestNotFound)
+                })?;
+                debug!("follow request id: {}", id);
+                sqlx::query_as!(UserFollowRequest, r#"
+                SELECT id AS `id: Simple`, uri, incoming AS `incoming: bool`, follower_id AS `follower_id: Simple`, followee_id AS `followee_id: Simple` FROM user_follow_requests WHERE id = ?
+                "#, id).fetch_optional(&mut *tx).await?
+            }
+            FollowRequestSpecifier::ActorPair(follower_uri, followee_uri) => {
+                let follower = self.finder.find_user_by_specifier(follower_uri).await.unwrap();
+                let followee = self.finder.find_user_by_specifier(followee_uri).await.unwrap();
+                let follower_id = follower.id;
+                let followee_id = followee.id;
+                sqlx::query_as!(UserFollowRequest, r#"
+                SELECT id AS `id: Simple`, uri, incoming AS `incoming: bool`, follower_id AS `follower_id: Simple`, followee_id AS `followee_id: Simple` FROM user_follow_requests WHERE follower_id = ? AND followee_id = ?
+                "#, follower_id.to_string(), followee_id.to_string()).fetch_optional(&mut *tx).await?
+            }
+        }.ok_or_else(|| ServiceError::from_se(FollowError::RequestNotFound))?;
+
+        // insert into actual follow table
+        sqlx::query!(
+            r#"
+            INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE id=id
+            "#,
+            follow_req.follower_id.to_string(),
+            follow_req.followee_id.to_string()
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // delete the request
+        sqlx::query!(
+            r#"
+            DELETE FROM user_follow_requests WHERE id = ?
+            "#,
+            follow_req.id.to_string()
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(FollowRequestAccepted {
+            follow_req_id: follow_req.id.into(),
+            follower_id: follow_req.follower_id.into(),
+            followee_id: follow_req.followee_id.into(),
+        })
+    }
+
+    async fn incoming_follow_request(
+        &mut self,
+        incoming_follow_request: &IncomingFollowRequest,
+    ) -> Result<(), ServiceError<FollowError>> {
+        let (req_uri, follower_uri, followee_uri) = match incoming_follow_request {
+            IncomingFollowRequest::ActorPair(uri, f1, f2) => (uri, f1, f2),
+        };
+
+        let follower = self
+            .finder
+            .find_user_by_specifier(follower_uri)
+            .await
+            .or(Err(ServiceError::from_se(FollowError::FollowerNotFound)))?;
+        let followee = self
+            .finder
+            .find_user_by_specifier(followee_uri)
+            .await
+            .or(Err(ServiceError::from_se(FollowError::FolloweeNotFound)))?;
+
+        let follow_req_id = generate_uuid();
+        let follow_req_uri = req_uri;
+        let follower_id = follower.id;
+        let followee_id = followee.id;
+        sqlx::query!(
+            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE uri=?",
+            follow_req_id.to_string(),
+            follow_req_uri,
+            follower_id.to_string(),
+            followee_id.to_string(),
+            follow_req_uri,
+        ).execute(&self.pool).await?;
+
+        // TODO: execute codes below in the background runner
+        {
+            let follower_inbox = follower.inbox.clone().ok_or_else(|| {
+                warn!("follower inbox not set: {:?}", follower);
+                ServiceError::from_se(FollowError::FollowerNotFound)
+            })?;
+            let actor = self
+                .signfetch
+                .fetch_signer(&UserSpecifier::from_id(followee.id))
+                .await
+                .map_err(|e| match e {
+                    ServiceError::SpecificError(SignerError::UserNotFound) => {
+                        ServiceError::from_se(FollowError::FolloweeNotFound)
+                    }
+                    _ => e.convert(),
+                })?;
+            let activity = self
+                .pubfollow
+                .create_follow_accept(follow_req_id.into())
+                .await
+                .unwrap();
+
+            self.req
+                .post_to_inbox(
+                    follower_inbox.parse::<reqwest::Url>().unwrap(),
+                    activity,
+                    &actor,
+                )
+                .await
+                .map_err(|e| e.convert())?;
+
+            // delete from user_follow_requests
+            // and insert actual follow
+            let mut tx = self.pool.begin().await?;
+
+            sqlx::query!(
+                r#"
+                DELETE FROM user_follow_requests WHERE id = ?
+                "#,
+                follow_req_id.to_string()
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query!(
+                r#"
+                INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE id=id
+                "#,
+                follower_id.to_string(),
+                followee_id.to_string()
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            tx.commit().await?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct UserFollowRequest {
+    id: Simple,
+    #[allow(dead_code)]
+    uri: Option<String>,
+    #[allow(dead_code)]
+    incoming: bool,
+    follower_id: Simple,
+    followee_id: Simple,
 }

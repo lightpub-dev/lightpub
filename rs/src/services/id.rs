@@ -75,4 +75,21 @@ impl IDGetterService {
             )
         }
     }
+
+    fn extract_id_from_uri(&self, uri: &str, resource_type: &str) -> Option<String> {
+        let base = format!("{}/{}/", self.config.base_url(), resource_type);
+        if uri.starts_with(&self.config.base_url()) && uri.starts_with(&base) {
+            Some(uri[base.len()..].to_string())
+        } else {
+            None
+        }
+    }
+
+    pub fn extract_follow_request_id(&self, follow_req_uri: &str) -> Option<String> {
+        self.extract_id_from_uri(follow_req_uri, "follow-req")
+    }
+
+    pub fn extract_local_user_id(&self, user_uri: &str) -> Option<String> {
+        self.extract_id_from_uri(user_uri, "user")
+    }
 }
