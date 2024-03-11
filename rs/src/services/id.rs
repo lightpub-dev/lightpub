@@ -48,6 +48,10 @@ impl IDGetterService {
         Self { config }
     }
 
+    pub fn is_our_host(&self, host: &str) -> bool {
+        host == self.config.hostname
+    }
+
     pub fn get_user_id(&self, user: &impl HasRemoteUri) -> String {
         if let Some(uri) = user.get_remote_uri() {
             uri

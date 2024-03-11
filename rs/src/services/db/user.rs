@@ -359,6 +359,18 @@ impl AllUserFinderService for DBAllUserFinderService {
         match spec {
             UserSpecifier::Username(username, host) => {
                 if let Some(host) = host {
+                    if self.id_getter.is_our_host(host) {
+                        // local user
+                        return self
+                            .local
+                            .find_user_by_specifier(&UserSpecifier::from_username(
+                                username.to_string(),
+                                None,
+                            ))
+                            .await
+                            .map_err(map_to_local_error);
+                    }
+
                     // check if already exists in local db
                     let u = sqlx::query_as!(models::User,
                         "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host = ?", username, host).fetch_optional(&self.pool).await?;
