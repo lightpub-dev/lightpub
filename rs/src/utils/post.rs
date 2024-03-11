@@ -1,7 +1,7 @@
 use derive_getters::Getters;
 use derive_more::Constructor;
 use lazy_static::lazy_static;
-use regex::bytes::Regex;
+use regex::Regex;
 
 pub fn find_hashtags(content: &str) -> Vec<String> {
     let mut hashtags: Vec<String> = Vec::new();
@@ -47,7 +47,7 @@ pub fn find_hashtags(content: &str) -> Vec<String> {
     hashtags
 }
 
-#[derive(Debug, Clone, Constructor, Getters)]
+#[derive(Debug, Clone, Constructor, Getters, PartialEq)]
 pub struct MentionTarget {
     username: String,
     host: Option<String>,
@@ -60,7 +60,7 @@ pub fn find_mentions(content: &str) -> Vec<MentionTarget> {
     }
     let mut mentions = Vec::new();
 
-    for cap in MENTION_RE.captures_iter(content.as_bytes()) {
+    for cap in MENTION_RE.captures_iter(content) {
         let username = cap[1].to_string();
         let host = if let Some(matched_host) = cap.get(2) {
             Some(matched_host.as_str().to_string())
@@ -148,5 +148,81 @@ mod tests {
     #[test]
     fn test_find_hashtag_just_hash() {
         assert_eq!(find_hashtags("String with just #"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_find_mentions() {
+        let f = |s: &str| find_mentions(s);
+
+        // Helper function to easily create MentionTarget instances
+        let t = |username: &str, host: Option<&str>| {
+            MentionTarget::new(username.to_string(), host.map(|h| h.to_string()))
+        };
+
+        assert_eq!(f("Hello @user"), vec![t("user", None)]);
+        assert_eq!(
+            f("Hello @user@example.com"),
+            vec![t("user", Some("example.com"))]
+        );
+        assert_eq!(
+            f("Hello @user and @other@example.com, and @another@another.example.com"),
+            vec![
+                t("user", None),
+                t("other", Some("example.com")),
+                t("another", Some("another.example.com")),
+            ]
+        );
+        assert_eq!(
+            f("@alex.7552441788648396124@tester.tinax.local hi"),
+            vec![t("alex.7552441788648396124", Some("tester.tinax.local"))]
+        );
+
+        // No mentions
+        assert_eq!(f("Hello there"), vec![]);
+
+        // Multiple mentions without domain
+        assert_eq!(
+            f("Hello @user1 and @user2"),
+            vec![t("user1", None), t("user2", None)]
+        );
+
+        // Mixed mentions
+        assert_eq!(
+            f("Hello @user, @other@example.com, and just text"),
+            vec![t("user", None), t("other", Some("example.com")),]
+        );
+
+        // Mentions with special characters
+        assert_eq!(
+            f("@user_name and @user-name@example-domain.com"),
+            vec![
+                t("user_name", None),
+                t("user-name", Some("example-domain.com")),
+            ]
+        );
+
+        // Mentions close to punctuation
+        assert_eq!(
+            f("Hello @user, how are you? @another_user!"),
+            vec![t("user", None), t("another_user", None),]
+        );
+
+        // Mentions in complex strings
+        assert_eq!(
+            f("@user: Check this out! @another_user@example.com, isn't it cool?"),
+            vec![t("user", None), t("another_user", Some("example.com")),]
+        );
+
+        // Uppercase mentions
+        assert_eq!(
+            f("Hello @User and @OtherUser"),
+            vec![t("User", None), t("OtherUser", None)]
+        );
+
+        // Mentions in multiline string
+        assert_eq!(
+            f("Hello @user\nHow are you @other_user?"),
+            vec![t("user", None), t("other_user", None),]
+        );
     }
 }
