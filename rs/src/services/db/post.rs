@@ -14,7 +14,11 @@ use crate::{
         AllUserFinderService, ApubRequestService, PostCreateError, PostCreateRequest,
         PostCreateService, ServiceError, SignerService,
     },
-    utils::{generate_uuid, user::UserSpecifier},
+    utils::{
+        generate_uuid,
+        post::{find_hashtags, find_mentions},
+        user::UserSpecifier,
+    },
 };
 
 #[derive(Constructor)]
@@ -74,24 +78,75 @@ impl PostCreateService for DBPostCreateService {
             }
         }
 
+        let hashtags = content
+            .as_ref()
+            .map(|c| find_hashtags(c))
+            .unwrap_or_else(|| vec![]);
+        let mentions = content
+            .as_ref()
+            .map(|c| find_mentions(c))
+            .unwrap_or_else(|| vec![]);
+
         let post_id = generate_uuid();
         let post_id_str = post_id.to_string();
         let poster_id = poster.id;
         let privacy = req.privacy().to_db();
         let created_at = chrono::Utc::now().naive_utc();
 
-        sqlx::query!(
-            "INSERT INTO posts (id, poster_id, content, privacy, created_at, repost_of_id, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?)",
-            post_id_str,
-            poster_id,
-            content,
-            privacy,
-            created_at,
-            repost_of_id.map(|s|s.to_string()),
-            reply_to_id.map(|s|s.to_string())
-        )
-        .execute(&self.pool)
-        .await?;
+        {
+            let mut tx = self.pool.begin().await?;
+
+            sqlx::query!(
+                "INSERT INTO posts (id, poster_id, content, privacy, created_at, repost_of_id, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?)",
+                post_id_str,
+                poster_id,
+                content,
+                privacy,
+                created_at,
+                repost_of_id.map(|s|s.to_string()),
+                reply_to_id.map(|s|s.to_string())
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            // FIXME: batch insert
+            for hashtag in &hashtags {
+                sqlx::query!(
+                    "INSERT INTO post_hashtags (post_id, hashtag_name) VALUES (?, ?)",
+                    post_id_str,
+                    hashtag
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+
+            // FIXME: batch insert
+            for mention in &mentions {
+                let target_user_id = self
+                    .finder
+                    .find_user_by_specifier(&UserSpecifier::from_username(
+                        mention.username().clone(),
+                        mention.host().clone(),
+                    ))
+                    .await;
+                let target_user_id = match target_user_id {
+                    Ok(user) => user.id,
+                    Err(_) => {
+                        warn!("failed to find user {:?}", mention);
+                        continue;
+                    }
+                };
+                sqlx::query!(
+                    "INSERT INTO post_mentions (post_id, target_user_id) VALUES (?, ?)",
+                    post_id_str,
+                    target_user_id,
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+
+            tx.commit().await?;
+        }
 
         let post = LocalPost {
             id: post_id,
