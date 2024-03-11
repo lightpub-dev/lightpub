@@ -1,13 +1,11 @@
 # Lightpub
 
 ## Server 建て方
-1. `cd server`
-2. `pipenv install`
-3. `docker run -d --name lightpub-db -e MYSQL_USER=lightpub -e MYSQL_PASSWORD=lightpub -e MYSQL_ROOT_PASSWORD=lightpub -e MYSQL_DATABASE=lightpub -p 3306:3306 mariadb:latest`
-4. `./manage.py migrate`
-5. `./manage.py runserver`
-
-master は Python ですが、rs ブランチで Rust に書き換えています
+1. `cd rs`
+2. `docker compose up -d`
+3. `cargo install refinery_cli`
+4. `refinery migrate`
+5. `cargo run`
 
 ## Frontend 建て方
 1. `cd frontend`
