@@ -431,7 +431,7 @@ async fn node_info_2_1(app: web::Data<AppState>) -> impl Responder {
         .body(node_info.to_string())
 }
 
-fn gen_node_info(node_info_version: &str, _config: &Config) -> serde_json::Value {
+fn gen_node_info(node_info_version: &str, config: &Config) -> serde_json::Value {
     json!({
         "version": node_info_version,
         "software": {
@@ -450,8 +450,8 @@ fn gen_node_info(node_info_version: &str, _config: &Config) -> serde_json::Value
             // }
         },
         "metadata": {
-            // "nodeName": INSTANCE_NAME,
-            // "nodeDescription": INSTANCE_DESCRIPTION,
+            "nodeName": config.instance.name,
+            "nodeDescription": config.instance.description,
         },
     })
 }

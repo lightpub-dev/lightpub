@@ -6,6 +6,7 @@ pub struct Config {
     pub http_scheme: String,
     pub frontend_url: String,
     pub database: DatabaseConfig,
+    pub instance: InstanceConfig,
 }
 
 impl Config {
@@ -21,6 +22,12 @@ pub struct DatabaseConfig {
     pub name: String,
     pub user: String,
     pub password: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct InstanceConfig {
+    pub name: String,
+    pub description: String,
 }
 
 #[test]
@@ -48,6 +55,10 @@ fn read_config_yaml() {
                 name: "lightpub".to_string(),
                 user: "root".to_string(),
                 password: "lightpub".to_string(),
+            },
+            instance: InstanceConfig {
+                name: "Lightpub dev".to_string(),
+                description: "Lightpub development server".to_string()
             }
         }
     )
