@@ -1,9 +1,11 @@
+use async_trait::async_trait;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
+use crate::holder;
 use crate::models;
 use crate::models::ApubSigner;
 use crate::services::id::IDGetterService;
@@ -59,6 +61,7 @@ struct LoginDB {
     bpasswd: Option<String>,
 }
 
+#[async_trait]
 impl UserCreateService for DBUserCreateService {
     async fn create_user(
         &mut self,
@@ -131,6 +134,7 @@ impl UserCreateService for DBUserCreateService {
     }
 }
 
+#[async_trait]
 impl UserAuthService for DBAuthService {
     async fn authenticate_user(
         &mut self,
@@ -156,6 +160,7 @@ impl DBLocalUserFinderService {
     }
 }
 
+#[async_trait]
 impl LocalUserFinderService for DBLocalUserFinderService {
     async fn find_user_by_specifier(
         &mut self,
@@ -190,16 +195,20 @@ impl LocalUserFinderService for DBLocalUserFinderService {
     }
 }
 
-#[derive(Debug)]
-pub struct DBAllUserFinderService<R, F> {
+pub struct DBAllUserFinderService {
     pool: MySqlPool,
-    req: R,
-    local: F,
+    req: holder!(ApubRequestService),
+    local: holder!(LocalUserFinderService),
     id_getter: IDGetterService,
 }
 
-impl<R, F> DBAllUserFinderService<R, F> {
-    pub fn new(pool: MySqlPool, req: R, local: F, id_getter: IDGetterService) -> Self {
+impl DBAllUserFinderService {
+    pub fn new(
+        pool: MySqlPool,
+        req: holder!(ApubRequestService),
+        local: holder!(LocalUserFinderService),
+        id_getter: IDGetterService,
+    ) -> Self {
         Self {
             pool,
             req,
@@ -232,7 +241,7 @@ struct RemoteUser {
 
 async fn find_user_by_url(
     url: impl Into<String>,
-    req: &mut impl ApubRequestService,
+    req: &mut holder!(ApubRequestService),
     pool: &MySqlPool,
 ) -> Result<models::User, ServiceError<crate::services::UserFindError>> {
     let url = url.into();
@@ -262,7 +271,7 @@ async fn find_user_by_url(
     let parsed_url = url.parse::<reqwest::Url>().unwrap();
     let host = parsed_url.host_str().unwrap().to_string();
 
-    let actor = req.fetch_user(parsed_url).await.unwrap();
+    let actor = req.fetch_user(parsed_url.as_str()).await.unwrap();
 
     let username = actor.base.extension.get_preferred_username().unwrap();
     let nickname = actor.as_ref().get_name_xsd_string().unwrap_or(&username);
@@ -341,9 +350,8 @@ async fn find_user_by_url(
     return Ok(user);
 }
 
-impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
-    for DBAllUserFinderService<R, F>
-{
+#[async_trait]
+impl AllUserFinderService for DBAllUserFinderService {
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
@@ -416,22 +424,23 @@ impl<R: ApubRequestService, F: LocalUserFinderService> AllUserFinderService
     }
 }
 
-#[derive(Debug)]
-pub struct DBSignerService<F> {
+pub struct DBSignerService {
     pool: MySqlPool,
-    fetch: F,
+    fetch: holder!(LocalUserFinderService),
     id_getter: IDGetterService,
 }
 
-pub fn new_db_user_signer_service<F>(
-    pool: MySqlPool,
-    fetch: F,
-    id_getter: IDGetterService,
-) -> DBSignerService<F> {
-    DBSignerService {
-        pool,
-        fetch,
-        id_getter,
+impl DBSignerService {
+    pub fn new(
+        pool: MySqlPool,
+        fetch: holder!(LocalUserFinderService),
+        id_getter: IDGetterService,
+    ) -> Self {
+        Self {
+            pool,
+            fetch,
+            id_getter,
+        }
     }
 }
 
@@ -456,13 +465,12 @@ impl ApubSigner for DBSigner {
     }
 }
 
-impl<F: LocalUserFinderService> SignerService for DBSignerService<F> {
-    type Signer = DBSigner;
-
+#[async_trait]
+impl SignerService for DBSignerService {
     async fn fetch_signer(
         &mut self,
         user: &UserSpecifier,
-    ) -> Result<Self::Signer, ServiceError<crate::services::SignerError>> {
+    ) -> Result<holder!(ApubSigner), ServiceError<crate::services::SignerError>> {
         let u = self
             .fetch
             .find_user_by_specifier(user)
@@ -488,11 +496,11 @@ impl<F: LocalUserFinderService> SignerService for DBSignerService<F> {
             .get_user_id_attr(&u, UserAttribute::PublicKey)
             .unwrap();
 
-        Ok(DBSigner {
+        Ok(Box::new(DBSigner {
             user_id: u.id.to_string(),
             private_key: RsaPrivateKey::from_pkcs8_pem(private_key.as_ref())
                 .map_err(|_| ServiceError::from_se(SignerError::PrivateKeyNotSet))?,
             private_key_id,
-        })
+        }))
     }
 }

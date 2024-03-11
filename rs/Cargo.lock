@@ -1868,6 +1868,7 @@ dependencies = [
  "actix-web-httpauth",
  "anyhow",
  "async-recursion",
+ "async-trait",
  "base64 0.22.0",
  "bcrypt",
  "chrono",
