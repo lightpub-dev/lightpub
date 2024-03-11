@@ -535,6 +535,22 @@ async fn webfinger(
     ))
 }
 
+#[get("/.well-known/host-meta")]
+async fn host_meta(app: web::Data<AppState>) -> HandlerResponse<impl Responder> {
+    let base_url = app.base_url();
+    let xml = r#"
+    <?xml version="1.0" encoding="UTF-8"?>
+    <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
+        <Link rel="lrdd" type="application/xrd+xml"
+            template="{{base_url}}/.well-known/webfinger?resource={uri}" />
+    </XRD>
+    "#
+    .replace("{{base_url}}", &base_url);
+    Ok(HttpResponse::Ok()
+        .content_type("application/xrd+xml")
+        .body(xml))
+}
+
 #[post("/user/{user_spec}/inbox")]
 async fn user_inbox(
     params: web::Path<UserChooseParams>,
@@ -747,6 +763,7 @@ async fn main() -> std::io::Result<()> {
             .service(webfinger)
             .service(node_info_2_0)
             .service(node_info_2_1)
+            .service(host_meta)
             .service(well_known_node_info)
             .service(user_inbox)
             .service(user_get)
