@@ -267,3 +267,4 @@ pyrightconfig.json
 
 /uploads
 /staticfiles
+/lightpub.yml

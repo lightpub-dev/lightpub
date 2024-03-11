@@ -2,9 +2,9 @@ import { faker } from "@faker-js/faker";
 import { followUser, loginUser, post, registerUser } from "./api";
 import { RegisterRequest } from "./models";
 
-const UserCount = 1;
-const FollowCount = 0;
-const PostsPerUser = 200;
+const UserCount = 50;
+const FollowCount = 20;
+const PostsPerUser = 50;
 
 function fakeUser(): RegisterRequest {
   return {
@@ -115,8 +115,8 @@ async function main() {
       content,
       privacy,
     };
-    await post(postReq);
     timeStart();
+    await post(postReq);
     posts.push({
       poster: user.username,
       content,

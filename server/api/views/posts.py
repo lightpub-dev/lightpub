@@ -1,20 +1,29 @@
-from ..serializers.post import PostSerializer, UploadedFileSerializer
-from ..serializers.user import SimpleUserSerializer
-from ..models import Post, UploadedFile, PostAttachment, User, PostFavorite
-from rest_framework import status, mixins, views, generics
-from rest_framework.response import Response
-from ..auth import AuthOnlyPermission, NoAuthPermission, NoPermission
-from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from django.db.models import Q
-from .users import UserSpecifier
-from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
-from PIL import Image
-from django.views.decorators.cache import cache_control
+from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_control
+from PIL import Image
+from rest_framework import mixins, status, views
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
+
+from api.jsonld.mixins import JsonldAwareMixin
+from api.serializers.interaction import PostBookmarkSerializer, PostFavoriteSerializer
+from api.utils.posts.pub import create_post_object
+
+from ..auth import AuthOnlyPermission, NoAuthPermission, NoPermission
+from ..models import Post, PostAttachment, PostBookmark, PostFavorite, UploadedFile
+from ..serializers.post import (
+    PostAddToListSerializer,
+    PostSerializer,
+    UploadedFileSerializer,
+)
+from .users import UserSpecifier
 
 
-class PostViewSet(ModelViewSet):
+class PostViewSet(JsonldAwareMixin, ModelViewSet):
     serializer_class = PostSerializer
 
     def get_serializer_context(self):
@@ -22,12 +31,23 @@ class PostViewSet(ModelViewSet):
             "request": self.request,
         }
 
+    def retrieve(self, request, *args, **kwargs):
+        if not self.jsonld_requested():
+            return super().retrieve(request, *args, **kwargs)
+
+        object = self.get_object()
+        ap_object = create_post_object(object)
+        ap_object["@context"] = [
+            "https://www.w3.org/ns/activitystreams",
+        ]
+        return Response(ap_object, status=status.HTTP_200_OK)
+
     def list(self, request, *args, **kwargs):
         # filter privacy==1 posts
         queryset = self.filter_queryset(self.get_queryset())
         queryset = queryset.exclude(privacy=1)
         page = self.paginate_queryset(queryset)
-        if page:
+        if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
@@ -49,6 +69,11 @@ class PostViewSet(ModelViewSet):
             permission_classes = [AuthOnlyPermission]
         elif self.action in ["update", "partial_update"]:
             permission_classes = [NoPermission]
+        elif self.action in ["favorites", "bookmarks"]:
+            if self.request.method == "GET":
+                permission_classes = [NoAuthPermission]
+            else:
+                permission_classes = [AuthOnlyPermission]
         else:
             permission_classes = [NoAuthPermission]
         return [permission() for permission in permission_classes]
@@ -60,10 +85,16 @@ class PostViewSet(ModelViewSet):
         if not authed:
             return Post.objects.filter(privacy__in=[0, 1]).order_by("-created_at")
 
-        posts = Post.objects.distinct().filter(
-            Q(privacy__in=[0, 1])
-            | Q(privacy=2, poster__followers__follower=user)
-            | Q(privacy=3, poster=user)
+        posts = (
+            Post.objects.distinct()
+            .filter(
+                Q(privacy__in=[0, 1])
+                | Q(privacy=2, poster__followers__follower=user)
+                | Q(privacy=3, poster=user)
+            )
+            .filter(
+                deleted_at__isnull=True,
+            )
         )
 
         hashtag = self.request.query_params.get("hashtag", None)
@@ -86,6 +117,187 @@ class PostViewSet(ModelViewSet):
         posts = posts.order_by("-created_at")
 
         return posts
+
+    @action(
+        detail=True,
+        methods=["GET", "PUT", "DELETE"],
+        url_path="favorites",
+        url_name="favorites",
+        serializer_class=PostAddToListSerializer,
+    )
+    def favorites(self, request, pk=None):
+        post = self.get_object()
+        if self.request.method == "GET":
+            favorites = post.favorites.all()
+            page = self.paginate_queryset(favorites)
+            if page is not None:
+                serializer = PostFavoriteSerializer(
+                    page,
+                    many=True,
+                    context={
+                        "request": request,
+                    },
+                )
+                return self.get_paginated_response(serializer.data)
+
+            serializer = PostFavoriteSerializer(
+                favorites,
+                many=True,
+                context={
+                    "request": request,
+                },
+            )
+            return Response(serializer.data)
+        else:
+            user = request.user
+            if self.request.method == "PUT":
+                PostFavorite.objects.create(user=user, post=post)
+                return Response(status=status.HTTP_201_CREATED)
+            elif self.request.method == "DELETE":
+                PostFavorite.objects.filter(user=user, post=post).delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            else:
+                raise ValueError("invalid method")
+
+    @action(
+        detail=True,
+        methods=["GET", "PUT", "DELETE"],
+        url_path="bookmarks",
+        url_name="bookmarks",
+        serializer_class=PostAddToListSerializer,
+    )
+    def bookmarks(self, request, pk=None):
+        post = self.get_object()
+        if self.request.method == "GET":
+            bookmarks = post.bookmarks.all()
+            page = self.paginate_queryset(bookmarks)
+            if page is not None:
+                serializer = PostBookmarkSerializer(
+                    page,
+                    many=True,
+                    context={
+                        "request": request,
+                    },
+                )
+                return self.get_paginated_response(serializer.data)
+
+            serializer = PostBookmarkSerializer(
+                bookmarks,
+                many=True,
+                context={
+                    "request": request,
+                },
+            )
+            return Response(serializer.data)
+        else:
+            user = request.user
+            if self.request.method == "PUT":
+                PostBookmark.objects.create(user=user, post=post)
+                return Response(status=status.HTTP_201_CREATED)
+            elif self.request.method == "DELETE":
+                PostBookmark.objects.filter(user=user, post=post).delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            else:
+                raise ValueError("invalid method")
+
+    def _return_posts(self, request, posts, serializer_context: dict = {}):
+        page = self.paginate_queryset(posts)
+        if page is not None:
+            serializer = PostSerializer(
+                page,
+                many=True,
+                context={
+                    "request": request,
+                }
+                | serializer_context,
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = PostSerializer(
+            posts,
+            many=True,
+            context={
+                "request": request,
+            }
+            | serializer_context,
+        )
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["GET"], url_path="replies", url_name="replies")
+    def replies(self, request, pk=None):
+        post = self.get_object()
+        user = request.user
+        if user.id:
+            posts = (
+                post.replies.distinct()
+                .filter(
+                    Q(privacy__in=[0, 1])
+                    | Q(privacy=2, poster__followers__follower=user)
+                )
+                .order_by("-created_at")
+            )
+        else:
+            posts = (
+                post.replies.distinct()
+                .filter(privacy__in=[0, 1])
+                .order_by("-created_at")
+            )
+
+        return self._return_posts(request, posts)
+
+    @action(detail=True, methods=["GET"], url_path="quotes", url_name="quotes")
+    def quotes(self, request, pk=None):
+        post = self.get_object()
+        user = request.user
+        if user.id:
+            posts = (
+                post.reposts.distinct()
+                .filter(content__isnull=False)
+                .filter(
+                    Q(privacy__in=[0, 1])
+                    | Q(privacy=2, poster__followers__follower=user)
+                )
+                .order_by("-created_at")
+            )
+        else:
+            posts = (
+                post.reposts.distinct()
+                .filter(content__isnull=False)
+                .filter(privacy__in=[0, 1])
+                .order_by("-created_at")
+            )
+
+        return self._return_posts(request, posts)
+
+    @action(detail=True, methods=["GET"], url_path="reposts", url_name="reposts")
+    def reposts(self, request, pk=None):
+        post = self.get_object()
+        user = request.user
+        if user.id:
+            reposts = (
+                post.reposts.distinct()
+                .filter(content__isnull=True)
+                .filter(
+                    Q(privacy__in=[0, 1])
+                    | Q(privacy=2, poster__followers__follower=user)
+                )
+                .order_by("-created_at")
+            )
+        else:
+            reposts = (
+                post.reposts.distinct()
+                .filter(content__isnull=True)
+                .filter(privacy__in=[0, 1])
+                .order_by("-created_at")
+            )
+
+        return self._return_posts(
+            request,
+            reposts,
+            serializer_context={
+                "nested_repost": 0,
+            },
+        )
 
 
 class UploadFileView(
@@ -126,143 +338,3 @@ class PostAttachmentView(views.APIView):
         content_type = image.format.lower()
         content_type = f"image/{content_type}"
         return HttpResponse(file, content_type=content_type)
-
-
-class PostInteractionViewBase(generics.ListAPIView):
-    permission_classes = [NoAuthPermission]
-    serializer_class = PostSerializer
-
-    def get_queryset(self):
-        user = self.request.user
-        if not user.id:
-            user = None
-
-        post_id = self.kwargs["pk"]
-        target_post = get_object_or_404(Post, id=post_id)
-        self.check_object_permissions(self.request, target_post)
-        return self._fetch(user, target_post)
-
-    def _fetch(self, user: User | None, target_post: Post):
-        raise NotImplementedError()
-
-
-class ReplyListView(PostInteractionViewBase):
-    def _fetch(self, user: User | None, target_post: Post):
-        if user:
-            return (
-                target_post.replies.distinct()
-                .filter(
-                    Q(privacy__in=[0, 1])
-                    | Q(privacy=2, poster__followers__follower=user)
-                )
-                .order_by("-created_at")
-            )
-
-        return (
-            target_post.replies.distinct()
-            .filter(privacy__in=[0, 1])
-            .order_by("-created_at")
-        )
-
-
-class QuoteListView(PostInteractionViewBase):
-    def _fetch(self, user: User | None, target_post: Post):
-        if user:
-            return (
-                target_post.reposts.distinct()
-                .filter(content__isnull=False)
-                .filter(
-                    Q(privacy__in=[0, 1])
-                    | Q(privacy=2, poster__followers__follower=user)
-                )
-                .order_by("-created_at")
-            )
-
-        return (
-            target_post.reposts.distinct()
-            .filter(content__isnull=False)
-            .filter(privacy__in=[0, 1])
-            .order_by("-created_at")
-        )
-
-
-class RepostListView(generics.ListAPIView):
-    permission_classes = [NoAuthPermission]
-    serializer_class = SimpleUserSerializer
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-        if page:
-            users = [p.poster for p in queryset]
-            serializer = self.serializer_class(users, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        users = [p.poster for p in queryset]
-        serializer = self.serializer_class(users, many=True)
-        return Response(serializer.data)
-
-    def get_queryset(self):
-        user = self.request.user
-        if not user.id:
-            user = None
-
-        post_id = self.kwargs["pk"]
-        target_post = get_object_or_404(Post, id=post_id)
-        self.check_object_permissions(self.request, target_post)
-
-        if user:
-            reposts = (
-                target_post.reposts.distinct()
-                .filter(content__isnull=True)
-                .filter(
-                    Q(privacy__in=[0, 1])
-                    | Q(privacy=2, poster__followers__follower=user)
-                )
-                .order_by("-created_at")
-                .select_related("poster")
-            )
-        else:
-            reposts = (
-                target_post.reposts.distinct()
-                .filter(content__isnull=True)
-                .filter(privacy__in=[0, 1])
-                .order_by("-created_at")
-                .select_related("poster")
-            )
-
-        # extract user
-        return reposts
-
-
-class FavoriteListView(generics.ListAPIView):
-    permission_classes = [NoAuthPermission]
-    serializer_class = SimpleUserSerializer
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-        if page:
-            users = [p.user for p in queryset]
-            serializer = self.serializer_class(users, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        users = [p.user for p in queryset]
-        serializer = self.serializer_class(users, many=True)
-        return Response(serializer.data)
-
-    def get_queryset(self):
-        user = self.request.user
-        if not user.id:
-            user = None
-
-        post_id = self.kwargs["pk"]
-        target_post = get_object_or_404(Post, id=post_id)
-        self.check_object_permissions(self.request, target_post)
-
-        favorites = PostFavorite.objects.filter(post=target_post).order_by(
-            "-created_at"
-        )
-
-        # extract user
-        return favorites

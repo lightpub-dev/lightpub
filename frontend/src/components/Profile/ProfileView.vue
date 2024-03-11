@@ -22,7 +22,7 @@ const startNicknameEdit = () => {
 }
 const endNicknameEdit = async () => {
     try {
-        await axios.patch(`/users/${id.value}/`, {
+        await axios.patch(`/users/${id.value}`, {
             nickname: nickname.value
         })
     } catch (ex) {
@@ -33,7 +33,7 @@ const endNicknameEdit = async () => {
     nicknameEditing.value = false
 }
 
-const hostname = ref('')
+const hostname = ref(null as string | null)
 
 // bio
 const bio = ref('')
@@ -50,7 +50,7 @@ const startBioEdit = () => {
 }
 const endBioEdit = () => {
     try {
-        axios.patch(`/users/${id.value}/`, {
+        axios.patch(`/users/${id.value}`, {
             bio: bio.value
         })
     } catch (ex) {
@@ -76,12 +76,12 @@ const avatarClick = async (ev: any) => {
     const formData = new FormData()
     formData.append('file', file)
     try {
-        const res = await axios.post('/uploads/', formData, {
+        const res = await axios.post('/uploads', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
         })
-        await axios.patch(`/users/${id.value}/`, {
+        await axios.patch(`/users/${id.value}`, {
             avatar_id: res.data.id
         })
         await fetchProfile()
@@ -101,7 +101,7 @@ const fetchProfile = async () => {
     const res = await axios.get(`/users/${id.value}`)
     username.value = res.data.username
     nickname.value = res.data.nickname
-    hostname.value = res.data.hostname
+    hostname.value = res.data.host
     bio.value = res.data.bio
     avatarURL.value = res.data.avatar
     labels.value = res.data.labels
@@ -169,9 +169,9 @@ const toggleFollow = async () => {
         return
     }
     if (isFollowing.value) {
-        await axios.delete(`/followings/${id.value}/`)
+        await axios.delete(`/followings/${id.value}`)
     } else {
-        await axios.post('/followings/', {
+        await axios.post('/followings', {
             followee_spec: id.value
         })
     }

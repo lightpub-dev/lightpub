@@ -32,7 +32,7 @@ const onClick = async () => {
     } else {
         // create
         try {
-            await axios.post(`/reactions/`, {
+            await axios.post(`/reactions`, {
                 emoji: props.emojiName,
                 post: props.postId,
             })

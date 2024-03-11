@@ -1,10 +1,12 @@
-from ..serializers.post import HashtagSerializer, PostSerializer
-from ..models import Post, PostHashtag
-from rest_framework import generics, mixins
-from rest_framework.response import Response
-from django.db.models import Count
-from api.pagination import MyPagination
 import datetime
+
+from django.db.models import Count
+from rest_framework import generics
+
+from api.pagination import MyPagination
+
+from ..models import PostHashtag
+from ..serializers.post import HashtagSerializer
 
 
 class PopularHashtagPage(MyPagination):

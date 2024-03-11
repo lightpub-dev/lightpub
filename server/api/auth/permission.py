@@ -1,18 +1,18 @@
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS, BasePermission
+
 from ..models import (
-    User,
     Post,
-    UserFollow,
-    PostFavorite,
-    PostBookmark,
     PostAttachment,
+    PostBookmark,
+    PostFavorite,
     UploadedFile,
+    User,
+    UserFollow,
 )
 
 
 def _check_user_updatable(request, user, obj) -> bool:
     if isinstance(obj, User):
-        print(f"{request.user} == {obj}")
         return request.user == obj
 
     if isinstance(obj, Post):
@@ -34,6 +34,14 @@ def _check_user_updatable(request, user, obj) -> bool:
         return request.user == obj.post.poster
 
     return False
+
+
+class OwnerOnlyPermission(BasePermission):
+    def has_permission(self, request, view):
+        return isinstance(request.user, User)
+
+    def has_object_permission(self, request, view, obj):
+        return _check_user_updatable(request, request.user, obj)
 
 
 class AuthOnlyPermission(BasePermission):

@@ -12,7 +12,7 @@ const axios = inject(AUTH_AXIOS)!
 const posts = ref<UserPostEntry[]>([])
 
 const fetchPost = async (id: string) => {
-    const { data } = await axios.get<UserPostEntry>(`/posts/${id}/`)
+    const { data } = await axios.get<UserPostEntry>(`/posts/${id}`)
     posts.value.push(data)
 
     if (data.reply_to_id) {
