@@ -1,0 +1,152 @@
+use derive_getters::Getters;
+use derive_more::Constructor;
+use lazy_static::lazy_static;
+use regex::bytes::Regex;
+
+pub fn find_hashtags(content: &str) -> Vec<String> {
+    let mut hashtags: Vec<String> = Vec::new();
+    let mut in_hashtag = false;
+    let mut hashtag_start_index: usize = 0;
+    let chars: Vec<char> = content.chars().collect();
+    let mut positions: Vec<usize> = vec![]; // To store the start positions of hashtags
+
+    for (i, &ch) in chars.iter().enumerate() {
+        if ch == '#' {
+            if !in_hashtag {
+                in_hashtag = true;
+                hashtag_start_index = i;
+            } else {
+                // Reset if another # is found immediately after
+                in_hashtag = false;
+            }
+        } else if !ch.is_alphanumeric() && ch != '_' && ch != '-' {
+            // Word boundary detected
+            if in_hashtag {
+                positions.push(hashtag_start_index);
+                in_hashtag = false;
+            }
+        }
+    }
+    // Check if the content ends with a hashtag
+    if in_hashtag {
+        positions.push(hashtag_start_index);
+    }
+
+    for &pos in &positions {
+        let mut hashtag = chars[pos + 1..].iter().collect::<String>();
+        if let Some(non_alnum_pos) =
+            hashtag.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
+        {
+            hashtag.truncate(non_alnum_pos);
+        }
+        if !hashtag.is_empty() && !hashtags.contains(&hashtag) {
+            hashtags.push(hashtag);
+        }
+    }
+
+    hashtags
+}
+
+#[derive(Debug, Clone, Constructor, Getters)]
+pub struct MentionTarget {
+    username: String,
+    host: Option<String>,
+}
+
+pub fn find_mentions(content: &str) -> Vec<MentionTarget> {
+    lazy_static! {
+        static ref MENTION_RE: Regex =
+            Regex::new(r"@([a-zA-Z0-9_\-\.]+)(?:@([a-zA-Z0-9_\-\.]+))?").unwrap();
+    }
+    let mut mentions = Vec::new();
+
+    for cap in MENTION_RE.captures_iter(content.as_bytes()) {
+        let username = cap[1].to_string();
+        let host = if let Some(matched_host) = cap.get(2) {
+            Some(matched_host.as_str().to_string())
+        } else {
+            None
+        };
+        mentions.push(MentionTarget::new(username, host));
+    }
+
+    mentions
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_hashtag_basic() {
+        assert_eq!(
+            find_hashtags("Here is a post with a #hashtag"),
+            vec!["hashtag".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_multiple() {
+        assert_eq!(
+            find_hashtags("This post contains multiple #hashtags, with #different #tags."),
+            vec![
+                "hashtags".to_string(),
+                "different".to_string(),
+                "tags".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_none() {
+        assert_eq!(
+            find_hashtags("This is a post without any hashtags."),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_with_numbers() {
+        assert_eq!(
+            find_hashtags("Hashtags can have numbers like #tag1 and #2tag"),
+            vec!["tag1".to_string(), "2tag".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_non_latin() {
+        assert_eq!(
+            find_hashtags("Hashtags with non-Latin characters #тег #标签"),
+            vec!["тег".to_string(), "标签".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_repeats() {
+        assert_eq!(
+            find_hashtags("Some posts repeat hashtags #tag #other #tag"),
+            vec!["tag".to_string(), "other".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_end() {
+        assert_eq!(
+            find_hashtags("Hashtag at the end #end"),
+            vec!["end".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_followed_by_punctuation() {
+        assert_eq!(
+            find_hashtags("Hashtags followed by punctuation #tag!"),
+            vec!["tag".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_find_hashtag_just_hash() {
+        assert_eq!(find_hashtags("String with just #"), Vec::<String>::new());
+    }
+}
