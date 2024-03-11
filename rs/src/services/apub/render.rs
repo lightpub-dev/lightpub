@@ -5,6 +5,7 @@ use activitystreams::endpoint::EndpointProperties;
 use activitystreams::ext::Ext;
 use activitystreams::object::properties::{ApObjectProperties, ObjectProperties};
 use activitystreams::object::Note;
+use activitystreams::BaseBox;
 use derive_getters::Getters;
 use uuid::Uuid;
 
@@ -113,6 +114,7 @@ impl ApubRendererService {
     ) -> Result<RenderedNoteCreate, anyhow::Error> {
         let post = self.render_post(post)?;
 
+        let create_id = format!("{}/activity", post.note.as_ref().get_id().unwrap()); // FIXME: use IDGetterService
         let post_to = post.note.as_ref().get_many_to_xsd_any_uris();
         let post_cc = post.note.as_ref().get_many_cc_xsd_any_uris();
         let post_bto = post.note.as_ref().get_many_bto_xsd_any_uris();
@@ -126,6 +128,7 @@ impl ApubRendererService {
         let mut create = Create::full();
         {
             let m = AsMut::<ObjectProperties>::as_mut(&mut create);
+            m.set_id(create_id)?;
             if let Some(to) = post_to {
                 m.set_many_to_xsd_any_uris(to.map(|s| s.clone()).collect())?;
             }
@@ -139,7 +142,9 @@ impl ApubRendererService {
                 m.set_many_bcc_xsd_any_uris(bcc.map(|s| s.clone()).collect())?;
             }
         }
-        AsMut::<CreateProperties>::as_mut(&mut create).set_actor_xsd_any_uri(post_poster.clone())?;
+        AsMut::<CreateProperties>::as_mut(&mut create)
+            .set_actor_xsd_any_uri(post_poster.clone())?
+            .set_object_base_box(BaseBox::from_concrete(post.note.clone())?)?;
 
         Ok(RenderedNoteCreate {
             note_create: create,

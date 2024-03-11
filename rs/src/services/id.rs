@@ -29,6 +29,20 @@ impl UserAttribute {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostAttribute {
+    CreateActivity,
+}
+
+impl PostAttribute {
+    pub fn as_url(&self) -> String {
+        match self {
+            Self::CreateActivity => "/activity",
+        }
+        .to_string()
+    }
+}
+
 impl IDGetterService {
     pub fn new(config: Config) -> Self {
         Self { config }
@@ -61,6 +75,20 @@ impl IDGetterService {
             uri
         } else {
             format!("{}/post/{}", self.config.base_url(), post.get_local_id())
+        }
+    }
+
+    pub fn get_post_id_attr(
+        &self,
+        post: &impl HasRemoteUri,
+        attr: PostAttribute,
+    ) -> Option<String> {
+        match post.get_remote_uri() {
+            Some(_) => None,
+            None => {
+                let base = self.get_post_id(post);
+                format!("{}{}", base, attr.as_url()).into()
+            }
         }
     }
 
