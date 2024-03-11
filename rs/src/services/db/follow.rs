@@ -1,9 +1,10 @@
+use async_trait::async_trait;
 use sqlx::MySqlPool;
 use tracing::{debug, warn};
 use uuid::fmt::Simple;
 
 use crate::{
-    models,
+    holder, models,
     services::{
         id::IDGetterService, AllUserFinderService, ApubFollowService, ApubRequestService,
         FollowError, FollowRequestAccepted, FollowRequestSpecifier, IncomingFollowRequest,
@@ -12,23 +13,22 @@ use crate::{
     utils::{generate_uuid, user::UserSpecifier},
 };
 
-#[derive(Debug, Clone)]
-pub struct DBUserFollowService<F, AF, R, S> {
+pub struct DBUserFollowService {
     pool: MySqlPool,
-    finder: F,
-    pubfollow: AF,
-    req: R,
-    signfetch: S,
+    finder: holder!(AllUserFinderService),
+    pubfollow: holder!(ApubFollowService),
+    req: holder!(ApubRequestService),
+    signfetch: holder!(SignerService),
     id_getter: IDGetterService,
 }
 
-impl<F: AllUserFinderService, AF: ApubFollowService, R, S> DBUserFollowService<F, AF, R, S> {
+impl DBUserFollowService {
     pub fn new(
         pool: MySqlPool,
-        finder: F,
-        pubfollow: AF,
-        req: R,
-        signfetch: S,
+        finder: holder!(AllUserFinderService),
+        pubfollow: holder!(ApubFollowService),
+        req: holder!(ApubRequestService),
+        signfetch: holder!(SignerService),
         id_getter: IDGetterService,
     ) -> Self {
         Self {
@@ -42,9 +42,7 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R, S> DBUserFollowService<F
     }
 }
 
-impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: SignerService>
-    DBUserFollowService<F, AF, R, S>
-{
+impl DBUserFollowService {
     async fn find_user(
         &mut self,
         user: &UserSpecifier,
@@ -62,9 +60,8 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: S
     }
 }
 
-impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: SignerService>
-    UserFollowService for DBUserFollowService<F, AF, R, S>
-{
+#[async_trait]
+impl UserFollowService for DBUserFollowService {
     async fn follow_user(
         &mut self,
         follower_spec: &UserSpecifier,
@@ -117,11 +114,7 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: S
                 .unwrap();
 
             self.req
-                .post_to_inbox(
-                    followee_inbox.parse::<reqwest::Url>().unwrap(),
-                    activity,
-                    &actor,
-                )
+                .post_to_inbox(&followee_inbox, &activity.into(), actor)
                 .await
                 .map_err(|e| e.convert())?;
         } else {
@@ -283,11 +276,7 @@ impl<F: AllUserFinderService, AF: ApubFollowService, R: ApubRequestService, S: S
                 .unwrap();
 
             self.req
-                .post_to_inbox(
-                    follower_inbox.parse::<reqwest::Url>().unwrap(),
-                    activity,
-                    &actor,
-                )
+                .post_to_inbox(&follower_inbox, &activity.into(), actor)
                 .await
                 .map_err(|e| e.convert())?;
 

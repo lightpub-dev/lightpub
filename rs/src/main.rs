@@ -4,14 +4,12 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::services::PostCreateService;
 use crate::services::{
     apub::new_apub_renderer_service,
     db::{new_follow_service, new_post_create_service},
-    FollowRequestSpecifier, IncomingFollowRequest, LocalUserFinderService, PostCreateError,
-    PostCreateRequest, PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder,
-    PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder, UserAuthService,
-    UserCreateService, UserFollowService,
+    FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
+    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
+    PostCreateRequestRepostBuilder,
 };
 use activitystreams::activity::{
     self, kind,

@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 
+use async_trait::async_trait;
 use derive_more::Constructor;
 use sqlx::MySqlPool;
 use tracing::warn;
 use uuid::fmt::Simple;
 
 use crate::{
+    holder,
     models::{ApubRenderablePost, HasRemoteUri, PostPrivacy},
     services::{
         apub::render::{ApubRendererService, TargetedUser},
@@ -15,18 +17,17 @@ use crate::{
     utils::{generate_uuid, user::UserSpecifier},
 };
 
-#[derive(Debug, Constructor)]
-pub struct DBPostCreateService<T, R, S> {
+#[derive(Constructor)]
+pub struct DBPostCreateService {
     pool: MySqlPool,
-    finder: T,
+    finder: holder!(AllUserFinderService),
     renderer: ApubRendererService,
-    req: R,
-    signer: S,
+    req: holder!(ApubRequestService),
+    signer: holder!(SignerService),
 }
 
-impl<T: AllUserFinderService, R: ApubRequestService, S: SignerService> PostCreateService
-    for DBPostCreateService<T, R, S>
-{
+#[async_trait]
+impl PostCreateService for DBPostCreateService {
     async fn create_post(
         &mut self,
         req: &crate::services::PostCreateRequest,
@@ -110,19 +111,16 @@ impl<T: AllUserFinderService, R: ApubRequestService, S: SignerService> PostCreat
             .find_target_inboxes(note.targeted_users())
             .await
             .unwrap();
-        let signer = self
-            .signer
-            .fetch_signer(&UserSpecifier::from_id(poster.id))
-            .await
-            .expect("failed to fetch signer");
+
         for inbox in inboxes {
+            let signer = self
+                .signer
+                .fetch_signer(&UserSpecifier::from_id(poster.id))
+                .await
+                .expect("failed to fetch signer"); // FIXME: this is very bad
             let result = self
                 .req
-                .post_to_inbox(
-                    inbox.parse::<reqwest::Url>().unwrap(),
-                    note.note_create(),
-                    &signer,
-                )
+                .post_to_inbox(&inbox, &note.note_create().clone().into(), signer)
                 .await;
             if let Err(e) = result {
                 warn!("failed to post to inbox: {:?}", e)
@@ -133,7 +131,7 @@ impl<T: AllUserFinderService, R: ApubRequestService, S: SignerService> PostCreat
     }
 }
 
-impl<T: AllUserFinderService, R, S> DBPostCreateService<T, R, S> {
+impl DBPostCreateService {
     async fn find_target_inboxes(
         &mut self,
         targets: &Vec<TargetedUser>,

@@ -21,7 +21,7 @@ regex = "1"
 thiserror = "1.0"
 derive_builder = "0.20.0"
 derive-getters = "0.3.0"
-derive_more = { version = "=1.0.0-beta.6", features = ["constructor"] }
+derive_more = { version = "=1.0.0-beta.6", features = ["constructor", "from"] }
 actix-web-httpauth = "0.8.1"
 utoipa = { version = "4.2.0", features = ["actix_extras","uuid"] }
 utoipa-swagger-ui = { version = "4", features = ["actix-web"] }
@@ -39,3 +39,4 @@ httpdate = "1.0.3"
 digest = "0.10.7"
 activitystreams = "0.6.2"
 anyhow = { version="1.0.80", features=["backtrace"] }
+async-trait = "0.1.77"

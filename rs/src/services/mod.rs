@@ -1,5 +1,6 @@
+use async_trait::async_trait;
 use derive_builder::Builder;
-use reqwest::Url;
+use derive_more::From;
 use serde::{Deserialize, Serialize};
 use uuid::{fmt::Simple, Uuid};
 
@@ -12,11 +13,19 @@ use crate::{
 
 use activitystreams::activity::{Accept, Follow};
 
-use self::apub::render::ApubPerson;
+use self::apub::render::{ApubNoteCreate, ApubPerson};
 
 pub mod apub;
 pub mod db;
 pub mod id;
+
+pub type Holder<T> = Box<T>;
+#[macro_export]
+macro_rules! holder {
+    ($t:tt) => {
+        crate::services::Holder<dyn $t + Send + Sync>
+    };
+}
 
 pub trait MiscError: std::fmt::Debug + Send + Sync {
     fn message(&self) -> &str;
@@ -107,6 +116,7 @@ pub enum UserLoginError {
     AuthFailed,
 }
 
+#[async_trait]
 pub trait UserCreateService {
     #[allow(async_fn_in_trait)]
     async fn create_user(
@@ -126,6 +136,7 @@ pub enum LocalUserFindError {
     NotLocalUser,
 }
 
+#[async_trait]
 pub trait LocalUserFinderService {
     #[allow(async_fn_in_trait)]
     async fn find_user_by_specifier(
@@ -140,6 +151,7 @@ pub enum UserFindError {
     RemoteError,
 }
 
+#[async_trait]
 pub trait AllUserFinderService {
     #[allow(async_fn_in_trait)]
     async fn find_user_by_specifier(
@@ -225,6 +237,7 @@ pub enum PostCreateError {
     ReplyToNotFound,
 }
 
+#[async_trait]
 pub trait PostCreateService {
     #[allow(async_fn_in_trait)]
     async fn create_post(
@@ -238,6 +251,7 @@ pub enum AuthError {
     TokenNotSet,
 }
 
+#[async_trait]
 pub trait UserAuthService {
     #[allow(async_fn_in_trait)]
     async fn authenticate_user(
@@ -271,6 +285,7 @@ pub struct FollowRequestAccepted {
     pub followee_id: Uuid,
 }
 
+#[async_trait]
 pub trait UserFollowService {
     #[allow(async_fn_in_trait)]
     async fn follow_user(
@@ -310,21 +325,38 @@ pub enum WebfingerError {
     NotFound,
 }
 
+#[derive(Debug, Clone, From)]
+pub enum SendActivity {
+    Follow(activitystreams::activity::Follow),
+    Accept(activitystreams::activity::Accept),
+    Create(ApubNoteCreate),
+}
+
+impl SendActivity {
+    pub fn to_json(&self) -> String {
+        use SendActivity::*;
+        match self {
+            Follow(f) => serde_json::to_string(f).unwrap(),
+            Accept(a) => serde_json::to_string(a).unwrap(),
+            Create(c) => serde_json::to_string(c).unwrap(),
+        }
+    }
+}
+
+#[async_trait]
 pub trait ApubRequestService {
     #[allow(async_fn_in_trait)]
-    async fn post_to_inbox<T>(
+    async fn post_to_inbox(
         &mut self,
-        url: impl Into<Url>,
-        activity: T,
-        actor: &impl ApubSigner,
-    ) -> Result<(), ServiceError<PostToInboxError>>
-    where
-        T: Serialize;
+        url: &str,
+        activity: &SendActivity,
+        actor: holder!(ApubSigner),
+    ) -> Result<(), ServiceError<PostToInboxError>>;
 
     #[allow(async_fn_in_trait)]
     async fn fetch_user(
         &mut self,
-        url: impl Into<Url>,
+        url: &str,
     ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
     #[allow(async_fn_in_trait)]
     async fn fetch_webfinger(
@@ -340,6 +372,7 @@ pub enum BackgroundJob {
     RemoteFollowAccept(Uuid),
 }
 
+#[async_trait]
 pub trait QueueService {
     #[allow(async_fn_in_trait)]
     async fn process_job(&self, job: BackgroundJob) -> Result<(), ServiceError<()>>;
@@ -350,6 +383,7 @@ pub enum ApubFollowError {
     RequestNotFound,
 }
 
+#[async_trait]
 pub trait ApubFollowService {
     #[allow(async_fn_in_trait)]
     async fn create_follow_request(&mut self, follow_req_id: Uuid)
@@ -364,11 +398,11 @@ pub enum SignerError {
     PrivateKeyNotSet,
 }
 
+#[async_trait]
 pub trait SignerService {
-    type Signer: ApubSigner;
     #[allow(async_fn_in_trait)]
     async fn fetch_signer(
         &mut self,
         user: &UserSpecifier,
-    ) -> Result<Self::Signer, ServiceError<SignerError>>;
+    ) -> Result<holder!(ApubSigner), ServiceError<SignerError>>;
 }

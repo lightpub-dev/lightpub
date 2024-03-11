@@ -3,13 +3,14 @@ use activitystreams::{
     object::properties::ObjectProperties,
 };
 use anyhow::anyhow;
+use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_getters::Getters;
 use reqwest::{
     header::{self, HeaderMap, HeaderValue},
-    Method, Request, RequestBuilder, Url,
+    Method, Request, RequestBuilder,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::MySqlPool;
 use tracing::{info, warn};
 
@@ -17,6 +18,7 @@ use uuid::fmt::Simple;
 
 use crate::{
     config::Config,
+    holder,
     models::{ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri},
     services::{ServiceError, WebfingerError},
     utils::key::{attach_signature, SignKeyBuilder},
@@ -24,7 +26,9 @@ use crate::{
 
 use self::render::{ApubPerson, ApubRendererService};
 
-use super::{id::IDGetterService, ApubFollowService, ApubRequestService, MiscError};
+use super::{
+    id::IDGetterService, ApubFollowService, ApubRequestService, Holder, MiscError, SendActivity,
+};
 
 pub mod inbox;
 pub mod queue;
@@ -50,10 +54,10 @@ impl ApubReqwester {
     }
 }
 
-pub fn new_apub_reqwester_service() -> ApubReqwest {
-    ApubReqwest {
+pub fn new_apub_reqwester_service() -> holder!(ApubRequestService) {
+    Holder::new(ApubReqwest {
         client: ApubReqwester::new(),
-    }
+    })
 }
 
 #[derive(Debug)]
@@ -108,25 +112,28 @@ fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
     ))
 }
 
+#[async_trait]
 impl ApubRequestService for ApubReqwest {
-    async fn post_to_inbox<T: Serialize>(
+    async fn post_to_inbox(
         &mut self,
-        url: impl Into<Url>,
-        activity: T,
-        actor: &impl ApubSigner,
+        url: &str,
+        activity: &SendActivity,
+        actor: holder!(ApubSigner),
     ) -> Result<(), super::ServiceError<super::PostToInboxError>> {
-        let body = serde_json::to_string(&activity).expect("failed to serialize activity");
+        let body = activity.to_json();
         info!("body: {:?}", &body);
 
         let client = self.client();
 
-        let mut req =
-            RequestBuilder::from_parts(self.client(), Request::new(Method::POST, url.into()))
-                .header("Content-Type", "application/activity+json")
-                // .header("Accept", "application/activity+json")
-                .body(body)
-                .build()
-                .unwrap();
+        let mut req = RequestBuilder::from_parts(
+            self.client(),
+            Request::new(Method::POST, url.parse().unwrap()),
+        )
+        .header("Content-Type", "application/activity+json")
+        // .header("Accept", "application/activity+json")
+        .body(body)
+        .build()
+        .unwrap();
 
         // sign the request
         let priv_key = actor.get_private_key();
@@ -157,14 +164,16 @@ impl ApubRequestService for ApubReqwest {
 
     async fn fetch_user(
         &mut self,
-        url: impl Into<Url>,
+        url: &str,
     ) -> Result<ApubPerson, super::ServiceError<super::ApubFetchUserError>> {
-        let url = url.into();
         // TODO: sign req with maintenance user
-        let req = RequestBuilder::from_parts(self.client(), Request::new(Method::GET, url))
-            .header("Accept", "application/activity+json")
-            .build()
-            .unwrap();
+        let req = RequestBuilder::from_parts(
+            self.client(),
+            Request::new(Method::GET, url.parse().unwrap()),
+        )
+        .header("Accept", "application/activity+json")
+        .build()
+        .unwrap();
 
         let res = self.client().execute(req).await.map_err(map_error)?;
         // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
@@ -246,8 +255,11 @@ pub struct DBApubFollowService {
     id_getter: IDGetterService,
 }
 
-pub fn new_apub_follow_service(pool: MySqlPool, id_getter: IDGetterService) -> DBApubFollowService {
-    DBApubFollowService { pool, id_getter }
+pub fn new_apub_follow_service(
+    pool: MySqlPool,
+    id_getter: IDGetterService,
+) -> holder!(ApubFollowService) {
+    Holder::new(DBApubFollowService { pool, id_getter })
 }
 
 #[derive(Debug)]
@@ -294,6 +306,7 @@ impl HasRemoteUri for UserFollowInfo {
     }
 }
 
+#[async_trait]
 impl ApubFollowService for DBApubFollowService {
     async fn create_follow_accept(
         &mut self,
