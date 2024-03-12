@@ -5,8 +5,8 @@ pub mod state;
 pub mod utils;
 
 use crate::services::{
-    apub::new_apub_renderer_service,
-    db::{new_follow_service, new_post_create_service},
+    apub::{new_apub_renderer_service, render::ApubNote},
+    db::{new_all_user_finder_service, new_follow_service, new_post_create_service},
     FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
     PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
     PostCreateRequestRepostBuilder,
@@ -668,6 +668,53 @@ async fn user_inbox(
                     UserSpecifier::URL(object_id),
                 ))
                 .await?;
+        }
+        Create(create) => {
+            let actor_id = create
+                .create_props
+                .get_actor_xsd_any_uri()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("create actor_id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+            let object = create
+                .create_props
+                .get_object_base_box()
+                .ok_or_else(|| {
+                    warn!("create object not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?
+                .to_owned();
+            let object_note = object.into_concrete::<ApubNote>().map_err(|e| {
+                warn!("failed to interpret create object as Note: {:?}", e);
+                ErrorResponse::new_status(400, "invalid activity")
+            })?;
+
+            let object_attributed_to = object_note
+                .as_ref()
+                .get_attributed_to_xsd_any_uri()
+                .ok_or_else(|| {
+                    warn!("object attributed_to not found or invalid");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+            if object_attributed_to.to_string() != actor_id {
+                return Err(ErrorResponse::new_status(
+                    400,
+                    "object's attribute_to does not match actor",
+                ));
+            }
+
+            let mut user_finder =
+                new_all_user_finder_service(app.pool().clone(), app.config().clone());
+            let poster = user_finder
+                .find_user_by_specifier(&UserSpecifier::from_url(actor_id))
+                .await?;
+            let post_request = todo!("convert object_note to PostRequest");
+
+            let mut post_service =
+                new_post_create_service(app.pool().clone(), app.config().clone());
+            post_service.create_post(post_request).await?;
         }
     }
 

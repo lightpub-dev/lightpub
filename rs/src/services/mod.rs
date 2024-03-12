@@ -2,18 +2,19 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::{fmt::Simple, Uuid};
 
 use derive_getters::Getters;
 
 use crate::{
     models::{self, ApubSigner, ApubWebfingerResponse, PostPrivacy},
-    utils::user::UserSpecifier,
+    utils::{post::PostSpecifier, user::UserSpecifier},
 };
 
 use activitystreams::activity::{Accept, Follow};
 
-use self::apub::render::{ApubNoteCreate, ApubPerson};
+use self::apub::render::{ApubNote, ApubNoteCreate, ApubPerson};
 
 pub mod apub;
 pub mod db;
@@ -200,6 +201,111 @@ impl PostCreateRequest {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum ApubNoteError {
+    AttributedToNotFound,
+    ContentNotFound,
+}
+
+impl TryFrom<ApubNote> for PostCreateRequest {
+    type Error = ApubNoteError;
+
+    fn try_from(value: ApubNote) -> Result<Self, Self::Error> {
+        let attributed_to = value
+            .as_ref()
+            .get_attributed_to_xsd_any_uri()
+            .map(|s| UserSpecifier::from_url(s.to_string()))
+            .ok_or_else(|| ApubNoteError::AttributedToNotFound)?;
+
+        let content = value
+            .as_ref()
+            .get_content_xsd_string()
+            .map(|s| s.to_string())
+            .ok_or_else(|| ApubNoteError::ContentNotFound)?;
+
+        let reply_to_id = value
+            .as_ref()
+            .get_in_reply_to_xsd_any_uri()
+            .map(|s| PostSpecifier::from_uri(s.to_string()));
+
+        let privacy = {
+            let to = value
+                .as_ref()
+                .get_many_to_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+            let cc = value
+                .as_ref()
+                .get_many_cc_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+            let bto = value
+                .as_ref()
+                .get_many_bto_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+            let bcc = value
+                .as_ref()
+                .get_many_bcc_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+
+            // combine to and bto, cc and bcc
+            let to = to.into_iter().chain(bto.into_iter()).collect::<Vec<_>>();
+            let cc = cc.into_iter().chain(bcc.into_iter()).collect::<Vec<_>>();
+            // remove duplicates
+            let to: Vec<_> = to
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            let cc: Vec<_> = cc
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+
+            // to contains #public => public
+            // cc contains #public => unlisted
+            // to contains /followers => followers
+            // otherwise => private
+            if to.contains(&&activitystreams::public()) {
+                PostPrivacy::Public
+            } else if cc.contains(&&activitystreams::public()) {
+                PostPrivacy::Unlisted
+            } else {
+                let to_contains_followers = to.iter().any(|s| s.as_str().ends_with("/followers"));
+                if to_contains_followers {
+                    PostPrivacy::Followers
+                } else {
+                    PostPrivacy::Private
+                }
+            }
+        };
+
+        if let Some(reply_to_id) = reply_to_id {
+            Ok(PostCreateRequest::Reply(
+                PostCreateRequestReplyBuilder::default()
+                    .poster(attributed_to)
+                    .content(content)
+                    .privacy(privacy)
+                    .reply_to(reply_to_id)
+                    .build()
+                    .unwrap(),
+            ))
+        } else {
+            Ok(PostCreateRequest::Normal(
+                PostCreateRequestNormalBuilder::default()
+                    .poster(attributed_to)
+                    .content(content)
+                    .privacy(privacy)
+                    .build()
+                    .unwrap(),
+            ))
+        }
+    }
+}
+
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestNormal {
     poster: UserSpecifier,
@@ -211,7 +317,7 @@ pub struct PostCreateRequestNormal {
 pub struct PostCreateRequestRepost {
     poster: UserSpecifier,
     privacy: PostPrivacy,
-    repost_of: Simple,
+    repost_of: PostSpecifier,
 }
 
 #[derive(Debug, Clone, Builder)]
@@ -219,7 +325,7 @@ pub struct PostCreateRequestQuote {
     poster: UserSpecifier,
     content: String,
     privacy: PostPrivacy,
-    repost_of: Simple,
+    repost_of: PostSpecifier,
 }
 
 #[derive(Debug, Clone, Builder)]
@@ -227,7 +333,7 @@ pub struct PostCreateRequestReply {
     poster: UserSpecifier,
     content: String,
     privacy: PostPrivacy,
-    reply_to: Simple,
+    reply_to: PostSpecifier,
 }
 
 #[derive(Debug)]
