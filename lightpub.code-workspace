@@ -7,7 +7,7 @@
 			"path": "benchmark"
 		},
 		{
-			"path": "server"
+			"path": "rs"
 		}
 	],
 	"settings": {}
