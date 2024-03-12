@@ -1,9 +1,9 @@
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
-from ..serializers.user import login_and_generate_token
 
 from ..forms import LoginForm
+from ..serializers.user import login_and_generate_token
 
 
 def cookie_login(request):

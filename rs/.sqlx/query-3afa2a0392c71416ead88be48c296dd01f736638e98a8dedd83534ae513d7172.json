@@ -1,0 +1,36 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "bpasswd",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 240
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "3afa2a0392c71416ead88be48c296dd01f736638e98a8dedd83534ae513d7172"
+}

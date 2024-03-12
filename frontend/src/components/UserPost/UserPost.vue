@@ -104,13 +104,13 @@ const isRepostable = computed(() => {
 })
 const onRepost = async () => {
     if (!isRepostedByMe.value) {
-        await axios.post(`/posts/`, {
+        await axios.post(`/posts`, {
             privacy: actualPost.value.privacy,
             repost_of_id: actualPost.value.id
         })
         eventBus.emit('repost-created')
     } else {
-        await axios.delete(`/posts/${isRepostedByMe.value}/`)
+        await axios.delete(`/posts/${isRepostedByMe.value}`)
         eventBus.emit('repost-created')
     }
 }
@@ -125,9 +125,9 @@ const reposterUserLink = computed(() => {
 // Favorite
 const onFavorite = async () => {
     if (isFavoritedByMe.value) {
-        await axios.delete(`/favorites/${props.user_post.id}/`)
+        await axios.delete(`/favorites/${props.user_post.id}`)
     } else {
-        await axios.post(`/favorites/`, {
+        await axios.post(`/favorites`, {
             post_id: props.user_post.id
         })
     }
@@ -183,7 +183,7 @@ const deletePost = async () => {
         return
     }
     try {
-        await axios.delete(`/posts/${props.user_post.id}/`)
+        await axios.delete(`/posts/${props.user_post.id}`)
         eventBus.emit('post-deleted')
     } catch (e: any) {
         alert("Failed to delete post: " + JSON.stringify(e.response.data))
@@ -201,7 +201,7 @@ const onReactionPicker = () => {
 const onReaction = async (emoji: { i: string, n: string[]; r: string }) => {
     console.log(emoji)
     try {
-        await axios.post(`/reactions/`, {
+        await axios.post(`/reactions`, {
             post: actualPost.value.id,
             emoji: emoji.r
         })

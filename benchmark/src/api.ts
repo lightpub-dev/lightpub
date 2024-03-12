@@ -62,7 +62,7 @@ export async function post(
     privacy: post.privacy,
   } as any;
 
-  let url = "/posts/";
+  let url = "/posts";
   if ("replyTo" in post) {
     body["reply_to_id"] = post.replyTo;
   } else if ("repostOf" in post) {
@@ -82,9 +82,9 @@ export async function post(
 
 export async function followUser(info: FollowRequest) {
   await axios.post(
-    `/followings/`,
+    `/follow`,
     {
-      followee_spec: `@${info.target}`,
+      user_spec: `@${info.target}`,
     },
     {
       headers: {
