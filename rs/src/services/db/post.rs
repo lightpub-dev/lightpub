@@ -1,22 +1,24 @@
 use std::collections::HashSet;
 
+use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_more::Constructor;
 use sqlx::MySqlPool;
 use tracing::warn;
-use uuid::fmt::Simple;
+use uuid::{fmt::Simple, Uuid};
 
 use crate::{
     holder,
     models::{ApubRenderablePost, HasRemoteUri, PostPrivacy},
     services::{
         apub::render::{ApubRendererService, TargetedUser},
+        id::IDGetterService,
         AllUserFinderService, ApubRequestService, PostCreateError, PostCreateRequest,
         PostCreateService, ServiceError, SignerService,
     },
     utils::{
         generate_uuid,
-        post::{find_hashtags, find_mentions},
+        post::{find_hashtags, find_mentions, PostSpecifier},
         user::UserSpecifier,
     },
 };
@@ -28,6 +30,42 @@ pub struct DBPostCreateService {
     renderer: ApubRendererService,
     req: holder!(ApubRequestService),
     signer: holder!(SignerService),
+    id_getter: IDGetterService,
+}
+
+impl DBPostCreateService {
+    #[async_recursion]
+    async fn fetch_post_id(
+        &mut self,
+        spec: &PostSpecifier,
+        not_found_err: PostCreateError,
+    ) -> Result<Simple, ServiceError<PostCreateError>> {
+        match spec {
+            PostSpecifier::ID(id) => sqlx::query!(
+                "SELECT id AS `id: Simple` FROM posts WHERE id=?",
+                id.simple().to_string()
+            )
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|p| p.id)
+            .ok_or(ServiceError::from_se(not_found_err)),
+            PostSpecifier::URI(uri) => {
+                let local_post_id = self.id_getter.extract_local_post_id(uri);
+                if let Some(local_post_id) = local_post_id {
+                    let local_post_id = Uuid::parse_str(&local_post_id)
+                        .map_err(|_e| ServiceError::from_se(not_found_err.clone()))?;
+                    return self
+                        .fetch_post_id(&PostSpecifier::from_id(local_post_id), not_found_err)
+                        .await;
+                }
+                sqlx::query!("SELECT id AS `id: Simple` FROM posts WHERE uri=?", uri)
+                    .fetch_optional(&self.pool)
+                    .await?
+                    .map(|p| p.id)
+                    .ok_or(ServiceError::from_se(not_found_err))
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -36,12 +74,28 @@ impl PostCreateService for DBPostCreateService {
         &mut self,
         req: &crate::services::PostCreateRequest,
     ) -> Result<Simple, crate::services::ServiceError<crate::services::PostCreateError>> {
+        let mut tx = self.pool.begin().await?;
+        let uri = req.uri();
+        if let Some(uri) = uri {
+            if sqlx::query!(
+                "SELECT EXISTS(SELECT 1 FROM posts WHERE uri=?) AS `exists: bool`",
+                uri
+            )
+            .fetch_one(&mut *tx)
+            .await?
+            .exists
+            {
+                // post already exists
+                return Err(ServiceError::from_se(PostCreateError::AlreadyExists));
+            }
+        }
+
         use PostCreateRequest::*;
-        let (repost_of_id, reply_to_id, content) = match req {
+        let (repost_of_spec, reply_to_spec, content) = match req {
             Normal(r) => (None, None, r.content.clone().into()),
-            Repost(r) => (r.repost_of.into(), None, None),
-            Quote(r) => (r.repost_of.into(), None, r.content.clone().into()),
-            Reply(r) => (None, r.reply_to.into(), r.content.clone().into()),
+            Repost(r) => (Some(&r.repost_of), None, None),
+            Quote(r) => (Some(&r.repost_of), None, r.content.clone().into()),
+            Reply(r) => (None, Some(&r.reply_to), r.content.clone().into()),
         };
         let poster = req.poster();
 
@@ -56,27 +110,21 @@ impl PostCreateService for DBPostCreateService {
                 ServiceError::MiscError(e) => e.into(),
             })?;
 
-        if let Some(repost_of_id) = repost_of_id {
-            // check if the post exists
-            let repost_target =
-                sqlx::query!("SELECT id FROM posts WHERE id=?", repost_of_id.to_string())
-                    .fetch_optional(&self.pool)
-                    .await?;
-            if repost_target.is_none() {
-                return Err(ServiceError::from_se(PostCreateError::RepostOfNotFound));
-            }
-        }
+        let repost_of_id = match repost_of_spec {
+            None => None,
+            Some(s) => self
+                .fetch_post_id(&s, PostCreateError::RepostOfNotFound)
+                .await?
+                .into(),
+        };
 
-        if let Some(reply_to_id) = reply_to_id {
-            // check if the post exists
-            let reply_target =
-                sqlx::query!("SELECT id FROM posts WHERE id=?", reply_to_id.to_string())
-                    .fetch_optional(&self.pool)
-                    .await?;
-            if reply_target.is_none() {
-                return Err(ServiceError::from_se(PostCreateError::ReplyToNotFound));
-            }
-        }
+        let reply_to_id = match reply_to_spec {
+            None => None,
+            Some(s) => self
+                .fetch_post_id(&s, PostCreateError::ReplyToNotFound)
+                .await?
+                .into(),
+        };
 
         let hashtags = content
             .as_ref()
@@ -93,12 +141,10 @@ impl PostCreateService for DBPostCreateService {
         let privacy = req.privacy().to_db();
         let created_at = chrono::Utc::now().naive_utc();
 
-        {
-            let mut tx = self.pool.begin().await?;
-
-            sqlx::query!(
-                "INSERT INTO posts (id, poster_id, content, privacy, created_at, repost_of_id, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?)",
+        sqlx::query!(
+                "INSERT INTO posts (id, uri, poster_id, content, privacy, created_at, repost_of_id, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
                 post_id_str,
+                uri,
                 poster_id,
                 content,
                 privacy,
@@ -109,43 +155,47 @@ impl PostCreateService for DBPostCreateService {
             .execute(&mut *tx)
             .await?;
 
-            // FIXME: batch insert
-            for hashtag in &hashtags {
-                sqlx::query!(
-                    "INSERT INTO post_hashtags (post_id, hashtag_name) VALUES (?, ?)",
-                    post_id_str,
-                    hashtag
-                )
-                .execute(&mut *tx)
-                .await?;
-            }
+        // FIXME: batch insert
+        for hashtag in &hashtags {
+            sqlx::query!(
+                "INSERT INTO post_hashtags (post_id, hashtag_name) VALUES (?, ?)",
+                post_id_str,
+                hashtag
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
 
-            // FIXME: batch insert
-            for mention in &mentions {
-                let target_user_id = self
-                    .finder
-                    .find_user_by_specifier(&UserSpecifier::from_username(
-                        mention.username().clone(),
-                        mention.host().clone(),
-                    ))
-                    .await;
-                let target_user_id = match target_user_id {
-                    Ok(user) => user.id,
-                    Err(_) => {
-                        warn!("failed to find user {:?}", mention);
-                        continue;
-                    }
-                };
-                sqlx::query!(
-                    "INSERT INTO post_mentions (post_id, target_user_id) VALUES (?, ?)",
-                    post_id_str,
-                    target_user_id,
-                )
-                .execute(&mut *tx)
-                .await?;
-            }
+        // FIXME: batch insert
+        for mention in &mentions {
+            let target_user_id = self
+                .finder
+                .find_user_by_specifier(&UserSpecifier::from_username(
+                    mention.username().clone(),
+                    mention.host().clone(),
+                ))
+                .await;
+            let target_user_id = match target_user_id {
+                Ok(user) => user.id,
+                Err(_) => {
+                    warn!("failed to find user {:?}", mention);
+                    continue;
+                }
+            };
+            sqlx::query!(
+                "INSERT INTO post_mentions (post_id, target_user_id) VALUES (?, ?)",
+                post_id_str,
+                target_user_id,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
 
-            tx.commit().await?;
+        tx.commit().await?;
+
+        // if this is a remote post, finish
+        if uri.is_some() {
+            return Ok(post_id);
         }
 
         let post = LocalPost {

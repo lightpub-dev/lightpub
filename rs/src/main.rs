@@ -6,7 +6,7 @@ pub mod utils;
 
 use crate::services::{
     apub::{new_apub_renderer_service, render::ApubNote},
-    db::{new_all_user_finder_service, new_follow_service, new_post_create_service},
+    db::{new_follow_service, new_post_create_service},
     FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
     PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
     PostCreateRequestRepostBuilder,
@@ -705,16 +705,22 @@ async fn user_inbox(
                 ));
             }
 
-            let mut user_finder =
-                new_all_user_finder_service(app.pool().clone(), app.config().clone());
-            let poster = user_finder
-                .find_user_by_specifier(&UserSpecifier::from_url(actor_id))
-                .await?;
-            let post_request = todo!("convert object_note to PostRequest");
+            let post_request = &object_note.try_into().unwrap();
 
             let mut post_service =
                 new_post_create_service(app.pool().clone(), app.config().clone());
-            post_service.create_post(post_request).await?;
+            let result = post_service.create_post(post_request).await;
+            match result {
+                Ok(post_id) => {
+                    info!("post created: {}", post_id);
+                }
+                Err(ServiceError::SpecificError(PostCreateError::AlreadyExists)) => {
+                    info!("post already exists, skip");
+                }
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
         }
     }
 

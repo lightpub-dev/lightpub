@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use uuid::{fmt::Simple, Uuid};
 
 use derive_getters::Getters;
@@ -119,12 +118,11 @@ pub enum UserLoginError {
 
 #[async_trait]
 pub trait UserCreateService {
-    #[allow(async_fn_in_trait)]
     async fn create_user(
         &mut self,
         req: &UserCreateRequest,
     ) -> Result<UserCreateResult, ServiceError<UserCreateError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn login_user(
         &mut self,
         req: &UserLoginRequest,
@@ -139,7 +137,6 @@ pub enum LocalUserFindError {
 
 #[async_trait]
 pub trait LocalUserFinderService {
-    #[allow(async_fn_in_trait)]
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
@@ -154,13 +151,11 @@ pub enum UserFindError {
 
 #[async_trait]
 pub trait AllUserFinderService {
-    #[allow(async_fn_in_trait)]
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
     ) -> Result<models::User, ServiceError<UserFindError>>;
 
-    #[allow(async_fn_in_trait)]
     async fn find_followers_inboxes(
         &mut self,
         user: &UserSpecifier,
@@ -199,10 +194,20 @@ impl PostCreateRequest {
             PostCreateRequest::Reply(r) => r.privacy,
         }
     }
+
+    pub fn uri(&self) -> &Option<String> {
+        match self {
+            PostCreateRequest::Normal(r) => &r.uri,
+            PostCreateRequest::Repost(r) => &r.uri,
+            PostCreateRequest::Quote(r) => &r.uri,
+            PostCreateRequest::Reply(r) => &r.uri,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum ApubNoteError {
+    IDNotFound,
     AttributedToNotFound,
     ContentNotFound,
 }
@@ -211,6 +216,12 @@ impl TryFrom<ApubNote> for PostCreateRequest {
     type Error = ApubNoteError;
 
     fn try_from(value: ApubNote) -> Result<Self, Self::Error> {
+        let id = value
+            .as_ref()
+            .get_id()
+            .map(|s| s.to_string())
+            .ok_or_else(|| ApubNoteError::IDNotFound)?;
+
         let attributed_to = value
             .as_ref()
             .get_attributed_to_xsd_any_uri()
@@ -286,6 +297,7 @@ impl TryFrom<ApubNote> for PostCreateRequest {
         if let Some(reply_to_id) = reply_to_id {
             Ok(PostCreateRequest::Reply(
                 PostCreateRequestReplyBuilder::default()
+                    .uri(id)
                     .poster(attributed_to)
                     .content(content)
                     .privacy(privacy)
@@ -296,6 +308,7 @@ impl TryFrom<ApubNote> for PostCreateRequest {
         } else {
             Ok(PostCreateRequest::Normal(
                 PostCreateRequestNormalBuilder::default()
+                    .uri(id)
                     .poster(attributed_to)
                     .content(content)
                     .privacy(privacy)
@@ -309,6 +322,8 @@ impl TryFrom<ApubNote> for PostCreateRequest {
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestNormal {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
     content: String,
     privacy: PostPrivacy,
 }
@@ -316,6 +331,8 @@ pub struct PostCreateRequestNormal {
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestRepost {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
     privacy: PostPrivacy,
     repost_of: PostSpecifier,
 }
@@ -323,6 +340,8 @@ pub struct PostCreateRequestRepost {
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestQuote {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
     content: String,
     privacy: PostPrivacy,
     repost_of: PostSpecifier,
@@ -331,21 +350,23 @@ pub struct PostCreateRequestQuote {
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestReply {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
     content: String,
     privacy: PostPrivacy,
     reply_to: PostSpecifier,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PostCreateError {
     PosterNotFound,
     RepostOfNotFound,
     ReplyToNotFound,
+    AlreadyExists,
 }
 
 #[async_trait]
 pub trait PostCreateService {
-    #[allow(async_fn_in_trait)]
     async fn create_post(
         &mut self,
         req: &PostCreateRequest,
@@ -359,7 +380,6 @@ pub enum AuthError {
 
 #[async_trait]
 pub trait UserAuthService {
-    #[allow(async_fn_in_trait)]
     async fn authenticate_user(
         &mut self,
         token: &str,
@@ -393,24 +413,23 @@ pub struct FollowRequestAccepted {
 
 #[async_trait]
 pub trait UserFollowService {
-    #[allow(async_fn_in_trait)]
     async fn follow_user(
         &mut self,
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
     ) -> Result<(), ServiceError<FollowError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn unfollow_user(
         &mut self,
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
     ) -> Result<(), ServiceError<FollowError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn follow_request_accepted(
         &mut self,
         accepted_request: &FollowRequestSpecifier,
     ) -> Result<FollowRequestAccepted, ServiceError<FollowError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn incoming_follow_request(
         &mut self,
         incoming_follow_request: &IncomingFollowRequest,
@@ -451,7 +470,6 @@ impl SendActivity {
 
 #[async_trait]
 pub trait ApubRequestService {
-    #[allow(async_fn_in_trait)]
     async fn post_to_inbox(
         &mut self,
         url: &str,
@@ -459,12 +477,11 @@ pub trait ApubRequestService {
         actor: holder!(ApubSigner),
     ) -> Result<(), ServiceError<PostToInboxError>>;
 
-    #[allow(async_fn_in_trait)]
     async fn fetch_user(
         &mut self,
         url: &str,
     ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn fetch_webfinger(
         &mut self,
         username: &str,
@@ -480,7 +497,6 @@ pub enum BackgroundJob {
 
 #[async_trait]
 pub trait QueueService {
-    #[allow(async_fn_in_trait)]
     async fn process_job(&self, job: BackgroundJob) -> Result<(), ServiceError<()>>;
 }
 
@@ -491,10 +507,9 @@ pub enum ApubFollowError {
 
 #[async_trait]
 pub trait ApubFollowService {
-    #[allow(async_fn_in_trait)]
     async fn create_follow_request(&mut self, follow_req_id: Uuid)
         -> Result<Follow, anyhow::Error>;
-    #[allow(async_fn_in_trait)]
+
     async fn create_follow_accept(&mut self, follow_req_id: Uuid) -> Result<Accept, anyhow::Error>;
 }
 
@@ -506,7 +521,6 @@ pub enum SignerError {
 
 #[async_trait]
 pub trait SignerService {
-    #[allow(async_fn_in_trait)]
     async fn fetch_signer(
         &mut self,
         user: &UserSpecifier,
