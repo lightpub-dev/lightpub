@@ -2,16 +2,24 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 use uuid::{fmt::Simple, Uuid};
 
 use derive_getters::Getters;
 
 use crate::{
     models::{self, ApubSigner, ApubWebfingerResponse, PostPrivacy},
-    utils::{post::PostSpecifier, user::UserSpecifier},
+    utils::{
+        apub_hashtag::{HashtagKind, HashtagObject},
+        post::PostSpecifier,
+        user::UserSpecifier,
+    },
 };
 
-use activitystreams::activity::{Accept, Follow};
+use activitystreams::{
+    activity::{Accept, Follow},
+    link::Mention,
+};
 
 use self::apub::render::{ApubNote, ApubNoteCreate, ApubPerson};
 
@@ -248,6 +256,41 @@ impl TryFrom<ApubNote> for PostCreateRequest {
             .get_in_reply_to_xsd_any_uri()
             .map(|s| PostSpecifier::from_uri(s.to_string()));
 
+        let tags: Vec<_> = value
+            .as_ref()
+            .get_many_tag_base_boxes()
+            .map(|v| v.collect())
+            .unwrap_or_default();
+        let (hashtags, mentions) = {
+            let mut mentions = vec![];
+            let mut hashtags: Vec<String> = vec![];
+
+            for tag in tags {
+                if tag.is_kind(activitystreams::link::kind::MentionType) {
+                    let mention = tag.clone().into_concrete::<Mention>().unwrap();
+                    let href = mention.as_ref().get_href();
+                    if let Some(href) = href {
+                        mentions.push(UserSpecifier::from_url(href.to_string()));
+                    } else {
+                        warn!("Mention without href: {:?}", mention);
+                    }
+                } else if tag.is_kind(HashtagKind) {
+                    let hashtag = tag.clone().into_concrete::<HashtagObject>().unwrap();
+                    let name = hashtag.as_ref().get_name();
+                    let value = if name.starts_with("#") {
+                        name[1..].to_string()
+                    } else {
+                        name.to_string()
+                    };
+                    hashtags.push(value);
+                } else {
+                    debug!("Unknown tag kind: {:?}", tag);
+                }
+            }
+
+            (hashtags, mentions)
+        };
+
         let privacy = {
             let to = value
                 .as_ref()
@@ -303,6 +346,12 @@ impl TryFrom<ApubNote> for PostCreateRequest {
             }
         };
 
+        let hints = PostHintBuilder::default()
+            .hashtags(hashtags)
+            .mentions(mentions)
+            .build()
+            .unwrap();
+
         if let Some(reply_to_id) = reply_to_id {
             Ok(PostCreateRequest::Reply(
                 PostCreateRequestReplyBuilder::default()
@@ -311,6 +360,7 @@ impl TryFrom<ApubNote> for PostCreateRequest {
                     .content(content)
                     .privacy(privacy)
                     .reply_to(reply_to_id)
+                    .hints(hints)
                     .build()
                     .unwrap(),
             ))
@@ -321,6 +371,7 @@ impl TryFrom<ApubNote> for PostCreateRequest {
                     .poster(attributed_to)
                     .content(content)
                     .privacy(privacy)
+                    .hints(hints)
                     .build()
                     .unwrap(),
             ))

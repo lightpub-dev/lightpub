@@ -19,6 +19,37 @@ pub fn uuid_to_string(uuid: &Uuid) -> String {
     s.to_owned()
 }
 
+pub mod apub_hashtag {
+    use activitystreams::Base;
+    use activitystreams::BaseBox;
+    use activitystreams::UnitString;
+    use activitystreams::{properties, PropRefs};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, Default, UnitString)]
+    #[unit_string(Hashtag)]
+    pub struct HashtagKind;
+
+    properties! {
+        Hashtag {
+            name {
+                types [String],
+                functional,
+                required
+            }
+        }
+    }
+
+    #[derive(Clone, Debug, Default, Deserialize, Serialize, PropRefs)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HashtagObject {
+        pub kind: HashtagKind,
+
+        #[prop_refs]
+        pub hashtag_properties: HashtagProperties,
+    }
+}
+
 pub mod apub_key {
     use activitystreams::{actor::Actor, ext::Extension};
     use derive_builder::Builder;
