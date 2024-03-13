@@ -5,7 +5,7 @@ pub mod state;
 pub mod utils;
 
 use crate::services::{
-    apub::{new_apub_renderer_service, render::ApubNote},
+    apub::{new_apub_renderer_service, new_apub_reqwester_service, render::ApubNote},
     db::{new_follow_service, new_post_create_service},
     FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
     PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
@@ -678,18 +678,30 @@ async fn user_inbox(
                     warn!("create actor_id not found");
                     ErrorResponse::new_status(400, "invalid activity")
                 })?;
-            let object = create
-                .create_props
-                .get_object_base_box()
-                .ok_or_else(|| {
-                    warn!("create object not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?
-                .to_owned();
-            let object_note = object.into_concrete::<ApubNote>().map_err(|e| {
-                warn!("failed to interpret create object as Note: {:?}", e);
+            // get object id
+            // but do not trust the body of the object for security reasons
+            let object_id = {
+                let props = create.create_props;
+                if let Some(obj) = props.get_object_base_box() {
+                    let note_obj = obj.clone().into_concrete::<ApubNote>().map_err(|e| {
+                        warn!("failed to interpret create object as Note: {:?}", e);
+                        ErrorResponse::new_status(400, "invalid activity")
+                    })?;
+                    note_obj.as_ref().get_id().map(|s| s.to_string())
+                } else if let Some(obj) = props.get_object_xsd_any_uri() {
+                    Some(obj.to_string())
+                } else {
+                    None
+                }
+            }
+            .ok_or_else(|| {
+                warn!("create object_id not found");
                 ErrorResponse::new_status(400, "invalid activity")
             })?;
+
+            // request object using id
+            let mut reqester_service = new_apub_reqwester_service();
+            let object_note = reqester_service.fetch_post(&object_id).await?;
 
             let object_attributed_to = object_note
                 .as_ref()

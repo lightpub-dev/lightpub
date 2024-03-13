@@ -24,10 +24,11 @@ use crate::{
     utils::key::{attach_signature, SignKeyBuilder},
 };
 
-use self::render::{ApubPerson, ApubRendererService};
+use self::render::{ApubNote, ApubPerson, ApubRendererService};
 
 use super::{
-    id::IDGetterService, ApubFollowService, ApubRequestService, Holder, MiscError, SendActivity,
+    id::IDGetterService, ApubFetchPostError, ApubFollowService, ApubRequestService, Holder,
+    MiscError, SendActivity,
 };
 
 pub mod inbox;
@@ -181,6 +182,27 @@ impl ApubRequestService for ApubReqwest {
         let person = res.json::<ApubPerson>().await.map_err(map_error)?;
 
         Ok(person)
+    }
+
+    async fn fetch_post(
+        &mut self,
+        url: &str,
+    ) -> Result<ApubNote, ServiceError<ApubFetchPostError>> {
+        // TODO: sign req with maintenance user
+        let req = RequestBuilder::from_parts(
+            self.client(),
+            Request::new(Method::GET, url.parse().unwrap()),
+        )
+        .header("Accept", "application/activity+json")
+        .build()
+        .unwrap();
+
+        let res = self.client().execute(req).await.map_err(map_error)?;
+        // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
+        // debug!("body: {:#?}", body);
+        let note = res.json::<ApubNote>().await.map_err(map_error)?;
+
+        Ok(note)
     }
 
     async fn fetch_webfinger(

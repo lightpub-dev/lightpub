@@ -445,6 +445,11 @@ pub enum ApubFetchUserError {
 }
 
 #[derive(Debug)]
+pub enum ApubFetchPostError {
+    NotFound,
+}
+
+#[derive(Debug)]
 pub enum WebfingerError {
     ApiUrlNotFound,
     NotFound,
@@ -487,6 +492,9 @@ pub trait ApubRequestService {
         username: &str,
         host: &str,
     ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>>;
+
+    async fn fetch_post(&mut self, url: &str)
+        -> Result<ApubNote, ServiceError<ApubFetchPostError>>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
