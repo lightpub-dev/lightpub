@@ -220,6 +220,15 @@ impl PostCreateRequest {
             PostCreateRequest::Reply(r) => &r.hints,
         }
     }
+
+    pub fn created_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        match self {
+            PostCreateRequest::Normal(r) => r.created_at,
+            PostCreateRequest::Repost(r) => r.created_at,
+            PostCreateRequest::Quote(r) => r.created_at,
+            PostCreateRequest::Reply(r) => r.created_at,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -227,6 +236,7 @@ pub enum ApubNoteError {
     IDNotFound,
     AttributedToNotFound,
     ContentNotFound,
+    PublishedAtNotFound,
 }
 
 impl TryFrom<ApubNote> for PostCreateRequest {
@@ -255,6 +265,12 @@ impl TryFrom<ApubNote> for PostCreateRequest {
             .as_ref()
             .get_in_reply_to_xsd_any_uri()
             .map(|s| PostSpecifier::from_uri(s.to_string()));
+
+        let published_at = value
+            .as_ref()
+            .get_published()
+            .map(|s| s.as_datetime().to_utc())
+            .ok_or(ApubNoteError::PublishedAtNotFound)?;
 
         let tags: Vec<_> = value
             .as_ref()
@@ -360,6 +376,7 @@ impl TryFrom<ApubNote> for PostCreateRequest {
                     .content(content)
                     .privacy(privacy)
                     .reply_to(reply_to_id)
+                    .created_at(published_at)
                     .hints(hints)
                     .build()
                     .unwrap(),
@@ -371,6 +388,7 @@ impl TryFrom<ApubNote> for PostCreateRequest {
                     .poster(attributed_to)
                     .content(content)
                     .privacy(privacy)
+                    .created_at(published_at)
                     .hints(hints)
                     .build()
                     .unwrap(),
@@ -392,6 +410,8 @@ pub struct PostCreateRequestNormal {
     poster: UserSpecifier,
     #[builder(default, setter(into, strip_option))]
     uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     content: String,
     privacy: PostPrivacy,
     #[builder(default)]
@@ -403,6 +423,8 @@ pub struct PostCreateRequestRepost {
     poster: UserSpecifier,
     #[builder(default, setter(into, strip_option))]
     uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     privacy: PostPrivacy,
     repost_of: PostSpecifier,
     #[builder(default)]
@@ -414,6 +436,8 @@ pub struct PostCreateRequestQuote {
     poster: UserSpecifier,
     #[builder(default, setter(into, strip_option))]
     uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     content: String,
     privacy: PostPrivacy,
     repost_of: PostSpecifier,
@@ -426,6 +450,8 @@ pub struct PostCreateRequestReply {
     poster: UserSpecifier,
     #[builder(default, setter(into, strip_option))]
     uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     content: String,
     privacy: PostPrivacy,
     reply_to: PostSpecifier,

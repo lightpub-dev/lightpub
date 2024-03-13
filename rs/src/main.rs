@@ -769,6 +769,14 @@ async fn user_inbox(
                     return Err(ErrorResponse::new_status(400, "invalid activity"));
                 }
             };
+            let published_at = announce
+                .object_props
+                .get_published()
+                .map(|s| s.as_datetime().to_utc())
+                .ok_or_else(|| {
+                    warn!("repost published_at not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
 
             let (to, cc) = {
                 let mut to = announce
@@ -811,6 +819,7 @@ async fn user_inbox(
                     .poster(UserSpecifier::from_url(actor_id))
                     .uri(repost_id)
                     .privacy(privacy)
+                    .created_at(published_at)
                     .repost_of(PostSpecifier::from_uri(object_id))
                     .build()
                     .unwrap(),

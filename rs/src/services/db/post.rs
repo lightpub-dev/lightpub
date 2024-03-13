@@ -162,7 +162,10 @@ impl PostCreateService for DBPostCreateService {
         let post_id_str = post_id.to_string();
         let poster_id = poster.id;
         let privacy = req.privacy().to_db();
-        let created_at = chrono::Utc::now().naive_utc();
+        let created_at = req
+            .created_at()
+            .map(|t| t.naive_utc())
+            .unwrap_or_else(|| chrono::Utc::now().naive_utc());
 
         sqlx::query!(
                 "INSERT INTO posts (id, uri, poster_id, content, privacy, created_at, repost_of_id, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
