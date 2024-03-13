@@ -148,15 +148,112 @@ pub trait ApubSigner {
 }
 
 pub mod apub {
-    use activitystreams::activity::{Accept, Announce, Create, Follow};
+    use derive_builder::Builder;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
-    #[serde(untagged)]
+    #[serde(tag = "type")]
     pub enum Activity {
-        Accept(Accept),
-        Follow(Follow),
-        Create(Create),
-        Announce(Announce),
+        Accept(AcceptActivity),
+        Follow(FollowActivity),
+        Create(CreateActivity),
+        Announce(AnnounceActivity),
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct AcceptActivity {
+        id: String,
+        actor: String,
+        object: IdOrObject<FollowActivity>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct FollowActivity {
+        id: String,
+        actor: String,
+        object: IdOrObject<Person>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(untagged)]
+    pub enum IdOrObject<T> {
+        Id(String),
+        Object(T),
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Person {
+        pub id: String,
+        pub name: String,
+        pub inbox: String,
+        pub outbox: String,
+        pub shared_inbox: Option<String>,
+        pub followers: Option<String>,
+        pub following: Option<String>,
+        pub liked: Option<String>,
+        pub preferred_username: String,
+        pub public_key: PublicKeyEnum,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum PublicKeyEnum {
+        Key(PublicKey),
+    }
+
+    impl From<PublicKey> for PublicKeyEnum {
+        fn from(key: PublicKey) -> Self {
+            PublicKeyEnum::Key(key)
+        }
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct PublicKey {
+        pub id: String,
+        pub owner: String,
+        pub public_key_pem: String,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum CreatableObject {
+        Note(Note),
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Note {
+        pub id: String,
+        pub attributed_to: String,
+        pub content: String,
+        pub to: Vec<String>,
+        pub cc: Vec<String>,
+        pub bto: Option<Vec<String>>,
+        pub bcc: Option<Vec<String>>,
+        pub published_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct CreateActivity {
+        pub id: String,
+        pub actor: String,
+        pub object: IdOrObject<CreatableObject>,
+        pub to: Vec<String>,
+        pub cc: Vec<String>,
+        pub bto: Option<Vec<String>>,
+        pub bcc: Option<Vec<String>>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct AnnounceActivity {
+        pub id: String,
+        pub actor: String,
+        pub object: IdOrObject<CreatableObject>,
     }
 }

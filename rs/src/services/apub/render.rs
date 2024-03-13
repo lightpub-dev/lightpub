@@ -1,20 +1,14 @@
-use activitystreams::activity::properties::CreateProperties;
-use activitystreams::activity::Create;
-use activitystreams::actor::Person;
-use activitystreams::endpoint::EndpointProperties;
-use activitystreams::ext::Ext;
-use activitystreams::object::properties::{ApObjectProperties, ObjectProperties};
-use activitystreams::object::Note;
-use activitystreams::BaseBox;
 use derive_getters::Getters;
 use uuid::Uuid;
 
+use crate::models::apub::{
+    CreatableObject, CreateActivity, CreateActivityBuilder, IdOrObject, Note, NoteBuilder, Person,
+    PersonBuilder, PublicKeyBuilder,
+};
 use crate::models::{ApubRenderablePost, ApubRenderableUser, HasRemoteUri, PostPrivacy};
 use crate::services::id::IDGetterService;
 use crate::services::id::UserAttribute;
-use crate::utils::apub_key::{PublicKeyBuilder, PublicKeyExtension};
 use crate::utils::user::UserSpecifier;
-use activitystreams::ext::Extensible;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -27,22 +21,15 @@ pub struct ApubRendererService {
 #[derive(Debug)]
 pub enum ApubRendererServiceError {}
 
-pub type ApubNoteCreate = Ext<Create, ApObjectProperties>;
-pub type ApubNote = Ext<Note, ApObjectProperties>;
-pub type ApubPerson = Ext<
-    Ext<Ext<Person, ApObjectProperties>, activitystreams::actor::properties::ApActorProperties>,
-    PublicKeyExtension,
->;
-
 #[derive(Debug, Clone, Getters)]
 pub struct RenderedNote {
-    note: ApubNote,
+    note: Note,
     targeted_users: Vec<TargetedUser>,
 }
 
 #[derive(Debug, Clone, Getters)]
 pub struct RenderedNoteCreate {
-    note_create: ApubNoteCreate,
+    note_create: CreateActivity,
     targeted_users: Vec<TargetedUser>,
 }
 
@@ -114,37 +101,23 @@ impl ApubRendererService {
     ) -> Result<RenderedNoteCreate, anyhow::Error> {
         let post = self.render_post(post)?;
 
-        let create_id = format!("{}/activity", post.note.as_ref().get_id().unwrap()); // FIXME: use IDGetterService
-        let post_to = post.note.as_ref().get_many_to_xsd_any_uris();
-        let post_cc = post.note.as_ref().get_many_cc_xsd_any_uris();
-        let post_bto = post.note.as_ref().get_many_bto_xsd_any_uris();
-        let post_bcc = post.note.as_ref().get_many_bcc_xsd_any_uris();
-        let post_poster = post
-            .note
-            .as_ref()
-            .get_attributed_to_xsd_any_uri()
-            .expect("attributedTo not set");
+        let create_id = format!("{}/activity", post.note.id); // FIXME: use IDGetterService
+        let post_to = &post.note.to;
+        let post_cc = &post.note.cc;
+        let post_bto = &post.note.bto;
+        let post_bcc = &post.note.bcc;
+        let post_poster = &post.note.attributed_to;
 
-        let mut create = Create::full();
-        {
-            let m = AsMut::<ObjectProperties>::as_mut(&mut create);
-            m.set_id(create_id)?;
-            if let Some(to) = post_to {
-                m.set_many_to_xsd_any_uris(to.map(|s| s.clone()).collect())?;
-            }
-            if let Some(cc) = post_cc {
-                m.set_many_cc_xsd_any_uris(cc.map(|s| s.clone()).collect())?;
-            }
-            if let Some(bto) = post_bto {
-                m.set_many_bto_xsd_any_uris(bto.map(|s| s.clone()).collect())?;
-            }
-            if let Some(bcc) = post_bcc {
-                m.set_many_bcc_xsd_any_uris(bcc.map(|s| s.clone()).collect())?;
-            }
-        }
-        AsMut::<CreateProperties>::as_mut(&mut create)
-            .set_actor_xsd_any_uri(post_poster.clone())?
-            .set_object_base_box(BaseBox::from_concrete(post.note.clone())?)?;
+        let create = CreateActivityBuilder::default()
+            .actor(post_poster.clone())
+            .id(create_id.clone())
+            .object(IdOrObject::Object(CreatableObject::Note(post.note.clone())))
+            .to(post_to.clone())
+            .cc(post_cc.clone())
+            .bto(post_bto.clone())
+            .bcc(post_bcc.clone())
+            .build()
+            .unwrap();
 
         Ok(RenderedNoteCreate {
             note_create: create,
@@ -161,14 +134,15 @@ impl ApubRendererService {
 
         let (to, cc, targeted_users) = self.calculate_to_and_cc(post)?;
 
-        let mut note = Note::full();
-        note.as_mut()
-            .set_id(post_id)?
-            .set_attributed_to_xsd_any_uri(poster_id)?
-            .set_content_xsd_string(post.content().unwrap())?
-            .set_many_to_xsd_any_uris(to)?
-            .set_many_cc_xsd_any_uris(cc)?
-            .set_published(post.created_at_fixed_offset())?;
+        let note = NoteBuilder::default()
+            .id(post_id)
+            .attributed_to(poster_id)
+            .content(post.content().unwrap())
+            .to(to)
+            .cc(cc)
+            .published_at(post.created_at_fixed_offset().to_utc())
+            .build()
+            .unwrap();
 
         Ok(RenderedNote {
             note,
@@ -176,10 +150,7 @@ impl ApubRendererService {
         })
     }
 
-    pub fn render_user(
-        &self,
-        user: &(impl ApubRenderableUser + HasRemoteUri),
-    ) -> Result<ApubPerson> {
+    pub fn render_user(&self, user: &(impl ApubRenderableUser + HasRemoteUri)) -> Result<Person> {
         let user_id = self.id_getter.get_user_id(user);
         let inbox = self
             .id_getter
@@ -203,8 +174,6 @@ impl ApubRendererService {
             .get_user_id_attr(user, UserAttribute::Liked)
             .unwrap();
 
-        let mut person = Person::full();
-
         let public_key = {
             let pem = user.public_key().unwrap();
             let owner = user_id.clone();
@@ -219,29 +188,24 @@ impl ApubRendererService {
                 .public_key_pem(pem)
                 .build()
                 .unwrap()
-                .into_ext()
         };
 
         let name = user.nickname();
         let preferred_username = user.username();
 
-        person.as_mut().set_id(user_id)?.set_name_xsd_string(name)?;
-        person
-            .extension
-            .set_inbox(inbox)?
-            .set_outbox(outbox)?
-            .set_following(following)?
-            .set_followers(followers)?
-            .set_liked(liked)?
-            .set_preferred_username(preferred_username)?
-            .set_endpoints({
-                let mut endpoints = EndpointProperties::default();
-                if let Some(shared_inbox) = shared_inbox {
-                    endpoints.set_shared_inbox(shared_inbox)?;
-                }
-                endpoints
-            })?;
-        let person = person.extend(public_key);
+        let person = PersonBuilder::default()
+            .id(user_id)
+            .name(name)
+            .inbox(inbox)
+            .outbox(outbox)
+            .following(following.into())
+            .followers(followers.into())
+            .liked(liked.into())
+            .preferred_username(preferred_username)
+            .shared_inbox(shared_inbox.into())
+            .public_key(public_key.into())
+            .build()
+            .unwrap();
 
         Ok(person)
     }
