@@ -2,18 +2,26 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 use uuid::{fmt::Simple, Uuid};
 
 use derive_getters::Getters;
 
 use crate::{
     models::{self, ApubSigner, ApubWebfingerResponse, PostPrivacy},
-    utils::user::UserSpecifier,
+    utils::{
+        apub_hashtag::{HashtagKind, HashtagObject},
+        post::PostSpecifier,
+        user::UserSpecifier,
+    },
 };
 
-use activitystreams::activity::{Accept, Follow};
+use activitystreams::{
+    activity::{Accept, Follow},
+    link::Mention,
+};
 
-use self::apub::render::{ApubNoteCreate, ApubPerson};
+use self::apub::render::{ApubNote, ApubNoteCreate, ApubPerson};
 
 pub mod apub;
 pub mod db;
@@ -118,12 +126,11 @@ pub enum UserLoginError {
 
 #[async_trait]
 pub trait UserCreateService {
-    #[allow(async_fn_in_trait)]
     async fn create_user(
         &mut self,
         req: &UserCreateRequest,
     ) -> Result<UserCreateResult, ServiceError<UserCreateError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn login_user(
         &mut self,
         req: &UserLoginRequest,
@@ -138,7 +145,6 @@ pub enum LocalUserFindError {
 
 #[async_trait]
 pub trait LocalUserFinderService {
-    #[allow(async_fn_in_trait)]
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
@@ -153,13 +159,11 @@ pub enum UserFindError {
 
 #[async_trait]
 pub trait AllUserFinderService {
-    #[allow(async_fn_in_trait)]
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
     ) -> Result<models::User, ServiceError<UserFindError>>;
 
-    #[allow(async_fn_in_trait)]
     async fn find_followers_inboxes(
         &mut self,
         user: &UserSpecifier,
@@ -198,48 +202,273 @@ impl PostCreateRequest {
             PostCreateRequest::Reply(r) => r.privacy,
         }
     }
+
+    pub fn uri(&self) -> &Option<String> {
+        match self {
+            PostCreateRequest::Normal(r) => &r.uri,
+            PostCreateRequest::Repost(r) => &r.uri,
+            PostCreateRequest::Quote(r) => &r.uri,
+            PostCreateRequest::Reply(r) => &r.uri,
+        }
+    }
+
+    pub fn hint(&self) -> &PostHint {
+        match self {
+            PostCreateRequest::Normal(r) => &r.hints,
+            PostCreateRequest::Repost(r) => &r.hints,
+            PostCreateRequest::Quote(r) => &r.hints,
+            PostCreateRequest::Reply(r) => &r.hints,
+        }
+    }
+
+    pub fn created_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        match self {
+            PostCreateRequest::Normal(r) => r.created_at,
+            PostCreateRequest::Repost(r) => r.created_at,
+            PostCreateRequest::Quote(r) => r.created_at,
+            PostCreateRequest::Reply(r) => r.created_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ApubNoteError {
+    IDNotFound,
+    AttributedToNotFound,
+    ContentNotFound,
+    PublishedAtNotFound,
+}
+
+impl TryFrom<ApubNote> for PostCreateRequest {
+    type Error = ApubNoteError;
+
+    fn try_from(value: ApubNote) -> Result<Self, Self::Error> {
+        let id = value
+            .as_ref()
+            .get_id()
+            .map(|s| s.to_string())
+            .ok_or_else(|| ApubNoteError::IDNotFound)?;
+
+        let attributed_to = value
+            .as_ref()
+            .get_attributed_to_xsd_any_uri()
+            .map(|s| UserSpecifier::from_url(s.to_string()))
+            .ok_or_else(|| ApubNoteError::AttributedToNotFound)?;
+
+        let content = value
+            .as_ref()
+            .get_content_xsd_string()
+            .map(|s| s.to_string())
+            .ok_or_else(|| ApubNoteError::ContentNotFound)?;
+
+        let reply_to_id = value
+            .as_ref()
+            .get_in_reply_to_xsd_any_uri()
+            .map(|s| PostSpecifier::from_uri(s.to_string()));
+
+        let published_at = value
+            .as_ref()
+            .get_published()
+            .map(|s| s.as_datetime().to_utc())
+            .ok_or(ApubNoteError::PublishedAtNotFound)?;
+
+        let tags: Vec<_> = value
+            .as_ref()
+            .get_many_tag_base_boxes()
+            .map(|v| v.collect())
+            .unwrap_or_default();
+        let (hashtags, mentions) = {
+            let mut mentions = vec![];
+            let mut hashtags: Vec<String> = vec![];
+
+            for tag in tags {
+                if tag.is_kind(activitystreams::link::kind::MentionType) {
+                    let mention = tag.clone().into_concrete::<Mention>().unwrap();
+                    let href = mention.as_ref().get_href();
+                    if let Some(href) = href {
+                        mentions.push(UserSpecifier::from_url(href.to_string()));
+                    } else {
+                        warn!("Mention without href: {:?}", mention);
+                    }
+                } else if tag.is_kind(HashtagKind) {
+                    let hashtag = tag.clone().into_concrete::<HashtagObject>().unwrap();
+                    let name = hashtag.as_ref().get_name();
+                    let value = if name.starts_with("#") {
+                        name[1..].to_string()
+                    } else {
+                        name.to_string()
+                    };
+                    hashtags.push(value);
+                } else {
+                    debug!("Unknown tag kind: {:?}", tag);
+                }
+            }
+
+            (hashtags, mentions)
+        };
+
+        let privacy = {
+            let to = value
+                .as_ref()
+                .get_many_to_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+            let cc = value
+                .as_ref()
+                .get_many_cc_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+            let bto = value
+                .as_ref()
+                .get_many_bto_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+            let bcc = value
+                .as_ref()
+                .get_many_bcc_xsd_any_uris()
+                .map(|v| v.collect())
+                .unwrap_or_else(|| vec![]);
+
+            // combine to and bto, cc and bcc
+            let to = to.into_iter().chain(bto.into_iter()).collect::<Vec<_>>();
+            let cc = cc.into_iter().chain(bcc.into_iter()).collect::<Vec<_>>();
+            // remove duplicates
+            let to: Vec<_> = to
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            let cc: Vec<_> = cc
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+
+            // to contains #public => public
+            // cc contains #public => unlisted
+            // to contains /followers => followers
+            // otherwise => private
+            if to.contains(&&activitystreams::public()) {
+                PostPrivacy::Public
+            } else if cc.contains(&&activitystreams::public()) {
+                PostPrivacy::Unlisted
+            } else {
+                let to_contains_followers = to.iter().any(|s| s.as_str().ends_with("/followers"));
+                if to_contains_followers {
+                    PostPrivacy::Followers
+                } else {
+                    PostPrivacy::Private
+                }
+            }
+        };
+
+        let hints = PostHintBuilder::default()
+            .hashtags(hashtags)
+            .mentions(mentions)
+            .build()
+            .unwrap();
+
+        if let Some(reply_to_id) = reply_to_id {
+            Ok(PostCreateRequest::Reply(
+                PostCreateRequestReplyBuilder::default()
+                    .uri(id)
+                    .poster(attributed_to)
+                    .content(content)
+                    .privacy(privacy)
+                    .reply_to(reply_to_id)
+                    .created_at(published_at)
+                    .hints(hints)
+                    .build()
+                    .unwrap(),
+            ))
+        } else {
+            Ok(PostCreateRequest::Normal(
+                PostCreateRequestNormalBuilder::default()
+                    .uri(id)
+                    .poster(attributed_to)
+                    .content(content)
+                    .privacy(privacy)
+                    .created_at(published_at)
+                    .hints(hints)
+                    .build()
+                    .unwrap(),
+            ))
+        }
+    }
+}
+
+#[derive(Debug, Clone, Builder, Default, Getters)]
+pub struct PostHint {
+    #[builder(default = "vec![]")]
+    hashtags: Vec<String>,
+    #[builder(default = "vec![]")]
+    mentions: Vec<UserSpecifier>,
 }
 
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestNormal {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     content: String,
     privacy: PostPrivacy,
+    #[builder(default)]
+    hints: PostHint,
 }
 
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestRepost {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     privacy: PostPrivacy,
-    repost_of: Simple,
+    repost_of: PostSpecifier,
+    #[builder(default)]
+    hints: PostHint,
 }
 
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestQuote {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     content: String,
     privacy: PostPrivacy,
-    repost_of: Simple,
+    repost_of: PostSpecifier,
+    #[builder(default)]
+    hints: PostHint,
 }
 
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestReply {
     poster: UserSpecifier,
+    #[builder(default, setter(into, strip_option))]
+    uri: Option<String>,
+    #[builder(default, setter(into, strip_option))]
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
     content: String,
     privacy: PostPrivacy,
-    reply_to: Simple,
+    reply_to: PostSpecifier,
+    #[builder(default)]
+    hints: PostHint,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PostCreateError {
     PosterNotFound,
     RepostOfNotFound,
     ReplyToNotFound,
+    AlreadyExists,
 }
 
 #[async_trait]
 pub trait PostCreateService {
-    #[allow(async_fn_in_trait)]
     async fn create_post(
         &mut self,
         req: &PostCreateRequest,
@@ -253,7 +482,6 @@ pub enum AuthError {
 
 #[async_trait]
 pub trait UserAuthService {
-    #[allow(async_fn_in_trait)]
     async fn authenticate_user(
         &mut self,
         token: &str,
@@ -287,24 +515,23 @@ pub struct FollowRequestAccepted {
 
 #[async_trait]
 pub trait UserFollowService {
-    #[allow(async_fn_in_trait)]
     async fn follow_user(
         &mut self,
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
     ) -> Result<(), ServiceError<FollowError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn unfollow_user(
         &mut self,
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
     ) -> Result<(), ServiceError<FollowError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn follow_request_accepted(
         &mut self,
         accepted_request: &FollowRequestSpecifier,
     ) -> Result<FollowRequestAccepted, ServiceError<FollowError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn incoming_follow_request(
         &mut self,
         incoming_follow_request: &IncomingFollowRequest,
@@ -316,6 +543,11 @@ pub enum PostToInboxError {}
 
 #[derive(Debug)]
 pub enum ApubFetchUserError {
+    NotFound,
+}
+
+#[derive(Debug)]
+pub enum ApubFetchPostError {
     NotFound,
 }
 
@@ -345,7 +577,6 @@ impl SendActivity {
 
 #[async_trait]
 pub trait ApubRequestService {
-    #[allow(async_fn_in_trait)]
     async fn post_to_inbox(
         &mut self,
         url: &str,
@@ -353,17 +584,19 @@ pub trait ApubRequestService {
         actor: holder!(ApubSigner),
     ) -> Result<(), ServiceError<PostToInboxError>>;
 
-    #[allow(async_fn_in_trait)]
     async fn fetch_user(
         &mut self,
         url: &str,
     ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
-    #[allow(async_fn_in_trait)]
+
     async fn fetch_webfinger(
         &mut self,
         username: &str,
         host: &str,
     ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>>;
+
+    async fn fetch_post(&mut self, url: &str)
+        -> Result<ApubNote, ServiceError<ApubFetchPostError>>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -374,7 +607,6 @@ pub enum BackgroundJob {
 
 #[async_trait]
 pub trait QueueService {
-    #[allow(async_fn_in_trait)]
     async fn process_job(&self, job: BackgroundJob) -> Result<(), ServiceError<()>>;
 }
 
@@ -385,10 +617,9 @@ pub enum ApubFollowError {
 
 #[async_trait]
 pub trait ApubFollowService {
-    #[allow(async_fn_in_trait)]
     async fn create_follow_request(&mut self, follow_req_id: Uuid)
         -> Result<Follow, anyhow::Error>;
-    #[allow(async_fn_in_trait)]
+
     async fn create_follow_accept(&mut self, follow_req_id: Uuid) -> Result<Accept, anyhow::Error>;
 }
 
@@ -400,7 +631,6 @@ pub enum SignerError {
 
 #[async_trait]
 pub trait SignerService {
-    #[allow(async_fn_in_trait)]
     async fn fetch_signer(
         &mut self,
         user: &UserSpecifier,

@@ -1,7 +1,30 @@
-use derive_getters::Getters;
-use derive_more::Constructor;
 use lazy_static::lazy_static;
 use regex::Regex;
+use uuid::Uuid;
+
+use super::user::UserSpecifier;
+
+#[derive(Debug, Clone)]
+pub enum PostSpecifier {
+    ID(Uuid),
+    URI(String),
+}
+
+impl PostSpecifier {
+    pub fn from_id(id: impl Into<Uuid>) -> Self {
+        PostSpecifier::ID(id.into())
+    }
+
+    pub fn from_uri(uri: impl Into<String>) -> Self {
+        PostSpecifier::URI(uri.into())
+    }
+}
+
+impl From<Uuid> for PostSpecifier {
+    fn from(id: Uuid) -> Self {
+        PostSpecifier::ID(id)
+    }
+}
 
 pub fn find_hashtags(content: &str) -> Vec<String> {
     let mut hashtags: Vec<String> = Vec::new();
@@ -47,11 +70,7 @@ pub fn find_hashtags(content: &str) -> Vec<String> {
     hashtags
 }
 
-#[derive(Debug, Clone, Constructor, Getters, PartialEq)]
-pub struct MentionTarget {
-    username: String,
-    host: Option<String>,
-}
+pub type MentionTarget = UserSpecifier;
 
 pub fn find_mentions(content: &str) -> Vec<MentionTarget> {
     lazy_static! {
@@ -67,7 +86,7 @@ pub fn find_mentions(content: &str) -> Vec<MentionTarget> {
         } else {
             None
         };
-        mentions.push(MentionTarget::new(username, host));
+        mentions.push(UserSpecifier::from_username(username, host));
     }
 
     mentions
@@ -156,7 +175,7 @@ mod tests {
 
         // Helper function to easily create MentionTarget instances
         let t = |username: &str, host: Option<&str>| {
-            MentionTarget::new(username.to_string(), host.map(|h| h.to_string()))
+            UserSpecifier::from_username(username.to_string(), host.map(|h| h.to_string()))
         };
 
         assert_eq!(f("Hello @user"), vec![t("user", None)]);

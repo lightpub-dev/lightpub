@@ -128,7 +128,7 @@ impl PostPrivacy {
         match self {
             Public => "public",
             Unlisted => "unlisted",
-            Followers => "followers",
+            Followers => "follower",
             Private => "private",
         }
         .to_string()
@@ -148,7 +148,7 @@ pub trait ApubSigner {
 }
 
 pub mod apub {
-    use activitystreams::activity::{Accept, Follow};
+    use activitystreams::activity::{Accept, Announce, Create, Follow};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -156,5 +156,7 @@ pub mod apub {
     pub enum Activity {
         Accept(Accept),
         Follow(Follow),
+        Create(Create),
+        Announce(Announce),
     }
 }

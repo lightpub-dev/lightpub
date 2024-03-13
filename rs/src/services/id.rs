@@ -124,4 +124,8 @@ impl IDGetterService {
     pub fn extract_local_user_id(&self, user_uri: &str) -> Option<String> {
         self.extract_id_from_uri(user_uri, "user")
     }
+
+    pub fn extract_local_post_id(&self, post_uri: &str) -> Option<String> {
+        self.extract_id_from_uri(post_uri, "post")
+    }
 }

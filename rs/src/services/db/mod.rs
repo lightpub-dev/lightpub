@@ -9,7 +9,10 @@ use crate::{config::Config, holder, new_id_getter_service};
 use self::{post::DBPostCreateService, user::DBSignerService};
 
 use super::{
-    apub::{new_apub_follow_service, new_apub_renderer_service, new_apub_reqwester_service},
+    apub::{
+        new_apub_follow_service, new_apub_renderer_service, new_apub_reqwester_service,
+        post::PostContentService,
+    },
     AllUserFinderService, Holder, LocalUserFinderService, PostCreateService, SignerService,
     UserAuthService, UserCreateService, UserFollowService,
 };
@@ -55,7 +58,9 @@ pub fn new_post_create_service(pool: MySqlPool, config: Config) -> holder!(PostC
         new_all_user_finder_service(pool.clone(), config.clone()),
         new_apub_renderer_service(config.clone()),
         new_apub_reqwester_service(),
-        new_db_user_signer_service(pool.clone(), config),
+        new_db_user_signer_service(pool.clone(), config.clone()),
+        new_id_getter_service(config),
+        new_post_content_service(),
     ))
 }
 
@@ -65,4 +70,8 @@ pub fn new_db_user_signer_service(pool: MySqlPool, config: Config) -> holder!(Si
         new_local_user_finder_service(pool.clone()),
         new_id_getter_service(config),
     ))
+}
+
+pub fn new_post_content_service() -> PostContentService {
+    PostContentService::new()
 }
