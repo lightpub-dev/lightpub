@@ -567,3 +567,12 @@ pub trait SignerService {
         user: &UserSpecifier,
     ) -> Result<holder!(ApubSigner), ServiceError<SignerError>>;
 }
+
+#[async_trait]
+pub trait UserPostService {
+    async fn fetch_user_posts(
+        &mut self,
+        user: &UserSpecifier,
+        viewer: Option<&UserSpecifier>,
+    ) -> Result<Vec<UserPostEntry>, anyhow::Error>;
+}

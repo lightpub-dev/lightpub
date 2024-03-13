@@ -1,5 +1,6 @@
 pub mod follow;
 pub mod post;
+pub mod timeline;
 pub mod user;
 
 use sqlx::MySqlPool;
