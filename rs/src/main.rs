@@ -4,12 +4,15 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use crate::services::{
-    apub::{new_apub_renderer_service, new_apub_reqwester_service, render::ApubNote},
-    db::{new_follow_service, new_post_create_service},
-    FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
-    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
-    PostCreateRequestRepostBuilder,
+use crate::{
+    services::{
+        apub::{new_apub_renderer_service, new_apub_reqwester_service, render::ApubNote},
+        db::{new_follow_service, new_post_create_service},
+        FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
+        PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder,
+        PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder,
+    },
+    utils::post::PostSpecifier,
 };
 use activitystreams::activity::{
     self, kind,
@@ -732,6 +735,91 @@ async fn user_inbox(
                     return Err(e.into());
                 }
             }
+        }
+        Announce(announce) => {
+            let actor_id = announce
+                .announce_props
+                .get_actor_xsd_any_uri()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("create actor_id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+            let repost_id = announce
+                .object_props
+                .get_id()
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    warn!("repost object_id not found");
+                    ErrorResponse::new_status(400, "invalid activity")
+                })?;
+            let object_id = {
+                let props = announce.announce_props;
+                if let Some(obj) = props.get_object_xsd_any_uri() {
+                    obj.to_string()
+                } else if let Some(obj) = props.get_object_base_box() {
+                    if obj.is_kind(activitystreams::object::kind::NoteType) {
+                        let obj = obj.clone().into_concrete::<ApubNote>().unwrap();
+                        obj.as_ref().get_id().unwrap().to_string()
+                    } else {
+                        warn!("object is not Note");
+                        return Err(ErrorResponse::new_status(400, "invalid activity"));
+                    }
+                } else {
+                    return Err(ErrorResponse::new_status(400, "invalid activity"));
+                }
+            };
+
+            let (to, cc) = {
+                let mut to = announce
+                    .object_props
+                    .get_many_to_xsd_any_uris()
+                    .map(|v| v.collect::<Vec<_>>())
+                    .unwrap_or_default();
+                let mut cc = announce
+                    .object_props
+                    .get_many_cc_xsd_any_uris()
+                    .map(|v| v.collect::<Vec<_>>())
+                    .unwrap_or_default();
+                let bto = announce
+                    .object_props
+                    .get_many_bto_xsd_any_uris()
+                    .map(|v| v.collect::<Vec<_>>())
+                    .unwrap_or_default();
+                let bcc = announce
+                    .object_props
+                    .get_many_bcc_xsd_any_uris()
+                    .map(|v| v.collect::<Vec<_>>())
+                    .unwrap_or_default();
+                to.extend(bto);
+                cc.extend(bcc);
+                (to, cc)
+            };
+            let privacy = {
+                if to.contains(&&activitystreams::public()) {
+                    PostPrivacy::Public
+                } else if cc.contains(&&activitystreams::public()) {
+                    PostPrivacy::Unlisted
+                } else {
+                    warn!("rejected: Announce object's privacy must be public or unlisted.");
+                    return Err(ErrorResponse::new_status(400, "invalid activity"));
+                }
+            };
+
+            let repost = PostCreateRequest::Repost(
+                PostCreateRequestRepostBuilder::default()
+                    .poster(UserSpecifier::from_url(actor_id))
+                    .uri(repost_id)
+                    .privacy(privacy)
+                    .repost_of(PostSpecifier::from_uri(object_id))
+                    .build()
+                    .unwrap(),
+            );
+
+            let mut post_service =
+                new_post_create_service(app.pool().clone(), app.config().clone());
+            let result = post_service.create_post(&repost).await?;
+            info!("repost created: {}", result);
         }
     }
 

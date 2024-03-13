@@ -148,7 +148,7 @@ pub trait ApubSigner {
 }
 
 pub mod apub {
-    use activitystreams::activity::{Accept, Create, Follow};
+    use activitystreams::activity::{Accept, Announce, Create, Follow};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -157,5 +157,6 @@ pub mod apub {
         Accept(Accept),
         Follow(Follow),
         Create(Create),
+        Announce(Announce),
     }
 }
