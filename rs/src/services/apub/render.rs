@@ -53,7 +53,7 @@ impl ApubRendererService {
         let mut targets = vec![];
 
         let add_public = |v: &mut Vec<String>| {
-            v.push(PUBLIC);
+            v.push(PUBLIC.to_owned());
         };
         let add_followers = |v: &mut Vec<String>| {
             let followers_uri = self
