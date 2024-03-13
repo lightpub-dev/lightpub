@@ -203,6 +203,15 @@ impl PostCreateRequest {
             PostCreateRequest::Reply(r) => &r.uri,
         }
     }
+
+    pub fn hint(&self) -> &PostHint {
+        match self {
+            PostCreateRequest::Normal(r) => &r.hints,
+            PostCreateRequest::Repost(r) => &r.hints,
+            PostCreateRequest::Quote(r) => &r.hints,
+            PostCreateRequest::Reply(r) => &r.hints,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -319,6 +328,14 @@ impl TryFrom<ApubNote> for PostCreateRequest {
     }
 }
 
+#[derive(Debug, Clone, Builder, Default, Getters)]
+pub struct PostHint {
+    #[builder(default = "vec![]")]
+    hashtags: Vec<String>,
+    #[builder(default = "vec![]")]
+    mentions: Vec<UserSpecifier>,
+}
+
 #[derive(Debug, Clone, Builder)]
 pub struct PostCreateRequestNormal {
     poster: UserSpecifier,
@@ -326,6 +343,8 @@ pub struct PostCreateRequestNormal {
     uri: Option<String>,
     content: String,
     privacy: PostPrivacy,
+    #[builder(default)]
+    hints: PostHint,
 }
 
 #[derive(Debug, Clone, Builder)]
@@ -335,6 +354,8 @@ pub struct PostCreateRequestRepost {
     uri: Option<String>,
     privacy: PostPrivacy,
     repost_of: PostSpecifier,
+    #[builder(default)]
+    hints: PostHint,
 }
 
 #[derive(Debug, Clone, Builder)]
@@ -345,6 +366,8 @@ pub struct PostCreateRequestQuote {
     content: String,
     privacy: PostPrivacy,
     repost_of: PostSpecifier,
+    #[builder(default)]
+    hints: PostHint,
 }
 
 #[derive(Debug, Clone, Builder)]
@@ -355,6 +378,8 @@ pub struct PostCreateRequestReply {
     content: String,
     privacy: PostPrivacy,
     reply_to: PostSpecifier,
+    #[builder(default)]
+    hints: PostHint,
 }
 
 #[derive(Debug, Clone)]

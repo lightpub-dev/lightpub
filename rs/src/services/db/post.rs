@@ -132,14 +132,31 @@ impl PostCreateService for DBPostCreateService {
                 .into(),
         };
 
-        let hashtags = content
-            .as_ref()
-            .map(|c| find_hashtags(c))
-            .unwrap_or_else(|| vec![]);
-        let mentions = content
-            .as_ref()
-            .map(|c| find_mentions(c))
-            .unwrap_or_else(|| vec![]);
+        let hashtags: Vec<_> = {
+            let from_content = content
+                .as_ref()
+                .map(|c| find_hashtags(c))
+                .unwrap_or_else(|| vec![]);
+            let from_hint = req.hint().hashtags();
+
+            let mut set = HashSet::new();
+            for tag in from_content.iter().chain(from_hint.iter()) {
+                set.insert(tag.clone());
+            }
+            set.into_iter().collect()
+        };
+        let mentions: Vec<_> = {
+            let mut from_content = content
+                .as_ref()
+                .map(|c| find_mentions(c))
+                .unwrap_or_else(|| vec![]);
+            let from_hint = req.hint().mentions();
+
+            // mentions may have duplicates
+            // UserSpecifier cannot be used for equality check
+            from_content.extend_from_slice(from_hint);
+            from_content
+        };
 
         let post_id = generate_uuid();
         let post_id_str = post_id.to_string();
@@ -173,14 +190,9 @@ impl PostCreateService for DBPostCreateService {
         }
 
         // FIXME: batch insert
+        let mut added_mentions = HashSet::new();
         for mention in &mentions {
-            let target_user_id = self
-                .finder
-                .find_user_by_specifier(&UserSpecifier::from_username(
-                    mention.username().clone(),
-                    mention.host().clone(),
-                ))
-                .await;
+            let target_user_id = self.finder.find_user_by_specifier(mention).await;
             let target_user_id = match target_user_id {
                 Ok(user) => user.id,
                 Err(_) => {
@@ -188,6 +200,13 @@ impl PostCreateService for DBPostCreateService {
                     continue;
                 }
             };
+
+            // remove duplicates
+            if added_mentions.contains(&target_user_id) {
+                continue;
+            }
+            added_mentions.insert(target_user_id);
+
             sqlx::query!(
                 "INSERT INTO post_mentions (post_id, target_user_id) VALUES (?, ?)",
                 post_id_str,
