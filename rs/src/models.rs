@@ -149,9 +149,58 @@ pub trait ApubSigner {
 
 pub mod apub {
     use derive_builder::Builder;
+    use derive_more::From;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub mod context {
+        use serde::Serialize;
+
+        #[derive(Serialize, Debug, Clone)]
+        pub struct WithContext<T> {
+            #[serde(rename = "@context")]
+            context: Vec<String>,
+            #[serde(flatten)]
+            inner: T,
+        }
+
+        pub fn with_context<T>(inner: T) -> WithContext<T> {
+            let context = vec![
+                "https://www.w3.org/ns/activitystreams".to_string(),
+                "https://w3id.org/security/v1".to_string(),
+            ];
+            WithContext { context, inner }
+        }
+
+        pub trait ContextAttachable {
+            fn with_context(self) -> WithContext<Self>
+            where
+                Self: std::marker::Sized;
+        }
+
+        impl<T: std::fmt::Debug + Clone + Serialize> ContextAttachable for T {
+            fn with_context(self) -> WithContext<Self> {
+                with_context(self)
+            }
+        }
+    }
+
+    pub const PUBLIC: &str = "https://www.w3.org/ns/activitystreams#Public";
+
+    pub trait HasId {
+        fn get_id(&self) -> &str;
+    }
+
+    macro_rules! impl_id {
+        ($t:ty) => {
+            impl HasId for $t {
+                fn get_id(&self) -> &str {
+                    &self.id
+                }
+            }
+        };
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, From)]
     #[serde(tag = "type")]
     pub enum Activity {
         Accept(AcceptActivity),
@@ -160,27 +209,72 @@ pub mod apub {
         Announce(AnnounceActivity),
     }
 
-    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
-    #[serde(rename_all = "camelCase")]
-    pub struct AcceptActivity {
-        id: String,
-        actor: String,
-        object: IdOrObject<FollowActivity>,
+    impl HasId for Activity {
+        fn get_id(&self) -> &str {
+            match self {
+                Activity::Accept(a) => a.get_id(),
+                Activity::Follow(a) => a.get_id(),
+                Activity::Create(a) => a.get_id(),
+                Activity::Announce(a) => a.get_id(),
+            }
+        }
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
-    pub struct FollowActivity {
-        id: String,
-        actor: String,
-        object: IdOrObject<Person>,
+    pub struct AcceptActivity {
+        pub id: String,
+        pub actor: String,
+        pub object: IdOrObject<FollowActivity>,
     }
+    impl_id!(AcceptActivity);
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct FollowActivity {
+        pub id: String,
+        pub actor: String,
+        pub object: IdOrObject<Actor>,
+    }
+    impl_id!(FollowActivity);
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(untagged)]
     pub enum IdOrObject<T> {
         Id(String),
         Object(T),
+    }
+
+    impl<T> HasId for IdOrObject<T>
+    where
+        T: HasId,
+    {
+        fn get_id(&self) -> &str {
+            match self {
+                IdOrObject::Id(id) => id,
+                IdOrObject::Object(obj) => obj.get_id(),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum Actor {
+        Person(Person),
+    }
+
+    impl HasId for Actor {
+        fn get_id(&self) -> &str {
+            match self {
+                Actor::Person(p) => p.get_id(),
+            }
+        }
+    }
+
+    impl From<Person> for Actor {
+        fn from(person: Person) -> Self {
+            Actor::Person(person)
+        }
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
@@ -197,11 +291,20 @@ pub mod apub {
         pub preferred_username: String,
         pub public_key: PublicKeyEnum,
     }
+    impl_id!(Person);
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(tag = "type")]
     pub enum PublicKeyEnum {
         Key(PublicKey),
+    }
+
+    impl HasId for PublicKeyEnum {
+        fn get_id(&self) -> &str {
+            match self {
+                PublicKeyEnum::Key(k) => k.get_id(),
+            }
+        }
     }
 
     impl From<PublicKey> for PublicKeyEnum {
@@ -217,11 +320,20 @@ pub mod apub {
         pub owner: String,
         pub public_key_pem: String,
     }
+    impl_id!(PublicKey);
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(tag = "type")]
     pub enum CreatableObject {
         Note(Note),
+    }
+
+    impl HasId for CreatableObject {
+        fn get_id(&self) -> &str {
+            match self {
+                CreatableObject::Note(n) => n.get_id(),
+            }
+        }
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
@@ -232,9 +344,36 @@ pub mod apub {
         pub content: String,
         pub to: Vec<String>,
         pub cc: Vec<String>,
+        #[builder(default)]
         pub bto: Option<Vec<String>>,
+        #[builder(default)]
         pub bcc: Option<Vec<String>>,
-        pub published_at: chrono::DateTime<chrono::Utc>,
+        pub published: chrono::DateTime<chrono::Utc>,
+        #[builder(default)]
+        pub in_reply_to: Option<Box<IdOrObject<CreatableObject>>>,
+        #[builder(default)]
+        pub tags: Option<Vec<TagEnum>>,
+    }
+    impl_id!(Note);
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum TagEnum {
+        Mention(Mention),
+        Hashtag(Hashtag),
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Mention {
+        pub href: String,
+        pub name: String,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Hashtag {
+        pub name: String,
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
@@ -248,6 +387,7 @@ pub mod apub {
         pub bto: Option<Vec<String>>,
         pub bcc: Option<Vec<String>>,
     }
+    impl_id!(CreateActivity);
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
@@ -255,5 +395,11 @@ pub mod apub {
         pub id: String,
         pub actor: String,
         pub object: IdOrObject<CreatableObject>,
+        pub published: chrono::DateTime<chrono::Utc>,
+        pub to: Vec<String>,
+        pub cc: Vec<String>,
+        pub bto: Option<Vec<String>>,
+        pub bcc: Option<Vec<String>>,
     }
+    impl_id!(AnnounceActivity);
 }

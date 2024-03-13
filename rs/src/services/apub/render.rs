@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::models::apub::{
     CreatableObject, CreateActivity, CreateActivityBuilder, IdOrObject, Note, NoteBuilder, Person,
-    PersonBuilder, PublicKeyBuilder,
+    PersonBuilder, PublicKeyBuilder, PUBLIC,
 };
 use crate::models::{ApubRenderablePost, ApubRenderableUser, HasRemoteUri, PostPrivacy};
 use crate::services::id::IDGetterService;
@@ -53,7 +53,7 @@ impl ApubRendererService {
         let mut targets = vec![];
 
         let add_public = |v: &mut Vec<String>| {
-            v.push(activitystreams::public().to_string());
+            v.push(PUBLIC);
         };
         let add_followers = |v: &mut Vec<String>| {
             let followers_uri = self
@@ -140,7 +140,7 @@ impl ApubRendererService {
             .content(post.content().unwrap())
             .to(to)
             .cc(cc)
-            .published_at(post.created_at_fixed_offset().to_utc())
+            .published(post.created_at_fixed_offset().to_utc())
             .build()
             .unwrap();
 

@@ -1,27 +1,19 @@
+use crate::models::apub::{AcceptActivity, Activity, FollowActivity, HasId};
 use async_trait::async_trait;
 use derive_builder::Builder;
+use derive_getters::Getters;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
 use uuid::{fmt::Simple, Uuid};
 
-use derive_getters::Getters;
-
 use crate::{
-    models::{self, ApubSigner, ApubWebfingerResponse, PostPrivacy},
-    utils::{
-        apub_hashtag::{HashtagKind, HashtagObject},
-        post::PostSpecifier,
-        user::UserSpecifier,
+    models::{
+        self,
+        apub::{Actor, CreatableObject, Note, TagEnum, PUBLIC},
+        ApubSigner, ApubWebfingerResponse, PostPrivacy,
     },
+    utils::{post::PostSpecifier, user::UserSpecifier},
 };
-
-use activitystreams::{
-    activity::{Accept, Follow},
-    link::Mention,
-};
-
-use self::apub::render::{ApubNote, ApubNoteCreate, ApubPerson};
 
 pub mod apub;
 pub mod db;
@@ -239,68 +231,35 @@ pub enum ApubNoteError {
     PublishedAtNotFound,
 }
 
-impl TryFrom<ApubNote> for PostCreateRequest {
+impl TryFrom<Note> for PostCreateRequest {
     type Error = ApubNoteError;
 
-    fn try_from(value: ApubNote) -> Result<Self, Self::Error> {
-        let id = value
-            .as_ref()
-            .get_id()
-            .map(|s| s.to_string())
-            .ok_or_else(|| ApubNoteError::IDNotFound)?;
+    fn try_from(value: Note) -> Result<Self, Self::Error> {
+        let id = value.id;
 
-        let attributed_to = value
-            .as_ref()
-            .get_attributed_to_xsd_any_uri()
-            .map(|s| UserSpecifier::from_url(s.to_string()))
-            .ok_or_else(|| ApubNoteError::AttributedToNotFound)?;
+        let attributed_to = UserSpecifier::from_url(value.attributed_to);
 
-        let content = value
-            .as_ref()
-            .get_content_xsd_string()
-            .map(|s| s.to_string())
-            .ok_or_else(|| ApubNoteError::ContentNotFound)?;
+        let content = value.content;
 
         let reply_to_id = value
-            .as_ref()
-            .get_in_reply_to_xsd_any_uri()
-            .map(|s| PostSpecifier::from_uri(s.to_string()));
+            .in_reply_to
+            .map(|r| PostSpecifier::from_uri(r.get_id()));
 
-        let published_at = value
-            .as_ref()
-            .get_published()
-            .map(|s| s.as_datetime().to_utc())
-            .ok_or(ApubNoteError::PublishedAtNotFound)?;
+        let published_at = value.published;
 
-        let tags: Vec<_> = value
-            .as_ref()
-            .get_many_tag_base_boxes()
-            .map(|v| v.collect())
-            .unwrap_or_default();
+        let tags = value.tags.unwrap_or_default();
         let (hashtags, mentions) = {
             let mut mentions = vec![];
             let mut hashtags: Vec<String> = vec![];
 
             for tag in tags {
-                if tag.is_kind(activitystreams::link::kind::MentionType) {
-                    let mention = tag.clone().into_concrete::<Mention>().unwrap();
-                    let href = mention.as_ref().get_href();
-                    if let Some(href) = href {
-                        mentions.push(UserSpecifier::from_url(href.to_string()));
-                    } else {
-                        warn!("Mention without href: {:?}", mention);
+                match tag {
+                    TagEnum::Mention(m) => {
+                        mentions.push(UserSpecifier::from_url(m.href));
                     }
-                } else if tag.is_kind(HashtagKind) {
-                    let hashtag = tag.clone().into_concrete::<HashtagObject>().unwrap();
-                    let name = hashtag.as_ref().get_name();
-                    let value = if name.starts_with("#") {
-                        name[1..].to_string()
-                    } else {
-                        name.to_string()
-                    };
-                    hashtags.push(value);
-                } else {
-                    debug!("Unknown tag kind: {:?}", tag);
+                    TagEnum::Hashtag(ht) => {
+                        hashtags.push(ht.name);
+                    }
                 }
             }
 
@@ -308,26 +267,10 @@ impl TryFrom<ApubNote> for PostCreateRequest {
         };
 
         let privacy = {
-            let to = value
-                .as_ref()
-                .get_many_to_xsd_any_uris()
-                .map(|v| v.collect())
-                .unwrap_or_else(|| vec![]);
-            let cc = value
-                .as_ref()
-                .get_many_cc_xsd_any_uris()
-                .map(|v| v.collect())
-                .unwrap_or_else(|| vec![]);
-            let bto = value
-                .as_ref()
-                .get_many_bto_xsd_any_uris()
-                .map(|v| v.collect())
-                .unwrap_or_else(|| vec![]);
-            let bcc = value
-                .as_ref()
-                .get_many_bcc_xsd_any_uris()
-                .map(|v| v.collect())
-                .unwrap_or_else(|| vec![]);
+            let to = value.to;
+            let cc = value.cc;
+            let bto = value.bto.unwrap_or_default();
+            let bcc = value.bcc.unwrap_or_default();
 
             // combine to and bto, cc and bcc
             let to = to.into_iter().chain(bto.into_iter()).collect::<Vec<_>>();
@@ -348,9 +291,11 @@ impl TryFrom<ApubNote> for PostCreateRequest {
             // cc contains #public => unlisted
             // to contains /followers => followers
             // otherwise => private
-            if to.contains(&&activitystreams::public()) {
+            if to.contains(&PUBLIC.to_string()) {
+                // FIXME
                 PostPrivacy::Public
-            } else if cc.contains(&&activitystreams::public()) {
+            } else if cc.contains(&PUBLIC.to_string()) {
+                // FIXME
                 PostPrivacy::Unlisted
             } else {
                 let to_contains_followers = to.iter().any(|s| s.as_str().ends_with("/followers"));
@@ -557,37 +502,16 @@ pub enum WebfingerError {
     NotFound,
 }
 
-#[derive(Debug, Clone, From)]
-pub enum SendActivity {
-    Follow(activitystreams::activity::Follow),
-    Accept(activitystreams::activity::Accept),
-    Create(ApubNoteCreate),
-}
-
-impl SendActivity {
-    pub fn to_json(&self) -> String {
-        use SendActivity::*;
-        match self {
-            Follow(f) => serde_json::to_string(f).unwrap(),
-            Accept(a) => serde_json::to_string(a).unwrap(),
-            Create(c) => serde_json::to_string(c).unwrap(),
-        }
-    }
-}
-
 #[async_trait]
 pub trait ApubRequestService {
     async fn post_to_inbox(
         &mut self,
         url: &str,
-        activity: &SendActivity,
+        activity: &Activity,
         actor: holder!(ApubSigner),
     ) -> Result<(), ServiceError<PostToInboxError>>;
 
-    async fn fetch_user(
-        &mut self,
-        url: &str,
-    ) -> Result<ApubPerson, ServiceError<ApubFetchUserError>>;
+    async fn fetch_user(&mut self, url: &str) -> Result<Actor, ServiceError<ApubFetchUserError>>;
 
     async fn fetch_webfinger(
         &mut self,
@@ -595,8 +519,10 @@ pub trait ApubRequestService {
         host: &str,
     ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>>;
 
-    async fn fetch_post(&mut self, url: &str)
-        -> Result<ApubNote, ServiceError<ApubFetchPostError>>;
+    async fn fetch_post(
+        &mut self,
+        url: &str,
+    ) -> Result<CreatableObject, ServiceError<ApubFetchPostError>>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -617,10 +543,15 @@ pub enum ApubFollowError {
 
 #[async_trait]
 pub trait ApubFollowService {
-    async fn create_follow_request(&mut self, follow_req_id: Uuid)
-        -> Result<Follow, anyhow::Error>;
+    async fn create_follow_request(
+        &mut self,
+        follow_req_id: Uuid,
+    ) -> Result<FollowActivity, anyhow::Error>;
 
-    async fn create_follow_accept(&mut self, follow_req_id: Uuid) -> Result<Accept, anyhow::Error>;
+    async fn create_follow_accept(
+        &mut self,
+        follow_req_id: Uuid,
+    ) -> Result<AcceptActivity, anyhow::Error>;
 }
 
 #[derive(Debug, Clone)]

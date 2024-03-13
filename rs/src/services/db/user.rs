@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::holder;
 use crate::models;
+use crate::models::apub::Actor;
 use crate::models::ApubSigner;
 use crate::services::id::IDGetterService;
 use crate::services::id::UserAttribute;
@@ -272,22 +273,17 @@ async fn find_user_by_url(
     let host = parsed_url.host_str().unwrap().to_string();
 
     let actor = req.fetch_user(parsed_url.as_str()).await.unwrap();
+    let Actor::Person(actor) = actor;
 
-    let username = actor.base.extension.get_preferred_username().unwrap();
-    let nickname = actor.as_ref().get_name_xsd_string().unwrap_or(&username);
-    let uri = actor.as_ref().get_id().expect("id not set").to_string();
-    let shared_inbox = actor
-        .base
-        .extension
-        .get_endpoints()
-        .map(|e| e.get_shared_inbox())
-        .flatten()
-        .map(|s| s.to_string());
-    let inbox = actor.base.extension.get_inbox().to_string();
-    let outbox = actor.base.extension.get_outbox().to_string();
-    let following = actor.base.extension.get_following().map(|s| s.to_string());
-    let followers = actor.base.extension.get_followers().map(|s| s.to_string());
-    let liked = actor.base.extension.get_liked().map(|s| s.to_string());
+    let username = actor.preferred_username;
+    let nickname = actor.name;
+    let uri = actor.id;
+    let shared_inbox = actor.shared_inbox;
+    let inbox = actor.inbox;
+    let outbox = actor.outbox;
+    let following = actor.following;
+    let followers = actor.followers;
+    let liked = actor.liked;
     let created_at = chrono::Utc::now().naive_utc();
 
     let user_id = u.map(|u| u.id).unwrap_or_else(|| generate_uuid());

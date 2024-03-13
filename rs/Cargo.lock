@@ -3,32 +3,6 @@
 version = 3
 
 [[package]]
-name = "activitystreams"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "464cb473bfb402b857cc15b1153974c203a43f1485da4dda15cd17a738548958"
-dependencies = [
- "activitystreams-derive",
- "chrono",
- "mime",
- "serde",
- "serde_json",
- "thiserror",
- "url 2.5.0",
-]
-
-[[package]]
-name = "activitystreams-derive"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c39ba5929399e9f921055bac76dd8f47419fa5b6b6da1ac4c1e82b94ed0ac7b4"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1949,7 +1923,6 @@ dependencies = [
 name = "lightpub"
 version = "0.1.0"
 dependencies = [
- "activitystreams",
  "actix-web",
  "actix-web-httpauth",
  "anyhow",
