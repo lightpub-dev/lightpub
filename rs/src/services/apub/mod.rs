@@ -32,6 +32,7 @@ use super::{
 };
 
 pub mod inbox;
+pub mod post;
 pub mod queue;
 pub mod render;
 #[derive(Debug, Clone)]

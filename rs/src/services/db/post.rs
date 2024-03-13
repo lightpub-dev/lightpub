@@ -11,7 +11,10 @@ use crate::{
     holder,
     models::{ApubRenderablePost, HasRemoteUri, PostPrivacy},
     services::{
-        apub::render::{ApubRendererService, TargetedUser},
+        apub::{
+            post::PostContentService,
+            render::{ApubRendererService, TargetedUser},
+        },
         id::IDGetterService,
         AllUserFinderService, ApubRequestService, PostCreateError, PostCreateRequest,
         PostCreateService, ServiceError, SignerService,
@@ -31,6 +34,7 @@ pub struct DBPostCreateService {
     req: holder!(ApubRequestService),
     signer: holder!(SignerService),
     id_getter: IDGetterService,
+    post_content: PostContentService,
 }
 
 impl DBPostCreateService {
@@ -109,6 +113,8 @@ impl PostCreateService for DBPostCreateService {
                 }
                 ServiceError::MiscError(e) => e.into(),
             })?;
+
+        let content = content.map(|s| self.post_content.html_to_internal(&s));
 
         let repost_of_id = match repost_of_spec {
             None => None,
