@@ -128,7 +128,7 @@ impl PostPrivacy {
         match self {
             Public => "public",
             Unlisted => "unlisted",
-            Followers => "followers",
+            Followers => "follower",
             Private => "private",
         }
         .to_string()

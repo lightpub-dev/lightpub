@@ -678,18 +678,20 @@ async fn user_inbox(
                     warn!("create actor_id not found");
                     ErrorResponse::new_status(400, "invalid activity")
                 })?;
-            // get object id
-            // but do not trust the body of the object for security reasons
-            let object_id = {
+            // get object
+            let object = {
                 let props = create.create_props;
                 if let Some(obj) = props.get_object_base_box() {
                     let note_obj = obj.clone().into_concrete::<ApubNote>().map_err(|e| {
                         warn!("failed to interpret create object as Note: {:?}", e);
                         ErrorResponse::new_status(400, "invalid activity")
                     })?;
-                    note_obj.as_ref().get_id().map(|s| s.to_string())
+                    Some(note_obj)
                 } else if let Some(obj) = props.get_object_xsd_any_uri() {
-                    Some(obj.to_string())
+                    // request object using id
+                    let mut reqester_service = new_apub_reqwester_service();
+                    let object_note = reqester_service.fetch_post(obj.as_str()).await?;
+                    Some(object_note)
                 } else {
                     None
                 }
@@ -699,17 +701,14 @@ async fn user_inbox(
                 ErrorResponse::new_status(400, "invalid activity")
             })?;
 
-            // request object using id
-            let mut reqester_service = new_apub_reqwester_service();
-            let object_note = reqester_service.fetch_post(&object_id).await?;
-
-            let object_attributed_to = object_note
-                .as_ref()
-                .get_attributed_to_xsd_any_uri()
-                .ok_or_else(|| {
-                    warn!("object attributed_to not found or invalid");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
+            let object_attributed_to =
+                object
+                    .as_ref()
+                    .get_attributed_to_xsd_any_uri()
+                    .ok_or_else(|| {
+                        warn!("object attributed_to not found or invalid");
+                        ErrorResponse::new_status(400, "invalid activity")
+                    })?;
             if object_attributed_to.to_string() != actor_id {
                 return Err(ErrorResponse::new_status(
                     400,
@@ -717,7 +716,7 @@ async fn user_inbox(
                 ));
             }
 
-            let post_request = &object_note.try_into().unwrap();
+            let post_request = &object.try_into().unwrap();
 
             let mut post_service =
                 new_post_create_service(app.pool().clone(), app.config().clone());
