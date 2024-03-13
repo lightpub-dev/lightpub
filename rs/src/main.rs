@@ -4,19 +4,17 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
+use crate::models::apub::context::ContextAttachable;
+use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
 use crate::{
     services::{
-        apub::{new_apub_renderer_service, new_apub_reqwester_service, render::ApubNote},
+        apub::{new_apub_renderer_service, new_apub_reqwester_service},
         db::{new_follow_service, new_post_create_service},
         FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
         PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder,
         PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder,
     },
     utils::post::PostSpecifier,
-};
-use activitystreams::activity::{
-    self, kind,
-    properties::{ActorAndObjectPropertiesObjectEnum, ActorAndObjectPropertiesObjectTermEnum},
 };
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
@@ -577,62 +575,28 @@ async fn user_inbox(
     use models::apub::Activity::*;
     match activity {
         Accept(a) => {
-            let actor_id = a
-                .accept_props
-                .get_actor_xsd_any_uri()
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    warn!("Accept object id not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
-            let (object_actor_id, object_object_id) =
-                if let ActorAndObjectPropertiesObjectEnum::Term(object) = a.accept_props.object {
-                    if let ActorAndObjectPropertiesObjectTermEnum::BaseBox(base) = object {
-                        if !base.is_kind(kind::FollowType) {
-                            return Err(ErrorResponse::new_status(400, "invalid activity"));
-                        }
-                        let base: activity::Follow = base.into_concrete().unwrap();
-                        let object_id = base
-                            .follow_props
-                            .get_object_xsd_any_uri()
-                            .map(|s| s.to_string())
-                            .ok_or_else(|| {
-                                warn!("Accept object id not found");
-                                ErrorResponse::new_status(400, "invalid activity")
-                            })?;
-                        let actor_id = base
-                            .follow_props
-                            .get_actor_xsd_any_uri()
-                            .map(|s| s.to_string())
-                            .ok_or_else(|| {
-                                warn!("Accept object id not found");
-                                ErrorResponse::new_status(400, "invalid activity")
-                            })?;
-                        (actor_id, object_id)
-                    } else {
+            let actor_id = a.actor;
+            let req_spec = match a.object {
+                models::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
+                models::apub::IdOrObject::Object(obj) => {
+                    let object_actor_id = obj.actor;
+                    let object_object_id = obj.object.get_id();
+                    if actor_id != object_object_id {
                         return Err(ErrorResponse::new_status(
                             400,
-                            "follow object only contains id, which is not supported",
+                            "actor and object id mismatch",
                         ));
                     }
-                } else {
-                    return Err(ErrorResponse::new_status(
-                        400,
-                        "cannot handle multiple objects",
-                    ));
-                };
-            if actor_id != object_object_id {
-                return Err(ErrorResponse::new_status(400, "invalid activity"));
-            }
-            // TODO: check if the actor is the followee of the object
+                    FollowRequestSpecifier::ActorPair(
+                        UserSpecifier::URL(object_actor_id),
+                        UserSpecifier::URL(object_object_id.to_string()),
+                    )
+                }
+            };
 
             let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
-            let actor_pair = FollowRequestSpecifier::ActorPair(
-                UserSpecifier::URL(object_actor_id),
-                UserSpecifier::URL(object_object_id),
-            );
-            info!("accepting follow request of {:#?}", actor_pair);
-            let result = follow_service.follow_request_accepted(&actor_pair).await?;
+            info!("accepting follow request of {:#?}", req_spec);
+            let result = follow_service.follow_request_accepted(&req_spec).await?;
             info!(
                 "follow request accepted: FollowRequestID: {} -> {}",
                 result.follower_id.simple(),
@@ -640,27 +604,9 @@ async fn user_inbox(
             );
         }
         Follow(follow) => {
-            let follow_id = follow
-                .object_props
-                .get_id()
-                .map(|s| s.to_string())
-                .ok_or(ErrorResponse::new_status(400, "follow has no id"))?;
-            let actor_id = follow
-                .follow_props
-                .get_actor_xsd_any_uri()
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    warn!("Follow actor id not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
-            let object_id = follow
-                .follow_props
-                .get_object_xsd_any_uri()
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    warn!("Follow object id not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
+            let follow_id = follow.id;
+            let actor_id = follow.actor;
+            let object_id = follow.object.get_id().to_string();
 
             debug!("accepting follow request of {} -> {}", actor_id, object_id);
             let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
@@ -673,30 +619,18 @@ async fn user_inbox(
                 .await?;
         }
         Create(create) => {
-            let actor_id = create
-                .create_props
-                .get_actor_xsd_any_uri()
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    warn!("create actor_id not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
+            let actor_id = create.actor;
             // get object
             let object = {
-                let props = create.create_props;
-                if let Some(obj) = props.get_object_base_box() {
-                    let note_obj = obj.clone().into_concrete::<ApubNote>().map_err(|e| {
-                        warn!("failed to interpret create object as Note: {:?}", e);
-                        ErrorResponse::new_status(400, "invalid activity")
-                    })?;
-                    Some(note_obj)
-                } else if let Some(obj) = props.get_object_xsd_any_uri() {
-                    // request object using id
-                    let mut reqester_service = new_apub_reqwester_service();
-                    let object_note = reqester_service.fetch_post(obj.as_str()).await?;
-                    Some(object_note)
-                } else {
-                    None
+                match create.object {
+                    IdOrObject::Id(id) => {
+                        // request object using id
+                        let mut reqester_service = new_apub_reqwester_service();
+                        let CreatableObject::Note(object_note) =
+                            reqester_service.fetch_post(&id).await?;
+                        Some(object_note)
+                    }
+                    IdOrObject::Object(CreatableObject::Note(note)) => Some(note),
                 }
             }
             .ok_or_else(|| {
@@ -704,15 +638,8 @@ async fn user_inbox(
                 ErrorResponse::new_status(400, "invalid activity")
             })?;
 
-            let object_attributed_to =
-                object
-                    .as_ref()
-                    .get_attributed_to_xsd_any_uri()
-                    .ok_or_else(|| {
-                        warn!("object attributed_to not found or invalid");
-                        ErrorResponse::new_status(400, "invalid activity")
-                    })?;
-            if object_attributed_to.to_string() != actor_id {
+            let object_attributed_to = &object.attributed_to;
+            if object_attributed_to != actor_id.as_str() {
                 return Err(ErrorResponse::new_status(
                     400,
                     "object's attribute_to does not match actor",
@@ -737,76 +664,24 @@ async fn user_inbox(
             }
         }
         Announce(announce) => {
-            let actor_id = announce
-                .announce_props
-                .get_actor_xsd_any_uri()
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    warn!("create actor_id not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
-            let repost_id = announce
-                .object_props
-                .get_id()
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    warn!("repost object_id not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
-            let object_id = {
-                let props = announce.announce_props;
-                if let Some(obj) = props.get_object_xsd_any_uri() {
-                    obj.to_string()
-                } else if let Some(obj) = props.get_object_base_box() {
-                    if obj.is_kind(activitystreams::object::kind::NoteType) {
-                        let obj = obj.clone().into_concrete::<ApubNote>().unwrap();
-                        obj.as_ref().get_id().unwrap().to_string()
-                    } else {
-                        warn!("object is not Note");
-                        return Err(ErrorResponse::new_status(400, "invalid activity"));
-                    }
-                } else {
-                    return Err(ErrorResponse::new_status(400, "invalid activity"));
-                }
-            };
-            let published_at = announce
-                .object_props
-                .get_published()
-                .map(|s| s.as_datetime().to_utc())
-                .ok_or_else(|| {
-                    warn!("repost published_at not found");
-                    ErrorResponse::new_status(400, "invalid activity")
-                })?;
+            let actor_id = announce.actor;
+            let repost_id = announce.id;
+            let object_id = announce.object.get_id();
+            let published_at = announce.published.to_utc();
 
             let (to, cc) = {
-                let mut to = announce
-                    .object_props
-                    .get_many_to_xsd_any_uris()
-                    .map(|v| v.collect::<Vec<_>>())
-                    .unwrap_or_default();
-                let mut cc = announce
-                    .object_props
-                    .get_many_cc_xsd_any_uris()
-                    .map(|v| v.collect::<Vec<_>>())
-                    .unwrap_or_default();
-                let bto = announce
-                    .object_props
-                    .get_many_bto_xsd_any_uris()
-                    .map(|v| v.collect::<Vec<_>>())
-                    .unwrap_or_default();
-                let bcc = announce
-                    .object_props
-                    .get_many_bcc_xsd_any_uris()
-                    .map(|v| v.collect::<Vec<_>>())
-                    .unwrap_or_default();
+                let mut to = announce.to;
+                let mut cc = announce.cc;
+                let bto = announce.bto.unwrap_or_default();
+                let bcc = announce.bcc.unwrap_or_default();
                 to.extend(bto);
                 cc.extend(bcc);
                 (to, cc)
             };
             let privacy = {
-                if to.contains(&&activitystreams::public()) {
+                if to.contains(&PUBLIC.to_string()) {
                     PostPrivacy::Public
-                } else if cc.contains(&&activitystreams::public()) {
+                } else if cc.contains(&PUBLIC.to_string()) {
                     PostPrivacy::Unlisted
                 } else {
                     warn!("rejected: Announce object's privacy must be public or unlisted.");
@@ -853,17 +728,12 @@ async fn user_get(
             _ => e.into(),
         })?;
 
-    let mut user = renderer_service.render_user(&user).map_err(|e| {
+    let user = renderer_service.render_user(&user).map_err(|e| {
         error!("Failed to render user: {:?}", e);
         ErrorResponse::new_status(500, "internal server error")
     })?;
-    user.as_mut()
-        .set_many_context_xsd_any_uris(vec![
-            "https://www.w3.org/ns/activitystreams".to_string(),
-            "https://w3id.org/security/v1".to_string(),
-        ])
-        .unwrap();
-    let user_json = serde_json::to_string(&user).unwrap();
+    let actor = Actor::Person(user).with_context();
+    let user_json = serde_json::to_string(&actor).unwrap();
     debug!("user_json: {}", user_json);
 
     Ok(HttpResponse::Ok()

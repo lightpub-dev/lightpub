@@ -1,7 +1,3 @@
-use activitystreams::{
-    activity::{properties::ActorAndObjectProperties, Accept, Follow},
-    object::properties::ObjectProperties,
-};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use derive_builder::Builder;
@@ -14,21 +10,28 @@ use serde::Deserialize;
 use sqlx::MySqlPool;
 use tracing::{info, warn};
 
+use crate::models::apub::context::ContextAttachable;
 use uuid::fmt::Simple;
 
 use crate::{
     config::Config,
     holder,
-    models::{ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri},
+    models::{
+        apub::{
+            AcceptActivity, AcceptActivityBuilder, Activity, Actor, CreatableObject,
+            FollowActivity, FollowActivityBuilder, IdOrObject,
+        },
+        ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri,
+    },
     services::{ServiceError, WebfingerError},
     utils::key::{attach_signature, SignKeyBuilder},
 };
 
-use self::render::{ApubNote, ApubPerson, ApubRendererService};
+use self::render::ApubRendererService;
 
 use super::{
     id::IDGetterService, ApubFetchPostError, ApubFollowService, ApubRequestService, Holder,
-    MiscError, SendActivity,
+    MiscError,
 };
 
 pub mod inbox;
@@ -119,10 +122,10 @@ impl ApubRequestService for ApubReqwest {
     async fn post_to_inbox(
         &mut self,
         url: &str,
-        activity: &SendActivity,
+        activity: &Activity,
         actor: holder!(ApubSigner),
     ) -> Result<(), super::ServiceError<super::PostToInboxError>> {
-        let body = activity.to_json();
+        let body = serde_json::to_string(&activity.with_context()).unwrap();
         info!("body: {:?}", &body);
 
         let client = self.client();
@@ -167,7 +170,7 @@ impl ApubRequestService for ApubReqwest {
     async fn fetch_user(
         &mut self,
         url: &str,
-    ) -> Result<ApubPerson, super::ServiceError<super::ApubFetchUserError>> {
+    ) -> Result<Actor, super::ServiceError<super::ApubFetchUserError>> {
         // TODO: sign req with maintenance user
         let req = RequestBuilder::from_parts(
             self.client(),
@@ -180,7 +183,7 @@ impl ApubRequestService for ApubReqwest {
         let res = self.client().execute(req).await.map_err(map_error)?;
         // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
         // debug!("body: {:#?}", body);
-        let person = res.json::<ApubPerson>().await.map_err(map_error)?;
+        let person = res.json::<Actor>().await.map_err(map_error)?;
 
         Ok(person)
     }
@@ -188,7 +191,7 @@ impl ApubRequestService for ApubReqwest {
     async fn fetch_post(
         &mut self,
         url: &str,
-    ) -> Result<ApubNote, ServiceError<ApubFetchPostError>> {
+    ) -> Result<CreatableObject, ServiceError<ApubFetchPostError>> {
         // TODO: sign req with maintenance user
         let req = RequestBuilder::from_parts(
             self.client(),
@@ -201,7 +204,7 @@ impl ApubRequestService for ApubReqwest {
         let res = self.client().execute(req).await.map_err(map_error)?;
         // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
         // debug!("body: {:#?}", body);
-        let note = res.json::<ApubNote>().await.map_err(map_error)?;
+        let note = res.json::<CreatableObject>().await.map_err(map_error)?;
 
         Ok(note)
     }
@@ -334,7 +337,7 @@ impl ApubFollowService for DBApubFollowService {
     async fn create_follow_accept(
         &mut self,
         follow_req_id: uuid::Uuid,
-    ) -> Result<Accept, anyhow::Error> {
+    ) -> Result<AcceptActivity, anyhow::Error> {
         let uf = sqlx::query_as!(UserFollowInfoWithUri, r#"
         SELECT r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri, r.uri AS `req_uri!`
         FROM user_follow_requests AS r
@@ -356,8 +359,6 @@ impl ApubFollowService for DBApubFollowService {
             uri: uf.followee_uri.clone(),
         });
 
-        let mut accept = Accept::new();
-        let mut follow = Follow::new();
         /*
         Accept {
             actor: followee_id
@@ -368,20 +369,25 @@ impl ApubFollowService for DBApubFollowService {
             }
         }
         */
-        accept
-            .accept_props
-            .set_actor_xsd_any_uri(followee_id.clone())?;
-        follow.object_props.set_id(uf.req_uri)?;
-        follow.follow_props.set_actor_xsd_any_uri(follower_id)?;
-        follow.follow_props.set_object_xsd_any_uri(followee_id)?;
-        accept.accept_props.set_object_base_box(follow)?;
+        let accept = AcceptActivityBuilder::default()
+            .actor(followee_id.clone())
+            .object(IdOrObject::Object(
+                FollowActivityBuilder::default()
+                    .id(uf.req_uri)
+                    .actor(follower_id)
+                    .object(IdOrObject::Id(followee_id))
+                    .build()
+                    .unwrap(),
+            ))
+            .build()
+            .unwrap();
         Ok(accept)
     }
 
     async fn create_follow_request(
         &mut self,
         follow_req_id: uuid::Uuid,
-    ) -> Result<Follow, anyhow::Error> {
+    ) -> Result<FollowActivity, anyhow::Error> {
         let uf = sqlx::query_as!(UserFollowInfo, r#"
         SELECT r.id AS `req_id: Simple`, r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri
         FROM user_follow_requests AS r
@@ -404,11 +410,12 @@ impl ApubFollowService for DBApubFollowService {
             uri: uf.followee_uri.clone(),
         });
 
-        let mut follow = Follow::new();
-        <Follow as AsMut<ObjectProperties>>::as_mut(&mut follow).set_id(uf_id)?;
-        <Follow as AsMut<ActorAndObjectProperties>>::as_mut(&mut follow)
-            .set_actor_xsd_any_uri(follower_id)?
-            .set_object_xsd_any_uri(followee_id)?;
+        let follow = FollowActivityBuilder::default()
+            .id(uf_id)
+            .actor(follower_id)
+            .object(IdOrObject::Id(followee_id))
+            .build()
+            .unwrap();
         Ok(follow)
     }
 }
