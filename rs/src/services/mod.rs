@@ -1,4 +1,7 @@
-use crate::models::apub::{AcceptActivity, Activity, FollowActivity, HasId};
+use crate::models::{
+    api_response::UserPostEntry,
+    apub::{AcceptActivity, Activity, FollowActivity, HasId},
+};
 use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_getters::Getters;

@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_getters::Getters;
 use rsa::RsaPrivateKey;
 use serde::Deserialize;
-use uuid::fmt::Simple;
+use uuid::{fmt::Simple, Uuid};
 
 #[derive(Debug)]
 pub struct User {
@@ -145,6 +145,52 @@ pub trait ApubSigner {
     fn get_user_id(&self) -> String;
     fn get_private_key(&self) -> RsaPrivateKey;
     fn get_private_key_id(&self) -> String;
+}
+
+pub mod api_response {
+    use derive_builder::Builder;
+    use derive_getters::Getters;
+    use uuid::fmt::Simple;
+
+    use super::PostPrivacy;
+
+    #[derive(Debug, Clone, Builder, Getters)]
+    pub struct UserPostEntry {
+        id: Simple,
+        uri: String,
+        author: PostAuthor,
+        content: Option<String>,
+        privacy: PostPrivacy,
+        repost_of_id: Option<Simple>,
+        reply_to_id: Option<Simple>,
+        created_at: chrono::DateTime<chrono::Utc>,
+        counts: PostCounts,
+        reposted_by_you: bool,
+        favorited_by_you: bool,
+    }
+
+    #[derive(Debug, Clone, Builder, Getters)]
+    pub struct PostCounts {
+        reactions: Vec<PostReaction>,
+        replies: i64,
+        reposts: i64,
+        quotes: i64,
+    }
+
+    #[derive(Debug, Clone, Builder, Getters)]
+    pub struct PostReaction {
+        name: String,
+        count: i64,
+    }
+
+    #[derive(Debug, Clone, Builder, Getters)]
+    pub struct PostAuthor {
+        id: Simple,
+        uri: String,
+        username: String,
+        host: Option<String>,
+        nickname: String,
+    }
 }
 
 pub mod apub {
