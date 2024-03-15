@@ -959,6 +959,7 @@ async fn main() -> std::io::Result<()> {
             .service(well_known_node_info)
             .service(user_inbox)
             .service(user_get)
+            .service(file_upload)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),
