@@ -85,7 +85,7 @@ pub fn new_db_key_fetcher_service(pool: MySqlPool, config: Config) -> holder!(Ke
     ))
 }
 
-pub fn new_db_file_upload_service(pool: MySqlPool, config: Config) -> holder!(UploadService) {
+pub fn new_db_file_upload_service(pool: MySqlPool, _config: Config) -> holder!(UploadService) {
     Box::new(upload::DBUploadService::new(
         pool.clone(),
         new_local_user_finder_service(pool),
