@@ -6,6 +6,8 @@ pub mod utils;
 
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
+
+use crate::utils::key::VerifyError;
 use crate::{
     services::{
         apub::{new_apub_renderer_service, new_apub_reqwester_service},
@@ -21,9 +23,11 @@ use actix_web::{
     Responder,
 };
 use config::Config;
+use models::http::{HeaderMapWrapper, Method};
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use services::db::{new_all_user_finder_service, new_db_key_fetcher_service};
 use services::{
     db::{new_auth_service, new_local_user_finder_service},
     id::IDGetterService,
@@ -32,6 +36,7 @@ use services::{
 };
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
+use std::borrow::BorrowMut;
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
@@ -39,6 +44,7 @@ use std::{
     pin::Pin,
 };
 use tracing::{debug, error, info, warn};
+use utils::key::{verify_signature, KeyFetcher};
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -79,6 +85,42 @@ impl FromRequest for AuthUser {
     ) -> Self::Future {
         let req = req.clone();
         Box::pin(async move {
+            let data = web::Data::<AppState>::extract(&req).await.unwrap();
+
+            // try with http-signature auth
+            let mut key_fetcher =
+                new_db_key_fetcher_service(data.pool().clone(), data.config().clone());
+            let sig_result = verify_signature(
+                HeaderMapWrapper::from_actix(req.headers()),
+                Method::from_actix(req.method()),
+                req.path(),
+                key_fetcher.borrow_mut() as &mut (dyn KeyFetcher + Send + Sync),
+            )
+            .await;
+            match sig_result {
+                Ok(u) => {
+                    let mut user_finder =
+                        new_all_user_finder_service(data.pool().clone(), data.config().clone());
+                    let user = user_finder.find_user_by_specifier(&u).await?;
+                    return Ok(AuthUser::from_user(user));
+                }
+                Err(e) => {
+                    use VerifyError::*;
+                    match e {
+                        SignatureNotFound => {
+                            // try with bearer token, continue
+                        }
+                        SignatureInvalid | SignatureNotMatch | KeyNotFound | InsufficientHeader => {
+                            return Err(ErrorResponse::new_status(401, "unauthorized"))
+                        }
+                        Other(_) => {
+                            error!("Other error: {:?}", e);
+                            return Err(ErrorResponse::new_status(500, "internal server error"));
+                        }
+                    }
+                }
+            }
+
             let authorization = req
                 .headers()
                 .get("Authorization")
@@ -560,10 +602,13 @@ async fn host_meta(app: web::Data<AppState>) -> HandlerResponse<impl Responder> 
 async fn user_inbox(
     params: web::Path<UserChooseParams>,
     app: web::Data<AppState>,
+    auth: AuthUser,
     body: web::Json<serde_json::Value>,
 ) -> HandlerResponse<impl Responder> {
     debug!("user_inbox: {:?}", params);
     debug!("{:?}", body);
+
+    let mut authed_user = auth.must_auth()?;
 
     // deserialize into ActivityPub activity
     let activity = models::apub::Activity::deserialize(&body.0).map_err(|e| {

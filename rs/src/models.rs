@@ -403,3 +403,77 @@ pub mod apub {
     }
     impl_id!(AnnounceActivity);
 }
+
+pub mod http {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Method {
+        GET,
+        POST,
+        PUT,
+        PATCH,
+        DELETE,
+    }
+
+    impl Method {
+        pub fn as_str(&self) -> &'static str {
+            use Method::*;
+            match self {
+                GET => "GET",
+                POST => "POST",
+                PUT => "PUT",
+                PATCH => "PATCH",
+                DELETE => "DELETE",
+            }
+        }
+
+        pub fn from_reqwest(m: &reqwest::Method) -> Self {
+            use reqwest::Method as M;
+            use Method::*;
+            match *m {
+                M::GET => GET,
+                M::POST => POST,
+                M::PUT => PUT,
+                M::PATCH => PATCH,
+                M::DELETE => DELETE,
+                _ => unimplemented!(),
+            }
+        }
+
+        pub fn from_actix(m: &actix_web::http::Method) -> Self {
+            use actix_web::http::Method as M;
+            use Method::*;
+            match *m {
+                M::GET => GET,
+                M::POST => POST,
+                M::PUT => PUT,
+                M::PATCH => PATCH,
+                M::DELETE => DELETE,
+                _ => unimplemented!(),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum HeaderMapWrapper<'a> {
+        Reqwest(&'a reqwest::header::HeaderMap),
+        Actix(&'a actix_web::http::header::HeaderMap),
+    }
+
+    impl<'a> HeaderMapWrapper<'a> {
+        pub fn from_reqwest(h: &'a reqwest::header::HeaderMap) -> Self {
+            HeaderMapWrapper::Reqwest(h)
+        }
+
+        pub fn from_actix(h: &'a actix_web::http::header::HeaderMap) -> Self {
+            HeaderMapWrapper::Actix(h)
+        }
+
+        pub fn get(&self, key: &str) -> Option<&str> {
+            use HeaderMapWrapper::*;
+            match self {
+                Reqwest(h) => h.get(key).map(|v| v.to_str().unwrap()),
+                Actix(h) => h.get(key).map(|v| v.to_str().unwrap()),
+            }
+        }
+    }
+}

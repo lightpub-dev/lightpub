@@ -1,9 +1,12 @@
+use std::fmt::Display;
+
 use crate::models::apub::{AcceptActivity, Activity, FollowActivity, HasId};
 use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_getters::Getters;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::{fmt::Simple, Uuid};
 
 use crate::{
@@ -64,10 +67,19 @@ pub struct UserCreateResult {
     user_id: Simple,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ServiceError<T> {
     SpecificError(T),
     MiscError(Box<dyn MiscError>),
+}
+
+impl<T: Display> Display for ServiceError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ServiceError::SpecificError(e) => write!(f, "{}", e),
+            ServiceError::MiscError(e) => write!(f, "{:?}", e),
+        }
+    }
 }
 
 impl<T: std::fmt::Debug> ServiceError<T> {
@@ -143,9 +155,11 @@ pub trait LocalUserFinderService {
     ) -> Result<models::User, ServiceError<LocalUserFindError>>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum UserFindError {
+    #[error("user not found")]
     UserNotFound,
+    #[error("failed to communicate with remote server")]
     RemoteError,
 }
 

@@ -1,12 +1,13 @@
 pub mod follow;
+pub mod key;
 pub mod post;
 pub mod user;
 
 use sqlx::MySqlPool;
 
-use crate::{config::Config, holder, new_id_getter_service};
+use crate::{config::Config, holder, new_id_getter_service, utils::key::KeyFetcher};
 
-use self::{post::DBPostCreateService, user::DBSignerService};
+use self::{key::DBKeyFetcher, post::DBPostCreateService, user::DBSignerService};
 
 use super::{
     apub::{
@@ -74,4 +75,11 @@ pub fn new_db_user_signer_service(pool: MySqlPool, config: Config) -> holder!(Si
 
 pub fn new_post_content_service() -> PostContentService {
     PostContentService::new()
+}
+
+pub fn new_db_key_fetcher_service(pool: MySqlPool, config: Config) -> holder!(KeyFetcher) {
+    Box::new(DBKeyFetcher::new(
+        pool.clone(),
+        new_all_user_finder_service(pool, config),
+    ))
 }

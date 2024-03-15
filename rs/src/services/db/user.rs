@@ -2,12 +2,14 @@ use async_trait::async_trait;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
+use tracing::warn;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
 use crate::holder;
 use crate::models;
 use crate::models::apub::Actor;
+use crate::models::apub::PublicKeyEnum;
 use crate::models::ApubSigner;
 use crate::services::id::IDGetterService;
 use crate::services::id::UserAttribute;
@@ -251,7 +253,7 @@ async fn find_user_by_url(
     // try to fetch user from db
     let u = sqlx::query_as!(models::User,
         "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE uri = ?", url).fetch_optional(pool).await?;
-    let u = if let Some(u) = u {
+    if let Some(u) = u {
         // try to fetch remote_users
         let ru = sqlx::query_as!(RemoteUser,
             "SELECT user_id AS `user_id!: Simple`, following, followers, liked, fetched_at FROM remote_users WHERE user_id = ?", u.id.to_string()).fetch_optional(pool).await?;
@@ -262,9 +264,6 @@ async fn find_user_by_url(
                 return Ok(u);
             }
         }
-        Some(u)
-    } else {
-        None
     };
 
     // data is not up-to-date, fetch from remote
@@ -284,9 +283,29 @@ async fn find_user_by_url(
     let following = actor.following;
     let followers = actor.followers;
     let liked = actor.liked;
+    let PublicKeyEnum::Key(pubkey) = actor.public_key;
+    let pubkey_pem = pubkey.public_key_pem;
+    let pubkey_owner = pubkey.owner;
+    let pubkey_id = pubkey.id;
     let created_at = chrono::Utc::now().naive_utc();
 
-    let user_id = u.map(|u| u.id).unwrap_or_else(|| generate_uuid());
+    if uri != pubkey_owner {
+        warn!("pubkey owner and user uri does not match");
+        return Err(ServiceError::from_se(UserFindError::RemoteError));
+    }
+
+    // refetch user_id
+    // (actor.id may be different from the url we fetched from)
+    let user_id = sqlx::query!("SELECT id AS `id!: Simple` FROM users WHERE uri = ?", uri)
+        .fetch_optional(pool)
+        .await?;
+    let user_id = if let Some(u) = user_id {
+        u.id
+    } else {
+        // generate new user_id
+        generate_uuid()
+    };
+
     let user = models::User {
         id: user_id,
         username: username.to_string(),
@@ -297,7 +316,7 @@ async fn find_user_by_url(
         shared_inbox,
         inbox: inbox.into(),
         outbox: outbox.into(),
-        public_key: None,
+        public_key: Some(pubkey_pem.clone()),
         created_at,
     };
     let ru = RemoteUser {
@@ -340,6 +359,10 @@ async fn find_user_by_url(
         ru.liked,
         ru.fetched_at,
     ).execute(&mut *tx).await?;
+
+    sqlx::query!("
+        INSERT INTO user_keys (id, owner_id, public_key) VALUES (?,?,?) ON DUPLICATE KEY UPDATE owner_id=?, public_key=?, updated_at=CURRENT_TIMESTAMP
+    ", pubkey_id, user_id.to_string(), pubkey_pem, user_id.to_string(), pubkey_pem).execute(&mut *tx).await?;
 
     tx.commit().await?;
 
@@ -401,11 +424,12 @@ impl AllUserFinderService for DBAllUserFinderService {
                     find_user_by_url(api_url, &mut self.req, &self.pool).await
                 }
             }
-            UserSpecifier::ID(_) => self
-                .local
-                .find_user_by_specifier(spec)
-                .await
-                .map_err(map_to_local_error),
+            UserSpecifier::ID(id) => {
+                let u = sqlx::query_as!(models::User,
+                    "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE id = ?", id.simple().to_string()).fetch_one(&self.pool).await?;
+
+                return Ok(u);
+            }
         }
     }
 
