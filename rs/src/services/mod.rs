@@ -2,11 +2,14 @@ use crate::models::{
     api_response::UserPostEntry,
     apub::{AcceptActivity, Activity, FollowActivity, HasId},
 };
+use std::fmt::Display;
+
 use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_getters::Getters;
-use derive_more::From;
+use derive_more::{Constructor, From};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::{fmt::Simple, Uuid};
 
 use crate::{
@@ -67,10 +70,19 @@ pub struct UserCreateResult {
     user_id: Simple,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ServiceError<T> {
     SpecificError(T),
     MiscError(Box<dyn MiscError>),
+}
+
+impl<T: Display> Display for ServiceError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ServiceError::SpecificError(e) => write!(f, "{}", e),
+            ServiceError::MiscError(e) => write!(f, "{:?}", e),
+        }
+    }
 }
 
 impl<T: std::fmt::Debug> ServiceError<T> {
@@ -132,9 +144,11 @@ pub trait UserCreateService {
     ) -> Result<UserLoginResult, ServiceError<UserLoginError>>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum LocalUserFindError {
+    #[error("user not found")]
     UserNotFound,
+    #[error("user found is not local user")]
     NotLocalUser,
 }
 
@@ -146,9 +160,11 @@ pub trait LocalUserFinderService {
     ) -> Result<models::User, ServiceError<LocalUserFindError>>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum UserFindError {
+    #[error("user not found")]
     UserNotFound,
+    #[error("failed to communicate with remote server")]
     RemoteError,
 }
 
@@ -163,6 +179,22 @@ pub trait AllUserFinderService {
         &mut self,
         user: &UserSpecifier,
     ) -> Result<Vec<InboxPair>, ServiceError<UserFindError>>;
+}
+
+#[derive(Debug, Clone, Constructor)]
+pub struct UserProfileUpdate {
+    nickname: String,
+    bio: String,
+    avatar_id: Option<Simple>,
+}
+
+#[async_trait]
+pub trait UserProfileService {
+    async fn update_user_profile(
+        &mut self,
+        spec: &UserSpecifier,
+        update: &UserProfileUpdate,
+    ) -> Result<(), ServiceError<anyhow::Error>>;
 }
 
 #[derive(Debug, Clone, Getters)]
@@ -578,4 +610,14 @@ pub trait UserPostService {
         user: &UserSpecifier,
         viewer: Option<&UserSpecifier>,
     ) -> Result<Vec<UserPostEntry>, anyhow::Error>;
+}
+
+#[async_trait]
+pub trait UploadService {
+    async fn upload_file(
+        &mut self,
+        user: &UserSpecifier,
+        file_id: Simple,
+        file_ext: &str,
+    ) -> Result<(), anyhow::Error>;
 }

@@ -7,6 +7,7 @@ pub struct Config {
     pub frontend_url: String,
     pub database: DatabaseConfig,
     pub instance: InstanceConfig,
+    pub upload_dir: String,
 }
 
 impl Config {
@@ -22,6 +23,7 @@ pub struct DatabaseConfig {
     pub name: String,
     pub user: String,
     pub password: String,
+    pub max_connections: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -55,11 +57,13 @@ fn read_config_yaml() {
                 name: "lightpub".to_string(),
                 user: "root".to_string(),
                 password: "lightpub".to_string(),
+                max_connections: 5
             },
             instance: InstanceConfig {
                 name: "Lightpub dev".to_string(),
                 description: "Lightpub development server".to_string()
-            }
+            },
+            upload_dir: "uploads".to_string(),
         }
     )
 }

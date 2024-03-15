@@ -6,6 +6,11 @@ pub mod utils;
 
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
+
+use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
+use crate::services::UserProfileUpdate;
+use crate::utils::generate_uuid;
+use crate::utils::key::VerifyError;
 use crate::{
     services::{
         apub::{new_apub_renderer_service, new_apub_reqwester_service},
@@ -16,14 +21,17 @@ use crate::{
     },
     utils::post::PostSpecifier,
 };
+use actix_multipart::form::MultipartForm;
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
     Responder,
 };
 use config::Config;
+use models::http::{HeaderMapWrapper, Method};
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use services::db::{new_all_user_finder_service, new_db_key_fetcher_service};
 use services::{
     db::{new_auth_service, new_local_user_finder_service},
     id::IDGetterService,
@@ -32,6 +40,8 @@ use services::{
 };
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
+use std::borrow::BorrowMut;
+use std::time::Duration;
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
@@ -39,6 +49,7 @@ use std::{
     pin::Pin,
 };
 use tracing::{debug, error, info, warn};
+use utils::key::{verify_signature, KeyFetcher};
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -79,6 +90,42 @@ impl FromRequest for AuthUser {
     ) -> Self::Future {
         let req = req.clone();
         Box::pin(async move {
+            let data = web::Data::<AppState>::extract(&req).await.unwrap();
+
+            // try with http-signature auth
+            let mut key_fetcher =
+                new_db_key_fetcher_service(data.pool().clone(), data.config().clone());
+            let sig_result = verify_signature(
+                HeaderMapWrapper::from_actix(req.headers()),
+                Method::from_actix(req.method()),
+                req.path(),
+                key_fetcher.borrow_mut() as &mut (dyn KeyFetcher + Send + Sync),
+            )
+            .await;
+            match sig_result {
+                Ok(u) => {
+                    let mut user_finder =
+                        new_all_user_finder_service(data.pool().clone(), data.config().clone());
+                    let user = user_finder.find_user_by_specifier(&u).await?;
+                    return Ok(AuthUser::from_user(user));
+                }
+                Err(e) => {
+                    use VerifyError::*;
+                    match e {
+                        SignatureNotFound => {
+                            // try with bearer token, continue
+                        }
+                        SignatureInvalid | SignatureNotMatch | KeyNotFound | InsufficientHeader => {
+                            return Err(ErrorResponse::new_status(401, "unauthorized"))
+                        }
+                        Other(_) => {
+                            error!("Other error: {:?}", e);
+                            return Err(ErrorResponse::new_status(500, "internal server error"));
+                        }
+                    }
+                }
+            }
+
             let authorization = req
                 .headers()
                 .get("Authorization")
@@ -560,10 +607,15 @@ async fn host_meta(app: web::Data<AppState>) -> HandlerResponse<impl Responder> 
 async fn user_inbox(
     params: web::Path<UserChooseParams>,
     app: web::Data<AppState>,
+    auth: AuthUser,
     body: web::Json<serde_json::Value>,
 ) -> HandlerResponse<impl Responder> {
     debug!("user_inbox: {:?}", params);
     debug!("{:?}", body);
+
+    let authed_user = auth.must_auth()?;
+    let id_getter = new_id_getter_service(app.config().clone());
+    let authed_user_uri = id_getter.get_user_id(authed_user);
 
     // deserialize into ActivityPub activity
     let activity = models::apub::Activity::deserialize(&body.0).map_err(|e| {
@@ -571,11 +623,21 @@ async fn user_inbox(
         ErrorResponse::new_status(400, "invalid activity")
     })?;
 
+    let authfail = || {
+        Err(ErrorResponse::new_status(
+            401,
+            "actor does not match key owner",
+        ))
+    };
+
     debug!("parsed activity {:#?}", activity);
     use models::apub::Activity::*;
     match activity {
         Accept(a) => {
             let actor_id = a.actor;
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
             let req_spec = match a.object {
                 models::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
                 models::apub::IdOrObject::Object(obj) => {
@@ -608,6 +670,10 @@ async fn user_inbox(
             let actor_id = follow.actor;
             let object_id = follow.object.get_id().to_string();
 
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
             debug!("accepting follow request of {} -> {}", actor_id, object_id);
             let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
             follow_service
@@ -620,6 +686,11 @@ async fn user_inbox(
         }
         Create(create) => {
             let actor_id = create.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
             // get object
             let object = {
                 match create.object {
@@ -665,6 +736,11 @@ async fn user_inbox(
         }
         Announce(announce) => {
             let actor_id = announce.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
             let repost_id = announce.id;
             let object_id = announce.object.get_id();
             let published_at = announce.published.to_utc();
@@ -702,8 +778,20 @@ async fn user_inbox(
 
             let mut post_service =
                 new_post_create_service(app.pool().clone(), app.config().clone());
-            let result = post_service.create_post(&repost).await?;
-            info!("repost created: {}", result);
+            let result = post_service.create_post(&repost).await;
+            match result {
+                Ok(post_id) => {
+                    info!("repost created: {}", post_id);
+                }
+                Err(e) => match e {
+                    ServiceError::SpecificError(PostCreateError::AlreadyExists) => {
+                        info!("repost already exists, skip");
+                    }
+                    _ => {
+                        return Err(e.into());
+                    }
+                },
+            }
         }
     }
 
@@ -741,6 +829,103 @@ async fn user_get(
         .body(user_json))
 }
 
+#[derive(MultipartForm)]
+struct UploadRequest {
+    file: actix_multipart::form::tempfile::TempFile,
+}
+
+#[post("/upload")]
+async fn file_upload(
+    app: web::Data<AppState>,
+    auth: AuthUser,
+    file: MultipartForm<UploadRequest>,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let upload_dir = &app.config().upload_dir;
+    let filename = generate_uuid();
+    let fileext = file
+        .file
+        .file_name
+        .clone()
+        .map(|s| {
+            s.rsplit(".")
+                .next()
+                .map(|s| {
+                    if !s.is_ascii() {
+                        "".into()
+                    } else {
+                        format!(".{}", s)
+                    }
+                })
+                .unwrap_or("".into())
+        })
+        .unwrap_or("".into());
+    if fileext == "" {
+        return Err(ErrorResponse::new_status(400, "filename has no extension"));
+    }
+    let filepath = format!("{}/{}{}", upload_dir, filename, fileext);
+
+    let file = file.into_inner();
+    match file.file.file.persist_noclobber(filepath) {
+        Err(e) => {
+            error!("Failed to save file: {:?}", e);
+            return Err(ErrorResponse::new_status(500, "internal server error"));
+        }
+        Ok(_) => {
+            let mut upload_service =
+                new_db_file_upload_service(app.pool().clone(), app.config().clone());
+            let result = upload_service
+                .upload_file(&authed_user.id.into(), filename, &fileext)
+                .await;
+            match result {
+                Ok(_) => Ok(HttpResponse::Ok().finish()),
+                Err(e) => {
+                    error!("Failed to save file: {:?}", e);
+                    Err(ErrorResponse::new_status(500, "internal server error"))
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateMyProfileRequest {
+    nickname: String,
+    bio: String,
+    avatar_id: Option<String>,
+}
+
+#[put("/user")]
+async fn update_my_profile(
+    app: web::Data<AppState>,
+    body: web::Json<UpdateMyProfileRequest>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let mut profile_service = new_db_user_profile_service(app.pool().clone(), app.config().clone());
+
+    let avatar_id = {
+        if let Some(avatar_id) = &body.avatar_id {
+            let u = avatar_id
+                .parse::<uuid::Uuid>()
+                .map_err(|_| ErrorResponse::new_status(400, "avatar_id is not valid"))?;
+            Some(u.simple())
+        } else {
+            None
+        }
+    };
+
+    let update = UserProfileUpdate::new(body.nickname.clone(), body.bio.clone(), avatar_id);
+
+    profile_service
+        .update_user_profile(&authed_user.id.into(), &update)
+        .await?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -764,11 +949,21 @@ async fn main() -> std::io::Result<()> {
         config.database.name
     );
     let pool = MySqlPoolOptions::new()
-        .max_connections(5)
+        .max_connections(config.database.max_connections)
+        .idle_timeout(Duration::from_secs(30))
+        .acquire_timeout(Duration::from_secs(5))
         .connect(&conn_str)
         .await
         .expect("connect to database");
     tracing::info!("Connected to database");
+
+    // create upload_dir
+    let upload_dir = config.upload_dir.clone();
+    web::block(move || {
+        std::fs::create_dir_all(upload_dir).expect("failed to create upload_dir");
+    })
+    .await
+    .unwrap();
 
     let app_state = state::AppState::new(pool, config.clone());
 
@@ -802,6 +997,8 @@ async fn main() -> std::io::Result<()> {
             .service(well_known_node_info)
             .service(user_inbox)
             .service(user_get)
+            .service(file_upload)
+            .service(update_my_profile)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

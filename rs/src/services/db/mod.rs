@@ -1,13 +1,15 @@
 pub mod follow;
+pub mod key;
 pub mod post;
 pub mod timeline;
+pub mod upload;
 pub mod user;
 
 use sqlx::MySqlPool;
 
-use crate::{config::Config, holder, new_id_getter_service};
+use crate::{config::Config, holder, new_id_getter_service, utils::key::KeyFetcher};
 
-use self::{post::DBPostCreateService, user::DBSignerService};
+use self::{key::DBKeyFetcher, post::DBPostCreateService, user::DBSignerService};
 
 use super::{
     apub::{
@@ -15,7 +17,7 @@ use super::{
         post::PostContentService,
     },
     AllUserFinderService, Holder, LocalUserFinderService, PostCreateService, SignerService,
-    UserAuthService, UserCreateService, UserFollowService,
+    UploadService, UserAuthService, UserCreateService, UserFollowService, UserProfileService,
 };
 
 pub fn new_user_service(pool: MySqlPool) -> holder!(UserCreateService) {
@@ -75,4 +77,28 @@ pub fn new_db_user_signer_service(pool: MySqlPool, config: Config) -> holder!(Si
 
 pub fn new_post_content_service() -> PostContentService {
     PostContentService::new()
+}
+
+pub fn new_db_key_fetcher_service(pool: MySqlPool, config: Config) -> holder!(KeyFetcher) {
+    Box::new(DBKeyFetcher::new(
+        pool.clone(),
+        new_all_user_finder_service(pool, config),
+    ))
+}
+
+pub fn new_db_file_upload_service(pool: MySqlPool, _config: Config) -> holder!(UploadService) {
+    Box::new(upload::DBUploadService::new(
+        pool.clone(),
+        new_local_user_finder_service(pool),
+    ))
+}
+
+pub fn new_db_user_profile_service(
+    pool: MySqlPool,
+    _config: Config,
+) -> holder!(UserProfileService) {
+    Box::new(user::DBUserProfileService::new(
+        pool.clone(),
+        new_local_user_finder_service(pool.clone()),
+    ))
 }

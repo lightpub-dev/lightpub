@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use derive_getters::Getters;
 use rsa::RsaPrivateKey;
 use serde::Deserialize;
-use uuid::{fmt::Simple, Uuid};
+use uuid::fmt::Simple;
 
 #[derive(Debug)]
 pub struct User {
@@ -77,6 +77,7 @@ pub trait ApubRenderableUser {
     // fn bio(&self) -> String;
     fn public_key(&self) -> Option<String>;
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
+    fn bio(&self) -> String;
 }
 
 impl ApubRenderableUser for User {
@@ -102,6 +103,10 @@ impl ApubRenderableUser for User {
 
     fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
         chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(self.created_at, chrono::Utc)
+    }
+
+    fn bio(&self) -> String {
+        self.bio.clone()
     }
 }
 
@@ -336,6 +341,7 @@ pub mod apub {
         pub liked: Option<String>,
         pub preferred_username: String,
         pub public_key: PublicKeyEnum,
+        pub summary: Option<String>,
     }
     impl_id!(Person);
 
@@ -448,4 +454,78 @@ pub mod apub {
         pub bcc: Option<Vec<String>>,
     }
     impl_id!(AnnounceActivity);
+}
+
+pub mod http {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Method {
+        GET,
+        POST,
+        PUT,
+        PATCH,
+        DELETE,
+    }
+
+    impl Method {
+        pub fn as_str(&self) -> &'static str {
+            use Method::*;
+            match self {
+                GET => "GET",
+                POST => "POST",
+                PUT => "PUT",
+                PATCH => "PATCH",
+                DELETE => "DELETE",
+            }
+        }
+
+        pub fn from_reqwest(m: &reqwest::Method) -> Self {
+            use reqwest::Method as M;
+            use Method::*;
+            match *m {
+                M::GET => GET,
+                M::POST => POST,
+                M::PUT => PUT,
+                M::PATCH => PATCH,
+                M::DELETE => DELETE,
+                _ => unimplemented!(),
+            }
+        }
+
+        pub fn from_actix(m: &actix_web::http::Method) -> Self {
+            use actix_web::http::Method as M;
+            use Method::*;
+            match *m {
+                M::GET => GET,
+                M::POST => POST,
+                M::PUT => PUT,
+                M::PATCH => PATCH,
+                M::DELETE => DELETE,
+                _ => unimplemented!(),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum HeaderMapWrapper<'a> {
+        Reqwest(&'a reqwest::header::HeaderMap),
+        Actix(&'a actix_web::http::header::HeaderMap),
+    }
+
+    impl<'a> HeaderMapWrapper<'a> {
+        pub fn from_reqwest(h: &'a reqwest::header::HeaderMap) -> Self {
+            HeaderMapWrapper::Reqwest(h)
+        }
+
+        pub fn from_actix(h: &'a actix_web::http::header::HeaderMap) -> Self {
+            HeaderMapWrapper::Actix(h)
+        }
+
+        pub fn get(&self, key: &str) -> Option<&str> {
+            use HeaderMapWrapper::*;
+            match self {
+                Reqwest(h) => h.get(key).map(|v| v.to_str().unwrap()),
+                Actix(h) => h.get(key).map(|v| v.to_str().unwrap()),
+            }
+        }
+    }
 }
