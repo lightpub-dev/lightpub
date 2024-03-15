@@ -37,6 +37,7 @@ use services::{
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
 use std::borrow::BorrowMut;
+use std::time::Duration;
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
@@ -608,7 +609,9 @@ async fn user_inbox(
     debug!("user_inbox: {:?}", params);
     debug!("{:?}", body);
 
-    let mut authed_user = auth.must_auth()?;
+    let authed_user = auth.must_auth()?;
+    let id_getter = new_id_getter_service(app.config().clone());
+    let authed_user_uri = id_getter.get_user_id(authed_user);
 
     // deserialize into ActivityPub activity
     let activity = models::apub::Activity::deserialize(&body.0).map_err(|e| {
@@ -616,11 +619,21 @@ async fn user_inbox(
         ErrorResponse::new_status(400, "invalid activity")
     })?;
 
+    let authfail = || {
+        Err(ErrorResponse::new_status(
+            401,
+            "actor does not match key owner",
+        ))
+    };
+
     debug!("parsed activity {:#?}", activity);
     use models::apub::Activity::*;
     match activity {
         Accept(a) => {
             let actor_id = a.actor;
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
             let req_spec = match a.object {
                 models::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
                 models::apub::IdOrObject::Object(obj) => {
@@ -653,6 +666,10 @@ async fn user_inbox(
             let actor_id = follow.actor;
             let object_id = follow.object.get_id().to_string();
 
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
             debug!("accepting follow request of {} -> {}", actor_id, object_id);
             let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
             follow_service
@@ -665,6 +682,11 @@ async fn user_inbox(
         }
         Create(create) => {
             let actor_id = create.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
             // get object
             let object = {
                 match create.object {
@@ -710,6 +732,11 @@ async fn user_inbox(
         }
         Announce(announce) => {
             let actor_id = announce.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
             let repost_id = announce.id;
             let object_id = announce.object.get_id();
             let published_at = announce.published.to_utc();
@@ -810,6 +837,8 @@ async fn main() -> std::io::Result<()> {
     );
     let pool = MySqlPoolOptions::new()
         .max_connections(5)
+        .idle_timeout(Duration::from_secs(30))
+        .acquire_timeout(Duration::from_secs(5))
         .connect(&conn_str)
         .await
         .expect("connect to database");
