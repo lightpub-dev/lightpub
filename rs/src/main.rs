@@ -7,6 +7,9 @@ pub mod utils;
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
 
+use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
+use crate::services::UserProfileUpdate;
+use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
 use crate::{
     services::{
@@ -18,6 +21,7 @@ use crate::{
     },
     utils::post::PostSpecifier,
 };
+use actix_multipart::form::MultipartForm;
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
     Responder,
@@ -825,6 +829,103 @@ async fn user_get(
         .body(user_json))
 }
 
+#[derive(MultipartForm)]
+struct UploadRequest {
+    file: actix_multipart::form::tempfile::TempFile,
+}
+
+#[post("/upload")]
+async fn file_upload(
+    app: web::Data<AppState>,
+    auth: AuthUser,
+    file: MultipartForm<UploadRequest>,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let upload_dir = &app.config().upload_dir;
+    let filename = generate_uuid();
+    let fileext = file
+        .file
+        .file_name
+        .clone()
+        .map(|s| {
+            s.rsplit(".")
+                .next()
+                .map(|s| {
+                    if !s.is_ascii() {
+                        "".into()
+                    } else {
+                        format!(".{}", s)
+                    }
+                })
+                .unwrap_or("".into())
+        })
+        .unwrap_or("".into());
+    if fileext == "" {
+        return Err(ErrorResponse::new_status(400, "filename has no extension"));
+    }
+    let filepath = format!("{}/{}{}", upload_dir, filename, fileext);
+
+    let file = file.into_inner();
+    match file.file.file.persist_noclobber(filepath) {
+        Err(e) => {
+            error!("Failed to save file: {:?}", e);
+            return Err(ErrorResponse::new_status(500, "internal server error"));
+        }
+        Ok(_) => {
+            let mut upload_service =
+                new_db_file_upload_service(app.pool().clone(), app.config().clone());
+            let result = upload_service
+                .upload_file(&authed_user.id.into(), filename, &fileext)
+                .await;
+            match result {
+                Ok(_) => Ok(HttpResponse::Ok().finish()),
+                Err(e) => {
+                    error!("Failed to save file: {:?}", e);
+                    Err(ErrorResponse::new_status(500, "internal server error"))
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateMyProfileRequest {
+    nickname: String,
+    bio: String,
+    avatar_id: Option<String>,
+}
+
+#[put("/user")]
+async fn update_my_profile(
+    app: web::Data<AppState>,
+    body: web::Json<UpdateMyProfileRequest>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let mut profile_service = new_db_user_profile_service(app.pool().clone(), app.config().clone());
+
+    let avatar_id = {
+        if let Some(avatar_id) = &body.avatar_id {
+            let u = avatar_id
+                .parse::<uuid::Uuid>()
+                .map_err(|_| ErrorResponse::new_status(400, "avatar_id is not valid"))?;
+            Some(u.simple())
+        } else {
+            None
+        }
+    };
+
+    let update = UserProfileUpdate::new(body.nickname.clone(), body.bio.clone(), avatar_id);
+
+    profile_service
+        .update_user_profile(&authed_user.id.into(), &update)
+        .await?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -848,13 +949,21 @@ async fn main() -> std::io::Result<()> {
         config.database.name
     );
     let pool = MySqlPoolOptions::new()
-        .max_connections(5)
+        .max_connections(config.database.max_connections)
         .idle_timeout(Duration::from_secs(30))
         .acquire_timeout(Duration::from_secs(5))
         .connect(&conn_str)
         .await
         .expect("connect to database");
     tracing::info!("Connected to database");
+
+    // create upload_dir
+    let upload_dir = config.upload_dir.clone();
+    web::block(move || {
+        std::fs::create_dir_all(upload_dir).expect("failed to create upload_dir");
+    })
+    .await
+    .unwrap();
 
     let app_state = state::AppState::new(pool, config.clone());
 
@@ -888,6 +997,8 @@ async fn main() -> std::io::Result<()> {
             .service(well_known_node_info)
             .service(user_inbox)
             .service(user_get)
+            .service(file_upload)
+            .service(update_my_profile)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

@@ -4,7 +4,7 @@ use crate::models::apub::{AcceptActivity, Activity, FollowActivity, HasId};
 use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_getters::Getters;
-use derive_more::From;
+use derive_more::{Constructor, From};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::{fmt::Simple, Uuid};
@@ -141,9 +141,11 @@ pub trait UserCreateService {
     ) -> Result<UserLoginResult, ServiceError<UserLoginError>>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum LocalUserFindError {
+    #[error("user not found")]
     UserNotFound,
+    #[error("user found is not local user")]
     NotLocalUser,
 }
 
@@ -174,6 +176,22 @@ pub trait AllUserFinderService {
         &mut self,
         user: &UserSpecifier,
     ) -> Result<Vec<InboxPair>, ServiceError<UserFindError>>;
+}
+
+#[derive(Debug, Clone, Constructor)]
+pub struct UserProfileUpdate {
+    nickname: String,
+    bio: String,
+    avatar_id: Option<Simple>,
+}
+
+#[async_trait]
+pub trait UserProfileService {
+    async fn update_user_profile(
+        &mut self,
+        spec: &UserSpecifier,
+        update: &UserProfileUpdate,
+    ) -> Result<(), ServiceError<anyhow::Error>>;
 }
 
 #[derive(Debug, Clone, Getters)]
@@ -580,4 +598,14 @@ pub trait SignerService {
         &mut self,
         user: &UserSpecifier,
     ) -> Result<holder!(ApubSigner), ServiceError<SignerError>>;
+}
+
+#[async_trait]
+pub trait UploadService {
+    async fn upload_file(
+        &mut self,
+        user: &UserSpecifier,
+        file_id: Simple,
+        file_ext: &str,
+    ) -> Result<(), anyhow::Error>;
 }

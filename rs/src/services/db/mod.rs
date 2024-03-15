@@ -1,6 +1,7 @@
 pub mod follow;
 pub mod key;
 pub mod post;
+pub mod upload;
 pub mod user;
 
 use sqlx::MySqlPool;
@@ -15,7 +16,7 @@ use super::{
         post::PostContentService,
     },
     AllUserFinderService, Holder, LocalUserFinderService, PostCreateService, SignerService,
-    UserAuthService, UserCreateService, UserFollowService,
+    UploadService, UserAuthService, UserCreateService, UserFollowService, UserProfileService,
 };
 
 pub fn new_user_service(pool: MySqlPool) -> holder!(UserCreateService) {
@@ -81,5 +82,22 @@ pub fn new_db_key_fetcher_service(pool: MySqlPool, config: Config) -> holder!(Ke
     Box::new(DBKeyFetcher::new(
         pool.clone(),
         new_all_user_finder_service(pool, config),
+    ))
+}
+
+pub fn new_db_file_upload_service(pool: MySqlPool, _config: Config) -> holder!(UploadService) {
+    Box::new(upload::DBUploadService::new(
+        pool.clone(),
+        new_local_user_finder_service(pool),
+    ))
+}
+
+pub fn new_db_user_profile_service(
+    pool: MySqlPool,
+    _config: Config,
+) -> holder!(UserProfileService) {
+    Box::new(user::DBUserProfileService::new(
+        pool.clone(),
+        new_local_user_finder_service(pool.clone()),
     ))
 }

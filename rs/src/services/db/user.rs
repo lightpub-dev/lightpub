@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use derive_more::Constructor;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
@@ -30,6 +31,8 @@ use crate::services::UserFindError;
 use crate::services::UserLoginError;
 use crate::services::UserLoginRequest;
 use crate::services::UserLoginResult;
+use crate::services::UserProfileService;
+use crate::services::UserProfileUpdate;
 use crate::utils;
 use crate::utils::generate_uuid;
 use crate::utils::generate_uuid_random;
@@ -288,6 +291,7 @@ async fn find_user_by_url(
     let pubkey_owner = pubkey.owner;
     let pubkey_id = pubkey.id;
     let created_at = chrono::Utc::now().naive_utc();
+    let bio = actor.summary.unwrap_or("".to_string());
 
     if uri != pubkey_owner {
         warn!("pubkey owner and user uri does not match");
@@ -311,7 +315,7 @@ async fn find_user_by_url(
         username: username.to_string(),
         host: Some(host),
         nickname: nickname.to_string(),
-        bio: "".to_string(),
+        bio: bio,
         uri: uri.into(),
         shared_inbox,
         inbox: inbox.into(),
@@ -329,7 +333,7 @@ async fn find_user_by_url(
 
     let mut tx = pool.begin().await?;
     sqlx::query!(
-        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox) VALUES (?,?,?,NULL,?,?,?,?,?) ON DUPLICATE KEY UPDATE username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?",
+        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox, bio) VALUES (?,?,?,NULL,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?, bio = ?",
         user.id.to_string(),
         user.username,
         user.host,
@@ -338,6 +342,7 @@ async fn find_user_by_url(
         user.shared_inbox,
         user.inbox,
         user.outbox,
+        user.bio,
         user.username,
         user.host,
         user.nickname,
@@ -345,6 +350,7 @@ async fn find_user_by_url(
         user.shared_inbox,
         user.inbox,
         user.outbox,
+        user.bio,
     ).execute(&mut *tx).await?;
 
     sqlx::query!(
@@ -534,5 +540,45 @@ impl SignerService for DBSignerService {
                 .map_err(|_| ServiceError::from_se(SignerError::PrivateKeyNotSet))?,
             private_key_id,
         }))
+    }
+}
+
+#[derive(Constructor)]
+pub struct DBUserProfileService {
+    pool: MySqlPool,
+    finder: holder!(LocalUserFinderService),
+}
+
+#[async_trait]
+impl UserProfileService for DBUserProfileService {
+    async fn update_user_profile(
+        &mut self,
+        spec: &UserSpecifier,
+        update: &UserProfileUpdate,
+    ) -> Result<(), ServiceError<anyhow::Error>> {
+        let u = self
+            .finder
+            .find_user_by_specifier(spec)
+            .await
+            .map_err(|e| match e {
+                ServiceError::SpecificError(LocalUserFindError::UserNotFound) => {
+                    ServiceError::from_se(anyhow::anyhow!("user not found"))
+                }
+                _ => e.convert(),
+            })?;
+
+        sqlx::query!(
+            r#"
+            UPDATE users SET nickname=?, bio=?, avatar_id=? WHERE id=?
+            "#,
+            update.nickname,
+            update.bio,
+            update.avatar_id,
+            u.id.to_string()
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }
