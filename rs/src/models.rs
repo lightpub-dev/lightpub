@@ -77,6 +77,7 @@ pub trait ApubRenderableUser {
     // fn bio(&self) -> String;
     fn public_key(&self) -> Option<String>;
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
+    fn bio(&self) -> String;
 }
 
 impl ApubRenderableUser for User {
@@ -102,6 +103,10 @@ impl ApubRenderableUser for User {
 
     fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
         chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(self.created_at, chrono::Utc)
+    }
+
+    fn bio(&self) -> String {
+        self.bio.clone()
     }
 }
 
@@ -290,6 +295,7 @@ pub mod apub {
         pub liked: Option<String>,
         pub preferred_username: String,
         pub public_key: PublicKeyEnum,
+        pub summary: Option<String>,
     }
     impl_id!(Person);
 

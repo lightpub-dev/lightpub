@@ -204,6 +204,7 @@ impl ApubRendererService {
             .preferred_username(preferred_username)
             .shared_inbox(shared_inbox.into())
             .public_key(public_key.into())
+            .summary(Some(user.bio()))
             .build()
             .unwrap();
 
