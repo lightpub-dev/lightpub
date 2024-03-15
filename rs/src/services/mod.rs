@@ -141,9 +141,11 @@ pub trait UserCreateService {
     ) -> Result<UserLoginResult, ServiceError<UserLoginError>>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum LocalUserFindError {
+    #[error("user not found")]
     UserNotFound,
+    #[error("user found is not local user")]
     NotLocalUser,
 }
 
@@ -580,4 +582,14 @@ pub trait SignerService {
         &mut self,
         user: &UserSpecifier,
     ) -> Result<holder!(ApubSigner), ServiceError<SignerError>>;
+}
+
+#[async_trait]
+pub trait UploadService {
+    async fn upload_file(
+        &mut self,
+        user: &UserSpecifier,
+        file_id: Simple,
+        file_ext: &str,
+    ) -> Result<(), anyhow::Error>;
 }
