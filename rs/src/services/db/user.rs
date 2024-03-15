@@ -291,6 +291,7 @@ async fn find_user_by_url(
     let pubkey_owner = pubkey.owner;
     let pubkey_id = pubkey.id;
     let created_at = chrono::Utc::now().naive_utc();
+    let bio = actor.summary.unwrap_or("".to_string());
 
     if uri != pubkey_owner {
         warn!("pubkey owner and user uri does not match");
@@ -314,7 +315,7 @@ async fn find_user_by_url(
         username: username.to_string(),
         host: Some(host),
         nickname: nickname.to_string(),
-        bio: "".to_string(),
+        bio: bio,
         uri: uri.into(),
         shared_inbox,
         inbox: inbox.into(),
@@ -332,7 +333,7 @@ async fn find_user_by_url(
 
     let mut tx = pool.begin().await?;
     sqlx::query!(
-        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox) VALUES (?,?,?,NULL,?,?,?,?,?) ON DUPLICATE KEY UPDATE username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?",
+        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox, bio) VALUES (?,?,?,NULL,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?, bio = ?",
         user.id.to_string(),
         user.username,
         user.host,
@@ -341,6 +342,7 @@ async fn find_user_by_url(
         user.shared_inbox,
         user.inbox,
         user.outbox,
+        user.bio,
         user.username,
         user.host,
         user.nickname,
@@ -348,6 +350,7 @@ async fn find_user_by_url(
         user.shared_inbox,
         user.inbox,
         user.outbox,
+        user.bio,
     ).execute(&mut *tx).await?;
 
     sqlx::query!(
