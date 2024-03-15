@@ -4,7 +4,7 @@ use crate::models::apub::{AcceptActivity, Activity, FollowActivity, HasId};
 use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_getters::Getters;
-use derive_more::From;
+use derive_more::{Constructor, From};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::{fmt::Simple, Uuid};
@@ -176,6 +176,22 @@ pub trait AllUserFinderService {
         &mut self,
         user: &UserSpecifier,
     ) -> Result<Vec<InboxPair>, ServiceError<UserFindError>>;
+}
+
+#[derive(Debug, Clone, Constructor)]
+pub struct UserProfileUpdate {
+    nickname: String,
+    bio: String,
+    avatar_id: Option<Simple>,
+}
+
+#[async_trait]
+pub trait UserProfileService {
+    async fn update_user_profile(
+        &mut self,
+        spec: &UserSpecifier,
+        update: &UserProfileUpdate,
+    ) -> Result<(), ServiceError<anyhow::Error>>;
 }
 
 #[derive(Debug, Clone, Getters)]

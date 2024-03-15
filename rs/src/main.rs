@@ -7,7 +7,8 @@ pub mod utils;
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
 
-use crate::services::db::new_db_file_upload_service;
+use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
+use crate::services::UserProfileUpdate;
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
 use crate::{
@@ -888,6 +889,43 @@ async fn file_upload(
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct UpdateMyProfileRequest {
+    nickname: String,
+    bio: String,
+    avatar_id: Option<String>,
+}
+
+#[put("/user")]
+async fn update_my_profile(
+    app: web::Data<AppState>,
+    body: web::Json<UpdateMyProfileRequest>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let mut profile_service = new_db_user_profile_service(app.pool().clone(), app.config().clone());
+
+    let avatar_id = {
+        if let Some(avatar_id) = &body.avatar_id {
+            let u = avatar_id
+                .parse::<uuid::Uuid>()
+                .map_err(|_| ErrorResponse::new_status(400, "avatar_id is not valid"))?;
+            Some(u.simple())
+        } else {
+            None
+        }
+    };
+
+    let update = UserProfileUpdate::new(body.nickname.clone(), body.bio.clone(), avatar_id);
+
+    profile_service
+        .update_user_profile(&authed_user.id.into(), &update)
+        .await?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -960,6 +998,7 @@ async fn main() -> std::io::Result<()> {
             .service(user_inbox)
             .service(user_get)
             .service(file_upload)
+            .service(update_my_profile)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

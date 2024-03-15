@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use derive_more::Constructor;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
@@ -30,6 +31,8 @@ use crate::services::UserFindError;
 use crate::services::UserLoginError;
 use crate::services::UserLoginRequest;
 use crate::services::UserLoginResult;
+use crate::services::UserProfileService;
+use crate::services::UserProfileUpdate;
 use crate::utils;
 use crate::utils::generate_uuid;
 use crate::utils::generate_uuid_random;
@@ -534,5 +537,45 @@ impl SignerService for DBSignerService {
                 .map_err(|_| ServiceError::from_se(SignerError::PrivateKeyNotSet))?,
             private_key_id,
         }))
+    }
+}
+
+#[derive(Constructor)]
+pub struct DBUserProfileService {
+    pool: MySqlPool,
+    finder: holder!(LocalUserFinderService),
+}
+
+#[async_trait]
+impl UserProfileService for DBUserProfileService {
+    async fn update_user_profile(
+        &mut self,
+        spec: &UserSpecifier,
+        update: &UserProfileUpdate,
+    ) -> Result<(), ServiceError<anyhow::Error>> {
+        let u = self
+            .finder
+            .find_user_by_specifier(spec)
+            .await
+            .map_err(|e| match e {
+                ServiceError::SpecificError(LocalUserFindError::UserNotFound) => {
+                    ServiceError::from_se(anyhow::anyhow!("user not found"))
+                }
+                _ => e.convert(),
+            })?;
+
+        sqlx::query!(
+            r#"
+            UPDATE users SET nickname=?, bio=?, avatar_id=? WHERE id=?
+            "#,
+            update.nickname,
+            update.bio,
+            update.avatar_id,
+            u.id.to_string()
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }
