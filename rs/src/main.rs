@@ -774,8 +774,20 @@ async fn user_inbox(
 
             let mut post_service =
                 new_post_create_service(app.pool().clone(), app.config().clone());
-            let result = post_service.create_post(&repost).await?;
-            info!("repost created: {}", result);
+            let result = post_service.create_post(&repost).await;
+            match result {
+                Ok(post_id) => {
+                    info!("repost created: {}", post_id);
+                }
+                Err(e) => match e {
+                    ServiceError::SpecificError(PostCreateError::AlreadyExists) => {
+                        info!("repost already exists, skip");
+                    }
+                    _ => {
+                        return Err(e.into());
+                    }
+                },
+            }
         }
     }
 
