@@ -981,6 +981,90 @@ async fn update_my_profile(
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+struct OutboxQuery {
+    before_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    page: bool,
+}
+
+#[get("/user/{user_spec}/outbox")]
+async fn get_user_outbox(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    auth: AuthUser,
+    query: web::Query<OutboxQuery>,
+) -> HandlerResponse<impl Responder> {
+    if !query.page {
+        return Ok(HttpResponse::Ok().json(CollectionResponse::from_first(
+            CollectionType::OrderedCollection,
+            {
+                let base_url = app.config().base_url();
+                let new_query = OutboxQuery {
+                    before_date: None,
+                    page: true,
+                };
+                format!(
+                    "{}/user/{}/outbox?{}",
+                    base_url,
+                    path.user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            },
+            None,
+        )));
+    }
+
+    let user_spec = &path.user_spec;
+    let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+
+    let limit = 20;
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let posts = post_service
+        .fetch_user_posts(user_spec, viewer, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user posts: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    let renderer_service = new_apub_renderer_service(app.config().clone());
+    let mut rendered_posts = Vec::with_capacity(posts.len());
+    for p in posts {
+        let rendered = renderer_service.render_post(&p).map_err(|e| {
+            error!("Failed to render post: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+        rendered_posts.push(PaginatableWrapper::new(
+            rendered.note().clone(),
+            p.created_at().clone(),
+        ));
+    }
+
+    let paginated =
+        PaginatedResponse::from_result(rendered_posts, limit.try_into().unwrap(), |last| {
+            let base_url = app.config().base_url();
+            let mut new_query = (*query).clone();
+            new_query.before_date = Some(*last);
+
+            format!(
+                "{}/user/{}/outbox?{}",
+                base_url,
+                user_spec,
+                serde_urlencoded::to_string(new_query).unwrap()
+            )
+        });
+    let paginated = CollectionPageResponse::from_paginated_response(
+        CollectionPageType::OrderedCollectionPage,
+        paginated,
+        format!("{}/user/{}/outbox", app.config().base_url(), path.user_spec),
+        None,
+    );
+    Ok(HttpResponse::Ok().json(paginated.with_context()))
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct GetUserPostsQuery {
     limit: Option<i64>,
     before_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -1290,6 +1374,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_posts)
             .service(get_user_followers)
             .service(get_user_following)
+            .service(get_user_outbox)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

@@ -6,7 +6,6 @@ use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::fmt::Simple;
-
 #[derive(Debug)]
 pub struct User {
     pub id: sqlx::types::uuid::fmt::Simple,
@@ -188,7 +187,7 @@ pub mod api_response {
 
     use crate::utils::pagination::PaginatableItem;
 
-    use super::{HasRemoteUri, PostPrivacy};
+    use super::{ApubRenderablePost, HasRemoteUri, PostPrivacy};
 
     #[derive(Debug, Clone, Builder, Getters, Serialize)]
     pub struct UserPostEntry {
@@ -204,6 +203,44 @@ pub mod api_response {
         reposted_by_you: Option<bool>,  // non-null if user is logged in
         favorited_by_you: Option<bool>, // non-null if user is logged in
         bookmarked_by_you: Option<bool>, // non-null if user is logged in
+    }
+
+    impl HasRemoteUri for UserPostEntry {
+        fn get_local_id(&self) -> String {
+            self.id.to_string()
+        }
+
+        fn get_remote_uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
+    }
+
+    impl ApubRenderablePost for UserPostEntry {
+        type Poster = PostAuthor;
+
+        fn id(&self) -> Simple {
+            self.id
+        }
+
+        fn uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
+
+        fn content(&self) -> Option<String> {
+            self.content.clone()
+        }
+
+        fn poster(&self) -> Self::Poster {
+            self.author.clone()
+        }
+
+        fn privacy(&self) -> PostPrivacy {
+            self.privacy
+        }
+
+        fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
+            self.created_at
+        }
     }
 
     impl PaginatableItem for UserPostEntry {
@@ -235,6 +272,16 @@ pub mod api_response {
         username: String,
         host: Option<String>,
         nickname: String,
+    }
+
+    impl HasRemoteUri for PostAuthor {
+        fn get_local_id(&self) -> String {
+            self.id.to_string()
+        }
+
+        fn get_remote_uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
     }
 
     #[derive(Debug, Clone, Builder, Getters, Serialize)]
@@ -272,6 +319,7 @@ pub mod apub {
     use derive_builder::Builder;
     use derive_more::From;
     use serde::{Deserialize, Serialize};
+    use serde_with::skip_serializing_none;
 
     pub mod context {
         use serde::Serialize;
@@ -458,6 +506,7 @@ pub mod apub {
         }
     }
 
+    #[skip_serializing_none]
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
     pub struct Note {

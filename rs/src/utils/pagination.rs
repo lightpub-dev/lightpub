@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 
 #[derive(Debug, Serialize)]
 pub struct PaginatedResponse<T> {
@@ -79,6 +80,7 @@ pub enum CollectionPageType {
     OrderedCollectionPage,
 }
 
+#[skip_serializing_none]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectionResponse {
@@ -102,6 +104,7 @@ impl CollectionResponse {
     }
 }
 
+#[skip_serializing_none]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectionPageResponse<T> {
