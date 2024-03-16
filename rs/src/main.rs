@@ -171,6 +171,43 @@ impl FromRequest for AuthUser {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ApubRequested {
+    apub_requested: bool,
+}
+
+impl ApubRequested {
+    pub fn from_req(req: &actix_web::HttpRequest) -> Self {
+        let apub_requested = req
+            .headers()
+            .get("Accept")
+            .map(|a| {
+                a.to_str()
+                    .unwrap_or("")
+                    .contains("application/activity+json")
+            })
+            .unwrap_or(false);
+        Self { apub_requested }
+    }
+
+    pub fn apub_requested(&self) -> bool {
+        self.apub_requested
+    }
+}
+
+impl FromRequest for ApubRequested {
+    type Error = ErrorResponse;
+    type Future = Pin<Box<dyn Future<Output = Result<ApubRequested, Self::Error>>>>;
+
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        _payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
+        let req = req.clone();
+        Box::pin(async move { Ok(ApubRequested::from_req(&req)) })
+    }
+}
+
 #[get("/api/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
