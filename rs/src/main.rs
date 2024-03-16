@@ -8,7 +8,9 @@ use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
 use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
-use crate::services::{FetchFollowListOptions, FetchUserPostsOptions, UserProfileUpdate};
+use crate::services::{
+    FetchFollowListOptions, FetchUserPostsOptions, TimelineOptions, UserProfileUpdate,
+};
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
 use crate::utils::pagination::{
@@ -1298,6 +1300,50 @@ async fn get_user_following(
     }
 }
 
+#[derive(Debug, Deserialize, Clone, Serialize)]
+struct TimelineQuery {
+    pub limit: Option<i64>,
+    #[serde(default)]
+    pub public: bool,
+    pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[get("/timeline")]
+async fn timeline(
+    app: web::Data<AppState>,
+    auth: AuthUser,
+    query: web::Query<TimelineQuery>,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = TimelineOptions::new(limit + 1, query.before_date, query.public);
+    let posts = post_service
+        .fetch_timeline(&authed_user.id.into(), &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user timeline: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+    let paginated = PaginatedResponse::from_result(posts, limit.try_into().unwrap(), |last| {
+        let base_url = app.config().base_url();
+        let mut new_query = (*query).clone();
+        new_query.before_date = Some(*last);
+
+        format!(
+            "{}/timeline?{}",
+            base_url,
+            serde_urlencoded::to_string(new_query).unwrap()
+        )
+    });
+    Ok(HttpResponse::Ok().json(paginated))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -1375,6 +1421,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_followers)
             .service(get_user_following)
             .service(get_user_outbox)
+            .service(timeline)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

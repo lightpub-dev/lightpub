@@ -656,7 +656,7 @@ impl UserPostService for DBUserPostService {
             WHERE (
                 p.poster_id=?
                 OR (? AND p.privacy = 'public')
-                OR (p.privacy IN ('public', 'unlisted', 'follower') AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=? AND follower_id=?))
+                OR (p.privacy IN ('public', 'unlisted', 'follower') AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=p.poster_id AND follower_id=?))
                 OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))
               )
               AND (NOT ? OR p.created_at <= ?)
@@ -665,7 +665,6 @@ impl UserPostService for DBUserPostService {
             "#,
             user.id.to_string(),
             options.include_all_public,
-            user.id.to_string(),
             user.id.to_string(),
             user.id.to_string(),
             before_date_valid,
