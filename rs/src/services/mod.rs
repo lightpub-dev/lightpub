@@ -445,6 +445,7 @@ pub enum PostCreateError {
     RepostOfNotFound,
     ReplyToNotFound,
     AlreadyExists,
+    TooManyRecursion,
 }
 
 #[async_trait]
@@ -630,6 +631,13 @@ pub struct FetchUserPostsOptions {
     pub before_date: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+#[derive(Debug, Clone, Constructor)]
+pub struct TimelineOptions {
+    pub limit: i64,
+    pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub include_all_public: bool,
+}
+
 #[async_trait]
 pub trait UserPostService {
     async fn fetch_user_posts(
@@ -637,6 +645,12 @@ pub trait UserPostService {
         user: &UserSpecifier,
         viewer: &Option<UserSpecifier>,
         options: &FetchUserPostsOptions,
+    ) -> Result<Vec<UserPostEntry>, anyhow::Error>;
+
+    async fn fetch_timeline(
+        &mut self,
+        user: &UserSpecifier,
+        options: &TimelineOptions,
     ) -> Result<Vec<UserPostEntry>, anyhow::Error>;
 }
 

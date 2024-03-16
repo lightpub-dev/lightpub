@@ -1,7 +1,6 @@
 pub mod follow;
 pub mod key;
 pub mod post;
-pub mod timeline;
 pub mod upload;
 pub mod user;
 
