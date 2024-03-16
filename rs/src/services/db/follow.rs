@@ -4,11 +4,17 @@ use tracing::{debug, warn};
 use uuid::fmt::Simple;
 
 use crate::{
-    holder, models,
+    holder,
+    models::{
+        self,
+        api_response::{FollowListEntry, FollowListEntryBuilder},
+        HasRemoteUri,
+    },
     services::{
         id::IDGetterService, AllUserFinderService, ApubFollowService, ApubRequestService,
-        FollowError, FollowRequestAccepted, FollowRequestSpecifier, IncomingFollowRequest,
-        ServiceError, SignerError, SignerService, UserFindError, UserFollowService,
+        FetchFollowListOptions, FollowError, FollowRequestAccepted, FollowRequestSpecifier,
+        IncomingFollowRequest, ServiceError, SignerError, SignerService, UserFindError,
+        UserFollowService,
     },
     utils::{generate_uuid, user::UserSpecifier},
 };
@@ -60,8 +66,123 @@ impl DBUserFollowService {
     }
 }
 
+#[derive(Debug)]
+struct FollowUser {
+    id: Simple,
+    uri: Option<String>,
+    username: String,
+    host: Option<String>,
+    avatar_id: Option<Simple>,
+    nickname: String,
+    created_at: chrono::NaiveDateTime,
+}
+
+impl HasRemoteUri for FollowUser {
+    fn get_local_id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
 #[async_trait]
 impl UserFollowService for DBUserFollowService {
+    async fn fetch_following_list(
+        &mut self,
+        user: &UserSpecifier,
+        options: &FetchFollowListOptions,
+    ) -> Result<Vec<FollowListEntry>, anyhow::Error> {
+        let user = self.find_user(user, FollowError::FollowerNotFound).await?;
+        let (before_date_valid, before_date) = match options.before_date {
+            Some(date) => (true, Some(date.naive_utc())),
+            None => (false, None),
+        };
+
+        let rows = sqlx::query_as!(FollowUser,
+        r#"
+            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at
+            FROM users u
+            INNER JOIN user_follows f ON u.id = f.followee_id
+            WHERE f.follower_id = ? AND (NOT ? OR f.created_at <= ?)
+            ORDER BY f.created_at DESC
+            LIMIT ?
+        "#, user.id.to_string(), before_date_valid, before_date, options.limit)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let uri = self.id_getter.get_user_id(&row);
+
+                FollowListEntryBuilder::default()
+                    .id(row.id.into())
+                    .uri(uri)
+                    .username(row.username)
+                    .host(row.host)
+                    .avatar_id(row.avatar_id.map(|id| id.into()))
+                    .nickname(row.nickname)
+                    .created_at(chrono::DateTime::from_naive_utc_and_offset(
+                        row.created_at,
+                        chrono::Utc,
+                    ))
+                    .build()
+                    .unwrap()
+            })
+            .collect())
+    }
+
+    async fn fetch_follower_list(
+        &mut self,
+        user: &UserSpecifier,
+        options: &FetchFollowListOptions,
+    ) -> Result<Vec<FollowListEntry>, anyhow::Error> {
+        let user = self.find_user(user, FollowError::FollowerNotFound).await?;
+        let (before_date_valid, before_date) = match options.before_date {
+            Some(date) => (true, Some(date.naive_utc())),
+            None => (false, None),
+        };
+
+        let rows = sqlx::query_as!(FollowUser,
+        r#"
+            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at
+            FROM users u
+            INNER JOIN user_follows f ON u.id = f.follower_id
+            WHERE f.followee_id = ? AND (NOT ? OR f.created_at <= ?)
+            ORDER BY f.created_at DESC
+            LIMIT ?
+        "#,
+        user.id.to_string(),
+        before_date_valid,
+        before_date,
+        options.limit)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let uri = self.id_getter.get_user_id(&row);
+
+                FollowListEntryBuilder::default()
+                    .id(row.id.into())
+                    .uri(uri)
+                    .username(row.username)
+                    .host(row.host)
+                    .avatar_id(row.avatar_id.map(|id| id.into()))
+                    .nickname(row.nickname)
+                    .created_at(chrono::DateTime::from_naive_utc_and_offset(
+                        row.created_at,
+                        chrono::Utc,
+                    ))
+                    .build()
+                    .unwrap()
+            })
+            .collect())
+    }
+
     async fn follow_user(
         &mut self,
         follower_spec: &UserSpecifier,

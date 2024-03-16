@@ -3,14 +3,20 @@ pub mod models;
 pub mod services;
 pub mod state;
 pub mod utils;
-
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
+use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
-use crate::services::UserProfileUpdate;
+use crate::services::{
+    FetchFollowListOptions, FetchUserPostsOptions, TimelineOptions, UserProfileUpdate,
+};
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
+use crate::utils::pagination::{
+    CollectionPageResponse, CollectionResponse, CollectionType, PaginatableWrapper,
+    PaginatedResponse,
+};
 use crate::{
     services::{
         apub::{new_apub_renderer_service, new_apub_reqwester_service},
@@ -50,6 +56,7 @@ use std::{
 };
 use tracing::{debug, error, info, warn};
 use utils::key::{verify_signature, KeyFetcher};
+use utils::pagination::CollectionPageType;
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -70,11 +77,19 @@ impl AuthUser {
         }
     }
 
+    pub fn unauthed() -> Self {
+        Self { authed_user: None }
+    }
+
     pub fn must_auth(&self) -> Result<&User, ErrorResponse> {
         match &self.authed_user {
             Some(u) => Ok(&u),
             None => Err(ErrorResponse::new_status(401, "unauthorized")),
         }
+    }
+
+    pub fn may_auth(&self) -> Result<&Option<User>, ErrorResponse> {
+        Ok(&self.authed_user)
     }
 }
 
@@ -126,10 +141,11 @@ impl FromRequest for AuthUser {
                 }
             }
 
-            let authorization = req
-                .headers()
-                .get("Authorization")
-                .ok_or(ErrorResponse::new_status(401, "unauthorized"))?;
+            let authorization = match req.headers().get("Authorization") {
+                Some(a) => a,
+                None => return Ok(AuthUser::unauthed()),
+            };
+
             let header_value = authorization
                 .to_str()
                 .map_err(|_| ErrorResponse::new_status(401, "unauthorized"))?;
@@ -149,12 +165,54 @@ impl FromRequest for AuthUser {
                 Ok(u) => Ok(AuthUser::from_user(u)),
                 Err(e) => match e {
                     ServiceError::SpecificError(AuthError::TokenNotSet) => {
-                        todo!()
+                        Err(ErrorResponse::new_status(401, "unauthorized"))
                     }
-                    _ => todo!(),
+                    e => {
+                        error!("Failed to authenticate user: {:?}", e);
+                        Err(ErrorResponse::new_status(500, "internal server error"))
+                    }
                 },
             }
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ApubRequested {
+    apub_requested: bool,
+}
+
+impl ApubRequested {
+    pub fn from_req(req: &actix_web::HttpRequest) -> Self {
+        let apub_requested = req
+            .headers()
+            .get("Accept")
+            .map(|a| {
+                let s = a.to_str().unwrap_or("");
+                s.contains("application/activity+json")
+                    || s.contains(
+                        r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
+                    )
+            })
+            .unwrap_or(false);
+        Self { apub_requested }
+    }
+
+    pub fn apub_requested(&self) -> bool {
+        self.apub_requested
+    }
+}
+
+impl FromRequest for ApubRequested {
+    type Error = ErrorResponse;
+    type Future = Pin<Box<dyn Future<Output = Result<ApubRequested, Self::Error>>>>;
+
+    fn from_request(
+        req: &actix_web::HttpRequest,
+        _payload: &mut actix_web::dev::Payload,
+    ) -> Self::Future {
+        let req = req.clone();
+        Box::pin(async move { Ok(ApubRequested::from_req(&req)) })
     }
 }
 
@@ -926,6 +984,368 @@ async fn update_my_profile(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct OutboxQuery {
+    before_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    page: bool,
+}
+
+#[get("/user/{user_spec}/outbox")]
+async fn get_user_outbox(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    auth: AuthUser,
+    query: web::Query<OutboxQuery>,
+) -> HandlerResponse<impl Responder> {
+    if !query.page {
+        return Ok(HttpResponse::Ok().json(CollectionResponse::from_first(
+            CollectionType::OrderedCollection,
+            {
+                let base_url = app.config().base_url();
+                let new_query = OutboxQuery {
+                    before_date: None,
+                    page: true,
+                };
+                format!(
+                    "{}/user/{}/outbox?{}",
+                    base_url,
+                    path.user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            },
+            None,
+        )));
+    }
+
+    let user_spec = &path.user_spec;
+    let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+
+    let limit = 20;
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let posts = post_service
+        .fetch_user_posts(user_spec, viewer, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user posts: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    let renderer_service = new_apub_renderer_service(app.config().clone());
+    let mut rendered_posts = Vec::with_capacity(posts.len());
+    for p in posts {
+        let rendered = renderer_service.render_post(&p).map_err(|e| {
+            error!("Failed to render post: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+        rendered_posts.push(PaginatableWrapper::new(
+            rendered.note().clone(),
+            p.created_at().clone(),
+        ));
+    }
+
+    let paginated =
+        PaginatedResponse::from_result(rendered_posts, limit.try_into().unwrap(), |last| {
+            let base_url = app.config().base_url();
+            let mut new_query = (*query).clone();
+            new_query.before_date = Some(*last);
+
+            format!(
+                "{}/user/{}/outbox?{}",
+                base_url,
+                user_spec,
+                serde_urlencoded::to_string(new_query).unwrap()
+            )
+        });
+    let paginated = CollectionPageResponse::from_paginated_response(
+        CollectionPageType::OrderedCollectionPage,
+        paginated,
+        format!("{}/user/{}/outbox", app.config().base_url(), path.user_spec),
+        None,
+    );
+    Ok(HttpResponse::Ok().json(paginated.with_context()))
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct GetUserPostsQuery {
+    limit: Option<i64>,
+    before_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    page: bool,
+}
+
+#[get("/user/{user_spec}/posts")]
+async fn get_user_posts(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    auth: AuthUser,
+    query: web::Query<GetUserPostsQuery>,
+) -> HandlerResponse<impl Responder> {
+    let user_spec = &path.user_spec;
+    let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let posts = post_service
+        .fetch_user_posts(user_spec, viewer, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user posts: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+    let paginated = PaginatedResponse::from_result(posts, limit.try_into().unwrap(), |last| {
+        let base_url = app.config().base_url();
+        let mut new_query = (*query).clone();
+        new_query.before_date = Some(*last);
+
+        format!(
+            "{}/user/{}/posts?{}",
+            base_url,
+            user_spec,
+            serde_urlencoded::to_string(new_query).unwrap()
+        )
+    });
+    Ok(HttpResponse::Ok().json(paginated))
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct ListFollowOptions {
+    pub limit: Option<i64>,
+    pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    pub page: bool,
+}
+
+#[get("/user/{user_spec}/followers")]
+async fn get_user_followers(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    query: web::Query<ListFollowOptions>,
+    apub: ApubRequested, // auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    if apub.apub_requested() && !query.page {
+        return Ok(HttpResponse::Ok().json(CollectionResponse::from_first(
+            CollectionType::OrderedCollection,
+            {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.page = true;
+                format!(
+                    "{}/user/{}/followers?{}",
+                    base_url,
+                    path.user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            },
+            None,
+        )));
+    }
+
+    let user_spec = &path.user_spec;
+    // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = FetchFollowListOptions::new(limit, query.before_date);
+    let followers = follow_service
+        .fetch_follower_list(user_spec, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user followers: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    if !apub.apub_requested() {
+        let paginated =
+            PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
+
+                format!(
+                    "{}/user/{}/followers?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            });
+
+        Ok(HttpResponse::Ok().json(paginated))
+    } else {
+        let id_service = new_id_getter_service(app.config().clone());
+        let items = followers
+            .into_iter()
+            .map(|f| PaginatableWrapper::new(id_service.get_user_id(&f), f.created_at().clone()))
+            .collect();
+
+        let base_url = app.config().base_url();
+        let paginated = CollectionPageResponse::from_paginated_response(
+            CollectionPageType::OrderedCollectionPage,
+            PaginatedResponse::from_result(items, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
+
+                format!(
+                    "{}/user/{}/followers?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            }),
+            format!("{}/user/{}/followers", base_url, path.user_spec,),
+            None,
+        );
+
+        Ok(HttpResponse::Ok().json(paginated))
+    }
+}
+
+#[get("/user/{user_spec}/following")]
+async fn get_user_following(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    query: web::Query<ListFollowOptions>,
+    apub: ApubRequested,
+    // auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    if apub.apub_requested() && !query.page {
+        return Ok(HttpResponse::Ok().json(CollectionResponse::from_first(
+            CollectionType::OrderedCollection,
+            {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.page = true;
+                format!(
+                    "{}/user/{}/following?{}",
+                    base_url,
+                    path.user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            },
+            None,
+        )));
+    }
+
+    let user_spec = &path.user_spec;
+    // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = FetchFollowListOptions::new(limit, query.before_date);
+    let followers = follow_service
+        .fetch_follower_list(user_spec, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user following: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    if !apub.apub_requested() {
+        let paginated =
+            PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
+
+                format!(
+                    "{}/user/{}/following?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            });
+
+        Ok(HttpResponse::Ok().json(paginated))
+    } else {
+        let id_service = new_id_getter_service(app.config().clone());
+        let items = followers
+            .into_iter()
+            .map(|f| PaginatableWrapper::new(id_service.get_user_id(&f), f.created_at().clone()))
+            .collect();
+
+        let base_url = app.config().base_url();
+        let paginated = CollectionPageResponse::from_paginated_response(
+            CollectionPageType::OrderedCollectionPage,
+            PaginatedResponse::from_result(items, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
+
+                format!(
+                    "{}/user/{}/following?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            }),
+            format!("{}/user/{}/following", base_url, path.user_spec,),
+            None,
+        );
+
+        Ok(HttpResponse::Ok().json(paginated))
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Serialize)]
+struct TimelineQuery {
+    pub limit: Option<i64>,
+    #[serde(default)]
+    pub public: bool,
+    pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[get("/timeline")]
+async fn timeline(
+    app: web::Data<AppState>,
+    auth: AuthUser,
+    query: web::Query<TimelineQuery>,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = TimelineOptions::new(limit + 1, query.before_date, query.public);
+    let posts = post_service
+        .fetch_timeline(&authed_user.id.into(), &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user timeline: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+    let paginated = PaginatedResponse::from_result(posts, limit.try_into().unwrap(), |last| {
+        let base_url = app.config().base_url();
+        let mut new_query = (*query).clone();
+        new_query.before_date = Some(*last);
+
+        format!(
+            "{}/timeline?{}",
+            base_url,
+            serde_urlencoded::to_string(new_query).unwrap()
+        )
+    });
+    Ok(HttpResponse::Ok().json(paginated))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -999,6 +1419,11 @@ async fn main() -> std::io::Result<()> {
             .service(user_get)
             .service(file_upload)
             .service(update_my_profile)
+            .service(get_user_posts)
+            .service(get_user_followers)
+            .service(get_user_following)
+            .service(get_user_outbox)
+            .service(timeline)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

@@ -134,8 +134,10 @@ impl ApubRequestService for ApubReqwest {
             self.client(),
             Request::new(Method::POST, url.parse().unwrap()),
         )
-        .header("Content-Type", "application/activity+json")
-        // .header("Accept", "application/activity+json")
+        .header(
+            "Content-Type",
+            r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
+        )
         .body(body)
         .build()
         .unwrap();
@@ -176,7 +178,10 @@ impl ApubRequestService for ApubReqwest {
             self.client(),
             Request::new(Method::GET, url.parse().unwrap()),
         )
-        .header("Accept", "application/activity+json")
+        .header(
+            "Accept",
+            r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
+        )
         .build()
         .unwrap();
 
@@ -197,7 +202,10 @@ impl ApubRequestService for ApubReqwest {
             self.client(),
             Request::new(Method::GET, url.parse().unwrap()),
         )
-        .header("Accept", "application/activity+json")
+        .header(
+            "Accept",
+            r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
+        )
         .build()
         .unwrap();
 

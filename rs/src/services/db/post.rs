@@ -9,15 +9,20 @@ use uuid::{fmt::Simple, Uuid};
 
 use crate::{
     holder,
-    models::{ApubRenderablePost, HasRemoteUri, PostPrivacy},
+    models::{
+        api_response::{PostAuthorBuilder, PostCountsBuilder, UserPostEntry, UserPostEntryBuilder},
+        apub::CreatableObject,
+        ApubRenderablePost, HasRemoteUri, PostPrivacy,
+    },
     services::{
         apub::{
             post::PostContentService,
             render::{ApubRendererService, TargetedUser},
         },
         id::IDGetterService,
-        AllUserFinderService, ApubRequestService, PostCreateError, PostCreateRequest,
-        PostCreateService, ServiceError, SignerService,
+        AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
+        PostCreateRequest, PostCreateService, ServiceError, SignerService, TimelineOptions,
+        UserPostService,
     },
     utils::{
         generate_uuid,
@@ -43,6 +48,7 @@ impl DBPostCreateService {
         &mut self,
         spec: &PostSpecifier,
         not_found_err: PostCreateError,
+        depth: i32,
     ) -> Result<Simple, ServiceError<PostCreateError>> {
         match spec {
             PostSpecifier::ID(id) => sqlx::query!(
@@ -59,24 +65,41 @@ impl DBPostCreateService {
                     let local_post_id = Uuid::parse_str(&local_post_id)
                         .map_err(|_e| ServiceError::from_se(not_found_err.clone()))?;
                     return self
-                        .fetch_post_id(&PostSpecifier::from_id(local_post_id), not_found_err)
+                        .fetch_post_id(
+                            &PostSpecifier::from_id(local_post_id),
+                            not_found_err,
+                            depth + 1,
+                        )
                         .await;
                 }
-                sqlx::query!("SELECT id AS `id: Simple` FROM posts WHERE uri=?", uri)
+
+                let result = sqlx::query!("SELECT id AS `id: Simple` FROM posts WHERE uri=?", uri)
                     .fetch_optional(&self.pool)
                     .await?
-                    .map(|p| p.id)
-                    .ok_or(ServiceError::from_se(not_found_err))
+                    .map(|p| p.id);
+                if let Some(result) = result {
+                    return Ok(result);
+                }
+
+                if depth > 10 {
+                    // TODO: 10 でいいの?
+                    return Err(ServiceError::from_se(not_found_err));
+                }
+                let remote_post = self.req.fetch_post(uri).await.map_err(|e| {
+                    warn!("failed to fetch remote post: {:?}", e);
+                    ServiceError::from_se(not_found_err.clone())
+                })?;
+                let CreatableObject::Note(remote_post) = remote_post;
+                self.create_post_(&remote_post.try_into().unwrap(), depth + 1)
+                    .await
             }
         }
     }
-}
 
-#[async_trait]
-impl PostCreateService for DBPostCreateService {
-    async fn create_post(
+    async fn create_post_(
         &mut self,
         req: &crate::services::PostCreateRequest,
+        depth: i32,
     ) -> Result<Simple, crate::services::ServiceError<crate::services::PostCreateError>> {
         let mut tx = self.pool.begin().await?;
         let uri = req.uri();
@@ -119,7 +142,7 @@ impl PostCreateService for DBPostCreateService {
         let repost_of_id = match repost_of_spec {
             None => None,
             Some(s) => self
-                .fetch_post_id(&s, PostCreateError::RepostOfNotFound)
+                .fetch_post_id(&s, PostCreateError::RepostOfNotFound, depth + 1)
                 .await?
                 .into(),
         };
@@ -127,7 +150,7 @@ impl PostCreateService for DBPostCreateService {
         let reply_to_id = match reply_to_spec {
             None => None,
             Some(s) => self
-                .fetch_post_id(&s, PostCreateError::ReplyToNotFound)
+                .fetch_post_id(&s, PostCreateError::ReplyToNotFound, depth + 1)
                 .await?
                 .into(),
         };
@@ -264,6 +287,16 @@ impl PostCreateService for DBPostCreateService {
     }
 }
 
+#[async_trait]
+impl PostCreateService for DBPostCreateService {
+    async fn create_post(
+        &mut self,
+        req: &crate::services::PostCreateRequest,
+    ) -> Result<Simple, crate::services::ServiceError<crate::services::PostCreateError>> {
+        self.create_post_(req, 0).await
+    }
+}
+
 impl DBPostCreateService {
     async fn find_target_inboxes(
         &mut self,
@@ -374,5 +407,316 @@ impl HasRemoteUri for LocalPoster {
 
     fn get_remote_uri(&self) -> Option<String> {
         None
+    }
+}
+
+#[derive(Constructor)]
+pub struct DBUserPostService {
+    pool: MySqlPool,
+    finder: holder!(AllUserFinderService),
+    id_getter: IDGetterService,
+}
+
+#[derive(Debug)]
+struct UserPost {
+    id: Simple,
+    uri: Option<String>,
+    author_id: Simple,
+    author_uri: Option<String>,
+    author_username: String,
+    author_host: Option<String>,
+    author_nickname: String,
+    content: Option<String>,
+    privacy: String,
+    repost_of_id: Option<Simple>,
+    reply_to_id: Option<Simple>,
+    created_at: chrono::NaiveDateTime,
+    count_replies: i64,
+    count_reposts: i64,
+    count_quotes: i64,
+    reposted_by_you: Option<bool>,
+    favorited_by_you: Option<bool>,
+    bookmarked_by_you: Option<bool>,
+}
+
+struct UserPostAsPost<'a>(pub &'a UserPost);
+impl HasRemoteUri for UserPostAsPost<'_> {
+    fn get_local_id(&self) -> String {
+        self.0.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.0.uri.clone()
+    }
+}
+
+struct UserPostAsAuthor<'a>(pub &'a UserPost);
+impl HasRemoteUri for UserPostAsAuthor<'_> {
+    fn get_local_id(&self) -> String {
+        self.0.author_id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.0.author_uri.clone()
+    }
+}
+
+#[async_trait]
+impl UserPostService for DBUserPostService {
+    async fn fetch_user_posts(
+        &mut self,
+        user: &UserSpecifier,
+        viewer: &Option<UserSpecifier>,
+        options: &FetchUserPostsOptions,
+    ) -> Result<Vec<UserPostEntry>, anyhow::Error> {
+        let user = self.finder.find_user_by_specifier(user).await?;
+        let viewer = if let Some(viewer) = viewer {
+            Some(self.finder.find_user_by_specifier(viewer).await?)
+        } else {
+            None
+        };
+
+        let (before_date_valid, before_date) = (
+            options.before_date.is_some(),
+            options.before_date.map(|d| d.naive_utc()),
+        );
+
+        let posts = match viewer {
+            None => {
+                sqlx::query_as!(
+                    UserPost,
+                    r#"
+                    SELECT
+                        p.id AS `id: Simple`,
+                        p.uri AS `uri`,
+                        u.id `author_id: Simple`,
+                        u.uri AS `author_uri`,
+                        u.username AS `author_username`,
+                        u.host AS `author_host`,
+                        u.nickname AS `author_nickname`,
+                        p.content,
+                        p.privacy,
+                        p.repost_of_id AS `repost_of_id: Simple`,
+                        p.reply_to_id AS `reply_to_id: Simple`,
+                        p.created_at,
+                        0 AS `count_replies`,
+                        0 AS `count_reposts`,
+                        0 AS `count_quotes`,
+                        NULL AS `reposted_by_you: bool`,
+                        NULL AS `favorited_by_you: bool`,
+                        NULL AS `bookmarked_by_you: bool`
+                    FROM posts p
+                    INNER JOIN users u ON p.poster_id = u.id
+                    WHERE p.poster_id=?
+                      AND p.privacy IN ('public', 'unlisted')
+                      AND (NOT ? OR p.created_at <= ?)
+                    ORDER BY p.created_at DESC
+                    LIMIT ?
+                    "#,
+                    user.id.to_string(),
+                    before_date_valid,
+                    before_date,
+                    options.limit,
+                )
+                .fetch_all(&self.pool)
+                .await?
+            }
+            Some(viewer) => {
+                sqlx::query_as!(
+                    UserPost,
+                    r#"
+                    SELECT
+                        p.id AS `id: Simple`,
+                        p.uri AS `uri`,
+                        u.id `author_id: Simple`,
+                        u.uri AS `author_uri`,
+                        u.username AS `author_username`,
+                        u.host AS `author_host`,
+                        u.nickname AS `author_nickname`,
+                        p.content,
+                        p.privacy,
+                        p.repost_of_id AS `repost_of_id: Simple`,
+                        p.reply_to_id AS `reply_to_id: Simple`,
+                        p.created_at,
+                        0 AS `count_replies`,
+                        0 AS `count_reposts`,
+                        0 AS `count_quotes`,
+                        NULL AS `reposted_by_you: bool`,
+                        NULL AS `favorited_by_you: bool`,
+                        NULL AS `bookmarked_by_you: bool`
+                    FROM posts p
+                    INNER JOIN users u ON p.poster_id = u.id
+                    WHERE p.poster_id=?
+                      AND (
+                        p.poster_id=?
+                        OR p.privacy IN ('public', 'unlisted')
+                        OR (p.privacy = 'follower' AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=? AND follower_id=?))
+                        OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))
+                      )
+                      AND (NOT ? OR p.created_at <= ?)
+                    ORDER BY p.created_at DESC
+                    LIMIT ?
+                    "#,
+                    user.id.to_string(),
+                    viewer.id.to_string(),
+                    user.id.to_string(),
+                    viewer.id.to_string(),
+                    viewer.id.to_string(),
+                    before_date_valid,
+                    before_date,
+                    options.limit,
+                )
+                .fetch_all(&self.pool)
+                .await?
+            }
+        };
+
+        let entries = posts
+            .into_iter()
+            .map(|p| {
+                let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
+                let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
+                UserPostEntryBuilder::default()
+                    .id(p.id)
+                    .uri(post_uri)
+                    .author(
+                        PostAuthorBuilder::default()
+                            .id(p.author_id)
+                            .uri(user_uri)
+                            .username(p.author_username)
+                            .host(p.author_host)
+                            .nickname(p.author_nickname)
+                            .build()
+                            .unwrap(),
+                    )
+                    .content(p.content)
+                    .privacy(p.privacy.parse().unwrap())
+                    .repost_of_id(p.repost_of_id)
+                    .reply_to_id(p.reply_to_id)
+                    .created_at(chrono::DateTime::from_naive_utc_and_offset(
+                        p.created_at,
+                        chrono::Utc,
+                    ))
+                    .counts(
+                        PostCountsBuilder::default()
+                            .reactions(vec![])
+                            .replies(p.count_replies)
+                            .reposts(p.count_reposts)
+                            .quotes(p.count_quotes)
+                            .build()
+                            .unwrap(),
+                    )
+                    .reposted_by_you(p.reposted_by_you)
+                    .favorited_by_you(p.favorited_by_you)
+                    .bookmarked_by_you(p.bookmarked_by_you)
+                    .build()
+                    .unwrap()
+            })
+            .collect();
+
+        Ok(entries)
+    }
+
+    async fn fetch_timeline(
+        &mut self,
+        user_spec: &UserSpecifier,
+        options: &TimelineOptions,
+    ) -> Result<Vec<UserPostEntry>, anyhow::Error> {
+        let user = self.finder.find_user_by_specifier(user_spec).await?;
+
+        let (before_date_valid, before_date) = (
+            options.before_date.is_some(),
+            options.before_date.map(|d| d.naive_utc()),
+        );
+
+        let posts = sqlx::query_as!(
+            UserPost,
+            r#"
+            SELECT
+                p.id AS `id: Simple`,
+                p.uri AS `uri`,
+                u.id `author_id: Simple`,
+                u.uri AS `author_uri`,
+                u.username AS `author_username`,
+                u.host AS `author_host`,
+                u.nickname AS `author_nickname`,
+                p.content,
+                p.privacy,
+                p.repost_of_id AS `repost_of_id: Simple`,
+                p.reply_to_id AS `reply_to_id: Simple`,
+                p.created_at,
+                0 AS `count_replies`,
+                0 AS `count_reposts`,
+                0 AS `count_quotes`,
+                NULL AS `reposted_by_you: bool`,
+                NULL AS `favorited_by_you: bool`,
+                NULL AS `bookmarked_by_you: bool`
+            FROM posts p
+            INNER JOIN users u ON p.poster_id = u.id
+            WHERE (
+                p.poster_id=?
+                OR (? AND p.privacy = 'public')
+                OR (p.privacy IN ('public', 'unlisted', 'follower') AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=p.poster_id AND follower_id=?))
+                OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))
+              )
+              AND (NOT ? OR p.created_at <= ?)
+            ORDER BY p.created_at DESC
+            LIMIT ?
+            "#,
+            user.id.to_string(),
+            options.include_all_public,
+            user.id.to_string(),
+            user.id.to_string(),
+            before_date_valid,
+            before_date,
+            options.limit,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let entries = posts
+            .into_iter()
+            .map(|p| {
+                let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
+                let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
+                UserPostEntryBuilder::default()
+                    .id(p.id)
+                    .uri(post_uri)
+                    .author(
+                        PostAuthorBuilder::default()
+                            .id(p.author_id)
+                            .uri(user_uri)
+                            .username(p.author_username)
+                            .host(p.author_host)
+                            .nickname(p.author_nickname)
+                            .build()
+                            .unwrap(),
+                    )
+                    .content(p.content)
+                    .privacy(p.privacy.parse().unwrap())
+                    .repost_of_id(p.repost_of_id)
+                    .reply_to_id(p.reply_to_id)
+                    .created_at(chrono::DateTime::from_naive_utc_and_offset(
+                        p.created_at,
+                        chrono::Utc,
+                    ))
+                    .counts(
+                        PostCountsBuilder::default()
+                            .reactions(vec![])
+                            .replies(p.count_replies)
+                            .reposts(p.count_reposts)
+                            .quotes(p.count_quotes)
+                            .build()
+                            .unwrap(),
+                    )
+                    .reposted_by_you(p.reposted_by_you)
+                    .favorited_by_you(p.favorited_by_you)
+                    .bookmarked_by_you(p.bookmarked_by_you)
+                    .build()
+                    .unwrap()
+            })
+            .collect();
+
+        Ok(entries)
     }
 }

@@ -10,6 +10,22 @@ pub enum UserSpecifier {
     URL(URL),
 }
 
+impl std::fmt::Display for UserSpecifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserSpecifier::ID(id) => write!(f, "{}", id.simple()),
+            UserSpecifier::Username(username, hostname) => {
+                if let Some(hostname) = hostname {
+                    write!(f, "@{}@{}", username, hostname)
+                } else {
+                    write!(f, "@{}", username)
+                }
+            }
+            UserSpecifier::URL(url) => write!(f, "{}", url),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum UserSpecifierParseError {
     InvalidFormat,

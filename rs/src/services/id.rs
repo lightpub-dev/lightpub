@@ -65,13 +65,18 @@ impl IDGetterService {
         user: &impl HasRemoteUri,
         attr: UserAttribute,
     ) -> Option<String> {
-        match user.get_remote_uri() {
-            Some(_) => None,
-            None => {
-                let base = self.get_user_id(user);
-                Some(format!("{}{}", base, attr.as_url()))
+        let base = match user.get_remote_uri() {
+            Some(uri) => {
+                if uri.starts_with(&self.config.base_url()) {
+                    self.get_user_id(user)
+                } else {
+                    return None;
+                }
             }
-        }
+            None => self.get_user_id(user),
+        };
+
+        Some(format!("{}{}", base, attr.as_url()))
     }
 
     pub fn get_post_id(&self, post: &impl HasRemoteUri) -> String {

@@ -1,9 +1,11 @@
+use std::str::FromStr;
+
 use derive_builder::Builder;
 use derive_getters::Getters;
 use rsa::RsaPrivateKey;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::fmt::Simple;
-
 #[derive(Debug)]
 pub struct User {
     pub id: sqlx::types::uuid::fmt::Simple,
@@ -41,12 +43,37 @@ impl HasRemoteUri for &User {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize)]
 pub enum PostPrivacy {
+    #[serde(rename = "public")]
     Public,
+    #[serde(rename = "unlisted")]
     Unlisted,
+    #[serde(rename = "follower")]
     Followers,
+    #[serde(rename = "private")]
     Private,
+}
+
+#[derive(Error, Debug)]
+pub enum PostPrivacyConversionError {
+    #[error("invalid privacy value")]
+    InvalidValue,
+}
+
+impl FromStr for PostPrivacy {
+    type Err = PostPrivacyConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use PostPrivacy::*;
+        match s {
+            "public" => Ok(Public),
+            "unlisted" => Ok(Unlisted),
+            "follower" => Ok(Followers),
+            "private" => Ok(Private),
+            _ => Err(PostPrivacyConversionError::InvalidValue),
+        }
+    }
 }
 
 pub trait HasRemoteUri {
@@ -152,10 +179,147 @@ pub trait ApubSigner {
     fn get_private_key_id(&self) -> String;
 }
 
+pub mod api_response {
+    use derive_builder::Builder;
+    use derive_getters::Getters;
+    use serde::Serialize;
+    use uuid::fmt::Simple;
+
+    use crate::utils::pagination::PaginatableItem;
+
+    use super::{ApubRenderablePost, HasRemoteUri, PostPrivacy};
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    pub struct UserPostEntry {
+        id: Simple,
+        uri: String,
+        author: PostAuthor,
+        content: Option<String>,
+        privacy: PostPrivacy,
+        repost_of_id: Option<Simple>,
+        reply_to_id: Option<Simple>,
+        created_at: chrono::DateTime<chrono::Utc>,
+        counts: PostCounts,
+        reposted_by_you: Option<bool>,  // non-null if user is logged in
+        favorited_by_you: Option<bool>, // non-null if user is logged in
+        bookmarked_by_you: Option<bool>, // non-null if user is logged in
+    }
+
+    impl HasRemoteUri for UserPostEntry {
+        fn get_local_id(&self) -> String {
+            self.id.to_string()
+        }
+
+        fn get_remote_uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
+    }
+
+    impl ApubRenderablePost for UserPostEntry {
+        type Poster = PostAuthor;
+
+        fn id(&self) -> Simple {
+            self.id
+        }
+
+        fn uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
+
+        fn content(&self) -> Option<String> {
+            self.content.clone()
+        }
+
+        fn poster(&self) -> Self::Poster {
+            self.author.clone()
+        }
+
+        fn privacy(&self) -> PostPrivacy {
+            self.privacy
+        }
+
+        fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
+            self.created_at
+        }
+    }
+
+    impl PaginatableItem for UserPostEntry {
+        type Key = chrono::DateTime<chrono::Utc>;
+
+        fn pkey(&self) -> Self::Key {
+            self.created_at
+        }
+    }
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    pub struct PostCounts {
+        reactions: Vec<PostReaction>,
+        replies: i64,
+        reposts: i64,
+        quotes: i64,
+    }
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    pub struct PostReaction {
+        name: String,
+        count: i64,
+    }
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    pub struct PostAuthor {
+        id: Simple,
+        uri: String,
+        username: String,
+        host: Option<String>,
+        nickname: String,
+    }
+
+    impl HasRemoteUri for PostAuthor {
+        fn get_local_id(&self) -> String {
+            self.id.to_string()
+        }
+
+        fn get_remote_uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
+    }
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    pub struct FollowListEntry {
+        id: Simple,
+        uri: String,
+        username: String,
+        host: Option<String>,
+        avatar_id: Option<Simple>,
+        nickname: String,
+        #[serde(skip)]
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    impl HasRemoteUri for FollowListEntry {
+        fn get_local_id(&self) -> String {
+            self.id.to_string()
+        }
+
+        fn get_remote_uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
+    }
+
+    impl PaginatableItem for FollowListEntry {
+        type Key = chrono::DateTime<chrono::Utc>;
+
+        fn pkey(&self) -> Self::Key {
+            self.created_at
+        }
+    }
+}
+
 pub mod apub {
     use derive_builder::Builder;
     use derive_more::From;
     use serde::{Deserialize, Serialize};
+    use serde_with::skip_serializing_none;
 
     pub mod context {
         use serde::Serialize;
@@ -342,6 +506,7 @@ pub mod apub {
         }
     }
 
+    #[skip_serializing_none]
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
     pub struct Note {
