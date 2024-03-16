@@ -236,6 +236,26 @@ pub mod api_response {
         host: Option<String>,
         nickname: String,
     }
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    pub struct FollowListEntry {
+        id: Simple,
+        uri: String,
+        username: String,
+        host: Option<String>,
+        avatar_id: Option<Simple>,
+        nickname: String,
+        #[serde(skip)]
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    impl PaginatableItem for FollowListEntry {
+        type Key = chrono::DateTime<chrono::Utc>;
+
+        fn pkey(&self) -> Self::Key {
+            self.created_at
+        }
+    }
 }
 
 pub mod apub {

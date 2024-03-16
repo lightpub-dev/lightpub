@@ -8,7 +8,7 @@ use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
 use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
-use crate::services::{FetchUserPostsOptions, UserProfileUpdate};
+use crate::services::{FetchFollowListOptions, FetchUserPostsOptions, UserProfileUpdate};
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
 use crate::utils::pagination::PaginatedResponse;
@@ -984,6 +984,94 @@ async fn get_user_posts(
     Ok(HttpResponse::Ok().json(paginated))
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct ListFollowOptions {
+    pub limit: Option<i64>,
+    pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[get("/user/{user_spec}/followers")]
+async fn get_user_followers(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    query: web::Query<ListFollowOptions>,
+    // auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let user_spec = &path.user_spec;
+    // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = FetchFollowListOptions::new(limit, query.before_date);
+    let followers = follow_service
+        .fetch_follower_list(user_spec, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user followers: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    let paginated = PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+        let base_url = app.config().base_url();
+        let mut new_query = (*query).clone();
+        new_query.before_date = Some(*last);
+
+        format!(
+            "{}/user/{}/followers?{}",
+            base_url,
+            user_spec,
+            serde_urlencoded::to_string(new_query).unwrap()
+        )
+    });
+
+    Ok(HttpResponse::Ok().json(paginated))
+}
+
+#[get("/user/{user_spec}/following")]
+async fn get_user_following(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    query: web::Query<ListFollowOptions>,
+    // auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let user_spec = &path.user_spec;
+    // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = FetchFollowListOptions::new(limit, query.before_date);
+    let followers = follow_service
+        .fetch_following_list(user_spec, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user followers: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    let paginated = PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+        let base_url = app.config().base_url();
+        let mut new_query = (*query).clone();
+        new_query.before_date = Some(*last);
+
+        format!(
+            "{}/user/{}/following?{}",
+            base_url,
+            user_spec,
+            serde_urlencoded::to_string(new_query).unwrap()
+        )
+    });
+
+    Ok(HttpResponse::Ok().json(paginated))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -1058,6 +1146,8 @@ async fn main() -> std::io::Result<()> {
             .service(file_upload)
             .service(update_my_profile)
             .service(get_user_posts)
+            .service(get_user_followers)
+            .service(get_user_following)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

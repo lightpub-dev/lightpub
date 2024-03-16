@@ -1,5 +1,5 @@
 use crate::models::{
-    api_response::UserPostEntry,
+    api_response::{FollowListEntry, UserPostEntry},
     apub::{AcceptActivity, Activity, FollowActivity, HasId},
 };
 use std::fmt::Display;
@@ -468,10 +468,13 @@ pub trait UserAuthService {
     ) -> Result<models::User, ServiceError<AuthError>>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum FollowError {
+    #[error("follower not found")]
     FollowerNotFound,
+    #[error("followee not found")]
     FolloweeNotFound,
+    #[error("follow request not found")]
     RequestNotFound,
 }
 
@@ -491,6 +494,12 @@ pub struct FollowRequestAccepted {
     pub follow_req_id: Uuid,
     pub follower_id: Uuid,
     pub followee_id: Uuid,
+}
+
+#[derive(Debug, Clone, Constructor)]
+pub struct FetchFollowListOptions {
+    pub limit: i64,
+    pub before_date: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[async_trait]
@@ -516,6 +525,18 @@ pub trait UserFollowService {
         &mut self,
         incoming_follow_request: &IncomingFollowRequest,
     ) -> Result<(), ServiceError<FollowError>>;
+
+    async fn fetch_following_list(
+        &mut self,
+        user: &UserSpecifier,
+        options: &FetchFollowListOptions,
+    ) -> Result<Vec<FollowListEntry>, anyhow::Error>;
+
+    async fn fetch_follower_list(
+        &mut self,
+        user: &UserSpecifier,
+        options: &FetchFollowListOptions,
+    ) -> Result<Vec<FollowListEntry>, anyhow::Error>;
 }
 
 #[derive(Debug)]
