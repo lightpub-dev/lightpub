@@ -1,7 +1,10 @@
+use std::str::FromStr;
+
 use derive_builder::Builder;
 use derive_getters::Getters;
 use rsa::RsaPrivateKey;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::fmt::Simple;
 
 #[derive(Debug)]
@@ -41,12 +44,37 @@ impl HasRemoteUri for &User {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize)]
 pub enum PostPrivacy {
+    #[serde(rename = "public")]
     Public,
+    #[serde(rename = "unlisted")]
     Unlisted,
+    #[serde(rename = "follower")]
     Followers,
+    #[serde(rename = "private")]
     Private,
+}
+
+#[derive(Error, Debug)]
+pub enum PostPrivacyConversionError {
+    #[error("invalid privacy value")]
+    InvalidValue,
+}
+
+impl FromStr for PostPrivacy {
+    type Err = PostPrivacyConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use PostPrivacy::*;
+        match s {
+            "public" => Ok(Public),
+            "unlisted" => Ok(Unlisted),
+            "follower" => Ok(Followers),
+            "private" => Ok(Private),
+            _ => Err(PostPrivacyConversionError::InvalidValue),
+        }
+    }
 }
 
 pub trait HasRemoteUri {
@@ -155,11 +183,14 @@ pub trait ApubSigner {
 pub mod api_response {
     use derive_builder::Builder;
     use derive_getters::Getters;
+    use serde::Serialize;
     use uuid::fmt::Simple;
+
+    use crate::utils::pagination::PaginatableItem;
 
     use super::PostPrivacy;
 
-    #[derive(Debug, Clone, Builder, Getters)]
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
     pub struct UserPostEntry {
         id: Simple,
         uri: String,
@@ -170,11 +201,20 @@ pub mod api_response {
         reply_to_id: Option<Simple>,
         created_at: chrono::DateTime<chrono::Utc>,
         counts: PostCounts,
-        reposted_by_you: bool,
-        favorited_by_you: bool,
+        reposted_by_you: Option<bool>,  // non-null if user is logged in
+        favorited_by_you: Option<bool>, // non-null if user is logged in
+        bookmarked_by_you: Option<bool>, // non-null if user is logged in
     }
 
-    #[derive(Debug, Clone, Builder, Getters)]
+    impl PaginatableItem for UserPostEntry {
+        type Key = chrono::DateTime<chrono::Utc>;
+
+        fn pkey(&self) -> Self::Key {
+            self.created_at
+        }
+    }
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
     pub struct PostCounts {
         reactions: Vec<PostReaction>,
         replies: i64,
@@ -182,13 +222,13 @@ pub mod api_response {
         quotes: i64,
     }
 
-    #[derive(Debug, Clone, Builder, Getters)]
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
     pub struct PostReaction {
         name: String,
         count: i64,
     }
 
-    #[derive(Debug, Clone, Builder, Getters)]
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
     pub struct PostAuthor {
         id: Simple,
         uri: String,

@@ -3,14 +3,15 @@ pub mod models;
 pub mod services;
 pub mod state;
 pub mod utils;
-
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
+use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
-use crate::services::UserProfileUpdate;
+use crate::services::{FetchUserPostsOptions, UserProfileUpdate};
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
+use crate::utils::pagination::PaginatedResponse;
 use crate::{
     services::{
         apub::{new_apub_renderer_service, new_apub_reqwester_service},
@@ -70,11 +71,19 @@ impl AuthUser {
         }
     }
 
+    pub fn unauthed() -> Self {
+        Self { authed_user: None }
+    }
+
     pub fn must_auth(&self) -> Result<&User, ErrorResponse> {
         match &self.authed_user {
             Some(u) => Ok(&u),
             None => Err(ErrorResponse::new_status(401, "unauthorized")),
         }
+    }
+
+    pub fn may_auth(&self) -> Result<&Option<User>, ErrorResponse> {
+        Ok(&self.authed_user)
     }
 }
 
@@ -126,10 +135,11 @@ impl FromRequest for AuthUser {
                 }
             }
 
-            let authorization = req
-                .headers()
-                .get("Authorization")
-                .ok_or(ErrorResponse::new_status(401, "unauthorized"))?;
+            let authorization = match req.headers().get("Authorization") {
+                Some(a) => a,
+                None => return Ok(AuthUser::unauthed()),
+            };
+
             let header_value = authorization
                 .to_str()
                 .map_err(|_| ErrorResponse::new_status(401, "unauthorized"))?;
@@ -149,9 +159,12 @@ impl FromRequest for AuthUser {
                 Ok(u) => Ok(AuthUser::from_user(u)),
                 Err(e) => match e {
                     ServiceError::SpecificError(AuthError::TokenNotSet) => {
-                        todo!()
+                        Err(ErrorResponse::new_status(401, "unauthorized"))
                     }
-                    _ => todo!(),
+                    e => {
+                        error!("Failed to authenticate user: {:?}", e);
+                        Err(ErrorResponse::new_status(500, "internal server error"))
+                    }
                 },
             }
         })
@@ -926,6 +939,51 @@ async fn update_my_profile(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct GetUserPostsQuery {
+    limit: Option<i64>,
+    before_date: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[get("/user/{user_spec}/posts")]
+async fn get_user_posts(
+    app: web::Data<AppState>,
+    path: web::Path<UserChooseParams>,
+    auth: AuthUser,
+    query: web::Query<GetUserPostsQuery>,
+) -> HandlerResponse<impl Responder> {
+    let user_spec = &path.user_spec;
+    let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+
+    let limit = query
+        .limit
+        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
+        .unwrap_or(20);
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let posts = post_service
+        .fetch_user_posts(user_spec, viewer, &options)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch user posts: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+    let paginated = PaginatedResponse::from_result(posts, limit.try_into().unwrap(), |last| {
+        let base_url = app.config().base_url();
+        let mut new_query = (*query).clone();
+        new_query.before_date = Some(*last);
+
+        format!(
+            "{}/user/{}/posts?{}",
+            base_url,
+            user_spec,
+            serde_urlencoded::to_string(new_query).unwrap()
+        )
+    });
+    Ok(HttpResponse::Ok().json(paginated))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -999,6 +1057,7 @@ async fn main() -> std::io::Result<()> {
             .service(user_get)
             .service(file_upload)
             .service(update_my_profile)
+            .service(get_user_posts)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),

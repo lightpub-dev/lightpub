@@ -17,7 +17,8 @@ use super::{
         post::PostContentService,
     },
     AllUserFinderService, Holder, LocalUserFinderService, PostCreateService, SignerService,
-    UploadService, UserAuthService, UserCreateService, UserFollowService, UserProfileService,
+    UploadService, UserAuthService, UserCreateService, UserFollowService, UserPostService,
+    UserProfileService,
 };
 
 pub fn new_user_service(pool: MySqlPool) -> holder!(UserCreateService) {
@@ -100,5 +101,13 @@ pub fn new_db_user_profile_service(
     Box::new(user::DBUserProfileService::new(
         pool.clone(),
         new_local_user_finder_service(pool.clone()),
+    ))
+}
+
+pub fn new_db_user_post_service(pool: MySqlPool, config: Config) -> holder!(UserPostService) {
+    Box::new(post::DBUserPostService::new(
+        pool.clone(),
+        new_all_user_finder_service(pool.clone(), config.clone()),
+        new_id_getter_service(config),
     ))
 }

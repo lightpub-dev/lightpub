@@ -603,12 +603,19 @@ pub trait SignerService {
     ) -> Result<holder!(ApubSigner), ServiceError<SignerError>>;
 }
 
+#[derive(Debug, Clone, Constructor)]
+pub struct FetchUserPostsOptions {
+    pub limit: i64,
+    pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 #[async_trait]
 pub trait UserPostService {
     async fn fetch_user_posts(
         &mut self,
         user: &UserSpecifier,
-        viewer: Option<&UserSpecifier>,
+        viewer: &Option<UserSpecifier>,
+        options: &FetchUserPostsOptions,
     ) -> Result<Vec<UserPostEntry>, anyhow::Error>;
 }
 
