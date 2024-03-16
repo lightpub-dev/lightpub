@@ -188,9 +188,11 @@ impl ApubRequested {
             .headers()
             .get("Accept")
             .map(|a| {
-                a.to_str()
-                    .unwrap_or("")
-                    .contains("application/activity+json")
+                let s = a.to_str().unwrap_or("");
+                s.contains("application/activity+json")
+                    || s.contains(
+                        r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
+                    )
             })
             .unwrap_or(false);
         Self { apub_requested }
