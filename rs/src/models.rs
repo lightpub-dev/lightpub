@@ -188,7 +188,7 @@ pub mod api_response {
 
     use crate::utils::pagination::PaginatableItem;
 
-    use super::PostPrivacy;
+    use super::{HasRemoteUri, PostPrivacy};
 
     #[derive(Debug, Clone, Builder, Getters, Serialize)]
     pub struct UserPostEntry {
@@ -247,6 +247,16 @@ pub mod api_response {
         nickname: String,
         #[serde(skip)]
         created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    impl HasRemoteUri for FollowListEntry {
+        fn get_local_id(&self) -> String {
+            self.id.to_string()
+        }
+
+        fn get_remote_uri(&self) -> Option<String> {
+            Some(self.uri.clone())
+        }
     }
 
     impl PaginatableItem for FollowListEntry {

@@ -11,7 +11,10 @@ use crate::services::db::{new_db_file_upload_service, new_db_user_profile_servic
 use crate::services::{FetchFollowListOptions, FetchUserPostsOptions, UserProfileUpdate};
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
-use crate::utils::pagination::PaginatedResponse;
+use crate::utils::pagination::{
+    CollectionPageResponse, CollectionResponse, CollectionType, PaginatableWrapper,
+    PaginatedResponse,
+};
 use crate::{
     services::{
         apub::{new_apub_renderer_service, new_apub_reqwester_service},
@@ -51,6 +54,7 @@ use std::{
 };
 use tracing::{debug, error, info, warn};
 use utils::key::{verify_signature, KeyFetcher};
+use utils::pagination::CollectionPageType;
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
@@ -980,6 +984,8 @@ async fn update_my_profile(
 struct GetUserPostsQuery {
     limit: Option<i64>,
     before_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    page: bool,
 }
 
 #[get("/user/{user_spec}/posts")]
@@ -1025,6 +1031,8 @@ async fn get_user_posts(
 struct ListFollowOptions {
     pub limit: Option<i64>,
     pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
+    pub page: bool,
 }
 
 #[get("/user/{user_spec}/followers")]
@@ -1032,8 +1040,26 @@ async fn get_user_followers(
     app: web::Data<AppState>,
     path: web::Path<UserChooseParams>,
     query: web::Query<ListFollowOptions>,
-    // auth: AuthUser,
+    apub: ApubRequested, // auth: AuthUser,
 ) -> HandlerResponse<impl Responder> {
+    if apub.apub_requested() && !query.page {
+        return Ok(HttpResponse::Ok().json(CollectionResponse::from_first(
+            CollectionType::OrderedCollection,
+            {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.page = true;
+                format!(
+                    "{}/user/{}/followers?{}",
+                    base_url,
+                    path.user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            },
+            None,
+        )));
+    }
+
     let user_spec = &path.user_spec;
     // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
 
@@ -1052,20 +1078,50 @@ async fn get_user_followers(
             ErrorResponse::new_status(500, "internal server error")
         })?;
 
-    let paginated = PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+    if !apub.apub_requested() {
+        let paginated =
+            PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
+
+                format!(
+                    "{}/user/{}/followers?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            });
+
+        Ok(HttpResponse::Ok().json(paginated))
+    } else {
+        let id_service = new_id_getter_service(app.config().clone());
+        let items = followers
+            .into_iter()
+            .map(|f| PaginatableWrapper::new(id_service.get_user_id(&f), f.created_at().clone()))
+            .collect();
+
         let base_url = app.config().base_url();
-        let mut new_query = (*query).clone();
-        new_query.before_date = Some(*last);
+        let paginated = CollectionPageResponse::from_paginated_response(
+            CollectionPageType::OrderedCollectionPage,
+            PaginatedResponse::from_result(items, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
 
-        format!(
-            "{}/user/{}/followers?{}",
-            base_url,
-            user_spec,
-            serde_urlencoded::to_string(new_query).unwrap()
-        )
-    });
+                format!(
+                    "{}/user/{}/followers?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            }),
+            format!("{}/user/{}/followers", base_url, path.user_spec,),
+            None,
+        );
 
-    Ok(HttpResponse::Ok().json(paginated))
+        Ok(HttpResponse::Ok().json(paginated))
+    }
 }
 
 #[get("/user/{user_spec}/following")]
@@ -1073,8 +1129,27 @@ async fn get_user_following(
     app: web::Data<AppState>,
     path: web::Path<UserChooseParams>,
     query: web::Query<ListFollowOptions>,
+    apub: ApubRequested,
     // auth: AuthUser,
 ) -> HandlerResponse<impl Responder> {
+    if apub.apub_requested() && !query.page {
+        return Ok(HttpResponse::Ok().json(CollectionResponse::from_first(
+            CollectionType::OrderedCollection,
+            {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.page = true;
+                format!(
+                    "{}/user/{}/following?{}",
+                    base_url,
+                    path.user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            },
+            None,
+        )));
+    }
+
     let user_spec = &path.user_spec;
     // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
 
@@ -1086,27 +1161,57 @@ async fn get_user_following(
         .unwrap_or(20);
     let options = FetchFollowListOptions::new(limit, query.before_date);
     let followers = follow_service
-        .fetch_following_list(user_spec, &options)
+        .fetch_follower_list(user_spec, &options)
         .await
         .map_err(|e| {
-            error!("Failed to fetch user followers: {:?}", e);
+            error!("Failed to fetch user following: {:?}", e);
             ErrorResponse::new_status(500, "internal server error")
         })?;
 
-    let paginated = PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+    if !apub.apub_requested() {
+        let paginated =
+            PaginatedResponse::from_result(followers, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
+
+                format!(
+                    "{}/user/{}/following?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            });
+
+        Ok(HttpResponse::Ok().json(paginated))
+    } else {
+        let id_service = new_id_getter_service(app.config().clone());
+        let items = followers
+            .into_iter()
+            .map(|f| PaginatableWrapper::new(id_service.get_user_id(&f), f.created_at().clone()))
+            .collect();
+
         let base_url = app.config().base_url();
-        let mut new_query = (*query).clone();
-        new_query.before_date = Some(*last);
+        let paginated = CollectionPageResponse::from_paginated_response(
+            CollectionPageType::OrderedCollectionPage,
+            PaginatedResponse::from_result(items, limit.try_into().unwrap(), |last| {
+                let base_url = app.config().base_url();
+                let mut new_query = (*query).clone();
+                new_query.before_date = Some(*last);
 
-        format!(
-            "{}/user/{}/following?{}",
-            base_url,
-            user_spec,
-            serde_urlencoded::to_string(new_query).unwrap()
-        )
-    });
+                format!(
+                    "{}/user/{}/following?{}",
+                    base_url,
+                    user_spec,
+                    serde_urlencoded::to_string(new_query).unwrap()
+                )
+            }),
+            format!("{}/user/{}/following", base_url, path.user_spec,),
+            None,
+        );
 
-    Ok(HttpResponse::Ok().json(paginated))
+        Ok(HttpResponse::Ok().json(paginated))
+    }
 }
 
 #[actix_web::main]
