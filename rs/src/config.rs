@@ -8,6 +8,13 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub instance: InstanceConfig,
     pub upload_dir: String,
+    pub dev: DevConfig,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct DevConfig {
+    pub debug: bool,
+    pub ssl_verify: bool,
 }
 
 impl Config {
@@ -64,6 +71,10 @@ fn read_config_yaml() {
                 description: "Lightpub development server".to_string()
             },
             upload_dir: "uploads".to_string(),
+            dev: DevConfig {
+                debug: true,
+                ssl_verify: false
+            }
         }
     )
 }

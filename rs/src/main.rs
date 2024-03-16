@@ -754,7 +754,7 @@ async fn user_inbox(
                 match create.object {
                     IdOrObject::Id(id) => {
                         // request object using id
-                        let mut reqester_service = new_apub_reqwester_service();
+                        let mut reqester_service = new_apub_reqwester_service(app.config());
                         let CreatableObject::Note(object_note) =
                             reqester_service.fetch_post(&id).await?;
                         Some(object_note)

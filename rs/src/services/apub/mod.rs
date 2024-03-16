@@ -44,8 +44,8 @@ pub struct ApubReqwester {
 }
 
 impl ApubReqwester {
-    pub fn new() -> Self {
-        let no_ssl_verify = true;
+    pub fn new(config: &Config) -> Self {
+        let no_ssl_verify = !config.dev.ssl_verify;
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, HeaderValue::from_static("lightpub/0.1"));
         Self {
@@ -59,9 +59,9 @@ impl ApubReqwester {
     }
 }
 
-pub fn new_apub_reqwester_service() -> holder!(ApubRequestService) {
+pub fn new_apub_reqwester_service(config: &Config) -> holder!(ApubRequestService) {
     Holder::new(ApubReqwest {
-        client: ApubReqwester::new(),
+        client: ApubReqwester::new(config),
     })
 }
 
