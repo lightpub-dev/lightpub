@@ -4,3 +4,11 @@
 /test_instances
 /.vscode
 /.env
+target
+Dockerfile
+.dockerignore
+.env
+.git
+.gitignore
+docker-compose.yml
+docker-compose.test.yml

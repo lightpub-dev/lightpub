@@ -1,0 +1,54 @@
+version: '3.8' # Use a suitable version for your Docker engine and Compose file features
+
+services:
+  lightpub-db:
+    image: mariadb:latest
+    container_name: lightpub-db-test
+    environment:
+      MARIADB_USER: lightpub
+      MARIADB_PASSWORD: lightpub
+      MARIADB_ROOT_PASSWORD: lightpub
+      MARIADB_DATABASE: lightpub
+    networks:
+      - lightpub-test
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:latest
+    container_name: lightpub-redis-test
+    ports:
+      - "6380:6379"
+
+  server:
+    build: .
+    container_name: lightpub-server
+    ports:
+      - "8000:8000"
+    networks:
+      - lightpub-test
+    depends_on:
+      lightpub-db:
+        condition: service_healthy
+    healthcheck:
+        test: ["CMD" ,"nc", "-z", "-v", "-w30", "localhost", "8000"]
+        timeout: 10s
+        interval: 5s
+        retries: 100
+  test-runner:
+    build: ./tests
+    networks:
+      - lightpub-test
+    container_name: lightpub-test-runner
+    depends_on:
+      server:
+        condition: service_healthy 
+
+networks:
+  lightpub-test:
+

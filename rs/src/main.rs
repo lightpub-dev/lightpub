@@ -35,6 +35,7 @@ use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
     Responder,
 };
+use clap::Parser;
 use config::Config;
 use models::http::{HeaderMapWrapper, Method};
 use models::{PostPrivacy, User};
@@ -50,6 +51,7 @@ use services::{
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
 use std::borrow::BorrowMut;
+use std::path::PathBuf;
 use std::time::Duration;
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -1420,6 +1422,14 @@ async fn timeline(
     Ok(HttpResponse::Ok().json(paginated))
 }
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Sets a custom config file
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -1427,7 +1437,10 @@ async fn main() -> std::io::Result<()> {
         .with_test_writer()
         .init();
 
-    let mut file = std::fs::File::open("lightpub.yml.sample").unwrap();
+    let cli = Cli::parse();
+    let config = cli.config.unwrap_or("lightpub.yml.sample".into());
+
+    let mut file = std::fs::File::open(config).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
