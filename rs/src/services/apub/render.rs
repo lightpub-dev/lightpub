@@ -2,8 +2,8 @@ use derive_getters::Getters;
 use uuid::Uuid;
 
 use crate::models::apub::{
-    CreatableObject, CreateActivity, CreateActivityBuilder, IdOrObject, Note, NoteBuilder, Person,
-    PersonBuilder, PublicKeyBuilder, PUBLIC,
+    CreatableObject, CreateActivity, CreateActivityBuilder, IdOrObject, NoteBuilder, Person,
+    PersonBuilder, PublicKeyBuilder, TombstoneBuilder, PUBLIC,
 };
 use crate::models::{ApubRenderablePost, ApubRenderableUser, HasRemoteUri, PostPrivacy};
 use crate::services::id::IDGetterService;
@@ -23,7 +23,7 @@ pub enum ApubRendererServiceError {}
 
 #[derive(Debug, Clone, Getters)]
 pub struct RenderedNote {
-    note: Note,
+    note: CreatableObject,
     targeted_users: Vec<TargetedUser>,
 }
 
@@ -101,17 +101,24 @@ impl ApubRendererService {
     ) -> Result<RenderedNoteCreate, anyhow::Error> {
         let post = self.render_post(post)?;
 
-        let create_id = format!("{}/activity", post.note.id); // FIXME: use IDGetterService
-        let post_to = &post.note.to;
-        let post_cc = &post.note.cc;
-        let post_bto = &post.note.bto;
-        let post_bcc = &post.note.bcc;
-        let post_poster = &post.note.attributed_to;
+        let note = match post.note {
+            CreatableObject::Note(note) => note,
+            CreatableObject::Tombstone(_) => {
+                return Err(anyhow::anyhow!("cannot create a tombstone"));
+            }
+        };
+
+        let create_id = format!("{}/activity", note.id); // FIXME: use IDGetterService
+        let post_to = &note.to;
+        let post_cc = &note.cc;
+        let post_bto = &note.bto;
+        let post_bcc = &note.bcc;
+        let post_poster = &note.attributed_to;
 
         let create = CreateActivityBuilder::default()
             .actor(post_poster.clone())
             .id(create_id.clone())
-            .object(IdOrObject::Object(CreatableObject::Note(post.note.clone())))
+            .object(IdOrObject::Object(CreatableObject::Note(note.clone())))
             .to(post_to.clone())
             .cc(post_cc.clone())
             .bto(post_bto.clone())
@@ -134,15 +141,27 @@ impl ApubRendererService {
 
         let (to, cc, targeted_users) = self.calculate_to_and_cc(post)?;
 
-        let note = NoteBuilder::default()
-            .id(post_id)
-            .attributed_to(poster_id)
-            .content(post.content().unwrap())
-            .to(to)
-            .cc(cc)
-            .published(post.created_at_fixed_offset().to_utc())
-            .build()
-            .unwrap();
+        let note = match post.deleted_at_fixed_offset() {
+            None => CreatableObject::Note(
+                NoteBuilder::default()
+                    .id(post_id)
+                    .attributed_to(poster_id)
+                    .content(post.content().unwrap())
+                    .to(to)
+                    .cc(cc)
+                    .published(post.created_at_fixed_offset().to_utc())
+                    .build()
+                    .unwrap(),
+            ),
+            Some(deleted_at) => CreatableObject::Tombstone(
+                TombstoneBuilder::default()
+                    .id(post_id)
+                    .deleted(deleted_at.to_utc())
+                    .published(post.created_at_fixed_offset().to_utc())
+                    .build()
+                    .unwrap(),
+            ),
+        };
 
         Ok(RenderedNote {
             note,

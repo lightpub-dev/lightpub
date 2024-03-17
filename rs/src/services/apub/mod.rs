@@ -383,6 +383,7 @@ impl ApubFollowService for DBApubFollowService {
         }
         */
         let accept = AcceptActivityBuilder::default()
+            .id(None)
             .actor(followee_id.clone())
             .object(IdOrObject::Object(
                 FollowActivityBuilder::default()
@@ -390,7 +391,8 @@ impl ApubFollowService for DBApubFollowService {
                     .actor(follower_id)
                     .object(IdOrObject::Id(followee_id))
                     .build()
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ))
             .build()
             .unwrap();
