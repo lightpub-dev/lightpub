@@ -439,13 +439,20 @@ pub struct PostCreateRequestReply {
     hints: PostHint,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum PostCreateError {
+    #[error("poster not found")]
     PosterNotFound,
+    #[error("repost of not found")]
     RepostOfNotFound,
+    #[error("reply to not found")]
     ReplyToNotFound,
+    #[error("post already exists")]
     AlreadyExists,
+    #[error("too many recursion")]
     TooManyRecursion,
+    #[error("post not found")]
+    PostNotFound,
 }
 
 #[async_trait]
@@ -454,6 +461,8 @@ pub trait PostCreateService {
         &mut self,
         req: &PostCreateRequest,
     ) -> Result<Simple, ServiceError<PostCreateError>>;
+
+    async fn delete_post(&mut self, req: &PostSpecifier) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Debug)]

@@ -377,6 +377,7 @@ pub mod apub {
         Create(CreateActivity),
         Announce(AnnounceActivity),
         Reject(RejectActivity),
+        Delete(DeleteActivity),
         // Undo(UndoActivity),
     }
 
@@ -590,6 +591,34 @@ pub mod apub {
         pub id: Option<String>,
         pub actor: String,
         pub object: RejectableActivity,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum DeletableActivity {
+        Tombstone(MinimalNote),
+    }
+
+    impl HasId for DeletableActivity {
+        fn get_id(&self) -> &str {
+            match self {
+                DeletableActivity::Tombstone(t) => t.get_id(),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct MinimalNote {
+        pub id: String,
+    }
+    impl_id!(MinimalNote);
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    pub struct DeleteActivity {
+        pub id: Option<String>,
+        pub actor: String,
+        pub object: IdOrObject<DeletableActivity>,
     }
 }
 

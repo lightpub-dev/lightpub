@@ -5,7 +5,8 @@ pub mod state;
 pub mod utils;
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{
-    AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity, PUBLIC,
+    AcceptableActivity, Actor, CreatableObject, DeletableActivity, HasId, IdOrObject,
+    RejectableActivity, PUBLIC,
 };
 use crate::services::db::new_db_user_post_service;
 
@@ -880,6 +881,24 @@ async fn user_inbox(
                         .await?;
                 }
             }
+        }
+        Delete(del) => {
+            let actor_id = del.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
+            let note_id = del.object.get_id();
+            let mut post_service =
+                new_post_create_service(app.pool().clone(), app.config().clone());
+            post_service
+                .delete_post(&PostSpecifier::from_uri(note_id))
+                .await
+                .map_err(|e| {
+                    warn!("Failed to delete post: {:?}", e);
+                    ErrorResponse::new_status(500, "internal server error")
+                })?;
         }
     }
 

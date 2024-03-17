@@ -96,6 +96,47 @@ impl DBPostCreateService {
         }
     }
 
+    #[async_recursion]
+    async fn fetch_post_id_locally_stored(
+        &mut self,
+        spec: &PostSpecifier,
+        include_deleted: bool,
+    ) -> Result<Option<Simple>, ServiceError<PostCreateError>> {
+        let id = match spec {
+            PostSpecifier::ID(id) => sqlx::query!(
+                "SELECT id AS `id: Simple` FROM posts WHERE id=? AND (? OR deleted_at IS NULL)",
+                id.simple().to_string(),
+                include_deleted,
+            )
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|p| p.id),
+            PostSpecifier::URI(uri) => {
+                let local_post_id = self.id_getter.extract_local_post_id(uri);
+                if let Some(local_post_id) = local_post_id {
+                    let local_post_id = Uuid::parse_str(&local_post_id)
+                        .map_err(|_e| ServiceError::from_se(PostCreateError::PostNotFound))?;
+                    return self
+                        .fetch_post_id_locally_stored(
+                            &PostSpecifier::from_id(local_post_id),
+                            include_deleted,
+                        )
+                        .await;
+                }
+
+                sqlx::query!(
+                    "SELECT id AS `id: Simple` FROM posts WHERE uri=? AND (? OR deleted_at IS NULL)",
+                    uri,
+                    include_deleted,
+                )
+                .fetch_optional(&self.pool)
+                .await?
+                .map(|p| p.id)
+            }
+        };
+        Ok(id)
+    }
+
     async fn create_post_(
         &mut self,
         req: &crate::services::PostCreateRequest,
@@ -294,6 +335,27 @@ impl PostCreateService for DBPostCreateService {
         req: &crate::services::PostCreateRequest,
     ) -> Result<Simple, crate::services::ServiceError<crate::services::PostCreateError>> {
         self.create_post_(req, 0).await
+    }
+
+    async fn delete_post(&mut self, req: &PostSpecifier) -> Result<(), anyhow::Error> {
+        let post = self.fetch_post_id_locally_stored(req, false).await?;
+        if let Some(post) = post {
+            let mut tx = self.pool.begin().await?;
+
+            // delete post and its reposts
+            sqlx::query!(
+                "UPDATE posts SET deleted_at=CURRENT_TIMESTAMP WHERE id=? OR (repost_of_id=? AND content IS NULL AND deleted_at IS NULL)",
+                post.to_string(),
+                post.to_string(),
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            tx.commit().await?;
+        } else {
+            warn!("post not found");
+        }
+        Ok(())
     }
 }
 
