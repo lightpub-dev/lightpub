@@ -20,6 +20,10 @@ services:
           - misskey.tinax.local
           - lightpub.tinax.local
           - pleroma.tinax.local
+    profiles:
+      - lightpub
+      - mastodon
+      - misskey
 
   mastodon_web:
     build: ./test_instances/src/mastodon

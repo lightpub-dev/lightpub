@@ -72,6 +72,22 @@ impl UserCreateService for DBUserCreateService {
         &mut self,
         req: &UserCreateRequest,
     ) -> Result<UserCreateResult, ServiceError<UserCreateError>> {
+        let mut tx = self.pool.begin().await?;
+
+        let exist = sqlx::query!(
+            r#"
+        SELECT COUNT(*) AS count FROM users WHERE username=? AND host IS NULL FOR UPDATE
+        "#,
+            req.username
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if exist.count > 0 {
+            return Err(ServiceError::SpecificError(
+                UserCreateError::UsernameConflict,
+            ));
+        }
+
         let user_id = Uuid::new_v4().simple();
 
         // bcrypt
@@ -100,8 +116,10 @@ impl UserCreateService for DBUserCreateService {
             private_key,
             public_key
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
 
         // TODO: conflict handlign
 
