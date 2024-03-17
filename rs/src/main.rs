@@ -219,16 +219,6 @@ impl FromRequest for ApubRequested {
     }
 }
 
-#[get("/api/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
-
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
-}
-
 fn new_id_getter_service(config: Config) -> IDGetterService {
     IDGetterService::new(config)
 }
