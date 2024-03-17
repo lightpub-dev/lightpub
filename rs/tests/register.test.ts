@@ -53,6 +53,7 @@ describe("/register", () => {
                     },
                     {
                         timeout: 30000,
+                        validateStatus: () => true,
                     }
                 );
                 expect(response.status).toBe(400);

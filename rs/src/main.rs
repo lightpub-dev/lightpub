@@ -12,7 +12,8 @@ use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
 use crate::services::{
-    FetchFollowListOptions, FetchUserPostsOptions, TimelineOptions, UserProfileUpdate,
+    FetchFollowListOptions, FetchUserPostsOptions, TimelineOptions, UserCreateError,
+    UserProfileUpdate,
 };
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
@@ -316,10 +317,20 @@ async fn register(
     data: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
     let mut us = new_user_service(data.pool().clone());
-    let req = us.create_user(&body.0.into()).await.unwrap();
-    Ok(HttpResponse::Ok().json(RegisterResponse {
-        user_id: *req.user_id(),
-    }))
+    let req = us.create_user(&body.0.into()).await;
+    match req {
+        Ok(req) => Ok(HttpResponse::Ok().json(RegisterResponse {
+            user_id: *req.user_id(),
+        })),
+        Err(e) => match e {
+            ServiceError::SpecificError(e) => match e {
+                UserCreateError::UsernameConflict => {
+                    Err(ErrorResponse::new_status(400, "username exists"))
+                }
+            },
+            _ => ise(e),
+        },
+    }
 }
 
 #[derive(ToSchema, Debug, Deserialize)]

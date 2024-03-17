@@ -280,7 +280,7 @@ async fn find_user_by_url(
         if let Some(ru) = ru {
             // check if info is up-to-date
             let now = chrono::Utc::now().naive_utc();
-            if now - ru.fetched_at < chrono::Duration::hours(1) {
+            if now - ru.fetched_at < chrono::Duration::try_hours(1).unwrap() {
                 return Ok(u);
             }
         }
