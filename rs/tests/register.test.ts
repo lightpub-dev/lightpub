@@ -1,9 +1,34 @@
 import axios from "axios";
-import { test, describe, expect, beforeAll } from "bun:test";
+import { test, describe, expect, beforeEach } from "bun:test";
+import { exec } from "child_process";
 
 const BASE_URL = "https://lightpub.tinax.local";
 
+const truncateDB = async () => {
+    // execute truncate_db.sh
+    return new Promise((resolve, reject) => {
+        const proc = exec("bash ./truncate_db.sh", (error, stdout, stderr) => {
+            if (error) {
+                console.error(`exec error: ${error}`);
+                return;
+            }
+        });
+        proc.on("exit", (code) => {
+            if (code === 0) {
+                console.log("Truncate DB success");
+                resolve(null);
+            } else {
+                console.error("Truncate DB failed");
+                reject();
+            }
+        });
+    });
+};
+
 describe("/register", () => {
+    beforeEach(async () => {
+        await truncateDB();
+    });
     test(
         "registering a new user",
         async () => {
