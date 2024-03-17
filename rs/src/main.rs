@@ -4,7 +4,9 @@ pub mod services;
 pub mod state;
 pub mod utils;
 use crate::models::apub::context::ContextAttachable;
-use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
+use crate::models::apub::{
+    AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity, PUBLIC,
+};
 use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
@@ -698,20 +700,22 @@ async fn user_inbox(
             }
             let req_spec = match a.object {
                 models::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
-                models::apub::IdOrObject::Object(obj) => {
-                    let object_actor_id = obj.actor;
-                    let object_object_id = obj.object.get_id();
-                    if actor_id != object_object_id {
-                        return Err(ErrorResponse::new_status(
-                            400,
-                            "actor and object id mismatch",
-                        ));
+                models::apub::IdOrObject::Object(obj) => match obj {
+                    AcceptableActivity::Follow(obj) => {
+                        let object_actor_id = obj.actor;
+                        let object_object_id = obj.object.get_id();
+                        if actor_id != object_object_id {
+                            return Err(ErrorResponse::new_status(
+                                400,
+                                "actor and object id mismatch",
+                            ));
+                        }
+                        FollowRequestSpecifier::ActorPair(
+                            UserSpecifier::URL(object_actor_id),
+                            UserSpecifier::URL(object_object_id.to_string()),
+                        )
                     }
-                    FollowRequestSpecifier::ActorPair(
-                        UserSpecifier::URL(object_actor_id),
-                        UserSpecifier::URL(object_object_id.to_string()),
-                    )
-                }
+                },
             };
 
             let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
@@ -849,6 +853,32 @@ async fn user_inbox(
                         return Err(e.into());
                     }
                 },
+            }
+        }
+        Reject(reject) => {
+            let actor_id = reject.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
+            match reject.object {
+                RejectableActivity::Follow(f) => {
+                    let follower_id = f.actor;
+                    let followee_id = f.object.get_id();
+
+                    if followee_id != actor_id {
+                        return authfail();
+                    }
+                    let mut follow_service =
+                        new_follow_service(app.pool().clone(), app.config().clone());
+                    follow_service
+                        .unfollow_user(
+                            &UserSpecifier::from_url(follower_id),
+                            &UserSpecifier::from_url(followee_id),
+                        )
+                        .await?;
+                }
             }
         }
     }

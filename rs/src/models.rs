@@ -376,27 +376,23 @@ pub mod apub {
         Follow(FollowActivity),
         Create(CreateActivity),
         Announce(AnnounceActivity),
+        Reject(RejectActivity),
+        // Undo(UndoActivity),
     }
 
-    impl HasId for Activity {
-        fn get_id(&self) -> &str {
-            match self {
-                Activity::Accept(a) => a.get_id(),
-                Activity::Follow(a) => a.get_id(),
-                Activity::Create(a) => a.get_id(),
-                Activity::Announce(a) => a.get_id(),
-            }
-        }
+    #[derive(Debug, Clone, Deserialize, Serialize, From)]
+    #[serde(tag = "type")]
+    pub enum AcceptableActivity {
+        Follow(FollowActivity),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
     pub struct AcceptActivity {
-        pub id: String,
+        pub id: Option<String>,
         pub actor: String,
-        pub object: IdOrObject<FollowActivity>,
+        pub object: IdOrObject<AcceptableActivity>,
     }
-    impl_id!(AcceptActivity);
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
@@ -573,6 +569,29 @@ pub mod apub {
         pub bcc: Option<Vec<String>>,
     }
     impl_id!(AnnounceActivity);
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub enum RejectableActivity {
+        Follow(FollowActivity),
+    }
+
+    impl HasId for RejectableActivity {
+        fn get_id(&self) -> &str {
+            match self {
+                RejectableActivity::Follow(f) => f.get_id(),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct RejectActivity {
+        pub id: String,
+        pub actor: String,
+        pub object: RejectableActivity,
+    }
+    impl_id!(RejectActivity);
 }
 
 pub mod http {
