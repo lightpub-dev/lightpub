@@ -274,7 +274,10 @@ async fn find_user_by_url(
     let host = parsed_url.host_str().unwrap().to_string();
 
     let actor = req.fetch_user(parsed_url.as_str()).await.unwrap();
-    let Actor::Person(actor) = actor;
+    let actor = match actor {
+        Actor::Person(a) => a,
+        Actor::Application(a) => a,
+    };
 
     let username = actor.preferred_username;
     let nickname = actor.name;

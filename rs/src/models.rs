@@ -440,12 +440,14 @@ pub mod apub {
     #[serde(tag = "type")]
     pub enum Actor {
         Person(Person),
+        Application(Person),
     }
 
     impl HasId for Actor {
         fn get_id(&self) -> &str {
             match self {
                 Actor::Person(p) => p.get_id(),
+                Actor::Application(a) => a.get_id(),
             }
         }
     }
