@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO post_mentions (post_id, target_user_id) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "1f2f018148213616ffbdfd45ddd3efc7eaaa6c976576b363137d349eddadd0ee"
+}

@@ -366,11 +366,12 @@ impl UserFollowService for DBUserFollowService {
         let follower_id = follower.id;
         let followee_id = followee.id;
         sqlx::query!(
-            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE uri=?",
+            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE id=?, uri=?",
             follow_req_id.to_string(),
             follow_req_uri,
             follower_id.to_string(),
             followee_id.to_string(),
+            follow_req_id.to_string(),
             follow_req_uri,
         ).execute(&self.pool).await?;
 
@@ -390,6 +391,7 @@ impl UserFollowService for DBUserFollowService {
                     }
                     _ => e.convert(),
                 })?;
+            // debug!("create_follow_accept({:?})", follow_req_id);
             let activity = self
                 .pubfollow
                 .create_follow_accept(follow_req_id.into())

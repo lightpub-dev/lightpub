@@ -1,0 +1,69 @@
+{
+  "db_name": "MySQL",
+  "query": "\n        SELECT r.id AS `req_id: Simple`, r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri\n        FROM user_follow_requests AS r\n        INNER JOIN users u1 ON r.follower_id = u1.id\n        INNER JOIN users u2 ON r.followee_id = u2.id\n        WHERE r.id = ? AND r.uri IS NULL AND r.incoming = 0\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "req_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "follower_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "follower_uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "followee_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "followee_uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "7d275b6519a11748689a6d8ca8c55c58b058982226ec8f827d3186585bcbd863"
+}

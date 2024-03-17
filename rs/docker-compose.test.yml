@@ -1,0 +1,91 @@
+version: '3.8' # Use a suitable version for your Docker engine and Compose file features
+
+services:
+  nginx:
+    restart: unless-stopped
+    container_name: lightpub-nginx-test
+    image: nginx:bookworm
+    volumes:
+      - ./test_instances/nginx/conf.d:/etc/nginx/conf.d
+      - ./test_instances/ssl:/etc/nginx/certs
+    ports:
+      - 80:80
+      - 443:443
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      lightpub_test:
+        aliases:
+          - mastodon.tinax.local
+          - misskey.tinax.local
+          - lightpub.tinax.local
+          - pleroma.tinax.local
+    healthcheck:
+      test: ["CMD", "service", "nginx", "status"]
+      interval: 5s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      lightpub_api:
+        condition: service_healthy
+
+  lightpub_db:
+    image: mariadb:latest
+    container_name: lightpub-db-test
+    environment:
+      MARIADB_USER: lightpub
+      MARIADB_PASSWORD: lightpub
+      MARIADB_ROOT_PASSWORD: lightpub
+      MARIADB_DATABASE: lightpub
+    networks:
+      - lightpub_test
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:latest
+    container_name: lightpub-redis-test
+    networks:
+      - lightpub_test
+    ports:
+      - "6380:6379"
+
+  lightpub_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: lightpub-server-test
+    ports:
+      - "8000:8000"
+    networks:
+      - lightpub_test
+    depends_on:
+      lightpub_db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD" ,"nc", "-z", "-v", "-w30", "localhost", "8000"]
+      timeout: 10s
+      interval: 5s
+      retries: 100
+    volumes:
+      - ./lightpub.yml.test:/lightpub/lightpub.yml.sample
+      - ./refinery.docker.toml:/lightpub/refinery.toml
+  test-runner:
+    build: ./tests
+    networks:
+      - lightpub_test
+    container_name: lightpub-test-runner
+    depends_on:
+      nginx:
+        condition: service_healthy 
+    environment:
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+
+networks:
+  lightpub_test:

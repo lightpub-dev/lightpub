@@ -1,0 +1,6 @@
+[submodule "rs/test_instances/src/misskey"]
+	path = rs/test_instances/src/misskey
+	url = https://github.com/misskey-dev/misskey.git
+[submodule "rs/test_instances/src/mastodon"]
+	path = rs/test_instances/src/mastodon
+	url = https://github.com/lightpub-dev/mastodon.git

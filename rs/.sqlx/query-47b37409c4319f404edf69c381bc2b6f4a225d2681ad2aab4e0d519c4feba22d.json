@@ -1,0 +1,36 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            SELECT u.inbox, u.shared_inbox\n            FROM user_follows uf\n            INNER JOIN users u ON uf.follower_id = u.id\n            WHERE uf.followee_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "inbox",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "shared_inbox",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "47b37409c4319f404edf69c381bc2b6f4a225d2681ad2aab4e0d519c4feba22d"
+}

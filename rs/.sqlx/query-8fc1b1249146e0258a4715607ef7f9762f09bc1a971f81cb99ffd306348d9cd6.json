@@ -1,0 +1,223 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                    SELECT\n                        p.id AS `id: Simple`,\n                        p.uri AS `uri`,\n                        u.id `author_id: Simple`,\n                        u.uri AS `author_uri`,\n                        u.username AS `author_username`,\n                        u.host AS `author_host`,\n                        u.nickname AS `author_nickname`,\n                        p.content,\n                        p.privacy,\n                        p.repost_of_id AS `repost_of_id: Simple`,\n                        p.reply_to_id AS `reply_to_id: Simple`,\n                        p.created_at,\n                        p.deleted_at,\n                        0 AS `count_replies`,\n                        0 AS `count_reposts`,\n                        0 AS `count_quotes`,\n                        NULL AS `reposted_by_you: bool`,\n                        NULL AS `favorited_by_you: bool`,\n                        NULL AS `bookmarked_by_you: bool`\n                    FROM posts p\n                    INNER JOIN users u ON p.poster_id = u.id\n                    WHERE p.poster_id=?\n                      AND (\n                        p.poster_id=?\n                        OR p.privacy IN ('public', 'unlisted')\n                        OR (p.privacy = 'follower' AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=? AND follower_id=?))\n                        OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))\n                      )\n                      AND (NOT ? OR p.created_at <= ?)\n                      AND (? OR p.deleted_at IS NULL)\n                    ORDER BY p.created_at DESC\n                    LIMIT ?\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "author_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "author_uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "author_username",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 256
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "author_host",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 512
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "author_nickname",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 1020
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "content",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "char_set": 224,
+          "max_size": 4294967295
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "privacy",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | ENUM | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 32
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "repost_of_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "MULTIPLE_KEY",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "reply_to_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "MULTIPLE_KEY",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": {
+          "type": "Datetime",
+          "flags": "NOT_NULL | BINARY | NO_DEFAULT_VALUE",
+          "char_set": 63,
+          "max_size": 26
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "deleted_at",
+        "type_info": {
+          "type": "Datetime",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 26
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "count_replies",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "count_reposts",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "count_quotes",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "reposted_by_you: bool",
+        "type_info": {
+          "type": "Null",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 0
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "favorited_by_you: bool",
+        "type_info": {
+          "type": "Null",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 0
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "bookmarked_by_you: bool",
+        "type_info": {
+          "type": "Null",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 0
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "8fc1b1249146e0258a4715607ef7f9762f09bc1a971f81cb99ffd306348d9cd6"
+}

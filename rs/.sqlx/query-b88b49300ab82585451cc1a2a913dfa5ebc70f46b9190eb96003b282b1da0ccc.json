@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            UPDATE users SET nickname=?, bio=?, avatar_id=? WHERE id=?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "b88b49300ab82585451cc1a2a913dfa5ebc70f46b9190eb96003b282b1da0ccc"
+}

@@ -1,0 +1,69 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                SELECT id AS `id: Simple`, uri, incoming AS `incoming: bool`, follower_id AS `follower_id: Simple`, followee_id AS `followee_id: Simple` FROM user_follow_requests WHERE follower_id = ? AND followee_id = ?\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "UNIQUE_KEY",
+          "char_set": 224,
+          "max_size": 2048
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "incoming: bool",
+        "type_info": {
+          "type": "Tiny",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 63,
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "follower_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "followee_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0a4adf3d55e13974bd9a5bfe89b723d71fd4331cfbecd7a774f258ebb7fb7a56"
+}

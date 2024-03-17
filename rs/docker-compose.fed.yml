@@ -1,0 +1,339 @@
+version: "3"
+
+services:
+  nginx:
+    restart: unless-stopped
+    image: nginx:latest
+    volumes:
+      - ./test_instances/nginx/conf.d:/etc/nginx/conf.d
+      - ./test_instances/ssl:/etc/nginx/certs
+    ports:
+      - 80:80
+      - 443:443
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      external_network:
+      internal_network:
+        aliases:
+          - mastodon.tinax.local
+          - misskey.tinax.local
+          - lightpub.tinax.local
+          - pleroma.tinax.local
+
+  mastodon_web:
+    build: ./test_instances/src/mastodon
+    env_file: ./test_instances/mastodon/.env.production
+    command: /config/start.sh
+    networks:
+      - internal_network
+      - external_network
+    healthcheck:
+      # prettier-ignore
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:3000/health || exit 1']
+    ports:
+      - 3000:3000
+    depends_on:
+      mastodon_db:
+        condition: service_healthy
+      mastodon_redis:
+        condition: service_healthy
+      mail:
+        condition: service_started
+    volumes:
+      - mastodon_system:/mastodon/public/system
+      - ./test_instances/mastodon:/config
+      - ./test_instances/ssl:/ssl
+    profiles:
+      - mastodon
+
+  # mastodon_streaming:
+  #   build: ./test_instances/src/mastodon
+  #   env_file: ./test_instances/mastodon/.env.production
+  #   command: node ./streaming
+  #   networks:
+  #     - external_network
+  #     - internal_network
+  #   healthcheck:
+  #     # prettier-ignore
+  #     test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1']
+  #   ports:
+  #     - "127.0.0.1:4000:4000"
+  #   depends_on:
+  #     mastodon_db:
+  #       condition: service_healthy
+  #     mastodon_redis:
+  #       condition: service_healthy
+
+  mastodon_sidekiq:
+    build: ./test_instances/src/mastodon
+    env_file: ./test_instances/mastodon/.env.production
+    command: bundle exec sidekiq
+    depends_on:
+      mastodon_db:
+        condition: service_healthy
+      mastodon_redis:
+        condition: service_healthy
+    networks:
+      - external_network
+      - internal_network
+    volumes:
+      - mastodon_system:/mastodon/public/system
+      - ./test_instances/ssl:/ssl
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[s]idekiq\ 6' || false"]
+    profiles:
+      - mastodon
+
+  mastodon_db:
+    restart: unless-stopped
+    image: postgres:14-alpine
+    shm_size: 256mb
+    networks:
+      - internal_network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "mastodon", "-d", "mastodon_production"]
+      interval: 5s
+      retries: 20
+    volumes:
+      - mastodon_db_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: mastodon
+      POSTGRES_DB: mastodon_production
+      POSTGRES_PASSWORD: mastodon_production
+    profiles:
+      - mastodon
+
+  mastodon_redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    networks:
+      - internal_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+    volumes:
+      - mastodon_redis_data:/data
+    profiles:
+      - mastodon
+
+  mail:
+    image: mailhog/mailhog
+    ports:
+      - 8025:8025
+    profiles:
+      - mastodon
+
+  misskey_web:
+    image: misskey/misskey:2024.3.1
+    restart: unless-stopped
+    links:
+      - misskey_db
+      - misskey_redis
+    #     - mcaptcha
+    #     - meilisearch
+    depends_on:
+      misskey_db:
+        condition: service_healthy
+      misskey_redis:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - misskey_files:/misskey/files
+      - ./test_instances/misskey:/misskey/.config:ro
+    environment:
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+      NODE_ENV: development
+    profiles:
+      - misskey
+
+  misskey_redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    networks:
+      - internal_network
+    expose:
+      - 6380
+    volumes:
+      - misskey_redis_data:/data
+    healthcheck:
+      test: "redis-cli -p 6380 ping"
+      interval: 5s
+      retries: 20
+    command: --port 6380
+    profiles:
+      - misskey
+
+  misskey_db:
+    restart: unless-stopped
+    image: postgres:15-alpine
+    networks:
+      - internal_network
+    env_file:
+      - ./test_instances/misskey/docker.env
+    environment:
+      PGPORT: 5433
+    expose:
+      - 5433
+    ports:
+      - 5433:5433
+    volumes:
+      - misskey_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
+      interval: 5s
+      retries: 20
+    command: -p 5433
+    profiles:
+      - misskey
+  
+  # https://github.com/angristan/docker-pleroma/blob/master/docker-compose.yml
+  pleroma_db:
+    image: postgres:12.1-alpine
+    restart: unless-stopped
+    networks:
+      - internal_network
+      - external_network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "pleroma"]
+      interval: 5s
+      retries: 20
+    environment:
+      POSTGRES_USER: pleroma
+      POSTGRES_PASSWORD: pleroma-pass
+      POSTGRES_DB: pleroma
+      PGPORT: 5434
+    expose:
+      - 5434
+    command: -p 5434
+    volumes:
+      - pleroma_db_data:/var/lib/postgresql/data
+    profiles:
+      - pleroma
+  
+  pleroma_web:
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q --spider --proxy=off localhost:6000 || exit 1",
+        ]
+    restart: always
+    networks:
+      - internal_network
+    ports:
+      - '6000:6000'
+    build:
+      context: ./test_instances/pleroma
+      # Feel free to remove or override this section
+      # See 'Build-time variables' in README.md
+      args:
+        - "UID=911"
+        - "GID=911"
+        - "PLEROMA_VER=stable"
+    volumes:
+      - pleroma_uploads:/var/lib/pleroma/uploads
+      - pleroma_static:/var/lib/pleroma/static
+      - ./test_instances/pleroma/config.exs:/etc/pleroma/config.exs:ro
+    environment:
+      DOMAIN: pleroma.tinax.local
+      INSTANCE_NAME: Pleroma dev
+      ADMIN_EMAIL: admin@example.com
+      NOTIFY_EMAIL: notify@example.com
+      DB_USER: pleroma
+      DB_PASS: pleroma-pass
+      DB_NAME: pleroma
+      DB_HOST: "pleroma_db"
+      DB_PORT: 5434
+    depends_on:
+      pleroma_db:
+        condition: service_healthy
+    profiles:
+      - pleroma
+    user: "911:911"
+    command: chmod o= /etc/pleroma/config.exs && /pleroma/docker-entrypoint.sh
+
+  lightpub_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    networks:
+      - internal_network
+      - external_network
+    ports:
+      - 8000:8000
+    profiles:
+      - lightpub
+    depends_on:
+      lightpub_db:
+        condition: service_healthy
+    volumes:
+      - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
+      - ./refinery.docker.toml:/lightpub/refinery.toml
+  
+  lightpub_db:
+    image: mariadb:latest
+    networks:
+      - internal_network
+      - external_network
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lightpub
+      MYSQL_USER: lightpub
+      MYSQL_PASSWORD: lightpub
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized" ]
+      start_period: 1m
+      start_interval: 10s
+      interval: 1m
+      timeout: 5s
+      retries: 3
+    volumes:
+      - lightpub_db_data:/var/lib/mysql
+    profiles:
+      - lightpub
+
+  lightpub_dev_db:
+    image: mariadb:latest
+    networks:
+      - external_network
+    expose:
+      - 3307
+    ports:
+      - 3307:3307
+    environment:
+      - MYSQL_TCP_PORT=3307
+      - MYSQL_USER=lightpub
+      - MYSQL_PASSWORD=lightpub
+      - MYSQL_DATABASE=lightpub_dev
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - lightpub_dev_db_data:/var/lib/mysql
+
+volumes:
+  mastodon_db_data:
+  mastodon_redis_data:
+  mastodon_system:
+  misskey_files:
+  misskey_db_data:
+  misskey_redis_data:
+  lightpub_db_data:
+  lightpub_dev_db_data:
+  pleroma_db_data:
+  pleroma_uploads:
+  pleroma_static:
+
+networks:
+  internal_network:
+    internal: true
+  external_network:

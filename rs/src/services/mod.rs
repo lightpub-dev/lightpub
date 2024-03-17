@@ -58,6 +58,16 @@ impl MiscError for reqwest::Error {
     }
 }
 
+impl MiscError for serde_json::Error {
+    fn message(&self) -> &str {
+        "internal server error"
+    }
+
+    fn status_code(&self) -> i32 {
+        500
+    }
+}
+
 #[derive(Debug, Clone, Builder)]
 pub struct UserCreateRequest {
     username: String,
@@ -439,13 +449,20 @@ pub struct PostCreateRequestReply {
     hints: PostHint,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum PostCreateError {
+    #[error("poster not found")]
     PosterNotFound,
+    #[error("repost of not found")]
     RepostOfNotFound,
+    #[error("reply to not found")]
     ReplyToNotFound,
+    #[error("post already exists")]
     AlreadyExists,
+    #[error("too many recursion")]
     TooManyRecursion,
+    #[error("post not found")]
+    PostNotFound,
 }
 
 #[async_trait]
@@ -454,6 +471,8 @@ pub trait PostCreateService {
         &mut self,
         req: &PostCreateRequest,
     ) -> Result<Simple, ServiceError<PostCreateError>>;
+
+    async fn delete_post(&mut self, req: &PostSpecifier) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Debug)]
@@ -629,6 +648,7 @@ pub trait SignerService {
 pub struct FetchUserPostsOptions {
     pub limit: i64,
     pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub include_deleted: bool,
 }
 
 #[derive(Debug, Clone, Constructor)]

@@ -4,7 +4,10 @@ pub mod services;
 pub mod state;
 pub mod utils;
 use crate::models::apub::context::ContextAttachable;
-use crate::models::apub::{Actor, CreatableObject, HasId, IdOrObject, PUBLIC};
+use crate::models::apub::{
+    AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
+    UndoableActivity, PUBLIC,
+};
 use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
@@ -32,6 +35,7 @@ use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
     Responder,
 };
+use clap::Parser;
 use config::Config;
 use models::http::{HeaderMapWrapper, Method};
 use models::{PostPrivacy, User};
@@ -47,6 +51,7 @@ use services::{
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
 use std::borrow::BorrowMut;
+use std::path::PathBuf;
 use std::time::Duration;
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -214,16 +219,6 @@ impl FromRequest for ApubRequested {
         let req = req.clone();
         Box::pin(async move { Ok(ApubRequested::from_req(&req)) })
     }
-}
-
-#[get("/api/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
-
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
 }
 
 fn new_id_getter_service(config: Config) -> IDGetterService {
@@ -698,20 +693,22 @@ async fn user_inbox(
             }
             let req_spec = match a.object {
                 models::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
-                models::apub::IdOrObject::Object(obj) => {
-                    let object_actor_id = obj.actor;
-                    let object_object_id = obj.object.get_id();
-                    if actor_id != object_object_id {
-                        return Err(ErrorResponse::new_status(
-                            400,
-                            "actor and object id mismatch",
-                        ));
+                models::apub::IdOrObject::Object(obj) => match obj {
+                    AcceptableActivity::Follow(obj) => {
+                        let object_actor_id = obj.actor;
+                        let object_object_id = obj.object.get_id();
+                        if actor_id != object_object_id {
+                            return Err(ErrorResponse::new_status(
+                                400,
+                                "actor and object id mismatch",
+                            ));
+                        }
+                        FollowRequestSpecifier::ActorPair(
+                            UserSpecifier::URL(object_actor_id),
+                            UserSpecifier::URL(object_object_id.to_string()),
+                        )
                     }
-                    FollowRequestSpecifier::ActorPair(
-                        UserSpecifier::URL(object_actor_id),
-                        UserSpecifier::URL(object_object_id.to_string()),
-                    )
-                }
+                },
             };
 
             let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
@@ -755,11 +752,20 @@ async fn user_inbox(
                     IdOrObject::Id(id) => {
                         // request object using id
                         let mut reqester_service = new_apub_reqwester_service(app.config());
-                        let CreatableObject::Note(object_note) =
-                            reqester_service.fetch_post(&id).await?;
-                        Some(object_note)
+                        if let CreatableObject::Note(object_note) =
+                            reqester_service.fetch_post(&id).await?
+                        {
+                            Some(object_note)
+                        } else {
+                            warn!("object not found");
+                            return Err(ErrorResponse::new_status(404, "object not found"));
+                        }
                     }
                     IdOrObject::Object(CreatableObject::Note(note)) => Some(note),
+                    IdOrObject::Object(CreatableObject::Tombstone(_)) => {
+                        warn!("tombstone object is not allowed");
+                        return Err(ErrorResponse::new_status(400, "invalid activity"));
+                    }
                 }
             }
             .ok_or_else(|| {
@@ -850,6 +856,76 @@ async fn user_inbox(
                     }
                 },
             }
+        }
+        Reject(reject) => {
+            let actor_id = reject.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
+            match reject.object {
+                RejectableActivity::Follow(f) => {
+                    let follower_id = f.actor;
+                    let followee_id = f.object.get_id();
+
+                    if followee_id != actor_id {
+                        return authfail();
+                    }
+                    let mut follow_service =
+                        new_follow_service(app.pool().clone(), app.config().clone());
+                    follow_service
+                        .unfollow_user(
+                            &UserSpecifier::from_url(follower_id),
+                            &UserSpecifier::from_url(followee_id),
+                        )
+                        .await?;
+                }
+            }
+        }
+        Undo(undo) => {
+            let actor_id = undo.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
+            match undo.object {
+                UndoableActivity::Follow(f) => {
+                    let follower_id = f.actor;
+                    let followee_id = f.object.get_id();
+
+                    if follower_id != actor_id {
+                        return authfail();
+                    }
+                    let mut follow_service =
+                        new_follow_service(app.pool().clone(), app.config().clone());
+                    follow_service
+                        .unfollow_user(
+                            &UserSpecifier::from_url(follower_id),
+                            &UserSpecifier::from_url(followee_id),
+                        )
+                        .await?;
+                }
+            }
+        }
+        Delete(del) => {
+            let actor_id = del.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
+            let note_id = del.object.get_id();
+            let mut post_service =
+                new_post_create_service(app.pool().clone(), app.config().clone());
+            post_service
+                .delete_post(&PostSpecifier::from_uri(note_id))
+                .await
+                .map_err(|e| {
+                    warn!("Failed to delete post: {:?}", e);
+                    ErrorResponse::new_status(500, "internal server error")
+                })?;
         }
     }
 
@@ -1024,7 +1100,7 @@ async fn get_user_outbox(
     let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
 
     let limit = 20;
-    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date, true);
     let posts = post_service
         .fetch_user_posts(user_spec, viewer, &options)
         .await
@@ -1092,7 +1168,7 @@ async fn get_user_posts(
         .limit
         .map(|li| if 0 < li && li <= 100 { li } else { 20 })
         .unwrap_or(20);
-    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date, false);
     let posts = post_service
         .fetch_user_posts(user_spec, viewer, &options)
         .await
@@ -1346,6 +1422,14 @@ async fn timeline(
     Ok(HttpResponse::Ok().json(paginated))
 }
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Sets a custom config file
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<PathBuf>,
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
@@ -1353,7 +1437,10 @@ async fn main() -> std::io::Result<()> {
         .with_test_writer()
         .init();
 
-    let mut file = std::fs::File::open("lightpub.yml.sample").unwrap();
+    let cli = Cli::parse();
+    let config = cli.config.unwrap_or("lightpub.yml.sample".into());
+
+    let mut file = std::fs::File::open(config).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
@@ -1429,7 +1516,7 @@ async fn main() -> std::io::Result<()> {
                 ApiDoc1::openapi(),
             )]))
     })
-    .bind(("127.0.0.1", 8000))?
+    .bind(("0.0.0.0", 8000))?
     .run()
     .await
 }

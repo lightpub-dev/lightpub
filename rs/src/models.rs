@@ -89,10 +89,16 @@ pub trait ApubRenderablePost {
     fn poster(&self) -> Self::Poster;
     fn privacy(&self) -> PostPrivacy;
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
+    fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>>;
 
     fn created_at_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset> {
         self.created_at()
             .with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+    }
+
+    fn deleted_at_fixed_offset(&self) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+        self.deleted_at()
+            .map(|dt| dt.with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()))
     }
 }
 
@@ -137,6 +143,7 @@ impl ApubRenderableUser for User {
     }
 }
 
+//a
 impl<'de> Deserialize<'de> for PostPrivacy {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -199,6 +206,8 @@ pub mod api_response {
         repost_of_id: Option<Simple>,
         reply_to_id: Option<Simple>,
         created_at: chrono::DateTime<chrono::Utc>,
+        #[serde(skip)]
+        deleted_at: Option<chrono::DateTime<chrono::Utc>>,
         counts: PostCounts,
         reposted_by_you: Option<bool>,  // non-null if user is logged in
         favorited_by_you: Option<bool>, // non-null if user is logged in
@@ -240,6 +249,10 @@ pub mod api_response {
 
         fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
             self.created_at
+        }
+
+        fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+            self.deleted_at
         }
     }
 
@@ -376,27 +389,24 @@ pub mod apub {
         Follow(FollowActivity),
         Create(CreateActivity),
         Announce(AnnounceActivity),
+        Reject(RejectActivity),
+        Delete(DeleteActivity),
+        Undo(UndoActivity),
     }
 
-    impl HasId for Activity {
-        fn get_id(&self) -> &str {
-            match self {
-                Activity::Accept(a) => a.get_id(),
-                Activity::Follow(a) => a.get_id(),
-                Activity::Create(a) => a.get_id(),
-                Activity::Announce(a) => a.get_id(),
-            }
-        }
+    #[derive(Debug, Clone, Deserialize, Serialize, From)]
+    #[serde(tag = "type")]
+    pub enum AcceptableActivity {
+        Follow(FollowActivity),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
     pub struct AcceptActivity {
-        pub id: String,
+        pub id: Option<String>,
         pub actor: String,
-        pub object: IdOrObject<FollowActivity>,
+        pub object: IdOrObject<AcceptableActivity>,
     }
-    impl_id!(AcceptActivity);
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
@@ -430,12 +440,14 @@ pub mod apub {
     #[serde(tag = "type")]
     pub enum Actor {
         Person(Person),
+        Application(Person),
     }
 
     impl HasId for Actor {
         fn get_id(&self) -> &str {
             match self {
                 Actor::Person(p) => p.get_id(),
+                Actor::Application(a) => a.get_id(),
             }
         }
     }
@@ -458,30 +470,10 @@ pub mod apub {
         pub following: Option<String>,
         pub liked: Option<String>,
         pub preferred_username: String,
-        pub public_key: PublicKeyEnum,
+        pub public_key: PublicKey,
         pub summary: Option<String>,
     }
     impl_id!(Person);
-
-    #[derive(Debug, Clone, Deserialize, Serialize)]
-    #[serde(tag = "type")]
-    pub enum PublicKeyEnum {
-        Key(PublicKey),
-    }
-
-    impl HasId for PublicKeyEnum {
-        fn get_id(&self) -> &str {
-            match self {
-                PublicKeyEnum::Key(k) => k.get_id(),
-            }
-        }
-    }
-
-    impl From<PublicKey> for PublicKeyEnum {
-        fn from(key: PublicKey) -> Self {
-            PublicKeyEnum::Key(key)
-        }
-    }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
@@ -496,12 +488,14 @@ pub mod apub {
     #[serde(tag = "type")]
     pub enum CreatableObject {
         Note(Note),
+        Tombstone(Tombstone),
     }
 
     impl HasId for CreatableObject {
         fn get_id(&self) -> &str {
             match self {
                 CreatableObject::Note(n) => n.get_id(),
+                CreatableObject::Tombstone(t) => t.get_id(),
             }
         }
     }
@@ -526,6 +520,15 @@ pub mod apub {
         pub tags: Option<Vec<TagEnum>>,
     }
     impl_id!(Note);
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Tombstone {
+        pub id: String,
+        pub published: chrono::DateTime<chrono::Utc>,
+        pub deleted: chrono::DateTime<chrono::Utc>,
+    }
+    impl_id!(Tombstone);
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(tag = "type")]
@@ -573,6 +576,71 @@ pub mod apub {
         pub bcc: Option<Vec<String>>,
     }
     impl_id!(AnnounceActivity);
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum RejectableActivity {
+        Follow(FollowActivity),
+    }
+
+    impl HasId for RejectableActivity {
+        fn get_id(&self) -> &str {
+            match self {
+                RejectableActivity::Follow(f) => f.get_id(),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct RejectActivity {
+        pub id: Option<String>,
+        pub actor: String,
+        pub object: RejectableActivity,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum DeletableActivity {
+        Tombstone(MinimalNote),
+    }
+
+    impl HasId for DeletableActivity {
+        fn get_id(&self) -> &str {
+            match self {
+                DeletableActivity::Tombstone(t) => t.get_id(),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct MinimalNote {
+        pub id: String,
+    }
+    impl_id!(MinimalNote);
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct DeleteActivity {
+        pub id: Option<String>,
+        pub actor: String,
+        pub object: IdOrObject<DeletableActivity>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum UndoableActivity {
+        Follow(FollowActivity),
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct UndoActivity {
+        pub id: Option<String>,
+        pub actor: String,
+        pub object: UndoableActivity,
+    }
 }
 
 pub mod http {

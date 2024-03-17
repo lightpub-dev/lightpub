@@ -2,5 +2,8 @@
     "editor.formatOnSave": true,
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml"
-    ]
+    ],
+    "[typescript]": {
+        "editor.tabSize": 4
+    }
 }
