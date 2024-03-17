@@ -85,7 +85,7 @@ services:
     networks:
       - internal_network
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "mastodon", "-D", "mastodon_production"]
+      test: ["CMD", "pg_isready", "-U", "mastodon"]
     volumes:
       - mastodon_db_data:/var/lib/postgresql/data
     environment:
