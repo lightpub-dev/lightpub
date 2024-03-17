@@ -5,8 +5,7 @@ pub mod state;
 pub mod utils;
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{
-    AcceptableActivity, Actor, CreatableObject, DeletableActivity, HasId, IdOrObject,
-    RejectableActivity, PUBLIC,
+    AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity, PUBLIC,
 };
 use crate::services::db::new_db_user_post_service;
 
@@ -760,11 +759,20 @@ async fn user_inbox(
                     IdOrObject::Id(id) => {
                         // request object using id
                         let mut reqester_service = new_apub_reqwester_service(app.config());
-                        let CreatableObject::Note(object_note) =
-                            reqester_service.fetch_post(&id).await?;
-                        Some(object_note)
+                        if let CreatableObject::Note(object_note) =
+                            reqester_service.fetch_post(&id).await?
+                        {
+                            Some(object_note)
+                        } else {
+                            warn!("object not found");
+                            return Err(ErrorResponse::new_status(404, "object not found"));
+                        }
                     }
                     IdOrObject::Object(CreatableObject::Note(note)) => Some(note),
+                    IdOrObject::Object(CreatableObject::Tombstone(_)) => {
+                        warn!("tombstone object is not allowed");
+                        return Err(ErrorResponse::new_status(400, "invalid activity"));
+                    }
                 }
             }
             .ok_or_else(|| {
@@ -1073,7 +1081,7 @@ async fn get_user_outbox(
     let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
 
     let limit = 20;
-    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date, true);
     let posts = post_service
         .fetch_user_posts(user_spec, viewer, &options)
         .await
@@ -1141,7 +1149,7 @@ async fn get_user_posts(
         .limit
         .map(|li| if 0 < li && li <= 100 { li } else { 20 })
         .unwrap_or(20);
-    let options = FetchUserPostsOptions::new(limit + 1, query.before_date);
+    let options = FetchUserPostsOptions::new(limit + 1, query.before_date, false);
     let posts = post_service
         .fetch_user_posts(user_spec, viewer, &options)
         .await

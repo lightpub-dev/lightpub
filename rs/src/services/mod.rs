@@ -638,6 +638,7 @@ pub trait SignerService {
 pub struct FetchUserPostsOptions {
     pub limit: i64,
     pub before_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub include_deleted: bool,
 }
 
 #[derive(Debug, Clone, Constructor)]

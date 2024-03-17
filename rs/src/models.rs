@@ -89,10 +89,16 @@ pub trait ApubRenderablePost {
     fn poster(&self) -> Self::Poster;
     fn privacy(&self) -> PostPrivacy;
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
+    fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>>;
 
     fn created_at_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset> {
         self.created_at()
             .with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+    }
+
+    fn deleted_at_fixed_offset(&self) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+        self.deleted_at()
+            .map(|dt| dt.with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()))
     }
 }
 
@@ -199,6 +205,8 @@ pub mod api_response {
         repost_of_id: Option<Simple>,
         reply_to_id: Option<Simple>,
         created_at: chrono::DateTime<chrono::Utc>,
+        #[serde(skip)]
+        deleted_at: Option<chrono::DateTime<chrono::Utc>>,
         counts: PostCounts,
         reposted_by_you: Option<bool>,  // non-null if user is logged in
         favorited_by_you: Option<bool>, // non-null if user is logged in
@@ -240,6 +248,10 @@ pub mod api_response {
 
         fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
             self.created_at
+        }
+
+        fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+            self.deleted_at
         }
     }
 
@@ -493,12 +505,14 @@ pub mod apub {
     #[serde(tag = "type")]
     pub enum CreatableObject {
         Note(Note),
+        Tombstone(Tombstone),
     }
 
     impl HasId for CreatableObject {
         fn get_id(&self) -> &str {
             match self {
                 CreatableObject::Note(n) => n.get_id(),
+                CreatableObject::Tombstone(t) => t.get_id(),
             }
         }
     }
@@ -523,6 +537,15 @@ pub mod apub {
         pub tags: Option<Vec<TagEnum>>,
     }
     impl_id!(Note);
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Tombstone {
+        pub id: String,
+        pub published: chrono::DateTime<chrono::Utc>,
+        pub deleted: chrono::DateTime<chrono::Utc>,
+    }
+    impl_id!(Tombstone);
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(tag = "type")]

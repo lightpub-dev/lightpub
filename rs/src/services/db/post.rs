@@ -49,11 +49,13 @@ impl DBPostCreateService {
         spec: &PostSpecifier,
         not_found_err: PostCreateError,
         depth: i32,
+        include_deleted: bool,
     ) -> Result<Simple, ServiceError<PostCreateError>> {
         match spec {
             PostSpecifier::ID(id) => sqlx::query!(
-                "SELECT id AS `id: Simple` FROM posts WHERE id=?",
-                id.simple().to_string()
+                "SELECT id AS `id: Simple` FROM posts WHERE id=? AND (? OR deleted_at IS NULL)",
+                id.simple().to_string(),
+                include_deleted,
             )
             .fetch_optional(&self.pool)
             .await?
@@ -69,11 +71,12 @@ impl DBPostCreateService {
                             &PostSpecifier::from_id(local_post_id),
                             not_found_err,
                             depth + 1,
+                            include_deleted,
                         )
                         .await;
                 }
 
-                let result = sqlx::query!("SELECT id AS `id: Simple` FROM posts WHERE uri=?", uri)
+                let result = sqlx::query!("SELECT id AS `id: Simple` FROM posts WHERE uri=? AND (? OR deleted_at IS NULL)", uri, include_deleted)
                     .fetch_optional(&self.pool)
                     .await?
                     .map(|p| p.id);
@@ -89,9 +92,16 @@ impl DBPostCreateService {
                     warn!("failed to fetch remote post: {:?}", e);
                     ServiceError::from_se(not_found_err.clone())
                 })?;
-                let CreatableObject::Note(remote_post) = remote_post;
-                self.create_post_(&remote_post.try_into().unwrap(), depth + 1)
-                    .await
+                match remote_post {
+                    CreatableObject::Note(remote_post) => {
+                        self.create_post_(&remote_post.try_into().unwrap(), depth + 1)
+                            .await
+                    }
+                    _ => {
+                        warn!("remote post is not a note");
+                        Err(ServiceError::from_se(not_found_err))
+                    }
+                }
             }
         }
     }
@@ -183,7 +193,7 @@ impl DBPostCreateService {
         let repost_of_id = match repost_of_spec {
             None => None,
             Some(s) => self
-                .fetch_post_id(&s, PostCreateError::RepostOfNotFound, depth + 1)
+                .fetch_post_id(&s, PostCreateError::RepostOfNotFound, depth + 1, false)
                 .await?
                 .into(),
         };
@@ -191,7 +201,7 @@ impl DBPostCreateService {
         let reply_to_id = match reply_to_spec {
             None => None,
             Some(s) => self
-                .fetch_post_id(&s, PostCreateError::ReplyToNotFound, depth + 1)
+                .fetch_post_id(&s, PostCreateError::ReplyToNotFound, depth + 1, false)
                 .await?
                 .into(),
         };
@@ -455,6 +465,10 @@ impl ApubRenderablePost for LocalPost {
     fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
         self.created_at
     }
+
+    fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -493,6 +507,7 @@ struct UserPost {
     repost_of_id: Option<Simple>,
     reply_to_id: Option<Simple>,
     created_at: chrono::NaiveDateTime,
+    deleted_at: Option<chrono::NaiveDateTime>,
     count_replies: i64,
     count_reposts: i64,
     count_quotes: i64,
@@ -561,6 +576,7 @@ impl UserPostService for DBUserPostService {
                         p.repost_of_id AS `repost_of_id: Simple`,
                         p.reply_to_id AS `reply_to_id: Simple`,
                         p.created_at,
+                        p.deleted_at,
                         0 AS `count_replies`,
                         0 AS `count_reposts`,
                         0 AS `count_quotes`,
@@ -572,12 +588,14 @@ impl UserPostService for DBUserPostService {
                     WHERE p.poster_id=?
                       AND p.privacy IN ('public', 'unlisted')
                       AND (NOT ? OR p.created_at <= ?)
+                      AND (? OR p.deleted_at IS NULL)
                     ORDER BY p.created_at DESC
                     LIMIT ?
                     "#,
                     user.id.to_string(),
                     before_date_valid,
                     before_date,
+                    options.include_deleted,
                     options.limit,
                 )
                 .fetch_all(&self.pool)
@@ -600,6 +618,7 @@ impl UserPostService for DBUserPostService {
                         p.repost_of_id AS `repost_of_id: Simple`,
                         p.reply_to_id AS `reply_to_id: Simple`,
                         p.created_at,
+                        p.deleted_at,
                         0 AS `count_replies`,
                         0 AS `count_reposts`,
                         0 AS `count_quotes`,
@@ -616,6 +635,7 @@ impl UserPostService for DBUserPostService {
                         OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))
                       )
                       AND (NOT ? OR p.created_at <= ?)
+                      AND (? OR p.deleted_at IS NULL)
                     ORDER BY p.created_at DESC
                     LIMIT ?
                     "#,
@@ -626,6 +646,7 @@ impl UserPostService for DBUserPostService {
                     viewer.id.to_string(),
                     before_date_valid,
                     before_date,
+                    options.include_deleted,
                     options.limit,
                 )
                 .fetch_all(&self.pool)
@@ -659,6 +680,10 @@ impl UserPostService for DBUserPostService {
                         p.created_at,
                         chrono::Utc,
                     ))
+                    .deleted_at(
+                        p.deleted_at
+                            .map(|d| chrono::DateTime::from_naive_utc_and_offset(d, chrono::Utc)),
+                    )
                     .counts(
                         PostCountsBuilder::default()
                             .reactions(vec![])
@@ -707,6 +732,7 @@ impl UserPostService for DBUserPostService {
                 p.repost_of_id AS `repost_of_id: Simple`,
                 p.reply_to_id AS `reply_to_id: Simple`,
                 p.created_at,
+                p.deleted_at,
                 0 AS `count_replies`,
                 0 AS `count_reposts`,
                 0 AS `count_quotes`,
@@ -722,6 +748,7 @@ impl UserPostService for DBUserPostService {
                 OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))
               )
               AND (NOT ? OR p.created_at <= ?)
+              AND deleted_at IS NULL
             ORDER BY p.created_at DESC
             LIMIT ?
             "#,
@@ -762,6 +789,10 @@ impl UserPostService for DBUserPostService {
                         p.created_at,
                         chrono::Utc,
                     ))
+                    .deleted_at(
+                        p.deleted_at
+                            .map(|d| chrono::DateTime::from_naive_utc_and_offset(d, chrono::Utc)),
+                    )
                     .counts(
                         PostCountsBuilder::default()
                             .reactions(vec![])
