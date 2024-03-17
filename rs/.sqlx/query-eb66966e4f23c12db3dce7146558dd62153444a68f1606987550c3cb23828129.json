@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            DELETE FROM user_follows WHERE follower_id=? AND followee_id=?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "eb66966e4f23c12db3dce7146558dd62153444a68f1606987550c3cb23828129"
+}

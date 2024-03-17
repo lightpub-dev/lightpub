@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            DELETE FROM user_follow_requests WHERE id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "9712e01313dc3dda0af4e1f41c7ae6518ca2e4d4d2457eb5b20f0014c23b3841"
+}

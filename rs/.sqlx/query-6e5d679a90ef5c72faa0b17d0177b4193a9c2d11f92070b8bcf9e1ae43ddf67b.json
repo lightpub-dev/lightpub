@@ -1,0 +1,25 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT private_key FROM users WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "private_key",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "char_set": 224,
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "6e5d679a90ef5c72faa0b17d0177b4193a9c2d11f92070b8bcf9e1ae43ddf67b"
+}

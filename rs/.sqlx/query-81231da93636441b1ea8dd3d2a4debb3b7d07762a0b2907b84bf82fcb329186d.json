@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n            INSERT INTO uploaded_files (id, file_ext, uploaded_by_id) VALUES (?, ?, ?)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "81231da93636441b1ea8dd3d2a4debb3b7d07762a0b2907b84bf82fcb329186d"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host IS NULL",
+  "query": "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host = ?",
   "describe": {
     "columns": [
       {
@@ -115,7 +115,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -131,5 +131,5 @@
       false
     ]
   },
-  "hash": "021faa17be0c5300bdb3bf07247acaa29cb3e9257e791e978a5dfb854404b116"
+  "hash": "08dbe7f87e9a81e60cb56c141e6859b6c22ae5df3518737cc6c0e7e6f76dd879"
 }

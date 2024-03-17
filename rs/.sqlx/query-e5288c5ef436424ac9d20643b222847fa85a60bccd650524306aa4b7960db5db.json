@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO post_hashtags (post_id, hashtag_name) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e5288c5ef436424ac9d20643b222847fa85a60bccd650524306aa4b7960db5db"
+}
