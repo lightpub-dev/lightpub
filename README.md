@@ -1,5 +1,7 @@
 # Lightpub
 
+![server-test](https://github.com/lightpub-dev/lightpub/actions/workflows/server-test.yaml/badge.svg)
+
 ## Server 建て方
 1. `cd rs`
 2. `docker compose up -d`
