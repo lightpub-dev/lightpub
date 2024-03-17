@@ -150,20 +150,20 @@ MODIFY
     COLUMN `avatar_id` CHAR(32) NULL DEFAULT NULL;
 
 ALTER TABLE
-    lightpub.post_hashtags DROP FOREIGN KEY fk_posts_hashtags;
+    post_hashtags DROP FOREIGN KEY fk_posts_hashtags;
 
 ALTER TABLE
-    lightpub.post_hashtags
+    post_hashtags
 ADD
-    CONSTRAINT fk_posts_hashtags FOREIGN KEY (post_id) REFERENCES lightpub.posts(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+    CONSTRAINT fk_posts_hashtags FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 ALTER TABLE
-    lightpub.user_tokens DROP FOREIGN KEY fk_users_user_tokens;
+    user_tokens DROP FOREIGN KEY fk_users_user_tokens;
 
 ALTER TABLE
-    lightpub.user_tokens
+    user_tokens
 ADD
-    CONSTRAINT fk_users_user_tokens FOREIGN KEY (user_id) REFERENCES lightpub.users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
+    CONSTRAINT fk_users_user_tokens FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 ALTER TABLE
     `users`
@@ -221,11 +221,11 @@ MODIFY
     COLUMN bpasswd varchar(60) NULL;
 
 ALTER TABLE
-    lightpub.users
+    users
 MODIFY
     COLUMN bio text DEFAULT '' NOT NULL;
 
 ALTER TABLE
-    lightpub.users
+    users
 MODIFY
     COLUMN created_at datetime(6) DEFAULT current_timestamp NOT NULL;

@@ -93,6 +93,8 @@ services:
       - internal_network
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "mastodon", "-d", "mastodon_production"]
+      interval: 5s
+      retries: 20
     volumes:
       - mastodon_db_data:/var/lib/postgresql/data
     ports:
@@ -233,6 +235,23 @@ services:
     profiles:
       - lightpub
 
+  lightpub_dev_db:
+    image: mariadb:latest
+    networks:
+      - external_network
+    expose:
+      - 3307
+    ports:
+      - 3307:3307
+    environment:
+      - MYSQL_TCP_PORT=3307
+      - MYSQL_USER=lightpub
+      - MYSQL_PASSWORD=lightpub
+      - MYSQL_DATABASE=lightpub_dev
+      - MYSQL_ROOT_PASSWORD=root
+    volumes:
+      - lightpub_dev_db_data:/var/lib/mysql
+
 volumes:
   mastodon_db_data:
   mastodon_redis_data:
@@ -241,6 +260,7 @@ volumes:
   misskey_db_data:
   misskey_redis_data:
   lightpub_db_data:
+  lightpub_dev_db_data:
 
 networks:
   internal_network:

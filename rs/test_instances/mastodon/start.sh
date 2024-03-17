@@ -4,4 +4,4 @@ create_account() {
   tootctl accounts create massuser --email massuser@mastodon.tinax.local --confirmed
 }
 
-bundle exec rake db:migrate && create_account; bundle exec rails s -p 3000
+rm -f /opt/mastodon/tmp/pids/server.pid && bundle exec rake db:migrate && create_account; bundle exec rails s -p 3000
