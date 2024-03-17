@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "\n                    SELECT\n                        p.id AS `id: Simple`,\n                        p.uri AS `uri`,\n                        u.id `author_id: Simple`,\n                        u.uri AS `author_uri`,\n                        u.username AS `author_username`,\n                        u.host AS `author_host`,\n                        u.nickname AS `author_nickname`,\n                        p.content,\n                        p.privacy,\n                        p.repost_of_id AS `repost_of_id: Simple`,\n                        p.reply_to_id AS `reply_to_id: Simple`,\n                        p.created_at,\n                        0 AS `count_replies`,\n                        0 AS `count_reposts`,\n                        0 AS `count_quotes`,\n                        NULL AS `reposted_by_you: bool`,\n                        NULL AS `favorited_by_you: bool`,\n                        NULL AS `bookmarked_by_you: bool`\n                    FROM posts p\n                    INNER JOIN users u ON p.poster_id = u.id\n                    WHERE p.poster_id=?\n                      AND (\n                        p.poster_id=?\n                        OR p.privacy IN ('public', 'unlisted')\n                        OR (p.privacy = 'follower' AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=? AND follower_id=?))\n                        OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))\n                      )\n                      AND (NOT ? OR p.created_at <= ?)\n                    ORDER BY p.created_at DESC\n                    LIMIT ?\n                    ",
+  "query": "\n                    SELECT\n                        p.id AS `id: Simple`,\n                        p.uri AS `uri`,\n                        u.id `author_id: Simple`,\n                        u.uri AS `author_uri`,\n                        u.username AS `author_username`,\n                        u.host AS `author_host`,\n                        u.nickname AS `author_nickname`,\n                        p.content,\n                        p.privacy,\n                        p.repost_of_id AS `repost_of_id: Simple`,\n                        p.reply_to_id AS `reply_to_id: Simple`,\n                        p.created_at,\n                        p.deleted_at,\n                        0 AS `count_replies`,\n                        0 AS `count_reposts`,\n                        0 AS `count_quotes`,\n                        NULL AS `reposted_by_you: bool`,\n                        NULL AS `favorited_by_you: bool`,\n                        NULL AS `bookmarked_by_you: bool`\n                    FROM posts p\n                    INNER JOIN users u ON p.poster_id = u.id\n                    WHERE p.poster_id=?\n                      AND p.privacy IN ('public', 'unlisted')\n                      AND (NOT ? OR p.created_at <= ?)\n                      AND (? OR p.deleted_at IS NULL)\n                    ORDER BY p.created_at DESC\n                    LIMIT ?\n                    ",
   "describe": {
     "columns": [
       {
@@ -125,6 +125,16 @@
       },
       {
         "ordinal": 12,
+        "name": "deleted_at",
+        "type_info": {
+          "type": "Datetime",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 26
+        }
+      },
+      {
+        "ordinal": 13,
         "name": "count_replies",
         "type_info": {
           "type": "Long",
@@ -134,7 +144,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "count_reposts",
         "type_info": {
           "type": "Long",
@@ -144,7 +154,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "count_quotes",
         "type_info": {
           "type": "Long",
@@ -154,7 +164,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "reposted_by_you: bool",
         "type_info": {
           "type": "Null",
@@ -164,7 +174,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "favorited_by_you: bool",
         "type_info": {
           "type": "Null",
@@ -174,7 +184,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "bookmarked_by_you: bool",
         "type_info": {
           "type": "Null",
@@ -185,7 +195,7 @@
       }
     ],
     "parameters": {
-      "Right": 8
+      "Right": 5
     },
     "nullable": [
       false,
@@ -200,6 +210,7 @@
       true,
       true,
       false,
+      true,
       false,
       false,
       false,
@@ -208,5 +219,5 @@
       true
     ]
   },
-  "hash": "971b8dd3aec7af2c7e11a297a7d29f190d65a715cfd951978cdc9227ead5dfd9"
+  "hash": "a5854b2e2f35b93533e3ed1dc582fbb1cf7278c0f062f6d3fd729c2445080360"
 }

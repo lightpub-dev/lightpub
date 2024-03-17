@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT id AS `id: Simple` FROM posts WHERE uri=?",
+  "query": "SELECT id AS `id: Simple` FROM posts WHERE id=? AND (? OR deleted_at IS NULL)",
   "describe": {
     "columns": [
       {
@@ -15,11 +15,11 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false
     ]
   },
-  "hash": "7f795b9ef7ea00478c2ea70c39e0be1e5bb34f8f0153c6e0110d605b5d01ef3d"
+  "hash": "f7d6578fd2677e2e2664e0ac059de5c3839c7da0016c6d73534640f627553003"
 }
