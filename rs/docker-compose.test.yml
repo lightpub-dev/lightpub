@@ -6,7 +6,7 @@ services:
     container_name: lightpub-nginx-test
     image: nginx:bookworm
     volumes:
-      - ./test_instances/nginx/conf.d:/etc/nginx/conf.d
+      - ./test_instances/nginx-test/conf.d:/etc/nginx/conf.d
       - ./test_instances/ssl:/etc/nginx/certs
     ports:
       - 80:80
