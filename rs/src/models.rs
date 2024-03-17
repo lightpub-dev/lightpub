@@ -571,7 +571,7 @@ pub mod apub {
     impl_id!(AnnounceActivity);
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
-    #[serde(rename_all = "camelCase")]
+    #[serde(tag = "type")]
     pub enum RejectableActivity {
         Follow(FollowActivity),
     }
@@ -587,11 +587,10 @@ pub mod apub {
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
     pub struct RejectActivity {
-        pub id: String,
+        pub id: Option<String>,
         pub actor: String,
         pub object: RejectableActivity,
     }
-    impl_id!(RejectActivity);
 }
 
 pub mod http {
