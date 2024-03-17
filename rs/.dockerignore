@@ -1,0 +1,6 @@
+/target
+/lightpub.yml
+/uploads
+/test_instances
+/.vscode
+/.env
