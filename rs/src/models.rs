@@ -459,30 +459,10 @@ pub mod apub {
         pub following: Option<String>,
         pub liked: Option<String>,
         pub preferred_username: String,
-        pub public_key: PublicKeyEnum,
+        pub public_key: PublicKey,
         pub summary: Option<String>,
     }
     impl_id!(Person);
-
-    #[derive(Debug, Clone, Deserialize, Serialize)]
-    #[serde(tag = "type")]
-    pub enum PublicKeyEnum {
-        Key(PublicKey),
-    }
-
-    impl HasId for PublicKeyEnum {
-        fn get_id(&self) -> &str {
-            match self {
-                PublicKeyEnum::Key(k) => k.get_id(),
-            }
-        }
-    }
-
-    impl From<PublicKey> for PublicKeyEnum {
-        fn from(key: PublicKey) -> Self {
-            PublicKeyEnum::Key(key)
-        }
-    }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]

@@ -58,6 +58,16 @@ impl MiscError for reqwest::Error {
     }
 }
 
+impl MiscError for serde_json::Error {
+    fn message(&self) -> &str {
+        "internal server error"
+    }
+
+    fn status_code(&self) -> i32 {
+        500
+    }
+}
+
 #[derive(Debug, Clone, Builder)]
 pub struct UserCreateRequest {
     username: String,

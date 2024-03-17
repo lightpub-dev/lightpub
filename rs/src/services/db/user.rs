@@ -10,7 +10,6 @@ use uuid::Uuid;
 use crate::holder;
 use crate::models;
 use crate::models::apub::Actor;
-use crate::models::apub::PublicKeyEnum;
 use crate::models::ApubSigner;
 use crate::services::id::IDGetterService;
 use crate::services::id::UserAttribute;
@@ -286,7 +285,7 @@ async fn find_user_by_url(
     let following = actor.following;
     let followers = actor.followers;
     let liked = actor.liked;
-    let PublicKeyEnum::Key(pubkey) = actor.public_key;
+    let pubkey = actor.public_key;
     let pubkey_pem = pubkey.public_key_pem;
     let pubkey_owner = pubkey.owner;
     let pubkey_id = pubkey.id;

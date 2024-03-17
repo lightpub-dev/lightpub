@@ -8,7 +8,7 @@ use reqwest::{
 };
 use serde::Deserialize;
 use sqlx::MySqlPool;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::models::apub::context::ContextAttachable;
 use uuid::fmt::Simple;
@@ -105,6 +105,7 @@ impl ApubReqwestError {
 }
 
 fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
+    warn!("reqwest error: {:#?}", e);
     ServiceError::MiscError(Box::new(
         ApubReqwestErrorBuilder::default()
             .status(
@@ -186,9 +187,13 @@ impl ApubRequestService for ApubReqwest {
         .unwrap();
 
         let res = self.client().execute(req).await.map_err(map_error)?;
+        let bytes = res.json::<serde_json::Value>().await.map_err(map_error)?;
         // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
-        // debug!("body: {:#?}", body);
-        let person = res.json::<Actor>().await.map_err(map_error)?;
+        debug!("body: {:#?}", bytes);
+        let person = serde_json::from_value(bytes).map_err(|e| {
+            warn!("failed to parse actor: {:#?}", e);
+            ServiceError::MiscError(Box::new(e))
+        })?;
 
         Ok(person)
     }

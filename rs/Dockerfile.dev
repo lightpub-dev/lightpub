@@ -4,7 +4,8 @@ WORKDIR /usr/src/app
 COPY . .
 
 RUN mkdir /out
-RUN --mount=type=cache,target=/usr/src/app/target cargo build && cp target/debug/lightpub /out/lightpub
+ENV CARGO_HOME=/cache/cargo
+RUN --mount=type=cache,target=/usr/src/app/target --mount=type=cache,target=/cache/cargo cargo build && cp target/debug/lightpub /out/lightpub
 
 FROM debian:bullseye AS runtime
 
