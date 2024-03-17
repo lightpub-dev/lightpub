@@ -390,7 +390,7 @@ pub mod apub {
         Announce(AnnounceActivity),
         Reject(RejectActivity),
         Delete(DeleteActivity),
-        // Undo(UndoActivity),
+        Undo(UndoActivity),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, From)]
@@ -638,10 +638,25 @@ pub mod apub {
     impl_id!(MinimalNote);
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
     pub struct DeleteActivity {
         pub id: Option<String>,
         pub actor: String,
         pub object: IdOrObject<DeletableActivity>,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(tag = "type")]
+    pub enum UndoableActivity {
+        Follow(FollowActivity),
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
+    #[serde(rename_all = "camelCase")]
+    pub struct UndoActivity {
+        pub id: Option<String>,
+        pub actor: String,
+        pub object: UndoableActivity,
     }
 }
 

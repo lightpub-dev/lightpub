@@ -5,7 +5,8 @@ pub mod state;
 pub mod utils;
 use crate::models::apub::context::ContextAttachable;
 use crate::models::apub::{
-    AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity, PUBLIC,
+    AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
+    UndoableActivity, PUBLIC,
 };
 use crate::services::db::new_db_user_post_service;
 
@@ -877,6 +878,32 @@ async fn user_inbox(
                     let followee_id = f.object.get_id();
 
                     if followee_id != actor_id {
+                        return authfail();
+                    }
+                    let mut follow_service =
+                        new_follow_service(app.pool().clone(), app.config().clone());
+                    follow_service
+                        .unfollow_user(
+                            &UserSpecifier::from_url(follower_id),
+                            &UserSpecifier::from_url(followee_id),
+                        )
+                        .await?;
+                }
+            }
+        }
+        Undo(undo) => {
+            let actor_id = undo.actor;
+
+            if authed_user_uri != actor_id {
+                return authfail();
+            }
+
+            match undo.object {
+                UndoableActivity::Follow(f) => {
+                    let follower_id = f.actor;
+                    let followee_id = f.object.get_id();
+
+                    if follower_id != actor_id {
                         return authfail();
                     }
                     let mut follow_service =
