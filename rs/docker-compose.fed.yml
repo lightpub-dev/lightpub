@@ -2,6 +2,7 @@ version: "3"
 
 services:
   nginx:
+    restart: unless-stopped
     image: nginx:latest
     volumes:
       - ./test_instances/nginx/conf.d:/etc/nginx/conf.d
@@ -33,13 +34,13 @@ services:
     ports:
       - 3000:3000
     depends_on:
-      - mastodon_db
-      - mastodon_redis
+      mastodon_db:
+        condition: service_healthy
+      mastodon_redis:
+        condition: service_healthy
     volumes:
       - mastodon_system:/mastodon/public/system
       - ./test_instances/mastodon:/config
-    profiles:
-      - mastodon
 
   mastodon_streaming:
     image: tootsuite/mastodon:v4.2.7
@@ -54,10 +55,10 @@ services:
     ports:
       - "127.0.0.1:4000:4000"
     depends_on:
-      - mastodon_db
-      - mastodon_redis
-    profiles:
-      - mastodon
+      mastodon_db:
+        condition: service_healthy
+      mastodon_redis:
+        condition: service_healthy
 
   mastodon_sidekiq:
     image: tootsuite/mastodon:v4.2.7
@@ -75,8 +76,6 @@ services:
       - mastodon_system:/mastodon/public/system
     healthcheck:
       test: ["CMD-SHELL", "ps aux | grep '[s]idekiq\ 6' || false"]
-    profiles:
-      - mastodon
 
   mastodon_db:
     restart: unless-stopped
@@ -88,12 +87,12 @@ services:
       test: ["CMD", "pg_isready", "-U", "mastodon"]
     volumes:
       - mastodon_db_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
     environment:
       POSTGRES_USER: mastodon
       POSTGRES_DB: mastodon_production
       POSTGRES_PASSWORD: mastodon_production
-    profiles:
-      - mastodon
 
   mastodon_redis:
     restart: unless-stopped
@@ -104,20 +103,80 @@ services:
       test: ["CMD", "redis-cli", "ping"]
     volumes:
       - mastodon_redis_data:/data
-    profiles:
-      - mastodon
 
   mail:
     image: mailhog/mailhog
     ports:
       - 8025:8025
-    profiles:
-      - mastodon
+
+  misskey_web:
+    image: misskey/misskey:2024.3.1
+    restart: unless-stopped
+    links:
+      - misskey_db
+      - misskey_redis
+    #     - mcaptcha
+    #     - meilisearch
+    depends_on:
+      misskey_db:
+        condition: service_healthy
+      misskey_redis:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - misskey_files:/misskey/files
+      - ./test_instances/misskey:/misskey/.config:ro
+    environment:
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+      NODE_ENV: development
+
+  misskey_redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    networks:
+      - internal_network
+    expose:
+      - 6380
+    volumes:
+      - misskey_redis_data:/data
+    healthcheck:
+      test: "redis-cli -p 6380 ping"
+      interval: 5s
+      retries: 20
+    command: --port 6380
+
+  misskey_db:
+    restart: unless-stopped
+    image: postgres:15-alpine
+    networks:
+      - internal_network
+    env_file:
+      - ./test_instances/misskey/docker.env
+    environment:
+      PGPORT: 5433
+    expose:
+      - 5433
+    ports:
+      - 5433:5433
+    volumes:
+      - misskey_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
+      interval: 5s
+      retries: 20
+    command: -p 5433
 
 volumes:
   mastodon_db_data:
   mastodon_redis_data:
   mastodon_system:
+  misskey_files:
+  misskey_db_data:
+  misskey_redis_data:
   lightpub_db_data:
 
 networks:

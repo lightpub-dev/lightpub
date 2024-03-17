@@ -1,0 +1,3 @@
+[submodule "rs/test_instances/src/misskey"]
+	path = rs/test_instances/src/misskey
+	url = https://github.com/misskey-dev/misskey.git
