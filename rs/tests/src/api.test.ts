@@ -168,11 +168,12 @@ describe("/login", function () {
 });
 
 describe("/post", function () {
-    let token: string;
+    let token: string, token2: string;
     before(async function () {
         this.timeout(30000);
         await truncateDB();
         token = await createAndLoginUser("testuser", "password");
+        token2 = await createAndLoginUser("testuser2", "password");
     });
     describe("normal post", function () {
         it("can create a public post", async function () {
@@ -238,7 +239,6 @@ describe("/post", function () {
             privateParentId: string;
         this.beforeAll(async function () {
             this.timeout(30000);
-            const token2 = await createAndLoginUser("testuser2", "password");
 
             const res = await axios.post(
                 BASE_URL + "/post",
@@ -336,6 +336,223 @@ describe("/post", function () {
             );
             expect(res.status).equal(200);
             expect(res.data).have.property("post_id");
+        });
+    });
+    describe("repost", function () {
+        let otherPublicParentId: string,
+            otherFollowerParentId: string,
+            otherPrivateParentId: string,
+            myPublicParentId: string,
+            myFollowerParentId: string,
+            myPrivateParentId: string;
+        this.beforeAll(async function () {
+            this.timeout(30000);
+
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "public",
+                },
+                {
+                    ...authHeader(token2),
+                }
+            );
+            expect(res.status).equal(200);
+            otherPublicParentId = res.data.post_id;
+            const res2 = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "follower",
+                },
+                {
+                    ...authHeader(token2),
+                }
+            );
+            expect(res2.status).equal(200);
+            otherFollowerParentId = res2.data.post_id;
+            const res3 = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "private",
+                },
+                {
+                    ...authHeader(token2),
+                }
+            );
+            expect(res3.status).equal(200);
+            otherPrivateParentId = res3.data.post_id;
+
+            const res4 = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "public",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res4.status).equal(200);
+            myPublicParentId = res4.data.post_id;
+            const res5 = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "follower",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res5.status).equal(200);
+            myFollowerParentId = res5.data.post_id;
+            const res6 = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "private",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res6.status).equal(200);
+            myPrivateParentId = res6.data.post_id;
+        });
+        it("can make a public repost of a public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "public",
+                    repost_of_id: otherPublicParentId,
+                },
+                authHeader(token)
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+        it("cannot make a public repost of a follower-only post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "public",
+                    repost_of_id: otherFollowerParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
+        });
+        it("cannot make a public repost of a private post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "public",
+                    repost_of_id: otherPrivateParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
+        });
+        it("can make a public repost of my public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "public",
+                    repost_of_id: myPublicParentId,
+                },
+                authHeader(token)
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+        it("cannot make a public repost of my follower-only post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "public",
+                    repost_of_id: myFollowerParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
+        });
+        it("cannot make a public repost of my private post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "public",
+                    repost_of_id: myPrivateParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
+        });
+        it("can make an unlisted repost of my public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "unlisted",
+                    repost_of_id: myPublicParentId,
+                },
+                authHeader(token)
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+        it("cannot make a follower-only repost of my public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "follower",
+                    repost_of_id: myPublicParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
+        });
+        it("cannot make a private repost of my public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    privacy: "private",
+                    repost_of_id: myPublicParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
         });
     });
 });
