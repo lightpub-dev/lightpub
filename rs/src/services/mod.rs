@@ -463,6 +463,8 @@ pub enum PostCreateError {
     TooManyRecursion,
     #[error("post not found")]
     PostNotFound,
+    #[error("specified privacy is not allowed")]
+    DisallowedPrivacyForRepost,
 }
 
 #[async_trait]

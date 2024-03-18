@@ -475,6 +475,9 @@ async fn post_post(
             ServiceError::SpecificError(s) => match s {
                 RepostOfNotFound => ErrorResponse::new_status(404, "repost_of_id not found"),
                 ReplyToNotFound => ErrorResponse::new_status(404, "reply_to not found"),
+                DisallowedPrivacyForRepost => {
+                    ErrorResponse::new_status(400, "only public or unlisted repost can be made")
+                }
                 _ => e.into(),
             },
             _ => e.into(),
