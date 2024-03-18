@@ -454,7 +454,7 @@ async fn post_post(
                 .content(
                     body.content
                         .clone()
-                        .ok_or(ErrorResponse::new_status(400, "content is null"))?,
+                        .ok_or_else(|| ErrorResponse::new_status(400, "content is null"))?,
                 )
                 .privacy(body.privacy)
                 .reply_to(reply_to_id.into())

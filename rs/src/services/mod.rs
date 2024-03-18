@@ -557,6 +557,12 @@ pub trait UserFollowService {
         user: &UserSpecifier,
         options: &FetchFollowListOptions,
     ) -> Result<Vec<FollowListEntry>, anyhow::Error>;
+
+    async fn is_following(
+        &mut self,
+        follower: &UserSpecifier,
+        followee: &UserSpecifier,
+    ) -> Result<bool, anyhow::Error>;
 }
 
 #[derive(Debug)]

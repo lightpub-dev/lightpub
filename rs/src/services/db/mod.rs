@@ -62,8 +62,9 @@ pub fn new_post_create_service(pool: MySqlPool, config: Config) -> holder!(PostC
         new_apub_renderer_service(config.clone()),
         new_apub_reqwester_service(&config),
         new_db_user_signer_service(pool.clone(), config.clone()),
-        new_id_getter_service(config),
+        new_id_getter_service(config.clone()),
         new_post_content_service(),
+        new_follow_service(pool, config),
     ))
 }
 

@@ -237,6 +237,9 @@ describe("/post", function () {
             followerParentId: string,
             privateParentId: string;
         this.beforeAll(async function () {
+            this.timeout(30000);
+            const token2 = await createAndLoginUser("testuser2", "password");
+
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -244,7 +247,7 @@ describe("/post", function () {
                     privacy: "public",
                 },
                 {
-                    ...authHeader(token),
+                    ...authHeader(token2),
                 }
             );
             expect(res.status).equal(200);
@@ -256,7 +259,7 @@ describe("/post", function () {
                     privacy: "follower",
                 },
                 {
-                    ...authHeader(token),
+                    ...authHeader(token2),
                 }
             );
             expect(res2.status).equal(200);
@@ -268,7 +271,7 @@ describe("/post", function () {
                     privacy: "private",
                 },
                 {
-                    ...authHeader(token),
+                    ...authHeader(token2),
                 }
             );
             expect(res3.status).equal(200);

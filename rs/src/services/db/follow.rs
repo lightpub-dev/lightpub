@@ -89,6 +89,34 @@ impl HasRemoteUri for FollowUser {
 
 #[async_trait]
 impl UserFollowService for DBUserFollowService {
+    async fn is_following(
+        &mut self,
+        follower: &UserSpecifier,
+        followee: &UserSpecifier,
+    ) -> Result<bool, anyhow::Error> {
+        let follower = self
+            .find_user(follower, FollowError::FollowerNotFound)
+            .await?;
+        let followee = self
+            .find_user(followee, FollowError::FolloweeNotFound)
+            .await?;
+
+        let follower_id = &follower.id;
+        let followee_id = &followee.id;
+
+        let row = sqlx::query!(
+            r#"
+            SELECT id FROM user_follows WHERE follower_id=? AND followee_id=? LIMIT 1
+            "#,
+            follower_id.to_string(),
+            followee_id.to_string()
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.is_some())
+    }
+
     async fn fetch_following_list(
         &mut self,
         user: &UserSpecifier,

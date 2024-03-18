@@ -22,7 +22,7 @@ use crate::{
         id::IDGetterService,
         AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
         PostCreateRequest, PostCreateService, ServiceError, SignerService, TimelineOptions,
-        UserPostService,
+        UserFollowService, UserPostService,
     },
     utils::{
         generate_uuid,
@@ -40,9 +40,74 @@ pub struct DBPostCreateService {
     signer: holder!(SignerService),
     id_getter: IDGetterService,
     post_content: PostContentService,
+    follow: holder!(UserFollowService),
+}
+
+#[derive(Debug)]
+struct SimplePost {
+    id: Simple,
+    poster: Simple,
+    privacy: PostPrivacy,
 }
 
 impl DBPostCreateService {
+    async fn visibility_check(
+        &mut self,
+        post_spec: &PostSpecifier,
+        viewer: &UserSpecifier,
+    ) -> Result<bool, ServiceError<PostCreateError>> {
+        let post = self.fetch_post_locally_stored(post_spec, false).await?;
+        let post = if let Some(post) = post {
+            post
+        } else {
+            return Err(ServiceError::from_se(PostCreateError::PostNotFound));
+        };
+
+        let post_id = &post.id;
+        let poster = post.poster.into();
+        let privacy = post.privacy;
+
+        let poster_id = self
+            .finder
+            .find_user_by_specifier(&poster)
+            .await
+            .map_err(|_e| ServiceError::from_se(PostCreateError::PosterNotFound))?
+            .id;
+        let viewer_id = self
+            .finder
+            .find_user_by_specifier(viewer)
+            .await
+            .map_err(|_e| ServiceError::from_se(PostCreateError::PosterNotFound))?
+            .id;
+        if poster_id == viewer_id {
+            return Ok(true);
+        }
+
+        match privacy {
+            PostPrivacy::Public | PostPrivacy::Unlisted => Ok(true),
+            PostPrivacy::Followers => {
+                // check if viewer is a follower of poster
+                self.follow
+                    .is_following(&poster, viewer)
+                    .await
+                    .map_err(|_e| ServiceError::from_se(PostCreateError::PosterNotFound))
+            }
+            PostPrivacy::Private => {
+                // check if viewer is mentioned in the post
+                let mentiond = sqlx::query!(
+                    r#"SELECT id FROM post_mentions WHERE post_id=? AND target_user_id=?
+                    "#,
+                    post_id.to_string(),
+                    viewer_id.to_string()
+                )
+                .fetch_optional(&self.pool)
+                .await?;
+
+                Ok(mentiond.is_some())
+            }
+        }
+    }
+
     #[async_recursion]
     async fn fetch_post_id(
         &mut self,
@@ -112,22 +177,37 @@ impl DBPostCreateService {
         spec: &PostSpecifier,
         include_deleted: bool,
     ) -> Result<Option<Simple>, ServiceError<PostCreateError>> {
+        self.fetch_post_locally_stored(spec, include_deleted)
+            .await
+            .map(|p| p.map(|p| p.id))
+    }
+
+    #[async_recursion]
+    async fn fetch_post_locally_stored(
+        &mut self,
+        spec: &PostSpecifier,
+        include_deleted: bool,
+    ) -> Result<Option<SimplePost>, ServiceError<PostCreateError>> {
         let id = match spec {
             PostSpecifier::ID(id) => sqlx::query!(
-                "SELECT id AS `id: Simple` FROM posts WHERE id=? AND (? OR deleted_at IS NULL)",
+                "SELECT id AS `id: Simple`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE id=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
                 id.simple().to_string(),
                 include_deleted,
             )
             .fetch_optional(&self.pool)
             .await?
-            .map(|p| p.id),
+            .map(|p| SimplePost {
+                id: p.id,
+                poster: p.poster,
+                privacy: p.privacy.parse().unwrap(),
+            }),
             PostSpecifier::URI(uri) => {
                 let local_post_id = self.id_getter.extract_local_post_id(uri);
                 if let Some(local_post_id) = local_post_id {
                     let local_post_id = Uuid::parse_str(&local_post_id)
                         .map_err(|_e| ServiceError::from_se(PostCreateError::PostNotFound))?;
                     return self
-                        .fetch_post_id_locally_stored(
+                        .fetch_post_locally_stored(
                             &PostSpecifier::from_id(local_post_id),
                             include_deleted,
                         )
@@ -135,13 +215,17 @@ impl DBPostCreateService {
                 }
 
                 sqlx::query!(
-                    "SELECT id AS `id: Simple` FROM posts WHERE uri=? AND (? OR deleted_at IS NULL)",
+                    "SELECT id AS `id: Simple`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE uri=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
                     uri,
                     include_deleted,
                 )
                 .fetch_optional(&self.pool)
                 .await?
-                .map(|p| p.id)
+                .map(|p| SimplePost {
+                    id: p.id,
+                    poster: p.poster,
+                    privacy: p.privacy.parse().unwrap(),
+                })
             }
         };
         Ok(id)
@@ -192,18 +276,37 @@ impl DBPostCreateService {
 
         let repost_of_id = match repost_of_spec {
             None => None,
-            Some(s) => self
-                .fetch_post_id(&s, PostCreateError::RepostOfNotFound, depth + 1, false)
-                .await?
-                .into(),
+            Some(s) => {
+                let repost_of = self
+                    .fetch_post_id(&s, PostCreateError::RepostOfNotFound, depth + 1, false)
+                    .await?;
+                if !self
+                    .visibility_check(&PostSpecifier::from_id(repost_of), req.poster())
+                    .await?
+                {
+                    return Err(ServiceError::from_se(PostCreateError::RepostOfNotFound));
+                }
+
+                Some(repost_of)
+            }
         };
 
         let reply_to_id = match reply_to_spec {
             None => None,
-            Some(s) => self
-                .fetch_post_id(&s, PostCreateError::ReplyToNotFound, depth + 1, false)
-                .await?
-                .into(),
+            Some(s) => {
+                let reply_to = self
+                    .fetch_post_id(&s, PostCreateError::ReplyToNotFound, depth + 1, false)
+                    .await?;
+
+                if !self
+                    .visibility_check(&PostSpecifier::from_id(reply_to), req.poster())
+                    .await?
+                {
+                    return Err(ServiceError::from_se(PostCreateError::ReplyToNotFound));
+                }
+
+                Some(reply_to)
+            }
         };
 
         let hashtags: Vec<_> = {
