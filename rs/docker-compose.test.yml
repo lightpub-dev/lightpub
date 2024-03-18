@@ -22,7 +22,7 @@ services:
           - pleroma.tinax.local
     healthcheck:
       test: ["CMD", "service", "nginx", "status"]
-      interval: 5s
+      interval: 2s
       timeout: 30s
       retries: 5
       start_period: 30s
@@ -44,7 +44,7 @@ services:
       - "3306:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
+      interval: 2s
       timeout: 5s
       retries: 3
 
@@ -71,7 +71,7 @@ services:
     healthcheck:
       test: ["CMD" ,"nc", "-z", "-v", "-w30", "localhost", "8000"]
       timeout: 10s
-      interval: 5s
+      interval: 2s
       retries: 100
     volumes:
       - ./lightpub.yml.test:/lightpub/lightpub.yml.sample

@@ -135,8 +135,14 @@ impl UserCreateService for DBUserCreateService {
             "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
             &req.username
         )
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await?;
+
+        let user = if let Some(u) = user {
+            u
+        } else {
+            return Err(ServiceError::from_se(UserLoginError::AuthFailed));
+        };
 
         if let Some(bpasswd) = user.bpasswd {
             if bcrypt::verify(req.password.clone(), &bpasswd).unwrap() {
@@ -280,7 +286,7 @@ async fn find_user_by_url(
         if let Some(ru) = ru {
             // check if info is up-to-date
             let now = chrono::Utc::now().naive_utc();
-            if now - ru.fetched_at < chrono::Duration::hours(1) {
+            if now - ru.fetched_at < chrono::Duration::try_hours(1).unwrap() {
                 return Ok(u);
             }
         }

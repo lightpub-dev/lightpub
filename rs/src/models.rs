@@ -154,7 +154,7 @@ impl<'de> Deserialize<'de> for PostPrivacy {
         match s.as_str() {
             "public" => Ok(Public),
             "unlisted" => Ok(Unlisted),
-            "followers" => Ok(Followers),
+            "follower" => Ok(Followers),
             "private" => Ok(Private),
             _ => Err(serde::de::Error::custom("invalid privacy value")),
         }

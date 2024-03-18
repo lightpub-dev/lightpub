@@ -1,10 +1,9 @@
-# use the official Bun image
-# see all versions at https://hub.docker.com/r/oven/bun/tags
-FROM oven/bun:1 as base
-WORKDIR /usr/src/app
-COPY . .
-RUN bun install
+FROM node:18
 
-# run the tests
-# USER bun
-ENTRYPOINT [ "bun", "test" ]
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm install
+
+COPY . .
+
+CMD ["npm", "run", "test"]
