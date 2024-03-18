@@ -685,7 +685,7 @@ describe("/post/{id}", function () {
     });
 });
 
-describe.only("/follow", function () {
+describe("/follow", function () {
     let userToken1: string, userToken2: string;
     before(async function () {
         this.timeout(60000);
@@ -765,5 +765,124 @@ describe.only("/follow", function () {
             expect(res2.data).to.have.property("result");
             expect(res2.data.result).to.have.length(0);
         });
+    });
+});
+
+describe.only("user posts", function () {
+    let userToken1: string,
+        userToken2: string,
+        userToken3: string,
+        userToken4: string;
+    before(async function () {
+        this.timeout(60000);
+        await truncateDB();
+        [userToken1, userToken2, userToken3, userToken4] = await Promise.all([
+            createAndLoginUser("user1", "password"),
+            createAndLoginUser("user2", "password"),
+            createAndLoginUser("user3", "password"),
+            createAndLoginUser("user4", "password"),
+        ]);
+
+        // user3 follows user1
+        const res = await axios.put(
+            "/user/@user1/follow",
+            {},
+            authHeader(userToken3)
+        );
+        expect(res.status).equal(200);
+
+        const publicPost = await axios.post(
+            "/post",
+            {
+                content: "public content",
+                privacy: "public",
+            },
+            authHeader(userToken1)
+        );
+        expect(publicPost.status).equal(200);
+
+        const unlistedPost = await axios.post(
+            "/post",
+            {
+                content: "unlisted content",
+                privacy: "unlisted",
+            },
+            authHeader(userToken1)
+        );
+        expect(unlistedPost.status).equal(200);
+
+        const followerOnlyPost = await axios.post(
+            "/post",
+            {
+                content: "follower content",
+                privacy: "follower",
+            },
+            authHeader(userToken1)
+        );
+        expect(followerOnlyPost.status).equal(200);
+
+        const privatePost = await axios.post(
+            "/post",
+            {
+                content: "private content @user4",
+                privacy: "private",
+            },
+            authHeader(userToken1)
+        );
+        expect(privatePost.status).equal(200);
+    });
+    it("poster can see their own posts", async function () {
+        const res = await axios.get(
+            "/user/@user1/posts",
+            authHeader(userToken1)
+        );
+        expect(res.status).equal(200);
+        expect(res.data).to.have.property("result");
+        expect(res.data.result).to.have.length(4);
+        expect(res.data.result[3]).have.property("content", "public content");
+        expect(res.data.result[2]).have.property("content", "unlisted content");
+        expect(res.data.result[1]).have.property("content", "follower content");
+        expect(res.data.result[0]).have.property(
+            "content",
+            "private content @user4"
+        );
+    });
+    it("non-poster can see public and unlisted posts", async function () {
+        const res = await axios.get(
+            "/user/@user1/posts",
+            authHeader(userToken2)
+        );
+        expect(res.status).equal(200);
+        expect(res.data).to.have.property("result");
+        expect(res.data.result).to.have.length(2);
+        expect(res.data.result[1]).have.property("content", "public content");
+        expect(res.data.result[0]).have.property("content", "unlisted content");
+    });
+    it("follower can see follower post", async function () {
+        const res = await axios.get(
+            "/user/@user1/posts",
+            authHeader(userToken3)
+        );
+        expect(res.status).equal(200);
+        expect(res.data).to.have.property("result");
+        expect(res.data.result).to.have.length(3);
+        expect(res.data.result[2]).have.property("content", "public content");
+        expect(res.data.result[1]).have.property("content", "unlisted content");
+        expect(res.data.result[0]).have.property("content", "follower content");
+    });
+    it("mentioned user can see private post", async function () {
+        const res = await axios.get(
+            "/user/@user1/posts",
+            authHeader(userToken4)
+        );
+        expect(res.status).equal(200);
+        expect(res.data).to.have.property("result");
+        expect(res.data.result).to.have.length(3);
+        expect(res.data.result[2]).have.property("content", "public content");
+        expect(res.data.result[1]).have.property("content", "unlisted content");
+        expect(res.data.result[0]).have.property(
+            "content",
+            "private content @user4"
+        );
     });
 });
