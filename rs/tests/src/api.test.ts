@@ -5,12 +5,15 @@ import mocha from "mocha";
 
 const BASE_URL = "https://lightpub.tinax.local";
 
-const truncateDB = async () => {
+const truncateDB = () => {
     // execute truncate_db.sh
     return new Promise((resolve, reject) => {
         const proc = exec("bash ./truncate_db.sh", (error, stdout, stderr) => {
+            console.log("stdout:", stdout);
+            console.log("stderr:", stderr);
             if (error) {
                 console.error(`exec error: ${error}`);
+                reject(error);
                 return;
             }
         });
@@ -109,6 +112,7 @@ describe("/register", function () {
 
 describe("/login", function () {
     before(async function () {
+        this.timeout(30000);
         try {
             await truncateDB();
             const response = await axios.post(
@@ -170,7 +174,7 @@ describe("/login", function () {
 describe("/post", function () {
     let token: string, token2: string;
     before(async function () {
-        this.timeout(30000);
+        this.timeout(60000);
         await truncateDB();
         token = await createAndLoginUser("testuser", "password");
         token2 = await createAndLoginUser("testuser2", "password");
@@ -558,19 +562,28 @@ describe("/post", function () {
 });
 
 describe("/post/{id}", function () {
-    let token: string, token2: string;
+    let token: string, tokenOthers: string;
     let public_post_id: string,
         follower_post_id: string,
-        private_post_id: string;
+        private_post_id: string,
+        others_follower_post_id: string,
+        others_private_post_id: string;
     before(async function () {
-        this.timeout(30000);
+        this.timeout(60000);
         await truncateDB();
         token = await createAndLoginUser("testuser", "password");
+        tokenOthers = await createAndLoginUser("testuser2", "password");
 
-        const public_res = await axios.post(BASE_URL + "/post", {
-            privacy: "public",
-            content: "public sample",
-        });
+        const public_res = await axios.post(
+            BASE_URL + "/post",
+            {
+                privacy: "public",
+                content: "public sample",
+            },
+            {
+                ...authHeader(token),
+            }
+        );
         expect(public_res.status).equal(200);
         public_post_id = public_res.data.post_id;
 
@@ -595,5 +608,93 @@ describe("/post/{id}", function () {
         );
         expect(private_res.status).equal(200);
         private_post_id = private_res.data.post_id;
+
+        const others_follower_res = await axios.post(
+            BASE_URL + "/post",
+            {
+                privacy: "follower",
+                content: "others follower sample",
+            },
+            authHeader(tokenOthers)
+        );
+        expect(others_follower_res.status).equal(200);
+        others_follower_post_id = others_follower_res.data.post_id;
+
+        const others_private_res = await axios.post(
+            BASE_URL + "/post",
+            {
+                privacy: "private",
+                content: "others private sample",
+            },
+            authHeader(tokenOthers)
+        );
+        expect(others_private_res.status).equal(200);
+        others_private_post_id = others_private_res.data.post_id;
     });
+    it("can get a public post", async function () {
+        const res = await axios.get(BASE_URL + "/post/" + public_post_id, {
+            ...authHeader(token),
+        });
+        expect(res.status).equal(200);
+        expect(res.data).have.property("id");
+        expect(res.data.id).equal(public_post_id);
+        expect(res.data.content).equal("public sample");
+    });
+    it("can get my follower post", async function () {
+        const res = await axios.get(BASE_URL + "/post/" + follower_post_id, {
+            ...authHeader(token),
+        });
+        expect(res.status).equal(200);
+        expect(res.data).have.property("id");
+        expect(res.data.id).equal(follower_post_id);
+        expect(res.data.content).equal("follower sample");
+    });
+    it("can get my private post", async function () {
+        const res = await axios.get(BASE_URL + "/post/" + private_post_id, {
+            ...authHeader(token),
+        });
+        expect(res.status).equal(200);
+        expect(res.data).have.property("id");
+        expect(res.data.id).equal(private_post_id);
+        expect(res.data.content).equal("private sample");
+    });
+    it("cannot get others follower post (by non-follower)", async function () {
+        const res = await axios.get(
+            BASE_URL + "/post/" + others_follower_post_id,
+            {
+                validateStatus(status) {
+                    return true;
+                },
+                ...authHeader(token),
+            }
+        );
+        expect(res.status).equal(404);
+    });
+    it("cannot get others private post", async function () {
+        const res = await axios.get(
+            BASE_URL + "/post/" + others_private_post_id,
+            {
+                validateStatus(status) {
+                    return true;
+                },
+                ...authHeader(token),
+            }
+        );
+        expect(res.status).equal(404);
+    });
+});
+
+describe("/follow", function () {
+    let userToken1: string, userToken2: string;
+    before(async function () {
+        this.timeout(60000);
+        this.skip();
+        await truncateDB();
+        userToken1 = await createAndLoginUser("user1", "password");
+        userToken2 = await createAndLoginUser("user2", "password");
+    });
+    it("can follow a user");
+    it("can unfollow a user");
+    it("can get followers");
+    it("can get following");
 });

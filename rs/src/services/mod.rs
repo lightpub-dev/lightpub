@@ -666,6 +666,12 @@ pub struct TimelineOptions {
     pub include_all_public: bool,
 }
 
+#[derive(Debug, Clone, Error)]
+pub enum PostFetchError {
+    #[error("post not found")]
+    PostNotFound,
+}
+
 #[async_trait]
 pub trait UserPostService {
     async fn fetch_user_posts(

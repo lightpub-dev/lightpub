@@ -43,6 +43,7 @@ use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use services::db::{new_all_user_finder_service, new_db_key_fetcher_service};
+use services::PostFetchError;
 use services::{
     db::{new_auth_service, new_local_user_finder_service},
     id::IDGetterService,
@@ -1186,6 +1187,13 @@ async fn get_single_post(
 
     match post {
         Err(e) => {
+            if let Some(err) = e.downcast_ref::<PostFetchError>() {
+                match err {
+                    PostFetchError::PostNotFound => {
+                        return Err(ErrorResponse::new_status(404, "post not found"))
+                    }
+                }
+            }
             error!("Failed to fetch post: {:?}", e);
             Err(ErrorResponse::new_status(500, "internal server error"))
         }

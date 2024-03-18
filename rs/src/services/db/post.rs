@@ -21,8 +21,8 @@ use crate::{
         },
         id::IDGetterService,
         AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
-        PostCreateRequest, PostCreateService, ServiceError, SignerService, TimelineOptions,
-        UserFollowService, UserPostService,
+        PostCreateRequest, PostCreateService, PostFetchError, ServiceError, SignerService,
+        TimelineOptions, UserFollowService, UserPostService,
     },
     utils::{
         generate_uuid,
@@ -780,7 +780,7 @@ impl UserPostService for DBUserPostService {
                 .build()
                 .unwrap()
         })
-        .ok_or_else(|| anyhow::anyhow!("post not found"))
+        .ok_or_else(|| PostFetchError::PostNotFound.into())
     }
 
     async fn fetch_user_posts(
