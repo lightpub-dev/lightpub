@@ -26,6 +26,32 @@ const truncateDB = async () => {
     });
 };
 
+const createAndLoginUser = async (
+    username: string,
+    password: string
+): Promise<string> => {
+    const res = await axios.post(BASE_URL + "/register", {
+        username,
+        nickname: username,
+        password,
+    });
+    expect(res.status).equal(200);
+
+    const token = await axios.post(BASE_URL + "/login", {
+        username,
+        password,
+    });
+    expect(token.status).equal(200);
+    expect(token.data).to.have.property("token");
+    return token.data.token;
+};
+
+function authHeader(token: string) {
+    return {
+        headers: { Authorization: "Bearer " + token },
+    };
+}
+
 describe("/register", function () {
     beforeEach(async function () {
         await truncateDB();
@@ -138,5 +164,72 @@ describe("/login", function () {
             }
         );
         expect(response.status).equal(401);
+    });
+});
+
+describe("/post", function () {
+    let token: string;
+    before(async function () {
+        this.timeout(30000);
+        await truncateDB();
+        token = await createAndLoginUser("testuser", "password");
+    });
+    describe("normal post", function () {
+        it("can create a public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "public content",
+                    privacy: "public",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+        it("can create an unlisted post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "unlisted content",
+                    privacy: "unlisted",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+        it("can create a follower-only post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "follower content",
+                    privacy: "follower",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+        it("can create a private post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "private content",
+                    privacy: "private",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
     });
 });
