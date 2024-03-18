@@ -680,6 +680,12 @@ pub trait UserPostService {
         user: &UserSpecifier,
         options: &TimelineOptions,
     ) -> Result<Vec<UserPostEntry>, anyhow::Error>;
+
+    async fn fetch_single_post(
+        &mut self,
+        post: &PostSpecifier,
+        viewer: &Option<UserSpecifier>,
+    ) -> Result<UserPostEntry, anyhow::Error>;
 }
 
 #[async_trait]

@@ -671,6 +671,118 @@ impl HasRemoteUri for UserPostAsAuthor<'_> {
 
 #[async_trait]
 impl UserPostService for DBUserPostService {
+    async fn fetch_single_post(
+        &mut self,
+        post_spec: &PostSpecifier,
+        viewer: &Option<UserSpecifier>,
+    ) -> Result<UserPostEntry, anyhow::Error> {
+        let viewer = if let Some(viewer) = viewer {
+            Some(self.finder.find_user_by_specifier(viewer).await?)
+        } else {
+            None
+        };
+        let viewer_id = viewer.as_ref().map(|u| u.id.to_string());
+
+        let post_id = match post_spec {
+            PostSpecifier::ID(id) => id.simple().to_string(),
+            PostSpecifier::URI(_) => todo!("fetch_single_post: URI"),
+        };
+
+        let post = sqlx::query_as!(
+            UserPost,
+            r#"
+            SELECT
+                p.id AS `id: Simple`,
+                p.uri AS `uri`,
+                u.id `author_id: Simple`,
+                u.uri AS `author_uri`,
+                u.username AS `author_username`,
+                u.host AS `author_host`,
+                u.nickname AS `author_nickname`,
+                p.content,
+                p.privacy,
+                p.repost_of_id AS `repost_of_id: Simple`,
+                p.reply_to_id AS `reply_to_id: Simple`,
+                p.created_at,
+                p.deleted_at,
+                0 AS `count_replies`,
+                0 AS `count_reposts`,
+                0 AS `count_quotes`,
+                NULL AS `reposted_by_you: bool`,
+                NULL AS `favorited_by_you: bool`,
+                NULL AS `bookmarked_by_you: bool`
+            FROM posts p
+            INNER JOIN users u ON p.poster_id = u.id
+            WHERE p.id = ?
+              AND (
+                (p.poster_id = ?)
+                OR (
+                    p.privacy IN ('public', 'unlisted')
+                    OR (? AND p.privacy = 'follower' AND EXISTS(
+                        SELECT 1 FROM user_follows WHERE followee_id=p.poster_id AND follower_id=?
+                    ))
+                    OR (? AND p.privacy = 'private' AND EXISTS(
+                        SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?
+                    ))
+                )
+              )
+            "#,
+            post_id,
+            viewer_id,
+            viewer_id.is_some(),
+            viewer_id,
+            viewer_id.is_some(),
+            viewer_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        post.map(|p| {
+            let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
+            let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
+            UserPostEntryBuilder::default()
+                .id(p.id)
+                .uri(post_uri)
+                .author(
+                    PostAuthorBuilder::default()
+                        .id(p.author_id)
+                        .uri(user_uri)
+                        .username(p.author_username)
+                        .host(p.author_host)
+                        .nickname(p.author_nickname)
+                        .build()
+                        .unwrap(),
+                )
+                .content(p.content)
+                .privacy(p.privacy.parse().unwrap())
+                .repost_of_id(p.repost_of_id)
+                .reply_to_id(p.reply_to_id)
+                .created_at(chrono::DateTime::from_naive_utc_and_offset(
+                    p.created_at,
+                    chrono::Utc,
+                ))
+                .deleted_at(
+                    p.deleted_at
+                        .map(|d| chrono::DateTime::from_naive_utc_and_offset(d, chrono::Utc)),
+                )
+                .counts(
+                    PostCountsBuilder::default()
+                        .reactions(vec![])
+                        .replies(p.count_replies)
+                        .reposts(p.count_reposts)
+                        .quotes(p.count_quotes)
+                        .build()
+                        .unwrap(),
+                )
+                .reposted_by_you(p.reposted_by_you)
+                .favorited_by_you(p.favorited_by_you)
+                .bookmarked_by_you(p.bookmarked_by_you)
+                .build()
+                .unwrap()
+        })
+        .ok_or_else(|| anyhow::anyhow!("post not found"))
+    }
+
     async fn fetch_user_posts(
         &mut self,
         user: &UserSpecifier,

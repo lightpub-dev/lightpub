@@ -556,3 +556,44 @@ describe("/post", function () {
         });
     });
 });
+
+describe("/post/{id}", function () {
+    let token: string, token2: string;
+    let public_post_id: string,
+        follower_post_id: string,
+        private_post_id: string;
+    before(async function () {
+        this.timeout(30000);
+        await truncateDB();
+        token = await createAndLoginUser("testuser", "password");
+
+        const public_res = await axios.post(BASE_URL + "/post", {
+            privacy: "public",
+            content: "public sample",
+        });
+        expect(public_res.status).equal(200);
+        public_post_id = public_res.data.post_id;
+
+        const follower_res = await axios.post(
+            BASE_URL + "/post",
+            {
+                privacy: "follower",
+                content: "follower sample",
+            },
+            authHeader(token)
+        );
+        expect(follower_res.status).equal(200);
+        follower_post_id = follower_res.data.post_id;
+
+        const private_res = await axios.post(
+            BASE_URL + "/post",
+            {
+                privacy: "private",
+                content: "private sample",
+            },
+            authHeader(token)
+        );
+        expect(private_res.status).equal(200);
+        private_post_id = private_res.data.post_id;
+    });
+});

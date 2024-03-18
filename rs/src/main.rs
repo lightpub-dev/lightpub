@@ -1166,6 +1166,33 @@ struct GetUserPostsQuery {
     page: bool,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct PostChooseParams {
+    post_id: Uuid,
+}
+
+#[get("/post/{post_id}")]
+async fn get_single_post(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let viewer = auth.may_auth()?.as_ref().map(|u| u.id.into());
+
+    let post_id = &PostSpecifier::from_id(path.post_id);
+    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+
+    let post = post_service.fetch_single_post(post_id, &viewer).await;
+
+    match post {
+        Err(e) => {
+            error!("Failed to fetch post: {:?}", e);
+            Err(ErrorResponse::new_status(500, "internal server error"))
+        }
+        Ok(p) => Ok(HttpResponse::Ok().json(p)),
+    }
+}
+
 #[get("/user/{user_spec}/posts")]
 async fn get_user_posts(
     app: web::Data<AppState>,
@@ -1525,6 +1552,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_following)
             .service(get_user_outbox)
             .service(timeline)
+            .service(get_single_post)
             .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
                 utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
                 ApiDoc1::openapi(),
