@@ -21,8 +21,8 @@ use crate::{
         },
         id::IDGetterService,
         AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
-        PostCreateRequest, PostCreateService, ServiceError, SignerService, TimelineOptions,
-        UserFollowService, UserPostService,
+        PostCreateRequest, PostCreateService, PostFetchError, ServiceError, SignerService,
+        TimelineOptions, UserFollowService, UserPostService,
     },
     utils::{
         generate_uuid,
@@ -55,6 +55,7 @@ impl DBPostCreateService {
         &mut self,
         post_spec: &PostSpecifier,
         viewer: &UserSpecifier,
+        repost_mode: bool,
     ) -> Result<bool, ServiceError<PostCreateError>> {
         let post = self.fetch_post_locally_stored(post_spec, false).await?;
         let post = if let Some(post) = post {
@@ -79,13 +80,20 @@ impl DBPostCreateService {
             .await
             .map_err(|_e| ServiceError::from_se(PostCreateError::PosterNotFound))?
             .id;
+
         if poster_id == viewer_id {
-            return Ok(true);
+            return Ok(match privacy {
+                PostPrivacy::Public | PostPrivacy::Unlisted => true,
+                _ => !repost_mode,
+            });
         }
 
         match privacy {
             PostPrivacy::Public | PostPrivacy::Unlisted => Ok(true),
             PostPrivacy::Followers => {
+                if repost_mode {
+                    return Ok(false);
+                }
                 // check if viewer is a follower of poster
                 self.follow
                     .is_following(&poster, viewer)
@@ -93,6 +101,9 @@ impl DBPostCreateService {
                     .map_err(|_e| ServiceError::from_se(PostCreateError::PosterNotFound))
             }
             PostPrivacy::Private => {
+                if repost_mode {
+                    return Ok(false);
+                }
                 // check if viewer is mentioned in the post
                 let mentiond = sqlx::query!(
                     r#"SELECT id FROM post_mentions WHERE post_id=? AND target_user_id=?
@@ -280,11 +291,23 @@ impl DBPostCreateService {
                 let repost_of = self
                     .fetch_post_id(&s, PostCreateError::RepostOfNotFound, depth + 1, false)
                     .await?;
+                let is_repost = content.is_none();
                 if !self
-                    .visibility_check(&PostSpecifier::from_id(repost_of), req.poster())
+                    .visibility_check(&PostSpecifier::from_id(repost_of), req.poster(), is_repost)
                     .await?
                 {
                     return Err(ServiceError::from_se(PostCreateError::RepostOfNotFound));
+                }
+
+                if is_repost {
+                    match req.privacy() {
+                        PostPrivacy::Followers | PostPrivacy::Private => {
+                            return Err(ServiceError::from_se(
+                                PostCreateError::DisallowedPrivacyForRepost,
+                            ));
+                        }
+                        _ => {}
+                    }
                 }
 
                 Some(repost_of)
@@ -299,7 +322,7 @@ impl DBPostCreateService {
                     .await?;
 
                 if !self
-                    .visibility_check(&PostSpecifier::from_id(reply_to), req.poster())
+                    .visibility_check(&PostSpecifier::from_id(reply_to), req.poster(), false)
                     .await?
                 {
                     return Err(ServiceError::from_se(PostCreateError::ReplyToNotFound));
@@ -403,41 +426,46 @@ impl DBPostCreateService {
             return Ok(post_id);
         }
 
-        let post = LocalPost {
-            id: post_id,
-            poster: LocalPoster { id: poster_id },
-            content: content.expect("content is null"),
-            privacy: req.privacy(),
-            created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-                created_at,
-                chrono::Utc,
-            ),
-        };
-        let note = self
-            .renderer
-            .render_create_post(&post)
-            .expect("failed to render");
-        let inboxes = self
-            .find_target_inboxes(note.targeted_users())
-            .await
-            .unwrap();
-
-        for inbox in inboxes {
-            let signer = self
-                .signer
-                .fetch_signer(&UserSpecifier::from_id(poster.id))
+        if let Some(content) = content {
+            let post = LocalPost {
+                id: post_id,
+                poster: LocalPoster { id: poster_id },
+                content,
+                privacy: req.privacy(),
+                created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    created_at,
+                    chrono::Utc,
+                ),
+            };
+            let note = self
+                .renderer
+                .render_create_post(&post)
+                .expect("failed to render");
+            let inboxes = self
+                .find_target_inboxes(note.targeted_users())
                 .await
-                .expect("failed to fetch signer"); // FIXME: this is very bad
-            let result = self
-                .req
-                .post_to_inbox(&inbox, &note.note_create().clone().into(), signer)
-                .await;
-            if let Err(e) = result {
-                warn!("failed to post to inbox: {:?}", e)
-            }
-        }
+                .unwrap();
 
-        Ok(post_id)
+            for inbox in inboxes {
+                let signer = self
+                    .signer
+                    .fetch_signer(&UserSpecifier::from_id(poster.id))
+                    .await
+                    .expect("failed to fetch signer"); // FIXME: this is very bad
+                let result = self
+                    .req
+                    .post_to_inbox(&inbox, &note.note_create().clone().into(), signer)
+                    .await;
+                if let Err(e) = result {
+                    warn!("failed to post to inbox: {:?}", e)
+                }
+            }
+
+            Ok(post_id)
+        } else {
+            // TODO: announce the post
+            Ok(post_id)
+        }
     }
 }
 
@@ -643,6 +671,118 @@ impl HasRemoteUri for UserPostAsAuthor<'_> {
 
 #[async_trait]
 impl UserPostService for DBUserPostService {
+    async fn fetch_single_post(
+        &mut self,
+        post_spec: &PostSpecifier,
+        viewer: &Option<UserSpecifier>,
+    ) -> Result<UserPostEntry, anyhow::Error> {
+        let viewer = if let Some(viewer) = viewer {
+            Some(self.finder.find_user_by_specifier(viewer).await?)
+        } else {
+            None
+        };
+        let viewer_id = viewer.as_ref().map(|u| u.id.to_string());
+
+        let post_id = match post_spec {
+            PostSpecifier::ID(id) => id.simple().to_string(),
+            PostSpecifier::URI(_) => todo!("fetch_single_post: URI"),
+        };
+
+        let post = sqlx::query_as!(
+            UserPost,
+            r#"
+            SELECT
+                p.id AS `id: Simple`,
+                p.uri AS `uri`,
+                u.id `author_id: Simple`,
+                u.uri AS `author_uri`,
+                u.username AS `author_username`,
+                u.host AS `author_host`,
+                u.nickname AS `author_nickname`,
+                p.content,
+                p.privacy,
+                p.repost_of_id AS `repost_of_id: Simple`,
+                p.reply_to_id AS `reply_to_id: Simple`,
+                p.created_at,
+                p.deleted_at,
+                0 AS `count_replies`,
+                0 AS `count_reposts`,
+                0 AS `count_quotes`,
+                NULL AS `reposted_by_you: bool`,
+                NULL AS `favorited_by_you: bool`,
+                NULL AS `bookmarked_by_you: bool`
+            FROM posts p
+            INNER JOIN users u ON p.poster_id = u.id
+            WHERE p.id = ?
+              AND (
+                (p.poster_id = ?)
+                OR (
+                    p.privacy IN ('public', 'unlisted')
+                    OR (? AND p.privacy = 'follower' AND EXISTS(
+                        SELECT 1 FROM user_follows WHERE followee_id=p.poster_id AND follower_id=?
+                    ))
+                    OR (? AND p.privacy = 'private' AND EXISTS(
+                        SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?
+                    ))
+                )
+              )
+            "#,
+            post_id,
+            viewer_id,
+            viewer_id.is_some(),
+            viewer_id,
+            viewer_id.is_some(),
+            viewer_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        post.map(|p| {
+            let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
+            let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
+            UserPostEntryBuilder::default()
+                .id(p.id)
+                .uri(post_uri)
+                .author(
+                    PostAuthorBuilder::default()
+                        .id(p.author_id)
+                        .uri(user_uri)
+                        .username(p.author_username)
+                        .host(p.author_host)
+                        .nickname(p.author_nickname)
+                        .build()
+                        .unwrap(),
+                )
+                .content(p.content)
+                .privacy(p.privacy.parse().unwrap())
+                .repost_of_id(p.repost_of_id)
+                .reply_to_id(p.reply_to_id)
+                .created_at(chrono::DateTime::from_naive_utc_and_offset(
+                    p.created_at,
+                    chrono::Utc,
+                ))
+                .deleted_at(
+                    p.deleted_at
+                        .map(|d| chrono::DateTime::from_naive_utc_and_offset(d, chrono::Utc)),
+                )
+                .counts(
+                    PostCountsBuilder::default()
+                        .reactions(vec![])
+                        .replies(p.count_replies)
+                        .reposts(p.count_reposts)
+                        .quotes(p.count_quotes)
+                        .build()
+                        .unwrap(),
+                )
+                .reposted_by_you(p.reposted_by_you)
+                .favorited_by_you(p.favorited_by_you)
+                .bookmarked_by_you(p.bookmarked_by_you)
+                .build()
+                .unwrap()
+        })
+        .ok_or_else(|| PostFetchError::PostNotFound.into())
+    }
+
     async fn fetch_user_posts(
         &mut self,
         user: &UserSpecifier,

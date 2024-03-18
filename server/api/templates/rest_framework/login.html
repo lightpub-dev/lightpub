@@ -1,9 +1,0 @@
-{% extends "rest_framework/login_base.html" %}
-
-{% block body %}
-<form action="{% url 'api:cookie-login' %}" method="post">
-    {% csrf_token %}
-    {{ form }}
-    <input type="submit" value="Login">
-</form>
-{% endblock %}

@@ -72,15 +72,13 @@ impl UserCreateService for DBUserCreateService {
         &mut self,
         req: &UserCreateRequest,
     ) -> Result<UserCreateResult, ServiceError<UserCreateError>> {
-        let mut tx = self.pool.begin().await?;
-
         let exist = sqlx::query!(
             r#"
         SELECT COUNT(*) AS count FROM users WHERE username=? AND host IS NULL FOR UPDATE
         "#,
             req.username
         )
-        .fetch_one(&mut *tx)
+        .fetch_one(&self.pool)
         .await?;
         if exist.count > 0 {
             return Err(ServiceError::SpecificError(
@@ -116,10 +114,8 @@ impl UserCreateService for DBUserCreateService {
             private_key,
             public_key
         )
-        .execute(&mut *tx)
+        .execute(&self.pool)
         .await?;
-
-        tx.commit().await?;
 
         // TODO: conflict handlign
 

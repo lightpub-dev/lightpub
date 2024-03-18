@@ -463,6 +463,8 @@ pub enum PostCreateError {
     TooManyRecursion,
     #[error("post not found")]
     PostNotFound,
+    #[error("specified privacy is not allowed")]
+    DisallowedPrivacyForRepost,
 }
 
 #[async_trait]
@@ -664,6 +666,12 @@ pub struct TimelineOptions {
     pub include_all_public: bool,
 }
 
+#[derive(Debug, Clone, Error)]
+pub enum PostFetchError {
+    #[error("post not found")]
+    PostNotFound,
+}
+
 #[async_trait]
 pub trait UserPostService {
     async fn fetch_user_posts(
@@ -678,6 +686,12 @@ pub trait UserPostService {
         user: &UserSpecifier,
         options: &TimelineOptions,
     ) -> Result<Vec<UserPostEntry>, anyhow::Error>;
+
+    async fn fetch_single_post(
+        &mut self,
+        post: &PostSpecifier,
+        viewer: &Option<UserSpecifier>,
+    ) -> Result<UserPostEntry, anyhow::Error>;
 }
 
 #[async_trait]
