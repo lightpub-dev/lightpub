@@ -1374,7 +1374,7 @@ async fn get_user_following(
         .unwrap_or(20);
     let options = FetchFollowListOptions::new(limit, query.before_date);
     let followers = follow_service
-        .fetch_follower_list(user_spec, &options)
+        .fetch_following_list(user_spec, &options)
         .await
         .map_err(|e| {
             error!("Failed to fetch user following: {:?}", e);

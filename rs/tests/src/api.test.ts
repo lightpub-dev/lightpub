@@ -4,6 +4,7 @@ import { exec } from "child_process";
 import mocha from "mocha";
 
 const BASE_URL = "https://lightpub.tinax.local";
+axios.defaults.baseURL = BASE_URL;
 
 const truncateDB = () => {
     // execute truncate_db.sh
@@ -684,17 +685,85 @@ describe("/post/{id}", function () {
     });
 });
 
-describe("/follow", function () {
+describe.only("/follow", function () {
     let userToken1: string, userToken2: string;
     before(async function () {
         this.timeout(60000);
-        this.skip();
         await truncateDB();
         userToken1 = await createAndLoginUser("user1", "password");
         userToken2 = await createAndLoginUser("user2", "password");
     });
-    it("can follow a user");
-    it("can unfollow a user");
-    it("can get followers");
-    it("can get following");
+    describe("follow and unfollow", function () {
+        it("can follow a user", async function () {
+            const res = await axios.put(
+                "/user/@user2/follow",
+                {},
+                authHeader(userToken1)
+            );
+            expect(res.status).equal(200);
+        });
+        it("can unfollow a user", async function () {
+            const res = await axios.delete(
+                "/user/@user2/follow",
+                authHeader(userToken1)
+            );
+            expect(res.status).equal(200);
+        });
+    });
+    describe("follow list", function () {
+        before(async function () {
+            // user1 follows user2
+            // but user2 does not follow user1
+            const res = await axios.put(
+                "/user/@user2/follow",
+                {},
+                authHeader(userToken1)
+            );
+            expect(res.status).equal(200);
+
+            // user2 unfollows user1
+            const res2 = await axios.delete(
+                "/user/@user1/follow",
+                authHeader(userToken2)
+            );
+            expect(res2.status).equal(200);
+        });
+        it("can get followers", async function () {
+            const res = await axios.get(
+                "/user/@user2/followers",
+                authHeader(userToken2)
+            );
+            expect(res.status).equal(200);
+            expect(res.data).to.have.property("result");
+            expect(res.data.result).to.have.length(1);
+            expect(res.data.result[0]).to.have.property("username", "user1");
+
+            const res2 = await axios.get(
+                "/user/@user1/followers",
+                authHeader(userToken1)
+            );
+            expect(res2.status).equal(200);
+            expect(res2.data).to.have.property("result");
+            expect(res2.data.result).to.have.length(0);
+        });
+        it("can get following", async function () {
+            const res = await axios.get(
+                "/user/@user1/following",
+                authHeader(userToken1)
+            );
+            expect(res.status).equal(200);
+            expect(res.data).to.have.property("result");
+            expect(res.data.result).to.have.length(1);
+            expect(res.data.result[0]).to.have.property("username", "user2");
+
+            // Testing for user2's followings
+            const res2 = await axios.get(
+                "/user/@user2/following",
+                authHeader(userToken2)
+            );
+            expect(res2.status).equal(200);
+            expect(res2.data).to.have.property("result");
+            expect(res2.data.result).to.have.length(0);
+        });
+    });
 });
