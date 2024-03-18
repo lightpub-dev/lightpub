@@ -232,4 +232,107 @@ describe("/post", function () {
             expect(res.data).have.property("post_id");
         });
     });
+    describe("reply", function () {
+        let publicParentId: string,
+            followerParentId: string,
+            privateParentId: string;
+        this.beforeAll(async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "public",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(200);
+            publicParentId = res.data.post_id;
+            const res2 = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "follower",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res2.status).equal(200);
+            followerParentId = res2.data.post_id;
+            const res3 = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "parent post",
+                    privacy: "private",
+                },
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res3.status).equal(200);
+            privateParentId = res3.data.post_id;
+        });
+        it("can make a public reply to a public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "reply to public",
+                    privacy: "public",
+                    reply_to_id: publicParentId,
+                },
+                authHeader(token)
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+        it("cannot make a public reply to a follower-only post (by non-follower)", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "reply to follower",
+                    privacy: "public",
+                    reply_to_id: followerParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
+        });
+        it("cannot make a public reply to a private post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "reply to private",
+                    privacy: "public",
+                    reply_to_id: privateParentId,
+                },
+                {
+                    validateStatus(status) {
+                        return true;
+                    },
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
+        });
+        it("can make a private reply to a public post", async function () {
+            const res = await axios.post(
+                BASE_URL + "/post",
+                {
+                    content: "reply to public",
+                    privacy: "private",
+                    reply_to_id: publicParentId,
+                },
+                authHeader(token)
+            );
+            expect(res.status).equal(200);
+            expect(res.data).have.property("post_id");
+        });
+    });
 });
