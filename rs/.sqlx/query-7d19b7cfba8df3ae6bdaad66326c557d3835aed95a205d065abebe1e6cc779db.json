@@ -1,0 +1,47 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id AS `id: Simple`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE uri=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "poster!: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "MULTIPLE_KEY",
+          "char_set": 224,
+          "max_size": 128
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "privacy",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | ENUM | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 32
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "7d19b7cfba8df3ae6bdaad66326c557d3835aed95a205d065abebe1e6cc779db"
+}
