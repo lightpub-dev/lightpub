@@ -135,8 +135,14 @@ impl UserCreateService for DBUserCreateService {
             "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
             &req.username
         )
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await?;
+
+        let user = if let Some(u) = user {
+            u
+        } else {
+            return Err(ServiceError::from_se(UserLoginError::AuthFailed));
+        };
 
         if let Some(bpasswd) = user.bpasswd {
             if bcrypt::verify(req.password.clone(), &bpasswd).unwrap() {
