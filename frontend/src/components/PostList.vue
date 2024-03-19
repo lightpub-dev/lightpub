@@ -1,9 +1,6 @@
-<script setup lang="ts">
-
-</script>
+<script setup lang="ts"></script>
 
 <template>
-
   <div class="posts-container">
     <!-- Example Post 1 -->
     <div class="post">

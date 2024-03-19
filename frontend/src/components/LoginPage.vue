@@ -1,28 +1,48 @@
 <script setup lang="ts">
-import { defineProps, ref } from 'vue';
+import { defineProps, ref } from 'vue'
 
 const props = defineProps<{
-  onLoginClicked: (username: string, password: string) => void;
-}>();
+  errorMessage?: string
+  onLoginClicked: (username: string, password: string) => void
+}>()
 
-const username = ref('');
-const password = ref('');
+const username = ref('')
+const password = ref('')
 </script>
 
 <template>
   <div class="login-container" role="main">
+    <div v-if="props.errorMessage" role="alert" class="error-message">
+      {{ props.errorMessage }}
+    </div>
     <h2 id="loginFormLabel">Login</h2>
     <div class="input-group">
       <label for="username" id="usernameLabel">Username:</label>
-      <input :value="username" type="text" id="username" name="username" aria-labelledby="usernameLabel"
-        aria-required="true" required>
+      <input
+        v-model="username"
+        type="text"
+        id="username"
+        name="username"
+        aria-labelledby="usernameLabel"
+        aria-required="true"
+        required
+      />
     </div>
     <div class="input-group">
       <label for="password" id="passwordLabel">Password:</label>
-      <input :value="password" type="password" id="password" name="password" aria-labelledby="passwordLabel"
-        aria-required="true" required>
+      <input
+        v-model="password"
+        type="password"
+        id="password"
+        name="password"
+        aria-labelledby="passwordLabel"
+        aria-required="true"
+        required
+      />
     </div>
-    <button @click="props.onLoginClicked(username, password)" type="submit" class="login-button">Login</button>
+    <button @click="props.onLoginClicked(username, password)" type="submit" class="login-button">
+      Login
+    </button>
   </div>
 </template>
 
@@ -35,11 +55,17 @@ body {
   /* Very light blue */
 }
 
+.error-message {
+  color: red;
+  margin-bottom: 15px;
+}
+
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
+  flex-direction: column;
 }
 
 .login-form {
