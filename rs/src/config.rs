@@ -9,6 +9,12 @@ pub struct Config {
     pub instance: InstanceConfig,
     pub upload_dir: String,
     pub dev: DevConfig,
+    pub federation: FederationConfig,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct FederationConfig {
+    pub enabled: bool,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
@@ -74,7 +80,8 @@ fn read_config_yaml() {
             dev: DevConfig {
                 debug: true,
                 ssl_verify: false
-            }
+            },
+            federation: FederationConfig { enabled: true }
         }
     )
 }

@@ -24,4 +24,6 @@ background_task_runner:
 dev:
   debug: true
   ssl_verify: false
+federation:
+  enabled: true
 
