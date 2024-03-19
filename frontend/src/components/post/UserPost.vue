@@ -3,9 +3,7 @@
     <div class="post-header">
       <div class="author-line">
         <span class="nickname">{{ props.nickname }}</span>
-        <span class="username"
-          >@{{ props.username }}<span v-if="props.host">@{{ props.host }}</span></span
-        >
+        <span class="username">@{{ props.username }}<span v-if="props.host">@{{ props.host }}</span></span>
         <span class="created-at">{{ props.createdAt.toLocaleString() }}</span>
       </div>
     </div>
@@ -21,6 +19,16 @@ const props = defineProps<{
   createdAt: Date
   content?: string
 }>()
+
+export interface UserPost {
+  author: {
+    nickname: string
+    username: string
+    host?: string
+  }
+  content: string,
+  createdAt: Date,
+}
 </script>
 
 <style scoped>
