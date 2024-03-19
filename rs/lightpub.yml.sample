@@ -13,9 +13,9 @@ cors_allowed_origins:
   - https://lightpub.tinax.local
 database:
   host: 127.0.0.1
-  port: 3306
-  name: lightpub
-  user: root
+  port: 3307
+  name: lightpub_dev
+  user: lightpub
   password: lightpub
   max_connections: 5
 upload_dir: uploads
