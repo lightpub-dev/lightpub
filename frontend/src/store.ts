@@ -1,18 +1,20 @@
-import { defineStore } from 'pinia'
+export function setToken(token: string | null) {
+  if (token === null) {
+    localStorage.removeItem('token')
+    return
+  }
+  localStorage.setItem('token', token)
+}
 
-export const useAuthStore = defineStore('auth', {
-  state: () => {
-    return {
-      token: null as string | null
-    }
-  },
-  getters: {
-    axiosOptions(state) {
-      return {
-        headers: {
-          authorization: `Bearer ${state.token}`
-        }
-      }
+export function getToken() {
+  return localStorage.getItem('token')
+}
+
+export function axiosOptions() {
+  const token = getToken()
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`
     }
   }
-})
+}
