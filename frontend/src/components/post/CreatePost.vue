@@ -1,19 +1,28 @@
 <script setup lang="ts">
+import { emitter } from '@/event'
+import { axiosOptions } from '@/store'
+import axios from 'axios'
 import { ref } from 'vue'
 
 const postContent = ref('')
 const selectedPrivacy = ref('public')
 
 const props = defineProps<{
-  onSendPost?: (content: string, privacy: string) => void
   shown: boolean
 }>()
 
-function sendPost() {
+async function sendPost() {
   // Logic to send the post (you'd likely use an HTTP library like Axios)
-  if (props.onSendPost) {
-    props.onSendPost(postContent.value, selectedPrivacy.value)
-  }
+  await axios.post(
+    '/post',
+    {
+      content: postContent.value,
+      privacy: selectedPrivacy.value
+    },
+    axiosOptions()
+  )
+
+  emitter.emit('newPostCreated')
 
   // Clear the input after sending
   postContent.value = ''
@@ -27,7 +36,7 @@ function sendPost() {
     <select v-model="selectedPrivacy">
       <option value="public">Public</option>
       <option value="unlisted">Unlisted</option>
-      <option value="follower-only">Follower-only</option>
+      <option value="follower">Follower-only</option>
       <option value="private">Private</option>
     </select>
 

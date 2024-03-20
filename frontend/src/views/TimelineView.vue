@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import type { UserPost } from '@/components/post/UserPost.vue'
 import UserPostView from '@/components/post/UserPost.vue'
+import { emitter } from '@/event'
 import { axiosOptions } from '@/store'
 import axios from 'axios'
-import { ref, watchEffect } from 'vue'
+import { onUnmounted, ref, watchEffect } from 'vue'
 
 const posts = ref<UserPost[]>([])
 
-// Fetch posts from the server
-watchEffect(async () => {
+async function reloadTimeline() {
   // fetch timeline
   const res = await axios.get('/timeline', {
     ...axiosOptions()
@@ -43,6 +43,20 @@ watchEffect(async () => {
       createdAt: new Date(p.created_at)
     }
   })
+}
+
+// Fetch posts from the server
+watchEffect(async () => {
+  await reloadTimeline()
+})
+
+// reload timeline when a new post is created
+const postCreateHandler = async () => {
+  await reloadTimeline()
+}
+emitter.on('newPostCreated', postCreateHandler)
+onUnmounted(() => {
+  emitter.off('newPostCreated', postCreateHandler)
 })
 </script>
 
