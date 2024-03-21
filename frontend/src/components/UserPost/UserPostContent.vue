@@ -24,10 +24,14 @@ const props = defineProps<{
 // This computed property processes the content of the post.
 const processedContent = computed(() => {
     return escapeHTML(props.content)
+        // Hashtag: #hashtag, ends with half/full-width space or newline
+        .replace(/#([^\s　\n]+)/g, '<a href="/#/trend/posts?hashtag=$1"><span class="post-link">#$1</span></a>')
+        // Mention: @username or @username@domain.ne.jp
+        .replace(/@(\w+(@[\w\.]+)?)/g, '<a class="post-link" href="/#/user/@$1"><span class="post-link">@$1</span></a>')
+        // Link: http://example.com, https://example.com, http://example.com/search?query=1
+        // 問題点: &がエスケープされるため&を含むURLがリンクにならない。また、URLの#以降がハッシュタグとして認識される。
+        .replace(/(https?:\/\/[\w\.\?\/\=#]+)/g, '<a class="post-link" href="$1" target="_blank">$1</a>')
         .replace(/\n/g, '<br>')
-        .replace(/#([^\s　]+)/g, '<a href="/#/trend/posts?hashtag=$1"><span class="post-link">#$1</span></a>')
-        .replace(/@(\w+)/g, '<a class="post-link" href="/#/user/@$1"><span class="post-link">@$1</span></a>')
-        .replace(/(https?:\/\/[^\s]+)/g, '<a class="post-link" href="$1" target="_blank">$1</a>')
 })
 
 </script>
