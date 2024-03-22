@@ -16,6 +16,7 @@ paths:
     post:
       tags:
         - User
+      security: []
       summary: Register a new user
       requestBody:
         content:
@@ -36,12 +37,23 @@ paths:
       responses:
         200:
           description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                    description: Internal user id of the newly created user
+                required:
+                  - user_id
         400:
-          description: Bad request. Or user with the same username already exists.
+          description: Bad request. Or user with the same username already exists. Or the server is not accepting new users.
   /login:
     post:
       tags:
         - User
+      security: []
       summary: Login as a user
       requestBody:
         content:
@@ -66,6 +78,7 @@ paths:
                 properties:
                   token:
                     type: string
+                    description: The auth token. Include this in the `Authorization` header as `Bearer <token>` for authentication.
                 required:
                   - token
         401:
@@ -140,6 +153,9 @@ paths:
       tags:
         - User
       summary: Get user information
+      security:
+        - {}
+        - loginToken: []
       parameters:
         - name: user_spec
           in: path
@@ -201,6 +217,9 @@ paths:
       summary: Get a post
       tags:
         - Post
+      security:
+        - {}
+        - loginToken: []
       parameters:
         - name: post_id
           in: path
@@ -222,6 +241,9 @@ paths:
       tags:
         - Post
         - User
+      security:
+        - {}
+        - loginToken: []
       parameters:
         - name: user_spec
           in: path
@@ -254,6 +276,9 @@ paths:
       tags:
         - User
       summary: Get followers of a user
+      security:
+        - {}
+        - loginToken: []
       parameters:
         - name: user_spec
           in: path
@@ -286,6 +311,9 @@ paths:
       tags:
         - User
       summary: Get followings of a user
+      security:
+        - {}
+        - loginToken: []
       parameters:
         - name: user_spec
           in: path
@@ -506,3 +534,11 @@ components:
         - host
         - nickname
         - avatar_id
+  securitySchemes:
+    loginToken:
+      type: http
+      scheme: bearer
+      description: Bearer token for authentication. Token can be obtained from the `/login` endpoint.
+
+security:
+  - loginToken: []
