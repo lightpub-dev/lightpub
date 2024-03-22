@@ -67,6 +67,8 @@ use utils::pagination::CollectionPageType;
 use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
+use crate::models::api_response::FollowListEntry;
+use crate::models::api_response::UserPostEntry;
 use crate::services::db::new_user_service;
 use utoipa::OpenApi;
 use utoipa::ToSchema;
@@ -493,6 +495,15 @@ struct UserChooseParams {
     user_spec: UserSpecifier,
 }
 
+#[utoipa::path(
+    put,
+    params(
+        ("user_spec" = String, Query, description="user to follow")
+    ),
+    responses(
+        (status = 200, description = "Success"),
+    ),
+)]
 #[put("/user/{user_spec}/follow")]
 async fn user_create_follow(
     path: web::Path<UserChooseParams>,
@@ -511,6 +522,15 @@ async fn user_create_follow(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[utoipa::path(
+    delete,
+    params(
+        ("user_spec" = String, Query, description="user to follow")
+    ),
+    responses(
+        (status = 200, description = "Success"),
+    ),
+)]
 #[delete("/user/{user_spec}/follow")]
 async fn user_delete_follow(
     path: web::Path<UserChooseParams>,
@@ -947,6 +967,16 @@ async fn user_inbox(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[utoipa::path(
+    get,
+    params(
+        ("user_spec" = String, Query, description="user to get")
+    ),
+    responses(
+        (status = 200, description = "User", body = User),
+        (status = 404, description = "User not found"),
+    ),
+)]
 #[get("/user/{user_spec}")]
 async fn user_get(
     params: web::Path<UserChooseParams>,
@@ -978,11 +1008,18 @@ async fn user_get(
         .body(user_json))
 }
 
-#[derive(MultipartForm)]
+#[derive(MultipartForm, ToSchema)]
 struct UploadRequest {
     file: actix_multipart::form::tempfile::TempFile,
 }
 
+#[utoipa::path(
+    post,
+    request_body = UploadRequest,
+    responses(
+        (status = 200, description = "Uploaded file"),
+    ),
+)]
 #[post("/upload")]
 async fn file_upload(
     app: web::Data<AppState>,
@@ -1038,13 +1075,20 @@ async fn file_upload(
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 struct UpdateMyProfileRequest {
     nickname: String,
     bio: String,
     avatar_id: Option<String>,
 }
 
+#[utoipa::path(
+    put,
+    request_body = UpdateMyProfileRequest,
+    responses(
+        (status = 200, description = "Updated profile"),
+    ),
+)]
 #[put("/user")]
 async fn update_my_profile(
     app: web::Data<AppState>,
@@ -1172,6 +1216,16 @@ struct PostChooseParams {
     post_id: Uuid,
 }
 
+#[utoipa::path(
+    get,
+    params(
+        ("post_id" = String, Query, description="post to get")
+    ),
+    responses(
+        (status = 200, description = "Post", body = UserPostEntry),
+        (status = 404, description = "Post not found"),
+    ),
+)]
 #[get("/post/{post_id}")]
 async fn get_single_post(
     app: web::Data<AppState>,
@@ -1201,6 +1255,16 @@ async fn get_single_post(
     }
 }
 
+#[utoipa::path(
+    get,
+    params(
+        ("user_spec" = String, Query, description="user to get")
+    ),
+    responses(
+        (status = 200, description = "User", body = PaginatedResponse<UserPostEntry>),
+        (status = 404, description = "User not found"),
+    ),
+)]
 #[get("/user/{user_spec}/posts")]
 async fn get_user_posts(
     app: web::Data<AppState>,
@@ -1248,6 +1312,16 @@ struct ListFollowOptions {
     pub page: bool,
 }
 
+#[utoipa::path(
+    get,
+    params(
+        ("user_spec" = String, Query, description="user to get")
+    ),
+    responses(
+        (status = 200, description = "Followers", body = PaginatedResponse<FollowListEntry>),
+        (status = 404, description = "User not found"),
+    ),
+)]
 #[get("/user/{user_spec}/followers")]
 async fn get_user_followers(
     app: web::Data<AppState>,
@@ -1337,6 +1411,16 @@ async fn get_user_followers(
     }
 }
 
+#[utoipa::path(
+    get,
+    params(
+        ("user_spec" = String, Query, description="user to get")
+    ),
+    responses(
+        (status = 200, description = "Following", body = PaginatedResponse<FollowListEntry>),
+        (status = 404, description = "User not found"),
+    ),
+)]
 #[get("/user/{user_spec}/following")]
 async fn get_user_following(
     app: web::Data<AppState>,
@@ -1525,14 +1609,29 @@ async fn main() -> std::io::Result<()> {
 
     #[derive(OpenApi)]
     #[openapi(
-        paths(login, register, post_post),
+        paths(
+            login,
+            register,
+            post_post,
+            user_create_follow,
+            user_delete_follow,
+            user_get,
+            file_upload,
+            update_my_profile,
+            get_single_post,
+            get_user_posts,
+            get_user_followers,
+            get_user_following
+        ),
         components(schemas(
             LoginResponse,
             LoginBody,
             RegisterBody,
             RegisterResponse,
             PostRequest,
-            PostCreateResponse
+            PostCreateResponse,
+            PaginatedResponse<FollowListEntry>,
+            PaginatedResponse<UserPostEntry>,
         ))
     )]
     struct ApiDoc1;

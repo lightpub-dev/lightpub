@@ -190,13 +190,14 @@ pub mod api_response {
     use derive_builder::Builder;
     use derive_getters::Getters;
     use serde::Serialize;
+    use utoipa::ToSchema;
     use uuid::fmt::Simple;
 
     use crate::utils::pagination::PaginatableItem;
 
     use super::{ApubRenderablePost, HasRemoteUri, PostPrivacy};
 
-    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    #[derive(Debug, Clone, Builder, Getters, Serialize, ToSchema)]
     pub struct UserPostEntry {
         id: Simple,
         uri: String,
@@ -297,7 +298,7 @@ pub mod api_response {
         }
     }
 
-    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    #[derive(Debug, Clone, Builder, Getters, Serialize, ToSchema)]
     pub struct FollowListEntry {
         id: Simple,
         uri: String,
