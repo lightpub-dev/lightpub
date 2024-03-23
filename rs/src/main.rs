@@ -68,9 +68,6 @@ use utils::user::UserSpecifier;
 use uuid::{fmt::Simple, Uuid};
 
 use crate::services::db::new_user_service;
-use utoipa::OpenApi;
-use utoipa::ToSchema;
-use utoipa_swagger_ui::SwaggerUi;
 
 #[derive(Debug)]
 struct AuthUser {
@@ -227,7 +224,7 @@ fn new_id_getter_service(config: Config) -> IDGetterService {
     IDGetterService::new(config)
 }
 
-#[derive(ToSchema, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 struct ErrorResponse {
     message: String,
     status: i32,
@@ -282,7 +279,7 @@ fn ise<T: Into<ErrorResponse> + Debug, S>(error: T) -> Result<S, ErrorResponse> 
     Err(error.into())
 }
 
-#[derive(ToSchema, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct RegisterBody {
     pub username: String,
     pub nickname: String,
@@ -300,18 +297,11 @@ impl Into<UserCreateRequest> for RegisterBody {
     }
 }
 
-#[derive(ToSchema, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 struct RegisterResponse {
     user_id: Simple,
 }
 
-#[utoipa::path(
-    post,
-    request_body = RegisterBody,
-    responses(
-        (status = 200, description = "Registered User", body = RegisterResponse),
-    ),
-)]
 #[post("/register")]
 async fn register(
     body: web::Json<RegisterBody>,
@@ -334,7 +324,7 @@ async fn register(
     }
 }
 
-#[derive(ToSchema, Debug, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct LoginBody {
     username: String,
     password: String,
@@ -350,19 +340,11 @@ impl Into<UserLoginRequest> for LoginBody {
     }
 }
 
-#[derive(ToSchema, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 struct LoginResponse {
     token: String,
 }
 
-#[utoipa::path(
-    post,
-    request_body = LoginBody,
-    responses(
-        (status = 200, description = "Logged in", body = LoginResponse),
-        (status = 401, description = "Auth failed")
-    ),
-)]
 #[post("/login")]
 async fn login(
     body: web::Json<LoginBody>,
@@ -383,7 +365,7 @@ async fn login(
     }
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize)]
 pub struct PostRequest {
     pub content: Option<String>,
     pub privacy: PostPrivacy,
@@ -391,18 +373,11 @@ pub struct PostRequest {
     pub repost_of_id: Option<Uuid>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize)]
 pub struct PostCreateResponse {
     pub post_id: Simple,
 }
 
-#[utoipa::path(
-    post,
-    request_body = PostRequest,
-    responses(
-        (status = 200, description = "Created post", body = PostCreateResponse),
-    ),
-)]
 #[post("/post")]
 async fn post_post(
     body: web::Json<PostRequest>,
@@ -1523,20 +1498,6 @@ async fn main() -> std::io::Result<()> {
 
     let app_state = state::AppState::new(pool, config.clone());
 
-    #[derive(OpenApi)]
-    #[openapi(
-        paths(login, register, post_post),
-        components(schemas(
-            LoginResponse,
-            LoginBody,
-            RegisterBody,
-            RegisterResponse,
-            PostRequest,
-            PostCreateResponse
-        ))
-    )]
-    struct ApiDoc1;
-
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
@@ -1561,10 +1522,6 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_outbox)
             .service(timeline)
             .service(get_single_post)
-            .service(SwaggerUi::new("/swagger-ui/{_:.*}").urls(vec![(
-                utoipa_swagger_ui::Url::new("api1", "/api-docs/openapi1.json"),
-                ApiDoc1::openapi(),
-            )]))
     })
     .bind(("0.0.0.0", 8000))?
     .run()

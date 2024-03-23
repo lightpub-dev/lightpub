@@ -1,97 +1,32 @@
-import App from '@/App.vue'
-import '@/style.css'
-import { library } from '@fortawesome/fontawesome-svg-core'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import './assets/main.css'
+import '@mdi/font/css/materialdesignicons.css'
+
 import { createApp } from 'vue'
-import InfiniteLoading from 'v3-infinite-loading'
-import 'v3-infinite-loading/lib/style.css' //required if you're not going to override default slots
+import { createPinia } from 'pinia'
 
-/* add some free styles */
-import LoginView from '@/components/Login/LoginView.vue'
-import MainView from '@/components/Main/MainView.vue'
+import App from './App.vue'
+import router from './router'
+import { createVuetify } from 'vuetify'
+import { aliases, mdi } from 'vuetify/iconsets/mdi'
+import * as components from 'vuetify/components'
+import * as directives from 'vuetify/directives'
 
-import {
-    faBell,
-    faGear,
-    faHeart,
-    faHouse,
-    faImage,
-    faInbox,
-    faMagnifyingGlass,
-    faPlus
-} from '@fortawesome/free-solid-svg-icons'
-import { createRouter, createWebHashHistory } from 'vue-router'
+const app = createApp(App)
 
-const routes = [
-    { path: '/login', component: LoginView },
-    {
-        path: '/',
-        component: MainView,
-        props: {
-            mode: 'feed'
-        }
-    },
-    {
-        path: '/user/:id',
-        component: MainView,
-        props: {
-            mode: 'profile'
-        }
-    },
-    {
-        path: '/trend/posts',
-        component: MainView,
-        props: {
-            mode: 'trend-search'
-        }
-    },
-    {
-        path: '/user/:id/followers',
-        component: MainView,
-        props: {
-            mode: 'followers'
-        }
-    },
-    {
-        path: '/user/:id/followings',
-        component: MainView,
-        props: {
-            mode: 'followings'
-        }
-    },
-    {
-        path: '/post/:id',
-        component: MainView,
-        props: {
-            mode: 'post-detail'
-        }
-    },
-    {
-        path: '/change-password',
-        component: MainView,
-        props: {
-            mode: 'change-password'
-        }
+const vuetify = createVuetify({
+  components,
+  directives,
+  icons: {
+    defaultSet: 'mdi',
+    aliases,
+    sets: {
+      mdi
     }
-]
-
-const router = createRouter({
-    history: createWebHashHistory(),
-    routes
+  }
 })
 
-library.add(
-    faHouse,
-    faBell,
-    faHeart,
-    faInbox,
-    faGear,
-    faMagnifyingGlass,
-    faPlus,
-    faImage
-)
-createApp(App)
-    .component('font-awesome-icon', FontAwesomeIcon)
-    .component('infinite-loading', InfiniteLoading)
-    .use(router)
-    .mount('#app')
+app.use(createPinia())
+app.use(router)
+app.use(vuetify)
+
+app.mount('#app')

@@ -1,12 +1,7 @@
 import mitt from 'mitt'
 
-type Event = {
-    'post-created': void
-    'create-reply': string
-    'repost-created': void
-    "post-deleted": void,
-    "reaction-created": void,
-    'reaction-deleted': void,
+type Events = {
+  newPostCreated: () => void
 }
 
-export const eventBus = mitt<Event>()
+export const emitter = mitt<Events>()
