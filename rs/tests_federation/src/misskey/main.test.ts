@@ -1,57 +1,50 @@
-import { By, Builder, Browser, WebDriver } from "selenium-webdriver";
-import Firefox from "selenium-webdriver/firefox";
 import { describe, test, before } from "mocha";
 import expect from "expect.js";
+import axios from "axios";
 
 const MISSKEY_BASE_URL = "https://misskey.tinax.local";
+const MISSKEY_TOKEN = "p6jFYxtFO7QJGbQSpZthKJzTPGfzqhQt";
+const LP_BASE_URL = "https://lightpub.tinax.local";
 
 describe("Misskey federation test", function () {
-    let driver: WebDriver;
+    let lpToken: string;
 
     before(async function () {
-        this.timeout(60000);
-        const options = new Firefox.Options();
-        options.setAcceptInsecureCerts(true);
-        options.setPreference("intl.accept_languages", "ja-JP");
-        driver = await new Builder()
-            .forBrowser(Browser.FIREFOX)
-            .setFirefoxOptions(options)
-            .build();
-
+        this.timeout(15000);
+        // create admin user for lightpub
+        const res = await axios.post(LP_BASE_URL + "/register", {
+            username: "admin",
+            password: "1234abcd",
+            nickname: "admin dayo",
+        });
+        expect(res.status).to.be(200);
         // login
-        await driver.get(MISSKEY_BASE_URL);
-        driver.manage().window().setSize(1000, 1000);
-        await driver.sleep(5000);
-        const loginButton = driver.findElement(
-            By.css("button[data-cy-signin]"),
-        );
-        await loginButton.click();
-        const username = driver.findElement(
-            By.css('input[placeholder="ユーザー名"]'),
-        );
-        const password = driver.findElement(
-            By.css('input[placeholder="パスワード"]'),
-        );
-        await username.sendKeys("missuser");
-        await password.sendKeys("1234abcd");
-        const submitButton = driver.findElement(By.css("button[type=submit]"));
-        await submitButton.click();
+        const res2 = await axios.post(LP_BASE_URL + "/login", {
+            username: "admin",
+            password: "1234abcd",
+        });
+        expect(res2.status).to.be(200);
+        lpToken = res2.data.token;
     });
 
-    describe("Misskey start check", async function () {
-        before(async function () {
-            this.timeout(5000);
-            await driver.get(MISSKEY_BASE_URL);
-        });
+    function lightpubAuth() {
+        return {
+            headers: {
+                Authorization: `Bearer ${lpToken}`,
+            },
+        };
+    }
 
-        test("success", function () {
-            expect(true).to.be(true);
+    context("user follow test", function () {
+        test("follow missuser from lightpub", async function () {
+            const res = await axios.put(
+                LP_BASE_URL + "/user/@missuser@misskey.tinax.local/follow",
+                {},
+                {
+                    ...lightpubAuth(),
+                },
+            );
+            expect(res.status).to.be(200);
         });
-    });
-
-    after(async function () {
-        if (driver) {
-            await driver.quit();
-        }
     });
 });
