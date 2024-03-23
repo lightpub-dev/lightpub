@@ -2,6 +2,11 @@ openapi: 3.0.0
 info:
   title: Lightpub API
   version: 0.1.0
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://lightpub.tinax.local
+    description: Local development server with HTTPS
 tags:
   - name: User
     description: User management
