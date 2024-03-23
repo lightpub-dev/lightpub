@@ -190,6 +190,7 @@ services:
       - 5433:5433
     volumes:
       - misskey_db_data:/var/lib/postgresql/data
+      - ./test_instances/misskey_db:/docker-entrypoint-initdb.d
     healthcheck:
       test: "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
       interval: 5s
@@ -197,7 +198,7 @@ services:
     command: -p 5433
     profiles:
       - misskey
-  
+
   # https://github.com/angristan/docker-pleroma/blob/master/docker-compose.yml
   pleroma_db:
     image: postgres:12.1-alpine
@@ -221,19 +222,16 @@ services:
       - pleroma_db_data:/var/lib/postgresql/data
     profiles:
       - pleroma
-  
+
   pleroma_web:
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          "wget -q --spider --proxy=off localhost:6000 || exit 1",
-        ]
+        ["CMD-SHELL", "wget -q --spider --proxy=off localhost:6000 || exit 1"]
     restart: always
     networks:
       - internal_network
     ports:
-      - '6000:6000'
+      - "6000:6000"
     build:
       context: ./test_instances/pleroma
       # Feel free to remove or override this section
@@ -282,7 +280,7 @@ services:
     volumes:
       - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
       - ./refinery.docker.toml:/lightpub/refinery.toml
-  
+
   lightpub_db:
     image: mariadb:latest
     networks:
@@ -296,7 +294,14 @@ services:
       MYSQL_USER: lightpub
       MYSQL_PASSWORD: lightpub
     healthcheck:
-      test: [ "CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized" ]
+      test:
+        [
+          "CMD",
+          "healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized",
+        ]
       start_period: 1m
       start_interval: 10s
       interval: 1m
