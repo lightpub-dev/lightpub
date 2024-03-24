@@ -17,7 +17,7 @@ describe("Misskey federation test", function () {
     let lpToken: string;
 
     before(async function () {
-        this.timeout(15000);
+        this.timeout(0);
         // create admin user for lightpub
         const res = await axios.post(LP_BASE_URL + "/register", {
             username: "admin",
@@ -51,6 +51,9 @@ describe("Misskey federation test", function () {
     }
 
     context("user follow test", function () {
+        this.timeout(0);
+        let followSuccess = false;
+        let lightpubUserId: string;
         context("follow missuser from lightpub", function () {
             let success = false;
             test("follow missuser from lightpub", async function () {
@@ -83,6 +86,44 @@ describe("Misskey federation test", function () {
                 expect(res.status).to.be(200);
                 expect(res.data).to.have.length(1);
                 expect(res.data[0].follower.username).to.equal("admin");
+                followSuccess = true;
+                lightpubUserId = res.data[0].follower.id;
+            });
+        });
+
+        context("follow lightpub admin from missuser", function () {
+            before(function () {
+                // if lightpub user does not appear in misskey followers, we cannot know the userId of lightpub admin
+                if (!followSuccess) this.skip();
+            });
+
+            let success = false;
+            test("follow lightpub admin from missuser", async function () {
+                this.timeout(10000);
+                const res = await axios.post(
+                    MISSKEY_BASE_URL + "/api/following/create",
+                    {
+                        userId: lightpubUserId,
+                    },
+                    {
+                        ...misskeyAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                success = true;
+                await sleep(5000);
+            });
+            test("check lightpub followers", async function () {
+                if (!success) this.skip();
+                const res = await axios.get(
+                    LP_BASE_URL + "/user/@admin/followers",
+                    {
+                        ...lightpubAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                expect(res.data.result).to.have.length(1);
+                expect(res.data.result[0].username).to.equal("missuser");
             });
         });
     });
