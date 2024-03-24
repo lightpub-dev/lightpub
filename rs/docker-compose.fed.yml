@@ -34,7 +34,11 @@ services:
       - external_network
     healthcheck:
       # prettier-ignore
-      test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:3000/health || exit 1']
+      test:
+        [
+          'CMD-SHELL',
+          'wget -q --spider --proxy=off localhost:3000/health || exit 1'
+        ]
     ports:
       - 3000:3000
     depends_on:
@@ -85,7 +89,7 @@ services:
       - mastodon_system:/mastodon/public/system
       - ./test_instances/ssl:/ssl
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep '[s]idekiq\ 6' || false"]
+      test: [ "CMD-SHELL", "ps aux | grep '[s]idekiq 6' || false" ]
     profiles:
       - mastodon
 
@@ -96,7 +100,15 @@ services:
     networks:
       - internal_network
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "mastodon", "-d", "mastodon_production"]
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "mastodon",
+          "-d",
+          "mastodon_production"
+        ]
       interval: 5s
       retries: 20
     volumes:
@@ -116,7 +128,7 @@ services:
     networks:
       - internal_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       retries: 20
     volumes:
@@ -144,6 +156,10 @@ services:
         condition: service_healthy
       misskey_redis:
         condition: service_healthy
+    healthcheck:
+      test: curl -s -S -o /dev/null "http://localhost:5000"
+      interval: 5s
+      retries: 30
     ports:
       - "5000:5000"
     networks:
@@ -180,6 +196,7 @@ services:
     image: postgres:15-alpine
     networks:
       - internal_network
+      - external_network
     env_file:
       - ./test_instances/misskey/docker.env
     environment:
@@ -190,6 +207,7 @@ services:
       - 5433:5433
     volumes:
       - misskey_db_data:/var/lib/postgresql/data
+      - ./test_instances/misskey_db:/docker-entrypoint-initdb.d
     healthcheck:
       test: "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
       interval: 5s
@@ -197,7 +215,7 @@ services:
     command: -p 5433
     profiles:
       - misskey
-  
+
   # https://github.com/angristan/docker-pleroma/blob/master/docker-compose.yml
   pleroma_db:
     image: postgres:12.1-alpine
@@ -206,7 +224,7 @@ services:
       - internal_network
       - external_network
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "pleroma"]
+      test: [ "CMD", "pg_isready", "-U", "pleroma" ]
       interval: 5s
       retries: 20
     environment:
@@ -221,19 +239,19 @@ services:
       - pleroma_db_data:/var/lib/postgresql/data
     profiles:
       - pleroma
-  
+
   pleroma_web:
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "wget -q --spider --proxy=off localhost:6000 || exit 1",
+          "wget -q --spider --proxy=off localhost:6000 || exit 1"
         ]
     restart: always
     networks:
       - internal_network
     ports:
-      - '6000:6000'
+      - "6000:6000"
     build:
       context: ./test_instances/pleroma
       # Feel free to remove or override this section
@@ -268,6 +286,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    healthcheck:
+      test: curl -s -S -o /dev/null http://localhost:8000
+      interval: 5s
+      retries: 30
     restart: unless-stopped
     networks:
       - internal_network
@@ -282,7 +304,7 @@ services:
     volumes:
       - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
       - ./refinery.docker.toml:/lightpub/refinery.toml
-  
+
   lightpub_db:
     image: mariadb:latest
     networks:
@@ -296,7 +318,14 @@ services:
       MYSQL_USER: lightpub
       MYSQL_PASSWORD: lightpub
     healthcheck:
-      test: [ "CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized" ]
+      test:
+        [
+          "CMD",
+          "healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized"
+        ]
       start_period: 1m
       start_interval: 10s
       interval: 1m
@@ -323,6 +352,22 @@ services:
       - MYSQL_ROOT_PASSWORD=root
     volumes:
       - lightpub_dev_db_data:/var/lib/mysql
+    profiles:
+      - lightpub-dev
+
+  test_runner:
+    build:
+      context: ./tests_federation
+      dockerfile: Dockerfile
+    networks:
+      - internal_network
+    depends_on:
+      lightpub_api:
+        condition: service_healthy
+      misskey_web:
+        condition: service_healthy
+    profiles:
+      - testing
 
 volumes:
   mastodon_db_data:
@@ -336,6 +381,7 @@ volumes:
   pleroma_db_data:
   pleroma_uploads:
   pleroma_static:
+
 
 networks:
   internal_network:
