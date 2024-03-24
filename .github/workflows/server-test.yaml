@@ -9,8 +9,8 @@ on:
       - master
 
 jobs:
-  test:
-    name: Run tests
+  lightpub_test:
+    name: Run Lightpub API tests
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -18,3 +18,12 @@ jobs:
         run: |
           cd rs
           ./run_tests.sh
+  misskey_federation_test:
+    name: Run Misskey federation tests
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run tests
+        run: |
+          cd rs
+          ./run_federation_test.sh

@@ -53,6 +53,7 @@ describe("Misskey federation test", function () {
     context("user follow test", function () {
         this.timeout(0);
         let followSuccess = false;
+        let followedSuccess = false;
         let lightpubUserId: string;
         context("follow missuser from lightpub", function () {
             let success = false;
@@ -124,6 +125,77 @@ describe("Misskey federation test", function () {
                 expect(res.status).to.be(200);
                 expect(res.data.result).to.have.length(1);
                 expect(res.data.result[0].username).to.equal("missuser");
+                followedSuccess = true;
+            });
+        });
+
+        context("unfollow missuser from lightpub", function () {
+            before(function () {
+                if (!followSuccess) this.skip();
+            });
+
+            let unfollowSuccess = false;
+            test("send unfollow request to lightpub", async function () {
+                this.timeout(10000);
+                const res = await axios.delete(
+                    LP_BASE_URL + "/user/@missuser@misskey.tinax.local/follow",
+                    {
+                        ...lightpubAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                await sleep(5000);
+                unfollowSuccess = true;
+            });
+
+            test("check misskey followers", async function () {
+                // TODO: this is not implemented in Lightpub side
+                this.skip();
+
+                if (!unfollowSuccess) this.skip();
+                const res = await axios.post(
+                    MISSKEY_BASE_URL + "/api/users/followers",
+                    {
+                        userId: MISSKEY_USER_ID,
+                    },
+                    {
+                        ...misskeyAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                expect(res.data).to.have.length(0);
+            });
+        });
+
+        context("unfollow lightpub admin from missuser", function () {
+            before(function () {
+                if (!followedSuccess) this.skip();
+            });
+
+            test("send unfollow request to misskey", async function () {
+                this.timeout(10000);
+                const res = await axios.post(
+                    MISSKEY_BASE_URL + "/api/following/delete",
+                    {
+                        userId: lightpubUserId,
+                    },
+                    {
+                        ...misskeyAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                await sleep(5000);
+            });
+
+            test("check lightpub followers", async function () {
+                const res = await axios.get(
+                    LP_BASE_URL + "/user/@admin/followers",
+                    {
+                        ...lightpubAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                expect(res.data.result).to.have.length(0);
             });
         });
     });
