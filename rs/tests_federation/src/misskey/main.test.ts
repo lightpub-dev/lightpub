@@ -287,8 +287,188 @@ describe("Misskey federation test", function () {
                     },
                 );
                 expect(res.status).to.be(200);
-                expect(res.data).to.have.length(1);
-                expect(res.data[0].text).to.equal("this is a public post #1");
+                expect(res.data.length).to.be.greaterThan(0);
+                let found = false;
+                for (let i = 0; i < res.data.length; i++) {
+                    if (res.data[i].text === "this is a public post #1") {
+                        found = true;
+                        break;
+                    }
+                }
+                expect(found).to.be(true);
+            });
+        });
+
+        context("create a unlisted post from lightpub", function () {
+            let postCreated = false;
+            it("can create a unlisted post on lightpub", async function () {
+                this.timeout(5000);
+                const res = await axios.post(
+                    LP_BASE_URL + "/post",
+                    {
+                        content: "this is a unlisted post #1",
+                        privacy: "unlisted",
+                    },
+                    {
+                        ...lightpubAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                await sleep(3000);
+                postCreated = true;
+            });
+            it("can see the unlisted post on misskey", async function () {
+                if (!postCreated) this.skip();
+                const res = await axios.post(
+                    MISSKEY_BASE_URL + "/api/users/notes",
+                    {
+                        userId: lightpubUserId,
+                    },
+                    {
+                        ...misskeyAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                expect(res.data.length).to.be.greaterThan(0);
+                let found = false;
+                for (let i = 0; i < res.data.length; i++) {
+                    if (res.data[i].text === "this is a unlisted post #1") {
+                        found = true;
+                        break;
+                    }
+                }
+                expect(found).to.be(true);
+            });
+        });
+
+        context("create a follower-only post from lightpub", function () {
+            let postCreated = false;
+            it("can create a follower-only post on lightpub", async function () {
+                this.timeout(5000);
+                const res = await axios.post(
+                    LP_BASE_URL + "/post",
+                    {
+                        content: "this is a follower post #1",
+                        privacy: "follower",
+                    },
+                    {
+                        ...lightpubAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                await sleep(3000);
+                postCreated = true;
+            });
+            it("followers can see the follower-only post on misskey", async function () {
+                if (!postCreated) this.skip();
+                const res = await axios.post(
+                    MISSKEY_BASE_URL + "/api/users/notes",
+                    {
+                        userId: lightpubUserId,
+                    },
+                    {
+                        ...misskeyAuth(),
+                    },
+                );
+                expect(res.status).to.be(200);
+                expect(res.data.length).to.be.greaterThan(0);
+                let found = false;
+                for (let i = 0; i < res.data.length; i++) {
+                    if (res.data[i].text === "this is a follower post #1") {
+                        found = true;
+                        break;
+                    }
+                }
+                expect(found).to.be(true);
+            });
+        });
+
+        context("create a private post from lightpub", function () {
+            context("not mentioned", function () {
+                let postCreated = false;
+                it("can create a private post on lightpub", async function () {
+                    this.timeout(5000);
+                    const res = await axios.post(
+                        LP_BASE_URL + "/post",
+                        {
+                            content: "this is a private post #1",
+                            privacy: "private",
+                        },
+                        {
+                            ...lightpubAuth(),
+                        },
+                    );
+                    expect(res.status).to.be(200);
+                    await sleep(3000);
+                    postCreated = true;
+                });
+                it("cannot see the private post on misskey", async function () {
+                    if (!postCreated) this.skip();
+                    const res = await axios.post(
+                        MISSKEY_BASE_URL + "/api/users/notes",
+                        {
+                            userId: lightpubUserId,
+                        },
+                        {
+                            ...misskeyAuth(),
+                        },
+                    );
+                    expect(res.status).to.be(200);
+                    let found = false;
+                    for (let i = 0; i < res.data.length; i++) {
+                        if (res.data[i].text === "this is a private post #1") {
+                            found = true;
+                            break;
+                        }
+                    }
+                    expect(found).to.be(false);
+                });
+            });
+            context("mentioned", function () {
+                let postCreated = false;
+                it("can create a private post on lightpub", async function () {
+                    this.timeout(5000);
+                    const res = await axios.post(
+                        LP_BASE_URL + "/post",
+                        {
+                            content:
+                                "this is a private post #2 @missuser@misskey.tinax.local",
+                            privacy: "private",
+                        },
+                        {
+                            ...lightpubAuth(),
+                        },
+                    );
+                    expect(res.status).to.be(200);
+                    await sleep(3000);
+                    postCreated = true;
+                });
+                it("mentioned user can see the private post on misskey", async function () {
+                    if (!postCreated) this.skip();
+                    const res = await axios.post(
+                        MISSKEY_BASE_URL + "/api/users/notes",
+                        {
+                            userId: lightpubUserId,
+                        },
+                        {
+                            ...misskeyAuth(),
+                        },
+                    );
+                    expect(res.status).to.be(200);
+                    expect(res.data.length).to.be.greaterThan(0);
+                    let found = false;
+                    for (let i = 0; i < res.data.length; i++) {
+                        if (
+                            res.data[i].text.includes(
+                                "this is a private post #2",
+                            )
+                        ) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    expect(found).to.be(true);
+                });
             });
         });
     });
