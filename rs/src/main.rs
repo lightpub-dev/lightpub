@@ -171,6 +171,7 @@ impl FromRequest for AuthUser {
                     ServiceError::SpecificError(AuthError::TokenNotSet) => {
                         Err(ErrorResponse::new_status(401, "unauthorized"))
                     }
+                    // other errors
                     e => {
                         error!("Failed to authenticate user: {:?}", e);
                         Err(ErrorResponse::new_status(500, "internal server error"))

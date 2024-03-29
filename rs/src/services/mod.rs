@@ -480,6 +480,7 @@ pub trait PostCreateService {
 #[derive(Debug)]
 pub enum AuthError {
     TokenNotSet,
+    Other,
 }
 
 #[async_trait]

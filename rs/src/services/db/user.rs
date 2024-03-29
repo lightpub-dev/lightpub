@@ -38,6 +38,7 @@ use crate::utils::generate_uuid_random;
 use crate::utils::user::UserSpecifier;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use std::str::FromStr;
+use tracing::error;
 
 #[derive(Debug)]
 pub struct DBUserCreateService {
@@ -168,9 +169,24 @@ impl UserAuthService for DBAuthService {
         let u = sqlx::query_as!(models::User,
             "SELECT users.id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, users.created_at FROM users INNER JOIN user_tokens ON users.id = user_tokens.user_id WHERE token = ?",
             token
-        ).fetch_one(&self.pool).await?;
+        ).fetch_one(&self.pool).await;
 
-        Ok(u)
+        match u {
+            Ok(u) => {
+                return Ok(u);
+            }
+            Err(e) => match e {
+                sqlx::Error::RowNotFound => {
+                    return Err(ServiceError::from_se(
+                        crate::services::AuthError::TokenNotSet,
+                    ));
+                }
+                _ => {
+                    error!("Error during authentication: {:?}", e);
+                    return Err(ServiceError::from_se(crate::services::AuthError::Other));
+                }
+            },
+        }
     }
 }
 
