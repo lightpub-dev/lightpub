@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                    INSERT INTO post_favorites (user_id, post_id, is_bookmark) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id=id\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "60f05ad8fcf4bbc0913648e4007ad6ac1bd51441c85b4813104dd5f22cb93ba8"
+}

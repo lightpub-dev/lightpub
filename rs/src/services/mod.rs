@@ -475,6 +475,23 @@ pub trait PostCreateService {
     ) -> Result<Simple, ServiceError<PostCreateError>>;
 
     async fn delete_post(&mut self, req: &PostSpecifier) -> Result<(), anyhow::Error>;
+
+    async fn modify_favorite(
+        &mut self,
+        user: &UserSpecifier,
+        post: &PostSpecifier,
+        allow_remote: bool,
+        as_bookmark: bool,
+        action: PostInteractionAction,
+    ) -> Result<(), anyhow::Error>;
+
+    async fn modify_reaction(
+        &mut self,
+        user: &UserSpecifier,
+        post: &PostSpecifier,
+        reaction: &str,
+        action: PostInteractionAction,
+    ) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Debug)]
@@ -670,6 +687,12 @@ pub struct TimelineOptions {
 pub enum PostFetchError {
     #[error("post not found")]
     PostNotFound,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostInteractionAction {
+    Add,
+    Remove,
 }
 
 #[async_trait]

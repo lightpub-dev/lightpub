@@ -21,8 +21,8 @@ use crate::{
         },
         id::IDGetterService,
         AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
-        PostCreateRequest, PostCreateService, PostFetchError, ServiceError, SignerService,
-        TimelineOptions, UserFollowService, UserPostService,
+        PostCreateRequest, PostCreateService, PostFetchError, PostInteractionAction, ServiceError,
+        SignerService, TimelineOptions, UserFollowService, UserPostService,
     },
     utils::{
         generate_uuid,
@@ -492,11 +492,73 @@ impl PostCreateService for DBPostCreateService {
             .execute(&mut *tx)
             .await?;
 
+            // TODO: send apub
+
             tx.commit().await?;
         } else {
             warn!("post not found");
         }
         Ok(())
+    }
+
+    async fn modify_favorite(
+        &mut self,
+        user_spec: &UserSpecifier,
+        post_spec: &PostSpecifier,
+        allow_remote: bool,
+        as_bookmark: bool,
+        action: PostInteractionAction,
+    ) -> Result<(), anyhow::Error> {
+        let user = self.finder.find_user_by_specifier(user_spec).await?;
+        let post_id = if allow_remote {
+            self.fetch_post_id(post_spec, PostCreateError::PostNotFound, 0, false)
+                .await?
+        } else {
+            self.fetch_post_locally_stored(post_spec, false)
+                .await?
+                .ok_or(PostCreateError::PostNotFound)
+                .map(|p| p.id)?
+        };
+
+        match action {
+            PostInteractionAction::Add => {
+                sqlx::query!(
+                    r#"
+                    INSERT INTO post_favorites (user_id, post_id, is_bookmark) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id=id
+                    "#,
+                    user.id.to_string(),
+                    post_id.to_string(),
+                    as_bookmark
+                )
+                .execute(&self.pool).await?;
+            }
+            PostInteractionAction::Remove => {
+                sqlx::query!(
+                    r#"
+                    DELETE FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=?
+                    "#,
+                    user.id.to_string(),
+                    post_id.to_string(),
+                    as_bookmark
+                )
+                .execute(&self.pool)
+                .await?;
+            }
+        }
+
+        // TODO! send apub
+
+        return Ok(());
+    }
+
+    async fn modify_reaction(
+        &mut self,
+        user: &UserSpecifier,
+        post: &PostSpecifier,
+        reaction: &str,
+        action: PostInteractionAction,
+    ) -> Result<(), anyhow::Error> {
+        todo!()
     }
 }
 

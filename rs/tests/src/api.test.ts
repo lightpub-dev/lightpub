@@ -989,3 +989,68 @@ describe("timeline", function () {
         );
     });
 });
+
+describe("favorite and bookmark", function () {
+    let userToken1: string;
+    let userToken2: string;
+    let postId: string;
+    before(async function () {
+        this.timeout(60000);
+        await truncateDB();
+        userToken1 = await createAndLoginUser("admin", "password");
+        userToken2 = await createAndLoginUser("user2", "password");
+
+        const publicPost = await axios.post(
+            "/post",
+            {
+                content: "public content",
+                privacy: "public",
+            },
+            authHeader(userToken1)
+        );
+        expect(publicPost.status).equal(200);
+        postId = publicPost.data.post_id;
+    });
+    let favoriteSuccess = false;
+    let bookmarkSuccess = false;
+    it("can favorite a public post", async function () {
+        const res = await axios.put(
+            "/post/" + postId + "/favorite",
+            {},
+            {
+                ...authHeader(userToken2),
+            }
+        );
+        expect(res.status).equal(200);
+        favoriteSuccess = true;
+    });
+    it("can bookmark a public post", async function () {
+        const res = await axios.put(
+            "/post/" + postId + "/bookmark",
+            {},
+            {
+                ...authHeader(userToken2),
+            }
+        );
+        expect(res.status).equal(200);
+        bookmarkSuccess = true;
+    });
+    it("can delete a favorite", async function () {
+        if (!favoriteSuccess) {
+            this.skip();
+        }
+        const res = await axios.delete("/post/" + postId + "/favorite", {
+            ...authHeader(userToken2),
+        });
+        expect(res.status).equal(200);
+    });
+    it("can delete a bookmark", async function () {
+        if (!bookmarkSuccess) {
+            this.skip();
+        }
+        const res = await axios.delete("/post/" + postId + "/bookmark", {
+            ...authHeader(userToken2),
+        });
+        expect(res.status).equal(200);
+    });
+});

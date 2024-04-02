@@ -12,8 +12,8 @@ use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
 use crate::services::{
-    FetchFollowListOptions, FetchUserPostsOptions, TimelineOptions, UserCreateError,
-    UserProfileUpdate,
+    FetchFollowListOptions, FetchUserPostsOptions, PostInteractionAction, TimelineOptions,
+    UserCreateError, UserProfileUpdate,
 };
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
@@ -1446,6 +1446,118 @@ async fn timeline(
     Ok(HttpResponse::Ok().json(paginated))
 }
 
+#[put("/post/{post_id}/favorite")]
+async fn add_post_favorite(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let post_spec = &path.post_id.into();
+    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+
+    post_service
+        .modify_favorite(
+            &authed_user.id.into(),
+            post_spec,
+            false,
+            false,
+            PostInteractionAction::Add,
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to add favorite: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[put("/post/{post_id}/bookmark")]
+async fn add_post_bookmark(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let post_spec = &path.post_id.into();
+    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+
+    post_service
+        .modify_favorite(
+            &authed_user.id.into(),
+            post_spec,
+            false,
+            true,
+            PostInteractionAction::Add,
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to add favorite: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[delete("/post/{post_id}/favorite")]
+async fn delete_post_favorite(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let post_spec = &path.post_id.into();
+    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+
+    post_service
+        .modify_favorite(
+            &authed_user.id.into(),
+            post_spec,
+            false,
+            false,
+            PostInteractionAction::Remove,
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to remove favorite: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[delete("/post/{post_id}/bookmark")]
+async fn delete_post_bookmark(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let post_spec = &path.post_id.into();
+    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+
+    post_service
+        .modify_favorite(
+            &authed_user.id.into(),
+            post_spec,
+            false,
+            true,
+            PostInteractionAction::Remove,
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to remove favorite: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -1522,6 +1634,10 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_outbox)
             .service(timeline)
             .service(get_single_post)
+            .service(add_post_favorite)
+            .service(add_post_bookmark)
+            .service(delete_post_favorite)
+            .service(delete_post_bookmark)
     })
     .bind(("0.0.0.0", 8000))?
     .run()
