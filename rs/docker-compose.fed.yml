@@ -342,6 +342,9 @@ services:
   
   lightpub_queue:
     image: cloudamqp/lavinmq
+    networks:
+      - internal_network
+      - external_network
     healthcheck:
       interval: 30s
       timeout: 10s

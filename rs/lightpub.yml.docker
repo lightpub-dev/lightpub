@@ -21,8 +21,8 @@ database:
 queue:
   host: lightpub_queue
   port: 5672
-  user: lightpub
-  password: lightpub
+  user: guest
+  password: guest
 upload_dir: uploads
 background_task_runner:
   broker_url: redis://localhost:6380/1
