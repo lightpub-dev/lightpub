@@ -174,7 +174,7 @@ impl PostPrivacy {
     }
 }
 
-#[derive(Debug, Builder, Getters)]
+#[derive(Debug, Builder, Getters, Serialize, Deserialize)]
 pub struct ApubWebfingerResponse {
     api_url: String,
     profile_url: Option<String>,

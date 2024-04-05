@@ -52,12 +52,8 @@ services:
       start_interval: 2s
 
   lightpub_queue:
-    image: rabbitmq:3-management
-    environment:
-      RABBITMQ_DEFAULT_USER: lightpub
-      RABBITMQ_DEFAULT_PASS: lightpub
+    image: cloudamqp/lavinmq
     healthcheck:
-      test: rabbitmq-diagnostics -q ping
       interval: 30s
       timeout: 10s
       retries: 5

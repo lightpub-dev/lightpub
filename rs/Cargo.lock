@@ -2440,6 +2440,7 @@ dependencies = [
  "derive_builder",
  "derive_more 1.0.0-beta.6",
  "digest",
+ "futures",
  "httpdate",
  "json-ld",
  "lapin",
@@ -2765,6 +2766,7 @@ dependencies = [
  "num-iter",
  "num-traits",
  "rand 0.8.5",
+ "serde",
  "smallvec",
  "zeroize",
 ]
@@ -3630,6 +3632,7 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "rand_core 0.6.4",
+ "serde",
  "sha2",
  "signature",
  "spki",

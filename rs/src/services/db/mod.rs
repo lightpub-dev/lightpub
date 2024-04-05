@@ -13,7 +13,7 @@ use self::{key::DBKeyFetcher, post::DBPostCreateService, user::DBSignerService};
 use super::{
     apub::{
         new_apub_follow_service, new_apub_renderer_service, new_apub_reqwester_service,
-        post::PostContentService,
+        post::PostContentService, queue::QueuedApubRequesterBuilder,
     },
     AllUserFinderService, Holder, LocalUserFinderService, PostCreateService, SignerService,
     UploadService, UserAuthService, UserCreateService, UserFollowService, UserPostService,
@@ -34,37 +34,46 @@ pub fn new_local_user_finder_service(pool: MySqlPool) -> holder!(LocalUserFinder
 
 pub fn new_all_user_finder_service(
     pool: MySqlPool,
+    queue: QueuedApubRequesterBuilder,
     config: Config,
 ) -> holder!(AllUserFinderService) {
     Holder::new(user::DBAllUserFinderService::new(
         pool.clone(),
-        new_apub_reqwester_service(&config),
+        new_apub_reqwester_service(queue, &config),
         new_local_user_finder_service(pool),
         new_id_getter_service(config.clone()),
     ))
 }
 
-pub fn new_follow_service(pool: MySqlPool, config: Config) -> holder!(UserFollowService) {
+pub fn new_follow_service(
+    pool: MySqlPool,
+    queue: QueuedApubRequesterBuilder,
+    config: Config,
+) -> holder!(UserFollowService) {
     Holder::new(follow::DBUserFollowService::new(
         pool.clone(),
-        new_all_user_finder_service(pool.clone(), config.clone()),
+        new_all_user_finder_service(pool.clone(), queue, config.clone()),
         new_apub_follow_service(pool.clone(), new_id_getter_service(config.clone())),
-        new_apub_reqwester_service(&config),
+        new_apub_reqwester_service(queue, &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
         new_id_getter_service(config),
     ))
 }
 
-pub fn new_post_create_service(pool: MySqlPool, config: Config) -> holder!(PostCreateService) {
+pub fn new_post_create_service(
+    pool: MySqlPool,
+    queue: QueuedApubRequesterBuilder,
+    config: Config,
+) -> holder!(PostCreateService) {
     Holder::new(DBPostCreateService::new(
         pool.clone(),
-        new_all_user_finder_service(pool.clone(), config.clone()),
+        new_all_user_finder_service(pool.clone(), queue, config.clone()),
         new_apub_renderer_service(config.clone()),
-        new_apub_reqwester_service(&config),
+        new_apub_reqwester_service(queue, &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
         new_id_getter_service(config.clone()),
         new_post_content_service(),
-        new_follow_service(pool, config),
+        new_follow_service(pool, queue, config),
     ))
 }
 
@@ -80,10 +89,14 @@ pub fn new_post_content_service() -> PostContentService {
     PostContentService::new()
 }
 
-pub fn new_db_key_fetcher_service(pool: MySqlPool, config: Config) -> holder!(KeyFetcher) {
+pub fn new_db_key_fetcher_service(
+    pool: MySqlPool,
+    queue: QueuedApubRequesterBuilder,
+    config: Config,
+) -> holder!(KeyFetcher) {
     Box::new(DBKeyFetcher::new(
         pool.clone(),
-        new_all_user_finder_service(pool, config),
+        new_all_user_finder_service(pool, queue, config),
     ))
 }
 
@@ -104,10 +117,14 @@ pub fn new_db_user_profile_service(
     ))
 }
 
-pub fn new_db_user_post_service(pool: MySqlPool, config: Config) -> holder!(UserPostService) {
+pub fn new_db_user_post_service(
+    pool: MySqlPool,
+    queue: QueuedApubRequesterBuilder,
+    config: Config,
+) -> holder!(UserPostService) {
     Box::new(post::DBUserPostService::new(
         pool.clone(),
-        new_all_user_finder_service(pool.clone(), config.clone()),
+        new_all_user_finder_service(pool.clone(), queue, config.clone()),
         new_id_getter_service(config),
     ))
 }
