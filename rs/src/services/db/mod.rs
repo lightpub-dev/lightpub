@@ -52,7 +52,7 @@ pub fn new_follow_service(
 ) -> holder!(UserFollowService) {
     Holder::new(follow::DBUserFollowService::new(
         pool.clone(),
-        new_all_user_finder_service(pool.clone(), queue, config.clone()),
+        new_all_user_finder_service(pool.clone(), queue.clone(), config.clone()),
         new_apub_follow_service(pool.clone(), new_id_getter_service(config.clone())),
         new_apub_reqwester_service(queue, &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
@@ -67,9 +67,9 @@ pub fn new_post_create_service(
 ) -> holder!(PostCreateService) {
     Holder::new(DBPostCreateService::new(
         pool.clone(),
-        new_all_user_finder_service(pool.clone(), queue, config.clone()),
+        new_all_user_finder_service(pool.clone(), queue.clone(), config.clone()),
         new_apub_renderer_service(config.clone()),
-        new_apub_reqwester_service(queue, &config),
+        new_apub_reqwester_service(queue.clone(), &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
         new_id_getter_service(config.clone()),
         new_post_content_service(),
