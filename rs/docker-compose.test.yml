@@ -32,7 +32,7 @@ services:
         condition: service_healthy
 
   lightpub_db:
-    image: mariadb:latest
+    image: mariadb:11
     container_name: lightpub-db-test
     environment:
       MARIADB_USER: lightpub
@@ -51,13 +51,29 @@ services:
       start_period: 60s
       start_interval: 2s
 
-  redis:
-    image: redis:latest
-    container_name: lightpub-redis-test
-    networks:
-      - lightpub_test
+  lightpub_queue:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: lightpub
+      RABBITMQ_DEFAULT_PASS: lightpub
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+      start_interval: 2s
     ports:
-      - "6380:6379"
+      - 5672:5672 # amqp
+      - 15672:15672 # management
+
+  lightpub_cache:
+    build:
+      context: memcached
+      dockerfile: Dockerfile
+    container_name: lightpub-cache-test
+    ports:
+      - "11211:11211"
 
   lightpub_api:
     build:
@@ -70,6 +86,10 @@ services:
       - lightpub_test
     depends_on:
       lightpub_db:
+        condition: service_healthy
+      lightpub_cache:
+        condition: service_healthy
+      lightpub_queue:
         condition: service_healthy
     healthcheck:
       test: ["CMD" ,"nc", "-z", "-v", "-w30", "localhost", "8000"]
