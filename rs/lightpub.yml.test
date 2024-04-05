@@ -19,6 +19,11 @@ database:
   user: lightpub
   password: lightpub
   max_connections: 5
+queue:
+  host: lightpub_queue
+  port: 5672
+  user: lightpub
+  password: lightpub
 background_task_runner:
   broker_url: redis://localhost:6380/1
 dev:

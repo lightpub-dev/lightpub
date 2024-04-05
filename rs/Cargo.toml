@@ -51,3 +51,4 @@ actix-multipart = "0.6.1"
 serde_urlencoded = "0.7"
 serde_with = "3.7.0"
 clap = { version = "4.5.2", features = ["derive"] }
+lapin = "2.3.1"
