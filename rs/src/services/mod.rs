@@ -1,6 +1,7 @@
 use crate::models::{
     api_response::{FollowListEntry, UserPostEntry},
     apub::{AcceptActivity, Activity, FollowActivity, HasId, UndoActivity},
+    reaction::Reaction,
 };
 use std::fmt::Display;
 
@@ -505,7 +506,8 @@ pub trait PostCreateService {
         &mut self,
         user: &UserSpecifier,
         post: &PostSpecifier,
-        reaction: &str,
+        reaction: &Reaction,
+        allow_remote: bool,
         action: PostInteractionAction,
     ) -> Result<(), anyhow::Error>;
 }

@@ -449,6 +449,7 @@ pub mod apub {
         Reject(RejectActivity),
         Delete(DeleteActivity),
         Undo(UndoActivity),
+        Like(LikeActivity),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, From)]
@@ -696,6 +697,7 @@ pub mod apub {
     #[serde(tag = "type")]
     pub enum UndoableActivity {
         Follow(FollowActivity),
+        Like(LikeActivity),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
@@ -704,6 +706,56 @@ pub mod apub {
         pub id: Option<String>,
         pub actor: String,
         pub object: UndoableActivity,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct LikeActivity {
+        pub id: String,
+        pub actor: String,
+        pub object: String, // assuming a Note id for now
+        pub published: chrono::DateTime<chrono::Utc>,
+        pub content: Option<String>,
+    }
+}
+
+pub mod reaction {
+    use serde::{Deserialize, Serialize};
+    use thiserror::Error;
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub enum Reaction {
+        Unicode(String),
+        Custom(CustomReaction),
+    }
+
+    #[derive(Debug, Error)]
+    pub enum ReactionError {
+        #[error("invalid unicode emoji")]
+        InvalidUnicodeEmoji,
+    }
+
+    impl TryFrom<String> for Reaction {
+        type Error = ReactionError;
+
+        fn try_from(value: String) -> Result<Self, Self::Error> {
+            if value.starts_with(":") && value.ends_with(":") {
+                todo!("parse custom emoji")
+            } else {
+                let emoji = emojis::get(value.as_str());
+                match emoji {
+                    Some(e) => Ok(Reaction::Unicode(value)),
+                    None => Err(ReactionError::InvalidUnicodeEmoji),
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct CustomReaction {
+        pub code: String,
+        pub host: String,
+        pub uri: String,
     }
 }
 

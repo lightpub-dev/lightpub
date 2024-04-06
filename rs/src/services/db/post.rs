@@ -12,6 +12,7 @@ use crate::{
     models::{
         api_response::{PostAuthorBuilder, PostCountsBuilder, UserPostEntry, UserPostEntryBuilder},
         apub::CreatableObject,
+        reaction::Reaction,
         ApubMentionedUser, ApubRenderablePost, HasRemoteUri, PostPrivacy,
     },
     services::{
@@ -641,12 +642,61 @@ impl PostCreateService for DBPostCreateService {
 
     async fn modify_reaction(
         &mut self,
-        user: &UserSpecifier,
-        post: &PostSpecifier,
-        reaction: &str,
+        user_spec: &UserSpecifier,
+        post_spec: &PostSpecifier,
+        reaction: &Reaction,
+        allow_remote: bool,
         action: PostInteractionAction,
     ) -> Result<(), anyhow::Error> {
-        todo!()
+        let user = self.finder.find_user_by_specifier(user_spec).await?;
+        let post_id = if allow_remote {
+            self.fetch_post_id(post_spec, PostCreateError::PostNotFound, 0, false)
+                .await?
+        } else {
+            self.fetch_post_locally_stored(post_spec, false)
+                .await?
+                .ok_or(PostCreateError::PostNotFound)
+                .map(|p| p.id)?
+        };
+
+        let (reaction_str, custom_reaction_id): (Option<String>, Option<u64>) = match reaction {
+            Reaction::Unicode(u) => (Some(u.to_string()), None),
+            Reaction::Custom(c) => todo!("custom reaction support"),
+        };
+
+        match action {
+            PostInteractionAction::Add => {
+                let id = generate_uuid();
+                sqlx::query!(
+                    r#"
+                    INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id
+                    "#,
+                    id.to_string(),
+                    user.id.to_string(),
+                    post_id.to_string(),
+                    reaction_str,
+                    custom_reaction_id,
+                )
+                .execute(&self.pool).await?;
+            }
+            PostInteractionAction::Remove => {
+                sqlx::query!(
+                    r#"
+                    DELETE FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str=? AND custom_reaction_id=?
+                    "#,
+                    user.id.to_string(),
+                    post_id.to_string(),
+                    reaction_str,
+                    custom_reaction_id,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
+        }
+
+        // TODO! send apub
+
+        return Ok(());
     }
 }
 
