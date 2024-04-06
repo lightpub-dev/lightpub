@@ -714,7 +714,7 @@ pub mod apub {
         pub id: String,
         pub actor: String,
         pub object: String, // assuming a Note id for now
-        pub published: chrono::DateTime<chrono::Utc>,
+        pub published: Option<chrono::DateTime<chrono::Utc>>,
         pub content: Option<String>,
     }
 }
