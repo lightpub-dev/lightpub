@@ -12,7 +12,7 @@ use crate::{
     models::{
         api_response::{PostAuthorBuilder, PostCountsBuilder, UserPostEntry, UserPostEntryBuilder},
         apub::CreatableObject,
-        ApubRenderablePost, HasRemoteUri, PostPrivacy,
+        ApubMentionedUser, ApubRenderablePost, HasRemoteUri, PostPrivacy,
     },
     services::{
         apub::{
@@ -394,21 +394,29 @@ impl DBPostCreateService {
 
         // FIXME: batch insert
         let mut added_mentions = HashSet::new();
+        let mut mentioned_users = vec![];
         for mention in &mentions {
-            let target_user_id = self.finder.find_user_by_specifier(mention).await;
-            let target_user_id = match target_user_id {
+            let target_user = self.finder.find_user_by_specifier(mention).await;
+            let target_user_id = match &target_user {
                 Ok(user) => user.id,
                 Err(_) => {
                     warn!("failed to find user {:?}", mention);
                     continue;
                 }
             };
+            let target_user = target_user.unwrap();
 
             // remove duplicates
             if added_mentions.contains(&target_user_id) {
                 continue;
             }
             added_mentions.insert(target_user_id);
+            mentioned_users.push(LocalMentionedUser {
+                inbox: target_user.inbox,
+                username: target_user.username,
+                host: target_user.host,
+                uri: target_user.uri,
+            });
 
             sqlx::query!(
                 "INSERT INTO post_mentions (post_id, target_user_id) VALUES (?, ?)",
@@ -436,6 +444,7 @@ impl DBPostCreateService {
                     created_at,
                     chrono::Utc,
                 ),
+                mentioned_users,
             };
             let note = self
                 .renderer
@@ -623,6 +632,26 @@ struct LocalPost {
     poster: LocalPoster,
     privacy: PostPrivacy,
     created_at: chrono::DateTime<chrono::Utc>,
+    mentioned_users: Vec<LocalMentionedUser>,
+}
+
+#[derive(Debug, Clone)]
+struct LocalMentionedUser {
+    inbox: Option<String>,
+    username: String,
+    host: Option<String>,
+    uri: Option<String>,
+}
+
+impl Into<ApubMentionedUser> for LocalMentionedUser {
+    fn into(self) -> ApubMentionedUser {
+        ApubMentionedUser {
+            inbox: self.inbox,
+            username: self.username,
+            host: self.host,
+            uri: self.uri,
+        }
+    }
 }
 
 impl HasRemoteUri for LocalPost {
@@ -664,6 +693,13 @@ impl ApubRenderablePost for LocalPost {
 
     fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
         None
+    }
+
+    fn mentioned(&self) -> Vec<crate::models::ApubMentionedUser> {
+        self.mentioned_users
+            .iter()
+            .map(|s| s.clone().into())
+            .collect()
     }
 }
 

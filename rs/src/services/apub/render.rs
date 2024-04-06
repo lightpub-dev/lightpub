@@ -67,7 +67,6 @@ impl ApubRendererService {
         let mut to = vec![];
         let mut cc = vec![];
 
-        // TODO: handle mentions
         match privacy {
             PostPrivacy::Public => {
                 add_public(&mut to);
@@ -90,6 +89,15 @@ impl ApubRendererService {
                 )));
             }
             PostPrivacy::Private => {}
+        }
+
+        // add mentioned users
+        for user in post.mentioned() {
+            let uri = user.uri();
+            if let Some(uri) = uri {
+                to.push(uri.clone());
+                targets.push(TargetedUser::Mentioned(UserSpecifier::from_url(uri)));
+            }
         }
 
         Ok((to, cc, targets))
