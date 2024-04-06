@@ -1,4 +1,4 @@
-version: '3.8' # Use a suitable version for your Docker engine and Compose file features
+version: "3.8" # Use a suitable version for your Docker engine and Compose file features
 
 services:
   nginx:
@@ -54,8 +54,7 @@ services:
   lightpub_queue:
     image: cloudamqp/lavinmq
     networks:
-      - internal_network
-      - external_network
+      - lightpub_test
     healthcheck:
       interval: 30s
       timeout: 10s
@@ -70,6 +69,8 @@ services:
     build:
       context: memcached
       dockerfile: Dockerfile
+    networks:
+      - lightpub_test
     container_name: lightpub-cache-test
     ports:
       - "11211:11211"
@@ -91,7 +92,7 @@ services:
       lightpub_queue:
         condition: service_healthy
     healthcheck:
-      test: ["CMD" ,"nc", "-z", "-v", "-w30", "localhost", "8000"]
+      test: ["CMD", "nc", "-z", "-v", "-w30", "localhost", "8000"]
       timeout: 10s
       interval: 30s
       retries: 3
@@ -107,7 +108,7 @@ services:
     container_name: lightpub-test-runner
     depends_on:
       nginx:
-        condition: service_healthy 
+        condition: service_healthy
     environment:
       NODE_TLS_REJECT_UNAUTHORIZED: 0
 

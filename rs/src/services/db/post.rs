@@ -851,6 +851,7 @@ impl UserPostService for DBUserPostService {
                         .username(p.author_username)
                         .host(p.author_host)
                         .nickname(p.author_nickname)
+                        .inbox(None)
                         .build()
                         .unwrap(),
                 )
@@ -878,6 +879,7 @@ impl UserPostService for DBUserPostService {
                 .reposted_by_you(p.reposted_by_you)
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
+                .mentioned_users(vec![]) // TODO
                 .build()
                 .unwrap()
         })
@@ -1013,6 +1015,7 @@ impl UserPostService for DBUserPostService {
                             .username(p.author_username)
                             .host(p.author_host)
                             .nickname(p.author_nickname)
+                            .inbox(None)
                             .build()
                             .unwrap(),
                     )
@@ -1040,6 +1043,7 @@ impl UserPostService for DBUserPostService {
                     .reposted_by_you(p.reposted_by_you)
                     .favorited_by_you(p.favorited_by_you)
                     .bookmarked_by_you(p.bookmarked_by_you)
+                    .mentioned_users(vec![]) // TODO
                     .build()
                     .unwrap()
             })
@@ -1122,6 +1126,7 @@ impl UserPostService for DBUserPostService {
                             .username(p.author_username)
                             .host(p.author_host)
                             .nickname(p.author_nickname)
+                            .inbox(None)
                             .build()
                             .unwrap(),
                     )
@@ -1149,6 +1154,7 @@ impl UserPostService for DBUserPostService {
                     .reposted_by_you(p.reposted_by_you)
                     .favorited_by_you(p.favorited_by_you)
                     .bookmarked_by_you(p.bookmarked_by_you)
+                    .mentioned_users(vec![]) // TODO
                     .build()
                     .unwrap()
             })
