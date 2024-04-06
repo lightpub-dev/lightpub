@@ -602,7 +602,7 @@ pub trait UserFollowService {
     ) -> Result<bool, anyhow::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PostToInboxError {}
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -679,9 +679,11 @@ pub trait ApubFollowService {
     ) -> Result<AcceptActivity, anyhow::Error>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum SignerError {
+    #[error("signer not found")]
     UserNotFound,
+    #[error("private key not set for the signer")]
     PrivateKeyNotSet,
 }
 

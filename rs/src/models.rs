@@ -729,6 +729,15 @@ pub mod reaction {
         Custom(CustomReaction),
     }
 
+    impl Reaction {
+        pub fn to_apub(&self) -> &str {
+            match self {
+                Reaction::Unicode(s) => s,
+                Reaction::Custom(_) => todo!("custom emoji"),
+            }
+        }
+    }
+
     // #[derive(Debug, Clone)]
     // pub struct UnicodeEmoji {
     //     pub original: String,

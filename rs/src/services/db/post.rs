@@ -607,10 +607,10 @@ impl PostCreateService for DBPostCreateService {
                 .map(|p| p.id)?
         };
 
-        match action {
+        let modified_id = match action {
             PostInteractionAction::Add => {
                 let id = generate_uuid();
-                sqlx::query!(
+                let result = sqlx::query!(
                     r#"
                     INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=id
                     "#,
@@ -620,22 +620,97 @@ impl PostCreateService for DBPostCreateService {
                     as_bookmark
                 )
                 .execute(&self.pool).await?;
+                if result.rows_affected() > 0 {
+                    Some(id)
+                } else {
+                    None
+                }
             }
             PostInteractionAction::Remove => {
-                sqlx::query!(
+                let mut tx = self.pool.begin().await?;
+                // first, select to get id
+                let record = sqlx::query!(
                     r#"
-                    DELETE FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=?
+                    SELECT id AS `id: Simple` FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=? FOR UPDATE
                     "#,
                     user.id.to_string(),
                     post_id.to_string(),
-                    as_bookmark
-                )
-                .execute(&self.pool)
-                .await?;
+                    as_bookmark,
+                ).fetch_optional(&mut *tx).await?;
+                if let Some(id) = record {
+                    // then, delete
+                    sqlx::query!(
+                        r#"
+                        DELETE FROM post_favorites WHERE id=?
+                        "#,
+                        id.id.to_string(),
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                    tx.commit().await?;
+                    Some(id.id)
+                } else {
+                    tx.rollback().await?;
+                    None
+                }
             }
+        };
+
+        let modified_id = match modified_id {
+            None => return Ok(()), // no change occurred
+            Some(id) => id,
+        };
+        if as_bookmark {
+            // bookmarks are private
+            return Ok(());
         }
 
-        // TODO! send apub
+        // Apub should be sent when local user and remote post
+        if user.uri.is_none() {
+            // local user
+            // send apub
+            // LikeActivity with no content
+            // or UndoActivity with LikeActivity
+            let actor = self
+                .finder
+                .find_user_by_specifier(&UserSpecifier::from_id(user.id))
+                .await?;
+            let post = self
+                .fetch_post_locally_stored(&PostSpecifier::from_id(post_id), false)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("post with modified favorite not found"))?;
+            if post.uri.is_none() {
+                // local post
+                return Ok(());
+            }
+            let is_add = match action {
+                PostInteractionAction::Add => true,
+                PostInteractionAction::Remove => false,
+            };
+            let activity = self.renderer.render_post_reaction(
+                &modified_id.to_string(),
+                &actor,
+                &post,
+                None as Option<&str>,
+                is_add,
+            )?;
+
+            let inbox = self
+                .find_target_inboxes(&vec![TargetedUser::Mentioned(UserSpecifier::from_id(
+                    post.poster,
+                ))])
+                .await?
+                .pop(); // should be only one inbox
+            if let Some(inbox) = inbox {
+                let signer = self
+                    .signer
+                    .fetch_signer(&UserSpecifier::from_id(user.id))
+                    .await?;
+                self.req.post_to_inbox(&inbox, &activity, signer).await?;
+            } else {
+                warn!("no inbox found for post author (post={})", post.id);
+            }
+        }
 
         return Ok(());
     }
@@ -664,10 +739,10 @@ impl PostCreateService for DBPostCreateService {
             Reaction::Custom(_c) => todo!("custom reaction support"),
         };
 
-        match action {
+        let modified_id = match action {
             PostInteractionAction::Add => {
                 let id = generate_uuid();
-                sqlx::query!(
+                let result = sqlx::query!(
                     r#"
                     INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id
                     "#,
@@ -678,23 +753,94 @@ impl PostCreateService for DBPostCreateService {
                     custom_reaction_id,
                 )
                 .execute(&self.pool).await?;
+                if result.rows_affected() > 0 {
+                    Some(id)
+                } else {
+                    None
+                }
             }
             PostInteractionAction::Remove => {
-                sqlx::query!(
+                let mut tx = self.pool.begin().await?;
+                // first, select to get id
+                let record = sqlx::query!(
                     r#"
-                    DELETE FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str<=>? AND custom_reaction_id<=>?
+                    SELECT id AS `id: Simple` FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str<=>? AND custom_reaction_id<=>?
                     "#,
                     user.id.to_string(),
                     post_id.to_string(),
                     reaction_str,
                     custom_reaction_id,
-                )
-                .execute(&self.pool)
+                ).fetch_optional(&mut *tx).await?;
+                if let Some(id) = record {
+                    // then, delete
+                    sqlx::query!(
+                        r#"
+                        DELETE FROM post_reactions WHERE id=?
+                        "#,
+                        id.id.to_string(),
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                    tx.commit().await?;
+                    Some(id.id)
+                } else {
+                    tx.rollback().await?;
+                    None
+                }
+            }
+        };
+
+        let modified_id = match modified_id {
+            None => return Ok(()), // no change occurred
+            Some(id) => id,
+        };
+
+        // Apub should be sent when local user and remote post
+        if user.uri.is_none() {
+            // local user
+            // send apub
+            // LikeActivity with no content
+            // or UndoActivity with LikeActivity
+            let actor = self
+                .finder
+                .find_user_by_specifier(&UserSpecifier::from_id(user.id))
                 .await?;
+            let post = self
+                .fetch_post_locally_stored(&PostSpecifier::from_id(post_id), false)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("post with modified favorite not found"))?;
+            if post.uri.is_none() {
+                // local post
+                return Ok(());
+            }
+            let is_add = match action {
+                PostInteractionAction::Add => true,
+                PostInteractionAction::Remove => false,
+            };
+            let activity = self.renderer.render_post_reaction(
+                &modified_id.to_string(),
+                &actor,
+                &post,
+                Some(reaction.to_apub()),
+                is_add,
+            )?;
+
+            let inbox = self
+                .find_target_inboxes(&vec![TargetedUser::Mentioned(UserSpecifier::from_id(
+                    post.poster,
+                ))])
+                .await?
+                .pop(); // should be only one inbox
+            if let Some(inbox) = inbox {
+                let signer = self
+                    .signer
+                    .fetch_signer(&UserSpecifier::from_id(user.id))
+                    .await?;
+                self.req.post_to_inbox(&inbox, &activity, signer).await?;
+            } else {
+                warn!("no inbox found for post author (post={})", post.id);
             }
         }
-
-        // TODO! send apub
 
         return Ok(());
     }
@@ -704,7 +850,7 @@ impl DBPostCreateService {
     async fn find_target_inboxes(
         &mut self,
         targets: &Vec<TargetedUser>,
-    ) -> Result<Vec<String>, ()> {
+    ) -> Result<Vec<String>, anyhow::Error> {
         let mut inboxes = vec![];
         let mut inbox_set = HashSet::new();
 

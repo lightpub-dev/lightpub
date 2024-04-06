@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 use crate::models::apub::{
     Activity, AnnounceActivity, AnnounceActivityBuilder, CreatableObject, CreateActivity,
-    CreateActivityBuilder, IdOrObject, NoteBuilder, Person, PersonBuilder, PublicKeyBuilder,
-    TombstoneBuilder, PUBLIC,
+    CreateActivityBuilder, IdOrObject, LikeActivity, NoteBuilder, Person, PersonBuilder,
+    PublicKeyBuilder, TombstoneBuilder, UndoActivity, UndoableActivity, PUBLIC,
 };
 use crate::models::{ApubRenderablePost, ApubRenderableUser, HasRemoteUri, PostPrivacy};
 use crate::services::id::IDGetterService;
@@ -79,6 +79,43 @@ pub enum TargetedUser {
 impl ApubRendererService {
     pub fn new(id_getter: IDGetterService) -> Self {
         Self { id_getter }
+    }
+
+    pub fn render_post_reaction<A, P>(
+        &self,
+        internal_reaction_id: &str,
+        actor: &A,
+        post: &P,
+        reaction: Option<impl Into<String>>,
+        is_add: bool,
+    ) -> Result<Activity, anyhow::Error>
+    where
+        A: HasRemoteUri,
+        P: HasRemoteUri,
+    {
+        let activity_id = self
+            .id_getter
+            .get_reaction_id(internal_reaction_id, reaction.is_some());
+        let actor_id = self.id_getter.get_user_id(actor);
+        let post_id = self.id_getter.get_post_id(post);
+        let content = reaction.map(|r| r.into());
+
+        let like = LikeActivity {
+            id: activity_id,
+            actor: actor_id.clone(),
+            object: post_id,
+            content: content,
+            published: None,
+        };
+        if is_add {
+            Ok(Activity::Like(like))
+        } else {
+            Ok(Activity::Undo(UndoActivity {
+                id: None,
+                actor: actor_id,
+                object: UndoableActivity::Like(like),
+            }))
+        }
     }
 
     fn calculate_to_and_cc(
