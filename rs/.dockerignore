@@ -14,3 +14,4 @@ docker-compose.yml
 docker-compose.test.yml
 /tests
 /memcached
+/rabbitmq

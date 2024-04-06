@@ -591,7 +591,10 @@ impl DBPostCreateService {
                 TargetedUser::Mentioned(user) => {
                     let user = self.finder.find_user_by_specifier(user).await;
                     if let Ok(user) = user {
-                        add_inbox(&user.inbox, &user.shared_inbox);
+                        // check if user is remote
+                        if user.uri.is_some() {
+                            add_inbox(&user.inbox, &user.shared_inbox);
+                        }
                     } else {
                         warn!("failed to find user {:?}", user);
                     }

@@ -473,7 +473,7 @@ impl AllUserFinderService for DBAllUserFinderService {
             SELECT u.inbox, u.shared_inbox
             FROM user_follows uf
             INNER JOIN users u ON uf.follower_id = u.id
-            WHERE uf.followee_id = ?
+            WHERE uf.followee_id = ? AND (u.inbox IS NOT NULL OR u.shared_inbox IS NOT NULL)
             "#,
             user_id.to_string()
         )

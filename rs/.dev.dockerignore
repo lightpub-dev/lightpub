@@ -15,3 +15,4 @@ docker-compose.test.yml
 /tests
 /tests_federation
 /memcached
+/rabbitmq

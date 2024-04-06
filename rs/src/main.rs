@@ -8,7 +8,9 @@ use crate::models::apub::{
     AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
     UndoableActivity, PUBLIC,
 };
+use crate::services::apub::queue::worker::{ApubDirector, WorkerType};
 use crate::services::apub::queue::QueuedApubRequester;
+use crate::services::apub::ApubReqwester;
 use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
@@ -1683,10 +1685,23 @@ async fn main() -> std::io::Result<()> {
     let queue = lapin::Connection::connect(&queue_uri, ConnectionProperties::default())
         .await
         .expect("connect to amqp queue");
-    let queue = QueuedApubRequester::prepare(queue)
+    let queue_builder = QueuedApubRequester::prepare(&queue)
         .await
         .expect("initialize amqp queue");
     tracing::info!("Connected to queue");
+
+    // spawn background workers
+    let mut director = ApubDirector::prepare(&queue).await;
+    director
+        .add_workers(1, &queue, WorkerType::PostToInbox, || {
+            ApubReqwester::new(&config)
+        })
+        .await;
+    director
+        .add_workers(3, &queue, WorkerType::Fetcher, || {
+            ApubReqwester::new(&config)
+        })
+        .await;
 
     // create upload_dir
     let upload_dir = config.upload_dir.clone();
@@ -1696,7 +1711,7 @@ async fn main() -> std::io::Result<()> {
     .await
     .unwrap();
 
-    let app_state = state::AppState::new(pool, queue, config.clone());
+    let app_state = state::AppState::new(pool, queue_builder, config.clone());
 
     HttpServer::new(move || {
         App::new()
