@@ -608,10 +608,12 @@ impl PostCreateService for DBPostCreateService {
 
         match action {
             PostInteractionAction::Add => {
+                let id = generate_uuid();
                 sqlx::query!(
                     r#"
-                    INSERT INTO post_favorites (user_id, post_id, is_bookmark) VALUES (?,?,?) ON DUPLICATE KEY UPDATE id=id
+                    INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=id
                     "#,
+                    id.to_string(),
                     user.id.to_string(),
                     post_id.to_string(),
                     as_bookmark
