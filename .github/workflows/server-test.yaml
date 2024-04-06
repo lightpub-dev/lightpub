@@ -13,6 +13,12 @@ jobs:
     name: Run Lightpub API tests
     runs-on: ubuntu-22.04
     steps:
+      - name: Install Latest Docker
+        run: |
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu  $(lsb_release -cs)  stable"
+          sudo apt-get update
+          sudo apt-get install docker-ce
       - name: Check Docker version
         run: docker --version
       - uses: actions/checkout@v3
@@ -24,6 +30,12 @@ jobs:
     name: Run Misskey federation tests
     runs-on: ubuntu-22.04
     steps:
+      - name: Install Latest Docker
+        run: |
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu  $(lsb_release -cs)  stable"
+          sudo apt-get update
+          sudo apt-get install docker-ce
       - name: Check Docker version
         run: docker --version
       - uses: actions/checkout@v3
