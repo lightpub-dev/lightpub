@@ -728,7 +728,9 @@ async fn user_inbox(
             );
         }
         Follow(follow) => {
-            let follow_id = follow.id;
+            let follow_id = follow
+                .id
+                .ok_or_else(|| ErrorResponse::new_status(400, "follow id is not set"))?;
             let actor_id = follow.actor;
             let object_id = follow.object.get_id().to_string();
 

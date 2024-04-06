@@ -10,7 +10,12 @@ use serde::Deserialize;
 use sqlx::MySqlPool;
 use tracing::{debug, info, warn};
 
-use crate::models::apub::context::ContextAttachable;
+use crate::{
+    models::apub::{
+        context::ContextAttachable, UndoActivity, UndoActivityBuilder, UndoableActivity,
+    },
+    utils::user::UserSpecifier,
+};
 use uuid::fmt::Simple;
 
 use crate::{
@@ -35,7 +40,7 @@ use self::{
 
 use super::{
     id::IDGetterService, ApubFetchPostError, ApubFollowService, ApubRequestService, Holder,
-    MiscError,
+    LocalUserFinderService, MiscError,
 };
 
 pub mod dummy;
@@ -301,17 +306,22 @@ struct WebfingerLinks {
     r#type: Option<String>,
 }
 
-#[derive(Debug, Clone)]
 pub struct DBApubFollowService {
     pool: MySqlPool,
     id_getter: IDGetterService,
+    user_finder: holder!(LocalUserFinderService),
 }
 
 pub fn new_apub_follow_service(
     pool: MySqlPool,
     id_getter: IDGetterService,
+    user_finder: holder!(LocalUserFinderService),
 ) -> holder!(ApubFollowService) {
-    Holder::new(DBApubFollowService { pool, id_getter })
+    Holder::new(DBApubFollowService {
+        pool,
+        id_getter,
+        user_finder,
+    })
 }
 
 #[derive(Debug)]
@@ -400,7 +410,7 @@ impl ApubFollowService for DBApubFollowService {
             .actor(followee_id.clone())
             .object(IdOrObject::Object(
                 FollowActivityBuilder::default()
-                    .id(uf.req_uri)
+                    .id(Some(uf.req_uri))
                     .actor(follower_id)
                     .object(IdOrObject::Id(followee_id))
                     .build()
@@ -439,12 +449,43 @@ impl ApubFollowService for DBApubFollowService {
         });
 
         let follow = FollowActivityBuilder::default()
-            .id(uf_id)
+            .id(Some(uf_id))
             .actor(follower_id)
             .object(IdOrObject::Id(followee_id))
             .build()
             .unwrap();
         Ok(follow)
+    }
+
+    async fn create_unfollow_request(
+        &mut self,
+        follower_id: &UserSpecifier,
+        followee_id: &UserSpecifier,
+    ) -> Result<UndoActivity, anyhow::Error> {
+        let follower = self.user_finder.find_user_by_specifier(follower_id).await?;
+        let followee = self.user_finder.find_user_by_specifier(followee_id).await?;
+
+        let follower_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: follower.id,
+            uri: follower.uri,
+        });
+        let followee_id = self.id_getter.get_user_id(&UserFollowUser {
+            id: followee.id,
+            uri: followee.uri,
+        });
+
+        let unfollow = UndoActivityBuilder::default()
+            .actor(follower_id.clone())
+            .object(UndoableActivity::Follow(
+                FollowActivityBuilder::default()
+                    .actor(follower_id)
+                    .object(IdOrObject::Id(followee_id))
+                    .build()
+                    .unwrap(),
+            ))
+            .build()
+            .unwrap();
+        Ok(unfollow)
     }
 }
 

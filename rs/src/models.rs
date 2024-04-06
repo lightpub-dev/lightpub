@@ -462,11 +462,18 @@ pub mod apub {
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
     pub struct FollowActivity {
-        pub id: String,
+        pub id: Option<String>,
         pub actor: String,
         pub object: IdOrObject<Actor>,
     }
-    impl_id!(FollowActivity);
+    impl HasId for FollowActivity {
+        fn get_id(&self) -> &str {
+            match &self.id {
+                Some(id) => id,
+                None => panic!("FollowActivity has no id"),
+            }
+        }
+    }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(untagged)]
