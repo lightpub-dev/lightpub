@@ -11,7 +11,7 @@ on:
 jobs:
   lightpub_test:
     name: Run Lightpub API tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Run tests
@@ -20,7 +20,7 @@ jobs:
           ./run_tests.sh
   misskey_federation_test:
     name: Run Misskey federation tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Run tests
