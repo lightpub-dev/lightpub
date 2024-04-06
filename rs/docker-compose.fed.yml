@@ -356,7 +356,7 @@ services:
     build:
       context: memcached
       dockerfile: Dockerfile
-    container_name: lightpub-cache-test
+    container_name: lightpub-cache
     ports:
       - "11211:11211"
 

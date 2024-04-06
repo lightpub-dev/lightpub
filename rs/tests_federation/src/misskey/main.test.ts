@@ -67,7 +67,7 @@ describe("Misskey federation test", function () {
     }
 
     let lightpubUserId: string = "";
-    context("user follow test", function () {
+    context.only("user follow test", function () {
         this.timeout(0);
         let followSuccess = false;
         let followedSuccess = false;

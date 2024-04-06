@@ -314,7 +314,6 @@ impl UserFollowService for DBUserFollowService {
                 warn!("followee inbox not set: {:?}", followee);
                 ServiceError::from_se(FollowError::FolloweeNotFound)
             })?;
-            let request_id = generate_uuid();
 
             // send request
             let actor = self
@@ -329,7 +328,10 @@ impl UserFollowService for DBUserFollowService {
                 })?;
             let activity = self
                 .pubfollow
-                .create_follow_request(request_id.into())
+                .create_unfollow_request(
+                    &UserSpecifier::from_id(*follower_id),
+                    &UserSpecifier::from_id(*followee_id),
+                )
                 .await
                 .unwrap();
 

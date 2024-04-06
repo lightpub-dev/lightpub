@@ -39,8 +39,8 @@ use self::{
 };
 
 use super::{
-    id::IDGetterService, ApubFetchPostError, ApubFollowService, ApubRequestService, Holder,
-    LocalUserFinderService, MiscError,
+    id::IDGetterService, AllUserFinderService, ApubFetchPostError, ApubFollowService,
+    ApubRequestService, Holder, LocalUserFinderService, MiscError,
 };
 
 pub mod dummy;
@@ -309,13 +309,13 @@ struct WebfingerLinks {
 pub struct DBApubFollowService {
     pool: MySqlPool,
     id_getter: IDGetterService,
-    user_finder: holder!(LocalUserFinderService),
+    user_finder: holder!(AllUserFinderService),
 }
 
 pub fn new_apub_follow_service(
     pool: MySqlPool,
     id_getter: IDGetterService,
-    user_finder: holder!(LocalUserFinderService),
+    user_finder: holder!(AllUserFinderService),
 ) -> holder!(ApubFollowService) {
     Holder::new(DBApubFollowService {
         pool,
@@ -475,9 +475,11 @@ impl ApubFollowService for DBApubFollowService {
         });
 
         let unfollow = UndoActivityBuilder::default()
+            .id(None)
             .actor(follower_id.clone())
             .object(UndoableActivity::Follow(
                 FollowActivityBuilder::default()
+                    .id(None)
                     .actor(follower_id)
                     .object(IdOrObject::Id(followee_id))
                     .build()

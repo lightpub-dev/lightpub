@@ -56,7 +56,7 @@ pub fn new_follow_service(
         new_apub_follow_service(
             pool.clone(),
             new_id_getter_service(config.clone()),
-            new_local_user_finder_service(pool.clone()),
+            new_all_user_finder_service(pool.clone(), queue.clone(), config.clone()),
         ),
         new_apub_reqwester_service(queue, &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
