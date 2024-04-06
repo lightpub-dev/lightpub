@@ -67,7 +67,7 @@ describe("Misskey federation test", function () {
     }
 
     let lightpubUserId: string = "";
-    context.only("user follow test", function () {
+    context("user follow test", function () {
         this.timeout(0);
         let followSuccess = false;
         let followedSuccess = false;
@@ -165,9 +165,6 @@ describe("Misskey federation test", function () {
             });
 
             test("check misskey followers", async function () {
-                // TODO: this is not implemented in Lightpub side
-                this.skip();
-
                 if (!unfollowSuccess) this.skip();
                 const res = await axios.post(
                     MISSKEY_BASE_URL + "/api/users/followers",
