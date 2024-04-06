@@ -140,7 +140,7 @@ services:
       - mastodon
 
   misskey_web:
-    image: misskey/misskey:2024.3.1
+    build: ./test_instances/misskey
     restart: unless-stopped
     links:
       - misskey_db

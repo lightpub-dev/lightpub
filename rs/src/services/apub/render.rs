@@ -1,9 +1,11 @@
 use derive_getters::Getters;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::models::apub::{
-    CreatableObject, CreateActivity, CreateActivityBuilder, IdOrObject, NoteBuilder, Person,
-    PersonBuilder, PublicKeyBuilder, TombstoneBuilder, PUBLIC,
+    Activity, AnnounceActivity, AnnounceActivityBuilder, CreatableObject, CreateActivity,
+    CreateActivityBuilder, IdOrObject, NoteBuilder, Person, PersonBuilder, PublicKeyBuilder,
+    TombstoneBuilder, PUBLIC,
 };
 use crate::models::{ApubRenderablePost, ApubRenderableUser, HasRemoteUri, PostPrivacy};
 use crate::services::id::IDGetterService;
@@ -23,14 +25,49 @@ pub enum ApubRendererServiceError {}
 
 #[derive(Debug, Clone, Getters)]
 pub struct RenderedNote {
-    note: CreatableObject,
+    note: RenderedNoteObject,
     targeted_users: Vec<TargetedUser>,
+}
+
+#[derive(Debug, Clone)]
+pub enum RenderedNoteObject {
+    Create(CreatableObject),
+    Announce(RepostInfo),
+}
+
+#[derive(Debug, Clone)]
+pub struct RepostInfo {
+    pub repost_id: String,
+    pub reposter_uri: String,
+    pub reposted_post_uri: String,
+    pub repost_published_at: chrono::DateTime<chrono::Utc>,
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub bto: Vec<String>,
+    pub bcc: Vec<String>,
 }
 
 #[derive(Debug, Clone, Getters)]
 pub struct RenderedNoteCreate {
-    note_create: CreateActivity,
+    note_create: RenderedNoteCreateActivity,
     targeted_users: Vec<TargetedUser>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RenderedNoteCreateActivity {
+    Create(CreateActivity),
+    Announce(AnnounceActivity),
+}
+
+impl RenderedNoteCreateActivity {
+    pub fn activity(self) -> Activity {
+        use RenderedNoteCreateActivity::*;
+        match self {
+            Create(c) => Activity::Create(c),
+            Announce(a) => Activity::Announce(a),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -109,33 +146,49 @@ impl ApubRendererService {
     ) -> Result<RenderedNoteCreate, anyhow::Error> {
         let post = self.render_post(post)?;
 
-        let note = match post.note {
-            CreatableObject::Note(note) => note,
-            CreatableObject::Tombstone(_) => {
-                return Err(anyhow::anyhow!("cannot create a tombstone"));
-            }
+        let activity = match post.note {
+            RenderedNoteObject::Create(note) => match note {
+                CreatableObject::Note(note) => {
+                    let create_id = format!("{}/activity", note.id); // FIXME: use IDGetterService
+                    let post_to = &note.to;
+                    let post_cc = &note.cc;
+                    let post_bto = &note.bto;
+                    let post_bcc = &note.bcc;
+                    let post_poster = &note.attributed_to;
+
+                    let create = CreateActivityBuilder::default()
+                        .actor(post_poster.clone())
+                        .id(create_id.clone())
+                        .object(IdOrObject::Object(CreatableObject::Note(note.clone())))
+                        .to(post_to.clone())
+                        .cc(post_cc.clone())
+                        .bto(post_bto.clone())
+                        .bcc(post_bcc.clone())
+                        .build()
+                        .unwrap();
+                    RenderedNoteCreateActivity::Create(create)
+                }
+                CreatableObject::Tombstone(_) => {
+                    return Err(anyhow::anyhow!("cannot create a tombstone"));
+                }
+            },
+            RenderedNoteObject::Announce(rep) => RenderedNoteCreateActivity::Announce(
+                AnnounceActivityBuilder::default()
+                    .id(format!("{}/activity", rep.repost_id))
+                    .actor(rep.reposter_uri)
+                    .object(IdOrObject::Id(rep.reposted_post_uri))
+                    .published(rep.repost_published_at)
+                    .to(rep.to)
+                    .cc(rep.cc)
+                    .bto(Some(rep.bto))
+                    .bcc(Some(rep.bcc))
+                    .build()
+                    .unwrap(),
+            ),
         };
 
-        let create_id = format!("{}/activity", note.id); // FIXME: use IDGetterService
-        let post_to = &note.to;
-        let post_cc = &note.cc;
-        let post_bto = &note.bto;
-        let post_bcc = &note.bcc;
-        let post_poster = &note.attributed_to;
-
-        let create = CreateActivityBuilder::default()
-            .actor(post_poster.clone())
-            .id(create_id.clone())
-            .object(IdOrObject::Object(CreatableObject::Note(note.clone())))
-            .to(post_to.clone())
-            .cc(post_cc.clone())
-            .bto(post_bto.clone())
-            .bcc(post_bcc.clone())
-            .build()
-            .unwrap();
-
         Ok(RenderedNoteCreate {
-            note_create: create,
+            note_create: activity,
             targeted_users: post.targeted_users,
         })
     }
@@ -145,30 +198,51 @@ impl ApubRendererService {
         post: &(impl ApubRenderablePost + HasRemoteUri),
     ) -> Result<RenderedNote, anyhow::Error> {
         let post_id = self.id_getter.get_post_id(post);
+
         let poster_id = self.id_getter.get_user_id(&post.poster());
 
         let (to, cc, targeted_users) = self.calculate_to_and_cc(post)?;
 
-        let note = match post.deleted_at_fixed_offset() {
-            None => CreatableObject::Note(
-                NoteBuilder::default()
-                    .id(post_id)
-                    .attributed_to(poster_id)
-                    .content(post.content().unwrap())
-                    .to(to)
-                    .cc(cc)
-                    .published(post.created_at_fixed_offset().to_utc())
-                    .build()
-                    .unwrap(),
-            ),
-            Some(deleted_at) => CreatableObject::Tombstone(
-                TombstoneBuilder::default()
-                    .id(post_id)
-                    .deleted(deleted_at.to_utc())
-                    .published(post.created_at_fixed_offset().to_utc())
-                    .build()
-                    .unwrap(),
-            ),
+        let (note, targeted_users) = {
+            let note = if let Some(content) = post.content() {
+                let note = match post.deleted_at_fixed_offset() {
+                    // TODO: handle quoting posts
+                    None => CreatableObject::Note(
+                        NoteBuilder::default()
+                            .id(post_id)
+                            .attributed_to(poster_id)
+                            .content(content)
+                            .to(to)
+                            .cc(cc)
+                            .published(post.created_at_fixed_offset().to_utc())
+                            .build()
+                            .unwrap(),
+                    ),
+                    Some(deleted_at) => CreatableObject::Tombstone(
+                        TombstoneBuilder::default()
+                            .id(post_id)
+                            .deleted(deleted_at.to_utc())
+                            .published(post.created_at_fixed_offset().to_utc())
+                            .build()
+                            .unwrap(),
+                    ),
+                };
+                RenderedNoteObject::Create(note)
+            } else {
+                RenderedNoteObject::Announce(RepostInfo {
+                    repost_id: post_id,
+                    reposter_uri: poster_id,
+                    reposted_post_uri: post
+                        .repost_of_id()
+                        .expect("repost_of_id should not be None if content is None"),
+                    repost_published_at: post.created_at_fixed_offset().to_utc(),
+                    to,
+                    cc,
+                    bto: vec![],
+                    bcc: vec![],
+                })
+            };
+            (note, targeted_users)
         };
 
         Ok(RenderedNote {

@@ -46,8 +46,19 @@ pub struct DBPostCreateService {
 #[derive(Debug)]
 struct SimplePost {
     id: Simple,
+    uri: Option<String>,
     poster: Simple,
     privacy: PostPrivacy,
+}
+
+impl HasRemoteUri for SimplePost {
+    fn get_local_id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
 }
 
 impl DBPostCreateService {
@@ -201,7 +212,7 @@ impl DBPostCreateService {
     ) -> Result<Option<SimplePost>, ServiceError<PostCreateError>> {
         let id = match spec {
             PostSpecifier::ID(id) => sqlx::query!(
-                "SELECT id AS `id: Simple`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE id=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
+                "SELECT id AS `id: Simple`, uri AS `uri`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE id=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
                 id.simple().to_string(),
                 include_deleted,
             )
@@ -209,6 +220,7 @@ impl DBPostCreateService {
             .await?
             .map(|p| SimplePost {
                 id: p.id,
+                uri: p.uri,
                 poster: p.poster,
                 privacy: p.privacy.parse().unwrap(),
             }),
@@ -226,7 +238,7 @@ impl DBPostCreateService {
                 }
 
                 sqlx::query!(
-                    "SELECT id AS `id: Simple`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE uri=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
+                    "SELECT id AS `id: Simple`, uri AS `uri`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE uri=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
                     uri,
                     include_deleted,
                 )
@@ -234,6 +246,7 @@ impl DBPostCreateService {
                 .await?
                 .map(|p| SimplePost {
                     id: p.id,
+                    uri: p.uri,
                     poster: p.poster,
                     privacy: p.privacy.parse().unwrap(),
                 })
@@ -435,16 +448,27 @@ impl DBPostCreateService {
         }
 
         if let Some(content) = content {
+            let repost_of_uri = match repost_of_id {
+                None => None,
+                Some(id) => {
+                    let p = self
+                        .fetch_post_locally_stored(&PostSpecifier::ID(id.into()), false)
+                        .await?
+                        .expect("repost should exist");
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
             let post = LocalPost {
                 id: post_id,
                 poster: LocalPoster { id: poster_id },
-                content,
+                content: Some(content),
                 privacy: req.privacy(),
                 created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
                     created_at,
                     chrono::Utc,
                 ),
                 mentioned_users,
+                repost_of_uri,
             };
             let note = self
                 .renderer
@@ -463,7 +487,11 @@ impl DBPostCreateService {
                     .expect("failed to fetch signer"); // FIXME: this is very bad
                 let result = self
                     .req
-                    .post_to_inbox(&inbox, &note.note_create().clone().into(), signer)
+                    .post_to_inbox(
+                        &inbox,
+                        &note.note_create().clone().activity().into(),
+                        signer,
+                    )
                     .await;
                 if let Err(e) = result {
                     warn!("failed to post to inbox: {:?}", e)
@@ -472,7 +500,56 @@ impl DBPostCreateService {
 
             Ok(post_id)
         } else {
-            // TODO: announce the post
+            let repost_of_uri = match repost_of_id {
+                None => unreachable!("repost_of_id must not be None if content is None"),
+                Some(id) => {
+                    let p = self
+                        .fetch_post_locally_stored(&PostSpecifier::ID(id.into()), false)
+                        .await?
+                        .expect("repost should exist");
+                    self.id_getter.get_post_id(&p)
+                }
+            };
+            let post = LocalPost {
+                id: post_id,
+                poster: LocalPoster { id: poster_id },
+                content: None,
+                privacy: req.privacy(),
+                created_at: chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                    created_at,
+                    chrono::Utc,
+                ),
+                mentioned_users,
+                repost_of_uri: Some(repost_of_uri),
+            };
+            let note = self
+                .renderer
+                .render_create_post(&post)
+                .expect("failed to render");
+            let inboxes = self
+                .find_target_inboxes(note.targeted_users())
+                .await
+                .unwrap();
+
+            for inbox in inboxes {
+                let signer = self
+                    .signer
+                    .fetch_signer(&UserSpecifier::from_id(poster.id))
+                    .await
+                    .expect("failed to fetch signer"); // FIXME: this is very bad
+                let result = self
+                    .req
+                    .post_to_inbox(
+                        &inbox,
+                        &note.note_create().clone().activity().into(),
+                        signer,
+                    )
+                    .await;
+                if let Err(e) = result {
+                    warn!("failed to post to inbox: {:?}", e)
+                }
+            }
+
             Ok(post_id)
         }
     }
@@ -628,11 +705,12 @@ impl DBPostCreateService {
 #[derive(Debug, Clone)]
 struct LocalPost {
     id: Simple,
-    content: String,
+    content: Option<String>,
     poster: LocalPoster,
     privacy: PostPrivacy,
     created_at: chrono::DateTime<chrono::Utc>,
     mentioned_users: Vec<LocalMentionedUser>,
+    repost_of_uri: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -693,6 +771,10 @@ impl ApubRenderablePost for LocalPost {
 
     fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
         None
+    }
+
+    fn repost_of_id(&self) -> Option<String> {
+        self.repost_of_uri.clone()
     }
 
     fn mentioned(&self) -> Vec<crate::models::ApubMentionedUser> {
@@ -777,12 +859,12 @@ impl UserPostService for DBUserPostService {
         post_spec: &PostSpecifier,
         viewer: &Option<UserSpecifier>,
     ) -> Result<UserPostEntry, anyhow::Error> {
-        let viewer = if let Some(viewer) = viewer {
+        let viewer_u = if let Some(viewer) = viewer {
             Some(self.finder.find_user_by_specifier(viewer).await?)
         } else {
             None
         };
-        let viewer_id = viewer.as_ref().map(|u| u.id.to_string());
+        let viewer_id = viewer_u.as_ref().map(|u| u.id.to_string());
 
         let post_id = match post_spec {
             PostSpecifier::ID(id) => id.simple().to_string(),
@@ -838,10 +920,21 @@ impl UserPostService for DBUserPostService {
         .fetch_optional(&self.pool)
         .await?;
 
-        post.map(|p| {
+        if let Some(p) = post {
             let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
             let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
-            UserPostEntryBuilder::default()
+
+            let repost_of_uri = match p.repost_of_id {
+                None => None,
+                Some(repost_of_id) => {
+                    let p = self
+                        .fetch_single_post(&PostSpecifier::from_id(repost_of_id), &viewer)
+                        .await?;
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+
+            Ok(UserPostEntryBuilder::default()
                 .id(p.id)
                 .uri(post_uri)
                 .author(
@@ -858,6 +951,7 @@ impl UserPostService for DBUserPostService {
                 .content(p.content)
                 .privacy(p.privacy.parse().unwrap())
                 .repost_of_id(p.repost_of_id)
+                .repost_of_uri(repost_of_uri)
                 .reply_to_id(p.reply_to_id)
                 .created_at(chrono::DateTime::from_naive_utc_and_offset(
                     p.created_at,
@@ -881,9 +975,10 @@ impl UserPostService for DBUserPostService {
                 .bookmarked_by_you(p.bookmarked_by_you)
                 .mentioned_users(vec![]) // TODO
                 .build()
-                .unwrap()
-        })
-        .ok_or_else(|| PostFetchError::PostNotFound.into())
+                .unwrap())
+        } else {
+            return Err(PostFetchError::PostNotFound.into());
+        }
     }
 
     async fn fetch_user_posts(
@@ -893,7 +988,7 @@ impl UserPostService for DBUserPostService {
         options: &FetchUserPostsOptions,
     ) -> Result<Vec<UserPostEntry>, anyhow::Error> {
         let user = self.finder.find_user_by_specifier(user).await?;
-        let viewer = if let Some(viewer) = viewer {
+        let viewer_u = if let Some(viewer) = viewer {
             Some(self.finder.find_user_by_specifier(viewer).await?)
         } else {
             None
@@ -904,7 +999,7 @@ impl UserPostService for DBUserPostService {
             options.before_date.map(|d| d.naive_utc()),
         );
 
-        let posts = match viewer {
+        let posts = match viewer_u {
             None => {
                 sqlx::query_as!(
                     UserPost,
@@ -1000,11 +1095,22 @@ impl UserPostService for DBUserPostService {
             }
         };
 
-        let entries = posts
-            .into_iter()
-            .map(|p| {
+        let mut entries = Vec::new();
+        for p in posts {
+            let entry = {
                 let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
                 let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
+
+                let repost_of_uri = match p.repost_of_id {
+                    None => None,
+                    Some(repost_of_id) => {
+                        let p = self
+                            .fetch_single_post(&PostSpecifier::from_id(repost_of_id), &viewer)
+                            .await?;
+                        Some(self.id_getter.get_post_id(&p))
+                    }
+                };
+
                 UserPostEntryBuilder::default()
                     .id(p.id)
                     .uri(post_uri)
@@ -1022,6 +1128,7 @@ impl UserPostService for DBUserPostService {
                     .content(p.content)
                     .privacy(p.privacy.parse().unwrap())
                     .repost_of_id(p.repost_of_id)
+                    .repost_of_uri(repost_of_uri)
                     .reply_to_id(p.reply_to_id)
                     .created_at(chrono::DateTime::from_naive_utc_and_offset(
                         p.created_at,
@@ -1046,8 +1153,9 @@ impl UserPostService for DBUserPostService {
                     .mentioned_users(vec![]) // TODO
                     .build()
                     .unwrap()
-            })
-            .collect();
+            };
+            entries.push(entry);
+        }
 
         Ok(entries)
     }
@@ -1111,54 +1219,68 @@ impl UserPostService for DBUserPostService {
         .fetch_all(&self.pool)
         .await?;
 
-        let entries = posts
-            .into_iter()
-            .map(|p| {
-                let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
-                let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
-                UserPostEntryBuilder::default()
-                    .id(p.id)
-                    .uri(post_uri)
-                    .author(
-                        PostAuthorBuilder::default()
-                            .id(p.author_id)
-                            .uri(user_uri)
-                            .username(p.author_username)
-                            .host(p.author_host)
-                            .nickname(p.author_nickname)
-                            .inbox(None)
-                            .build()
-                            .unwrap(),
-                    )
-                    .content(p.content)
-                    .privacy(p.privacy.parse().unwrap())
-                    .repost_of_id(p.repost_of_id)
-                    .reply_to_id(p.reply_to_id)
-                    .created_at(chrono::DateTime::from_naive_utc_and_offset(
-                        p.created_at,
-                        chrono::Utc,
-                    ))
-                    .deleted_at(
-                        p.deleted_at
-                            .map(|d| chrono::DateTime::from_naive_utc_and_offset(d, chrono::Utc)),
-                    )
-                    .counts(
-                        PostCountsBuilder::default()
-                            .reactions(vec![])
-                            .replies(p.count_replies)
-                            .reposts(p.count_reposts)
-                            .quotes(p.count_quotes)
-                            .build()
-                            .unwrap(),
-                    )
-                    .reposted_by_you(p.reposted_by_you)
-                    .favorited_by_you(p.favorited_by_you)
-                    .bookmarked_by_you(p.bookmarked_by_you)
-                    .mentioned_users(vec![]) // TODO
-                    .build()
-                    .unwrap()
-            })
-            .collect();
+        let mut entries = Vec::new();
+        for p in posts {
+            let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
+            let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
+
+            let repost_of_uri = match p.repost_of_id {
+                None => None,
+                Some(repost_of_id) => {
+                    let p = self
+                        .fetch_single_post(
+                            &PostSpecifier::from_id(repost_of_id),
+                            &Some(user_spec.clone()),
+                        )
+                        .await?;
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+
+            let entry = UserPostEntryBuilder::default()
+                .id(p.id)
+                .uri(post_uri)
+                .author(
+                    PostAuthorBuilder::default()
+                        .id(p.author_id)
+                        .uri(user_uri)
+                        .username(p.author_username)
+                        .host(p.author_host)
+                        .nickname(p.author_nickname)
+                        .inbox(None)
+                        .build()
+                        .unwrap(),
+                )
+                .content(p.content)
+                .privacy(p.privacy.parse().unwrap())
+                .repost_of_id(p.repost_of_id)
+                .repost_of_uri(repost_of_uri)
+                .reply_to_id(p.reply_to_id)
+                .created_at(chrono::DateTime::from_naive_utc_and_offset(
+                    p.created_at,
+                    chrono::Utc,
+                ))
+                .deleted_at(
+                    p.deleted_at
+                        .map(|d| chrono::DateTime::from_naive_utc_and_offset(d, chrono::Utc)),
+                )
+                .counts(
+                    PostCountsBuilder::default()
+                        .reactions(vec![])
+                        .replies(p.count_replies)
+                        .reposts(p.count_reposts)
+                        .quotes(p.count_quotes)
+                        .build()
+                        .unwrap(),
+                )
+                .reposted_by_you(p.reposted_by_you)
+                .favorited_by_you(p.favorited_by_you)
+                .bookmarked_by_you(p.bookmarked_by_you)
+                .mentioned_users(vec![]) // TODO
+                .build()
+                .unwrap();
+            entries.push(entry);
+        }
 
         Ok(entries)
     }

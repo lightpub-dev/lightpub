@@ -40,7 +40,7 @@ use self::{
 
 use super::{
     id::IDGetterService, AllUserFinderService, ApubFetchPostError, ApubFollowService,
-    ApubRequestService, Holder, LocalUserFinderService, MiscError,
+    ApubRequestService, Holder, MiscError,
 };
 
 pub mod dummy;

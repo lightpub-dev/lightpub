@@ -46,6 +46,7 @@ use models::http::{HeaderMapWrapper, Method};
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use services::apub::render::RenderedNoteObject;
 use services::db::{new_all_user_finder_service, new_db_key_fetcher_service};
 use services::PostFetchError;
 use services::{
@@ -1134,13 +1135,18 @@ async fn get_user_outbox(
 
     let limit = 20;
     let options = FetchUserPostsOptions::new(limit + 1, query.before_date, true);
-    let posts = post_service
+    let posts: Vec<_> = post_service
         .fetch_user_posts(user_spec, viewer, &options)
         .await
         .map_err(|e| {
             error!("Failed to fetch user posts: {:?}", e);
             ErrorResponse::new_status(500, "internal server error")
-        })?;
+        })?
+        .into_iter()
+        .filter(|p| {
+            p.content().is_some() // filter out reposts
+        })
+        .collect();
 
     let renderer_service = new_apub_renderer_service(app.config().clone());
     let mut rendered_posts = Vec::with_capacity(posts.len());
@@ -1150,7 +1156,13 @@ async fn get_user_outbox(
             ErrorResponse::new_status(500, "internal server error")
         })?;
         rendered_posts.push(PaginatableWrapper::new(
-            rendered.note().clone(),
+            match rendered.note().clone() {
+                RenderedNoteObject::Create(c) => c,
+                RenderedNoteObject::Announce(_) => {
+                    // We can assume that reposts are not in `posts`
+                    unreachable!("Announce object should not be in outbox")
+                }
+            },
             p.created_at().clone(),
         ));
     }
