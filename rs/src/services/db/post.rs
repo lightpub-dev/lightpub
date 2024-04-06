@@ -661,7 +661,7 @@ impl PostCreateService for DBPostCreateService {
 
         let (reaction_str, custom_reaction_id): (Option<String>, Option<u64>) = match reaction {
             Reaction::Unicode(u) => (Some(u.to_string()), None),
-            Reaction::Custom(c) => todo!("custom reaction support"),
+            Reaction::Custom(_c) => todo!("custom reaction support"),
         };
 
         match action {
@@ -682,7 +682,7 @@ impl PostCreateService for DBPostCreateService {
             PostInteractionAction::Remove => {
                 sqlx::query!(
                     r#"
-                    DELETE FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str=? AND custom_reaction_id=?
+                    DELETE FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str<=>? AND custom_reaction_id<=>?
                     "#,
                     user.id.to_string(),
                     post_id.to_string(),

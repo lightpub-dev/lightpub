@@ -723,11 +723,17 @@ pub mod reaction {
     use serde::{Deserialize, Serialize};
     use thiserror::Error;
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone)]
     pub enum Reaction {
         Unicode(String),
         Custom(CustomReaction),
     }
+
+    // #[derive(Debug, Clone)]
+    // pub struct UnicodeEmoji {
+    //     pub original: String,
+    //     pub short_code: Option<String>,
+    // }
 
     #[derive(Debug, Error)]
     pub enum ReactionError {
@@ -744,7 +750,7 @@ pub mod reaction {
             } else {
                 let emoji = emojis::get(value.as_str());
                 match emoji {
-                    Some(e) => Ok(Reaction::Unicode(value)),
+                    Some(_e) => Ok(Reaction::Unicode(value)),
                     None => Err(ReactionError::InvalidUnicodeEmoji),
                 }
             }

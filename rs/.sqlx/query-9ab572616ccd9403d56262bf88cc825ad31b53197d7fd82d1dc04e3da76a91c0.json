@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                    DELETE FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str<=>? AND custom_reaction_id<=>?\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "9ab572616ccd9403d56262bf88cc825ad31b53197d7fd82d1dc04e3da76a91c0"
+}
