@@ -6,6 +6,7 @@ pub struct Config {
     pub http_scheme: String,
     pub frontend_url: String,
     pub database: DatabaseConfig,
+    pub queue: QueueConfig,
     pub instance: InstanceConfig,
     pub upload_dir: String,
     pub dev: DevConfig,
@@ -39,6 +40,14 @@ pub struct DatabaseConfig {
     pub max_connections: u32,
 }
 
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct QueueConfig {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct InstanceConfig {
     pub name: String,
@@ -66,11 +75,17 @@ fn read_config_yaml() {
             frontend_url: "http://localhost:5173/#".to_string(),
             database: DatabaseConfig {
                 host: "127.0.0.1".to_string(),
-                port: 3306,
-                name: "lightpub".to_string(),
-                user: "root".to_string(),
+                port: 3307,
+                name: "lightpub_dev".to_string(),
+                user: "lightpub".to_string(),
                 password: "lightpub".to_string(),
                 max_connections: 5
+            },
+            queue: QueueConfig {
+                host: "127.0.0.1".to_string(),
+                port: 5672,
+                user: "lightpub".to_string(),
+                password: "lightpub".to_string()
             },
             instance: InstanceConfig {
                 name: "Lightpub dev".to_string(),

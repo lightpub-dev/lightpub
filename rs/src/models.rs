@@ -6,6 +6,8 @@ use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::fmt::Simple;
+
+use self::api_response::{PostAuthor, PostMentionedUser};
 #[derive(Debug)]
 pub struct User {
     pub id: sqlx::types::uuid::fmt::Simple,
@@ -81,6 +83,36 @@ pub trait HasRemoteUri {
     fn get_remote_uri(&self) -> Option<String>;
 }
 
+#[derive(Debug, Clone, Builder, Getters)]
+pub struct ApubMentionedUser {
+    pub inbox: Option<String>,
+    pub username: String,
+    pub host: Option<String>,
+    pub uri: Option<String>,
+}
+
+impl From<&PostAuthor> for ApubMentionedUser {
+    fn from(pa: &PostAuthor) -> Self {
+        Self {
+            inbox: pa.inbox().clone(),
+            username: pa.username().clone(),
+            host: pa.host().clone(),
+            uri: Some(pa.uri().clone()),
+        }
+    }
+}
+
+impl From<PostMentionedUser> for ApubMentionedUser {
+    fn from(pm: PostMentionedUser) -> Self {
+        Self {
+            inbox: pm.inbox,
+            username: pm.username,
+            host: pm.host,
+            uri: pm.uri,
+        }
+    }
+}
+
 pub trait ApubRenderablePost {
     type Poster: HasRemoteUri;
     fn id(&self) -> Simple;
@@ -90,6 +122,7 @@ pub trait ApubRenderablePost {
     fn privacy(&self) -> PostPrivacy;
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
     fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>>;
+    fn mentioned(&self) -> Vec<ApubMentionedUser>;
 
     fn created_at_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset> {
         self.created_at()
@@ -174,7 +207,7 @@ impl PostPrivacy {
     }
 }
 
-#[derive(Debug, Builder, Getters)]
+#[derive(Debug, Builder, Getters, Serialize, Deserialize)]
 pub struct ApubWebfingerResponse {
     api_url: String,
     profile_url: Option<String>,
@@ -197,6 +230,14 @@ pub mod api_response {
     use super::{ApubRenderablePost, HasRemoteUri, PostPrivacy};
 
     #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    pub struct PostMentionedUser {
+        pub inbox: Option<String>,
+        pub username: String,
+        pub host: Option<String>,
+        pub uri: Option<String>,
+    }
+
+    #[derive(Debug, Clone, Builder, Getters, Serialize)]
     pub struct UserPostEntry {
         id: Simple,
         uri: String,
@@ -206,6 +247,7 @@ pub mod api_response {
         repost_of_id: Option<Simple>,
         reply_to_id: Option<Simple>,
         created_at: chrono::DateTime<chrono::Utc>,
+        mentioned_users: Vec<PostMentionedUser>,
         #[serde(skip)]
         deleted_at: Option<chrono::DateTime<chrono::Utc>>,
         counts: PostCounts,
@@ -254,6 +296,13 @@ pub mod api_response {
         fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>> {
             self.deleted_at
         }
+
+        fn mentioned(&self) -> Vec<super::ApubMentionedUser> {
+            self.mentioned_users
+                .iter()
+                .map(|s| s.clone().into())
+                .collect()
+        }
     }
 
     impl PaginatableItem for UserPostEntry {
@@ -285,6 +334,8 @@ pub mod api_response {
         username: String,
         host: Option<String>,
         nickname: String,
+        #[serde(skip)]
+        inbox: Option<String>,
     }
 
     impl HasRemoteUri for PostAuthor {

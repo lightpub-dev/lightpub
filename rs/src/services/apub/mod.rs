@@ -27,7 +27,11 @@ use crate::{
     utils::key::{attach_signature, SignKeyBuilder},
 };
 
-use self::{dummy::DummyRequester, render::ApubRendererService};
+use self::{
+    dummy::DummyRequester,
+    queue::{QueuedApubRequester, QueuedApubRequesterBuilder},
+    render::ApubRendererService,
+};
 
 use super::{
     id::IDGetterService, ApubFetchPostError, ApubFollowService, ApubRequestService, Holder,
@@ -60,11 +64,15 @@ impl ApubReqwester {
     }
 }
 
-pub fn new_apub_reqwester_service(config: &Config) -> holder!(ApubRequestService) {
+pub fn new_apub_reqwester_service(
+    conn: QueuedApubRequesterBuilder,
+    config: &Config,
+) -> holder!(ApubRequestService) {
     if config.federation.enabled {
-        Holder::new(ApubReqwest {
-            client: ApubReqwester::new(config),
-        })
+        // Holder::new(ApubReqwest {
+        //     client: ApubReqwester::new(config),
+        // })
+        Holder::new(QueuedApubRequester::new(conn))
     } else {
         Holder::new(DummyRequester::new())
     }

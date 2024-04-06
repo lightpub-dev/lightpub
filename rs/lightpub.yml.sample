@@ -18,6 +18,11 @@ database:
   user: lightpub
   password: lightpub
   max_connections: 5
+queue:
+  host: 127.0.0.1
+  port: 5672
+  user: guest
+  password: guest
 upload_dir: uploads
 background_task_runner:
   broker_url: redis://localhost:6380/1

@@ -1,4 +1,4 @@
-version: '3.8' # Use a suitable version for your Docker engine and Compose file features
+version: "3.8" # Use a suitable version for your Docker engine and Compose file features
 
 services:
   nginx:
@@ -32,7 +32,7 @@ services:
         condition: service_healthy
 
   lightpub_db:
-    image: mariadb:latest
+    image: mariadb:11
     container_name: lightpub-db-test
     environment:
       MARIADB_USER: lightpub
@@ -51,13 +51,29 @@ services:
       start_period: 60s
       start_interval: 2s
 
-  redis:
-    image: redis:latest
-    container_name: lightpub-redis-test
+  lightpub_queue:
+    image: cloudamqp/lavinmq
     networks:
       - lightpub_test
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+      start_interval: 2s
     ports:
-      - "6380:6379"
+      - 5672:5672 # amqp
+      - 15672:15672 # management
+
+  lightpub_cache:
+    build:
+      context: memcached
+      dockerfile: Dockerfile
+    networks:
+      - lightpub_test
+    container_name: lightpub-cache-test
+    ports:
+      - "11211:11211"
 
   lightpub_api:
     build:
@@ -71,8 +87,12 @@ services:
     depends_on:
       lightpub_db:
         condition: service_healthy
+      lightpub_cache:
+        condition: service_healthy
+      lightpub_queue:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD" ,"nc", "-z", "-v", "-w30", "localhost", "8000"]
+      test: ["CMD", "nc", "-z", "-v", "-w30", "localhost", "8000"]
       timeout: 10s
       interval: 30s
       retries: 3
@@ -88,7 +108,7 @@ services:
     container_name: lightpub-test-runner
     depends_on:
       nginx:
-        condition: service_healthy 
+        condition: service_healthy
     environment:
       NODE_TLS_REJECT_UNAUTHORIZED: 0
 

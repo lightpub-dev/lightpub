@@ -8,6 +8,9 @@ use crate::models::apub::{
     AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
     UndoableActivity, PUBLIC,
 };
+use crate::services::apub::queue::worker::{ApubDirector, WorkerType};
+use crate::services::apub::queue::QueuedApubRequester;
+use crate::services::apub::ApubReqwester;
 use crate::services::db::new_db_user_post_service;
 
 use crate::services::db::{new_db_file_upload_service, new_db_user_profile_service};
@@ -38,6 +41,7 @@ use actix_web::{
 };
 use clap::Parser;
 use config::Config;
+use lapin::ConnectionProperties;
 use models::http::{HeaderMapWrapper, Method};
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
@@ -112,8 +116,11 @@ impl FromRequest for AuthUser {
             let data = web::Data::<AppState>::extract(&req).await.unwrap();
 
             // try with http-signature auth
-            let mut key_fetcher =
-                new_db_key_fetcher_service(data.pool().clone(), data.config().clone());
+            let mut key_fetcher = new_db_key_fetcher_service(
+                data.pool().clone(),
+                data.queue().clone(),
+                data.config().clone(),
+            );
             let sig_result = verify_signature(
                 HeaderMapWrapper::from_actix(req.headers()),
                 Method::from_actix(req.method()),
@@ -123,8 +130,11 @@ impl FromRequest for AuthUser {
             .await;
             match sig_result {
                 Ok(u) => {
-                    let mut user_finder =
-                        new_all_user_finder_service(data.pool().clone(), data.config().clone());
+                    let mut user_finder = new_all_user_finder_service(
+                        data.pool().clone(),
+                        data.queue().clone(),
+                        data.config().clone(),
+                    );
                     let user = user_finder.find_user_by_specifier(&u).await?;
                     return Ok(AuthUser::from_user(user));
                 }
@@ -387,7 +397,8 @@ async fn post_post(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut post_service = new_post_create_service(pool.clone(), data.config().clone());
+    let mut post_service =
+        new_post_create_service(pool.clone(), data.queue().clone(), data.config().clone());
 
     let post = match (body.repost_of_id, body.reply_to_id) {
         (None, None) => PostCreateRequest::Normal(
@@ -477,7 +488,8 @@ async fn user_create_follow(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
+    let mut follow_service =
+        new_follow_service(pool.clone(), data.queue().clone(), data.config().clone());
 
     follow_service
         .follow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
@@ -495,7 +507,8 @@ async fn user_delete_follow(
     let user = auth.must_auth()?;
 
     let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
+    let mut follow_service =
+        new_follow_service(pool.clone(), data.queue().clone(), data.config().clone());
 
     follow_service
         .unfollow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
@@ -701,7 +714,11 @@ async fn user_inbox(
                 },
             };
 
-            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+            let mut follow_service = new_follow_service(
+                app.pool().clone(),
+                app.queue().clone(),
+                app.config().clone(),
+            );
             info!("accepting follow request of {:#?}", req_spec);
             let result = follow_service.follow_request_accepted(&req_spec).await?;
             info!(
@@ -720,7 +737,11 @@ async fn user_inbox(
             }
 
             debug!("accepting follow request of {} -> {}", actor_id, object_id);
-            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+            let mut follow_service = new_follow_service(
+                app.pool().clone(),
+                app.queue().clone(),
+                app.config().clone(),
+            );
             follow_service
                 .incoming_follow_request(&IncomingFollowRequest::ActorPair(
                     follow_id,
@@ -741,7 +762,8 @@ async fn user_inbox(
                 match create.object {
                     IdOrObject::Id(id) => {
                         // request object using id
-                        let mut reqester_service = new_apub_reqwester_service(app.config());
+                        let mut reqester_service =
+                            new_apub_reqwester_service(app.queue().clone(), app.config());
                         if let CreatableObject::Note(object_note) =
                             reqester_service.fetch_post(&id).await?
                         {
@@ -773,8 +795,11 @@ async fn user_inbox(
 
             let post_request = &object.try_into().unwrap();
 
-            let mut post_service =
-                new_post_create_service(app.pool().clone(), app.config().clone());
+            let mut post_service = new_post_create_service(
+                app.pool().clone(),
+                app.queue().clone(),
+                app.config().clone(),
+            );
             let result = post_service.create_post(post_request).await;
             match result {
                 Ok(post_id) => {
@@ -830,8 +855,11 @@ async fn user_inbox(
                     .unwrap(),
             );
 
-            let mut post_service =
-                new_post_create_service(app.pool().clone(), app.config().clone());
+            let mut post_service = new_post_create_service(
+                app.pool().clone(),
+                app.queue().clone(),
+                app.config().clone(),
+            );
             let result = post_service.create_post(&repost).await;
             match result {
                 Ok(post_id) => {
@@ -862,8 +890,11 @@ async fn user_inbox(
                     if followee_id != actor_id {
                         return authfail();
                     }
-                    let mut follow_service =
-                        new_follow_service(app.pool().clone(), app.config().clone());
+                    let mut follow_service = new_follow_service(
+                        app.pool().clone(),
+                        app.queue().clone(),
+                        app.config().clone(),
+                    );
                     follow_service
                         .unfollow_user(
                             &UserSpecifier::from_url(follower_id),
@@ -888,8 +919,11 @@ async fn user_inbox(
                     if follower_id != actor_id {
                         return authfail();
                     }
-                    let mut follow_service =
-                        new_follow_service(app.pool().clone(), app.config().clone());
+                    let mut follow_service = new_follow_service(
+                        app.pool().clone(),
+                        app.queue().clone(),
+                        app.config().clone(),
+                    );
                     follow_service
                         .unfollow_user(
                             &UserSpecifier::from_url(follower_id),
@@ -907,8 +941,11 @@ async fn user_inbox(
             }
 
             let note_id = del.object.get_id();
-            let mut post_service =
-                new_post_create_service(app.pool().clone(), app.config().clone());
+            let mut post_service = new_post_create_service(
+                app.pool().clone(),
+                app.queue().clone(),
+                app.config().clone(),
+            );
             post_service
                 .delete_post(&PostSpecifier::from_uri(note_id))
                 .await
@@ -1087,7 +1124,11 @@ async fn get_user_outbox(
     let user_spec = &path.user_spec;
     let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
 
-    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_db_user_post_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     let limit = 20;
     let options = FetchUserPostsOptions::new(limit + 1, query.before_date, true);
@@ -1156,7 +1197,11 @@ async fn get_single_post(
     let viewer = auth.may_auth()?.as_ref().map(|u| u.id.into());
 
     let post_id = &PostSpecifier::from_id(path.post_id);
-    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_db_user_post_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     let post = post_service.fetch_single_post(post_id, &viewer).await;
 
@@ -1186,7 +1231,11 @@ async fn get_user_posts(
     let user_spec = &path.user_spec;
     let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
 
-    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_db_user_post_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     let limit = query
         .limit
@@ -1251,7 +1300,11 @@ async fn get_user_followers(
     let user_spec = &path.user_spec;
     // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
 
-    let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+    let mut follow_service = new_follow_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     let limit = query
         .limit
@@ -1341,7 +1394,11 @@ async fn get_user_following(
     let user_spec = &path.user_spec;
     // let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
 
-    let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+    let mut follow_service = new_follow_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     let limit = query
         .limit
@@ -1418,7 +1475,11 @@ async fn timeline(
 ) -> HandlerResponse<impl Responder> {
     let authed_user = auth.must_auth()?;
 
-    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_db_user_post_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     let limit = query
         .limit
@@ -1455,7 +1516,11 @@ async fn add_post_favorite(
     let authed_user = auth.must_auth()?;
 
     let post_spec = &path.post_id.into();
-    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     post_service
         .modify_favorite(
@@ -1483,7 +1548,11 @@ async fn add_post_bookmark(
     let authed_user = auth.must_auth()?;
 
     let post_spec = &path.post_id.into();
-    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     post_service
         .modify_favorite(
@@ -1511,7 +1580,11 @@ async fn delete_post_favorite(
     let authed_user = auth.must_auth()?;
 
     let post_spec = &path.post_id.into();
-    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     post_service
         .modify_favorite(
@@ -1539,7 +1612,11 @@ async fn delete_post_bookmark(
     let authed_user = auth.must_auth()?;
 
     let post_spec = &path.post_id.into();
-    let mut post_service = new_post_create_service(app.pool().clone(), app.config().clone());
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
 
     post_service
         .modify_favorite(
@@ -1600,6 +1677,32 @@ async fn main() -> std::io::Result<()> {
         .expect("connect to database");
     tracing::info!("Connected to database");
 
+    // connect to queue
+    let queue_uri = format!(
+        "amqp://{}:{}@{}:{}",
+        config.queue.user, config.queue.password, config.queue.host, config.queue.port
+    );
+    let queue = lapin::Connection::connect(&queue_uri, ConnectionProperties::default())
+        .await
+        .expect("connect to amqp queue");
+    let queue_builder = QueuedApubRequester::prepare(&queue)
+        .await
+        .expect("initialize amqp queue");
+    tracing::info!("Connected to queue");
+
+    // spawn background workers
+    let mut director = ApubDirector::prepare(&queue).await;
+    director
+        .add_workers(1, &queue, WorkerType::PostToInbox, || {
+            ApubReqwester::new(&config)
+        })
+        .await;
+    director
+        .add_workers(3, &queue, WorkerType::Fetcher, || {
+            ApubReqwester::new(&config)
+        })
+        .await;
+
     // create upload_dir
     let upload_dir = config.upload_dir.clone();
     web::block(move || {
@@ -1608,7 +1711,7 @@ async fn main() -> std::io::Result<()> {
     .await
     .unwrap();
 
-    let app_state = state::AppState::new(pool, config.clone());
+    let app_state = state::AppState::new(pool, queue_builder, config.clone());
 
     HttpServer::new(move || {
         App::new()

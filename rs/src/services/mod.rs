@@ -68,6 +68,16 @@ impl MiscError for serde_json::Error {
     }
 }
 
+impl MiscError for lapin::Error {
+    fn message(&self) -> &str {
+        "internal server error"
+    }
+
+    fn status_code(&self) -> i32 {
+        500
+    }
+}
+
 #[derive(Debug, Clone, Builder)]
 pub struct UserCreateRequest {
     username: String,
@@ -116,6 +126,12 @@ impl<T> From<Box<dyn MiscError>> for ServiceError<T> {
 
 impl<T> From<sqlx::Error> for ServiceError<T> {
     fn from(value: sqlx::Error) -> Self {
+        ServiceError::MiscError(Box::new(value))
+    }
+}
+
+impl<T> From<lapin::Error> for ServiceError<T> {
+    fn from(value: lapin::Error) -> Self {
         ServiceError::MiscError(Box::new(value))
     }
 }
@@ -587,17 +603,17 @@ pub trait UserFollowService {
 #[derive(Debug)]
 pub enum PostToInboxError {}
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum ApubFetchUserError {
     NotFound,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum ApubFetchPostError {
     NotFound,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum WebfingerError {
     ApiUrlNotFound,
     NotFound,
