@@ -53,7 +53,11 @@ pub fn new_follow_service(
     Holder::new(follow::DBUserFollowService::new(
         pool.clone(),
         new_all_user_finder_service(pool.clone(), queue.clone(), config.clone()),
-        new_apub_follow_service(pool.clone(), new_id_getter_service(config.clone())),
+        new_apub_follow_service(
+            pool.clone(),
+            new_id_getter_service(config.clone()),
+            new_all_user_finder_service(pool.clone(), queue.clone(), config.clone()),
+        ),
         new_apub_reqwester_service(queue, &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
         new_id_getter_service(config),

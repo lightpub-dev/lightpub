@@ -1,6 +1,7 @@
 use crate::models::{
     api_response::{FollowListEntry, UserPostEntry},
-    apub::{AcceptActivity, Activity, FollowActivity, HasId},
+    apub::{AcceptActivity, Activity, FollowActivity, HasId, UndoActivity},
+    reaction::Reaction,
 };
 use std::fmt::Display;
 
@@ -505,7 +506,8 @@ pub trait PostCreateService {
         &mut self,
         user: &UserSpecifier,
         post: &PostSpecifier,
-        reaction: &str,
+        reaction: &Reaction,
+        allow_remote: bool,
         action: PostInteractionAction,
     ) -> Result<(), anyhow::Error>;
 }
@@ -664,6 +666,12 @@ pub trait ApubFollowService {
         &mut self,
         follow_req_id: Uuid,
     ) -> Result<FollowActivity, anyhow::Error>;
+
+    async fn create_unfollow_request(
+        &mut self,
+        follower_id: &UserSpecifier,
+        followee_id: &UserSpecifier,
+    ) -> Result<UndoActivity, anyhow::Error>;
 
     async fn create_follow_accept(
         &mut self,

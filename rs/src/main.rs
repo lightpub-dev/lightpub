@@ -8,6 +8,7 @@ use crate::models::apub::{
     AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
     UndoableActivity, PUBLIC,
 };
+use crate::models::reaction::Reaction;
 use crate::services::apub::queue::worker::{ApubDirector, WorkerType};
 use crate::services::apub::queue::QueuedApubRequester;
 use crate::services::apub::ApubReqwester;
@@ -42,10 +43,12 @@ use actix_web::{
 use clap::Parser;
 use config::Config;
 use lapin::ConnectionProperties;
+use models::apub::LikeActivity;
 use models::http::{HeaderMapWrapper, Method};
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use services::apub::render::RenderedNoteObject;
 use services::db::{new_all_user_finder_service, new_db_key_fetcher_service};
 use services::PostFetchError;
 use services::{
@@ -659,6 +662,74 @@ async fn host_meta(app: web::Data<AppState>) -> HandlerResponse<impl Responder> 
         .body(xml))
 }
 
+async fn do_like_helper(
+    app: web::Data<AppState>,
+    like: LikeActivity,
+    is_add: bool,
+) -> HandlerResponse<impl Responder> {
+    // assume that the actor is already authenticated
+    let actor_id = like.actor;
+
+    let note_id = like.object;
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
+
+    let reaction_content = like.content;
+    let reaction = match reaction_content {
+        None => None,
+        Some(r) => Some(Reaction::try_from(r).map_err(|e| {
+            warn!("Failed to parse reaction: {:?}", e);
+            ErrorResponse::new_status(400, "invalid reaction")
+        })?),
+    };
+
+    let action = if is_add {
+        PostInteractionAction::Add
+    } else {
+        PostInteractionAction::Remove
+    };
+
+    match reaction {
+        None => {
+            // favorite
+            post_service
+                .modify_favorite(
+                    &UserSpecifier::from_url(actor_id),
+                    &PostSpecifier::from_uri(note_id),
+                    false,
+                    false,
+                    action,
+                )
+                .await
+                .map_err(|e| {
+                    warn!("Failed to like post: {:?}", e);
+                    ErrorResponse::new_status(500, "internal server error")
+                })?;
+        }
+        Some(r) => {
+            // reaction
+            post_service
+                .modify_reaction(
+                    &UserSpecifier::from_url(actor_id),
+                    &PostSpecifier::from_uri(note_id),
+                    &r,
+                    false,
+                    action,
+                )
+                .await
+                .map_err(|e| {
+                    warn!("Failed to reaction post: {:?}", e);
+                    ErrorResponse::new_status(500, "internal server error")
+                })?;
+        }
+    }
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[post("/user/{user_spec}/inbox")]
 async fn user_inbox(
     params: web::Path<UserChooseParams>,
@@ -687,6 +758,7 @@ async fn user_inbox(
     };
 
     debug!("parsed activity {:#?}", activity);
+
     use models::apub::Activity::*;
     match activity {
         Accept(a) => {
@@ -728,7 +800,9 @@ async fn user_inbox(
             );
         }
         Follow(follow) => {
-            let follow_id = follow.id;
+            let follow_id = follow
+                .id
+                .ok_or_else(|| ErrorResponse::new_status(400, "follow id is not set"))?;
             let actor_id = follow.actor;
             let object_id = follow.object.get_id().to_string();
 
@@ -931,6 +1005,15 @@ async fn user_inbox(
                         )
                         .await?;
                 }
+                UndoableActivity::Like(like) => {
+                    let actor_id = &like.actor;
+
+                    if actor_id != authed_user_uri.as_str() {
+                        return authfail();
+                    }
+
+                    do_like_helper(app, like, false).await?;
+                }
             }
         }
         Delete(del) => {
@@ -953,6 +1036,15 @@ async fn user_inbox(
                     warn!("Failed to delete post: {:?}", e);
                     ErrorResponse::new_status(500, "internal server error")
                 })?;
+        }
+        Like(like) => {
+            let actor_id = &like.actor;
+
+            if authed_user_uri.as_str() != actor_id {
+                return authfail();
+            }
+
+            do_like_helper(app, like, true).await?;
         }
     }
 
@@ -1132,13 +1224,18 @@ async fn get_user_outbox(
 
     let limit = 20;
     let options = FetchUserPostsOptions::new(limit + 1, query.before_date, true);
-    let posts = post_service
+    let posts: Vec<_> = post_service
         .fetch_user_posts(user_spec, viewer, &options)
         .await
         .map_err(|e| {
             error!("Failed to fetch user posts: {:?}", e);
             ErrorResponse::new_status(500, "internal server error")
-        })?;
+        })?
+        .into_iter()
+        .filter(|p| {
+            p.content().is_some() // filter out reposts
+        })
+        .collect();
 
     let renderer_service = new_apub_renderer_service(app.config().clone());
     let mut rendered_posts = Vec::with_capacity(posts.len());
@@ -1148,7 +1245,13 @@ async fn get_user_outbox(
             ErrorResponse::new_status(500, "internal server error")
         })?;
         rendered_posts.push(PaginatableWrapper::new(
-            rendered.note().clone(),
+            match rendered.note().clone() {
+                RenderedNoteObject::Create(c) => c,
+                RenderedNoteObject::Announce(_) => {
+                    // We can assume that reposts are not in `posts`
+                    unreachable!("Announce object should not be in outbox")
+                }
+            },
             p.created_at().clone(),
         ));
     }

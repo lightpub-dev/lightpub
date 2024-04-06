@@ -123,6 +123,7 @@ pub trait ApubRenderablePost {
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
     fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>>;
     fn mentioned(&self) -> Vec<ApubMentionedUser>;
+    fn repost_of_id(&self) -> Option<String>;
 
     fn created_at_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset> {
         self.created_at()
@@ -245,6 +246,7 @@ pub mod api_response {
         content: Option<String>,
         privacy: PostPrivacy,
         repost_of_id: Option<Simple>,
+        repost_of_uri: Option<String>,
         reply_to_id: Option<Simple>,
         created_at: chrono::DateTime<chrono::Utc>,
         mentioned_users: Vec<PostMentionedUser>,
@@ -302,6 +304,10 @@ pub mod api_response {
                 .iter()
                 .map(|s| s.clone().into())
                 .collect()
+        }
+
+        fn repost_of_id(&self) -> Option<String> {
+            self.repost_of_uri.as_ref().map(|s| s.to_string())
         }
     }
 
@@ -443,6 +449,7 @@ pub mod apub {
         Reject(RejectActivity),
         Delete(DeleteActivity),
         Undo(UndoActivity),
+        Like(LikeActivity),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, From)]
@@ -462,11 +469,18 @@ pub mod apub {
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
     #[serde(rename_all = "camelCase")]
     pub struct FollowActivity {
-        pub id: String,
+        pub id: Option<String>,
         pub actor: String,
         pub object: IdOrObject<Actor>,
     }
-    impl_id!(FollowActivity);
+    impl HasId for FollowActivity {
+        fn get_id(&self) -> &str {
+            match &self.id {
+                Some(id) => id,
+                None => panic!("FollowActivity has no id"),
+            }
+        }
+    }
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     #[serde(untagged)]
@@ -683,6 +697,7 @@ pub mod apub {
     #[serde(tag = "type")]
     pub enum UndoableActivity {
         Follow(FollowActivity),
+        Like(LikeActivity),
     }
 
     #[derive(Debug, Clone, Deserialize, Serialize, Builder)]
@@ -691,6 +706,56 @@ pub mod apub {
         pub id: Option<String>,
         pub actor: String,
         pub object: UndoableActivity,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct LikeActivity {
+        pub id: String,
+        pub actor: String,
+        pub object: String, // assuming a Note id for now
+        pub published: Option<chrono::DateTime<chrono::Utc>>,
+        pub content: Option<String>,
+    }
+}
+
+pub mod reaction {
+    use serde::{Deserialize, Serialize};
+    use thiserror::Error;
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub enum Reaction {
+        Unicode(String),
+        Custom(CustomReaction),
+    }
+
+    #[derive(Debug, Error)]
+    pub enum ReactionError {
+        #[error("invalid unicode emoji")]
+        InvalidUnicodeEmoji,
+    }
+
+    impl TryFrom<String> for Reaction {
+        type Error = ReactionError;
+
+        fn try_from(value: String) -> Result<Self, Self::Error> {
+            if value.starts_with(":") && value.ends_with(":") {
+                todo!("parse custom emoji")
+            } else {
+                let emoji = emojis::get(value.as_str());
+                match emoji {
+                    Some(e) => Ok(Reaction::Unicode(value)),
+                    None => Err(ReactionError::InvalidUnicodeEmoji),
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct CustomReaction {
+        pub code: String,
+        pub host: String,
+        pub uri: String,
     }
 }
 

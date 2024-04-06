@@ -308,6 +308,39 @@ impl UserFollowService for DBUserFollowService {
         .execute(&self.pool)
         .await?;
 
+        // remote unfollow
+        if let Some(_) = followee.host {
+            let followee_inbox = followee.inbox.clone().ok_or_else(|| {
+                warn!("followee inbox not set: {:?}", followee);
+                ServiceError::from_se(FollowError::FolloweeNotFound)
+            })?;
+
+            // send request
+            let actor = self
+                .signfetch
+                .fetch_signer(&UserSpecifier::from_id(follower.id))
+                .await
+                .map_err(|e| match e {
+                    ServiceError::SpecificError(SignerError::UserNotFound) => {
+                        ServiceError::from_se(FollowError::FollowerNotFound)
+                    }
+                    _ => e.convert(),
+                })?;
+            let activity = self
+                .pubfollow
+                .create_unfollow_request(
+                    &UserSpecifier::from_id(*follower_id),
+                    &UserSpecifier::from_id(*followee_id),
+                )
+                .await
+                .unwrap();
+
+            self.req
+                .post_to_inbox(&followee_inbox, &activity.into(), actor)
+                .await
+                .map_err(|e| e.convert())?;
+        }
+
         Ok(())
     }
 

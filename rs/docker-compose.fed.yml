@@ -140,7 +140,7 @@ services:
       - mastodon
 
   misskey_web:
-    image: misskey/misskey:2024.3.1
+    build: ./test_instances/misskey
     restart: unless-stopped
     links:
       - misskey_db
@@ -356,7 +356,7 @@ services:
     build:
       context: memcached
       dockerfile: Dockerfile
-    container_name: lightpub-cache-test
+    container_name: lightpub-cache
     ports:
       - "11211:11211"
 
