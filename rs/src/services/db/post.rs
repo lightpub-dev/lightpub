@@ -851,6 +851,7 @@ impl UserPostService for DBUserPostService {
                         .username(p.author_username)
                         .host(p.author_host)
                         .nickname(p.author_nickname)
+                        .inbox(None)
                         .build()
                         .unwrap(),
                 )
