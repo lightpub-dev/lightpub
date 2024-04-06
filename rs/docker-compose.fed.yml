@@ -351,6 +351,8 @@ services:
     ports:
       - 5672:5672 # amqp
       - 15672:15672 # management
+    profiles:
+      - lightpub
 
   lightpub_cache:
     build:
@@ -359,6 +361,8 @@ services:
     container_name: lightpub-cache
     ports:
       - "11211:11211"
+    profiles:
+      - lightpub
 
   lightpub_dev_db:
     image: mariadb:latest
