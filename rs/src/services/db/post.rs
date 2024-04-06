@@ -879,6 +879,7 @@ impl UserPostService for DBUserPostService {
                 .reposted_by_you(p.reposted_by_you)
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
+                .mentioned_users(vec![]) // TODO
                 .build()
                 .unwrap()
         })
@@ -1042,6 +1043,7 @@ impl UserPostService for DBUserPostService {
                     .reposted_by_you(p.reposted_by_you)
                     .favorited_by_you(p.favorited_by_you)
                     .bookmarked_by_you(p.bookmarked_by_you)
+                    .mentioned_users(vec![]) // TODO
                     .build()
                     .unwrap()
             })
@@ -1152,6 +1154,7 @@ impl UserPostService for DBUserPostService {
                     .reposted_by_you(p.reposted_by_you)
                     .favorited_by_you(p.favorited_by_you)
                     .bookmarked_by_you(p.bookmarked_by_you)
+                    .mentioned_users(vec![]) // TODO
                     .build()
                     .unwrap()
             })
