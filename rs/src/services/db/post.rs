@@ -10,10 +10,14 @@ use uuid::{fmt::Simple, Uuid};
 use crate::{
     holder,
     models::{
-        api_response::{PostAuthorBuilder, PostCountsBuilder, UserPostEntry, UserPostEntryBuilder},
-        apub::CreatableObject,
+        api_response::{
+            PostAuthorBuilder, PostCountsBuilder, PostMentionedUser, PostReaction, UserPostEntry,
+            UserPostEntryBuilder,
+        },
+        apub::{Activity, CreatableObject},
         reaction::Reaction,
-        ApubMentionedUser, ApubRenderablePost, HasRemoteUri, PostPrivacy,
+        ApubMentionedUser, ApubPostTargetComputable, ApubRenderablePost, HasRemoteUri,
+        HasRemoteUriOnly, PostPrivacy,
     },
     services::{
         apub::{
@@ -22,8 +26,9 @@ use crate::{
         },
         id::IDGetterService,
         AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
-        PostCreateRequest, PostCreateService, PostFetchError, PostInteractionAction, ServiceError,
-        SignerService, TimelineOptions, UserFollowService, UserPostService,
+        PostCreateRequest, PostCreateService, PostDeleteError, PostFetchError,
+        PostInteractionAction, ServiceError, SignerService, TimelineOptions, UserFollowService,
+        UserPostService,
     },
     utils::{
         generate_uuid,
@@ -194,16 +199,16 @@ impl DBPostCreateService {
         }
     }
 
-    #[async_recursion]
-    async fn fetch_post_id_locally_stored(
-        &mut self,
-        spec: &PostSpecifier,
-        include_deleted: bool,
-    ) -> Result<Option<Simple>, ServiceError<PostCreateError>> {
-        self.fetch_post_locally_stored(spec, include_deleted)
-            .await
-            .map(|p| p.map(|p| p.id))
-    }
+    // #[async_recursion]
+    // async fn fetch_post_id_locally_stored(
+    //     &mut self,
+    //     spec: &PostSpecifier,
+    //     include_deleted: bool,
+    // ) -> Result<Option<Simple>, ServiceError<PostCreateError>> {
+    //     self.fetch_post_locally_stored(spec, include_deleted)
+    //         .await
+    //         .map(|p| p.map(|p| p.id))
+    // }
 
     #[async_recursion]
     async fn fetch_post_locally_stored(
@@ -459,6 +464,17 @@ impl DBPostCreateService {
                     Some(self.id_getter.get_post_id(&p))
                 }
             };
+            let reply_to_uri = match reply_to_id {
+                None => None,
+                Some(id) => {
+                    let p = self
+                        .fetch_post_locally_stored(&PostSpecifier::ID(id.into()), false)
+                        .await?
+                        .expect("reply should exist");
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+
             let post = LocalPost {
                 id: post_id,
                 poster: LocalPoster { id: poster_id },
@@ -470,6 +486,7 @@ impl DBPostCreateService {
                 ),
                 mentioned_users,
                 repost_of_uri,
+                reply_to_uri,
             };
             let note = self
                 .renderer
@@ -511,6 +528,17 @@ impl DBPostCreateService {
                     self.id_getter.get_post_id(&p)
                 }
             };
+            let reply_to_uri = match reply_to_id {
+                None => None,
+                Some(id) => {
+                    let p = self
+                        .fetch_post_locally_stored(&PostSpecifier::ID(id.into()), false)
+                        .await?
+                        .expect("reply should exist");
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+
             let post = LocalPost {
                 id: post_id,
                 poster: LocalPoster { id: poster_id },
@@ -522,6 +550,7 @@ impl DBPostCreateService {
                 ),
                 mentioned_users,
                 repost_of_uri: Some(repost_of_uri),
+                reply_to_uri,
             };
             let note = self
                 .renderer
@@ -556,6 +585,113 @@ impl DBPostCreateService {
     }
 }
 
+#[derive(Debug)]
+struct TargetComputablePostDB {
+    id: Simple,
+    uri: Option<String>,
+    poster_id: Simple,
+    poster_uri: Option<String>,
+    privacy: String,
+}
+
+#[derive(Debug, Clone)]
+struct TargetComputablePostUser {
+    id: Simple,
+    uri: Option<String>,
+}
+
+impl HasRemoteUri for TargetComputablePostUser {
+    fn get_local_id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
+impl HasRemoteUriOnly for TargetComputablePostUser {
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
+#[derive(Debug)]
+struct TargetComputablePost {
+    db: TargetComputablePostDB,
+    privacy: PostPrivacy,
+    mentioned_users: Vec<TargetComputablePostUser>,
+}
+
+impl HasRemoteUri for TargetComputablePost {
+    fn get_local_id(&self) -> String {
+        self.db.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.db.uri.clone()
+    }
+}
+
+impl ApubPostTargetComputable for TargetComputablePost {
+    type Poster = TargetComputablePostUser;
+    type Actor = TargetComputablePostUser;
+
+    fn privacy(&self) -> PostPrivacy {
+        self.privacy
+    }
+
+    fn poster(&self) -> Self::Poster {
+        TargetComputablePostUser {
+            id: self.db.poster_id,
+            uri: self.db.poster_uri.clone(),
+        }
+    }
+
+    fn mentioned(&self) -> Vec<Self::Actor> {
+        self.mentioned_users.clone()
+    }
+}
+
+impl DBPostCreateService {
+    async fn get_target_computable_post(
+        &mut self,
+        post_id: Simple,
+    ) -> Result<(TargetComputablePost, TargetComputablePostUser), anyhow::Error> {
+        let detailed_post = sqlx::query_as!(TargetComputablePostDB, r#"
+                SELECT p.id AS `id: Simple`, p.uri AS `uri`, p.poster_id AS `poster_id!: Simple`, u.uri AS `poster_uri`, p.privacy
+                FROM posts AS p
+                INNER JOIN users AS u ON p.poster_id=u.id
+                WHERE p.id=?
+                "#, post_id.to_string()).fetch_one(&self.pool).await?;
+        let mentioned_users = sqlx::query_as!(
+            TargetComputablePostUser,
+            r#"
+                SELECT u.id AS `id: Simple`, u.uri AS `uri`
+                FROM post_mentions m
+                INNER JOIN users u ON m.target_user_id=u.id
+                WHERE m.post_id=?
+                "#,
+            post_id.to_string()
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let privacy = detailed_post.privacy.parse().unwrap();
+        let detailed_post = TargetComputablePost {
+            db: detailed_post,
+            privacy: privacy,
+            mentioned_users,
+        };
+        let author = TargetComputablePostUser {
+            id: detailed_post.db.poster_id,
+            uri: detailed_post.db.poster_uri.clone(),
+        };
+
+        Ok((detailed_post, author))
+    }
+}
+
 #[async_trait]
 impl PostCreateService for DBPostCreateService {
     async fn create_post(
@@ -565,27 +701,60 @@ impl PostCreateService for DBPostCreateService {
         self.create_post_(req, 0).await
     }
 
-    async fn delete_post(&mut self, req: &PostSpecifier) -> Result<(), anyhow::Error> {
-        let post = self.fetch_post_id_locally_stored(req, false).await?;
+    async fn delete_post(
+        &mut self,
+        req: &PostSpecifier,
+        actor: &Option<UserSpecifier>,
+    ) -> Result<(), anyhow::Error> {
+        let post = self.fetch_post_locally_stored(req, false).await?;
         if let Some(post) = post {
+            // if actor is specified
+            if let Some(actor) = actor {
+                // check if actor is the poster
+                let actor_id = self.finder.find_user_by_specifier(actor).await?.id;
+                if post.poster != actor_id {
+                    return Err(PostDeleteError::Unauthorized.into());
+                }
+            }
+
             let mut tx = self.pool.begin().await?;
 
             // delete post and its reposts
             sqlx::query!(
                 "UPDATE posts SET deleted_at=CURRENT_TIMESTAMP WHERE id=? OR (repost_of_id=? AND content IS NULL AND deleted_at IS NULL)",
-                post.to_string(),
-                post.to_string(),
+                post.id.to_string(),
+                post.id.to_string(),
             )
             .execute(&mut *tx)
             .await?;
 
-            // TODO: send apub
-
             tx.commit().await?;
+
+            // send apub if local post
+            if post.uri.is_none() {
+                let (detailed_post, author) = self.get_target_computable_post(post.id).await?;
+
+                let note_delete = self.renderer.render_delete_post(&detailed_post, &author)?;
+
+                let inboxes = self
+                    .find_target_inboxes(&note_delete.targeted_users)
+                    .await
+                    .unwrap();
+
+                let activity = Activity::Delete(note_delete.note_delete);
+                for inbox in inboxes {
+                    let signer = self
+                        .signer
+                        .fetch_signer(&UserSpecifier::from_id(post.poster))
+                        .await?; // FIXME: do not generate signer for each inbox
+                    self.req.post_to_inbox(&inbox, &activity, signer).await?;
+                }
+            }
+
+            Ok(())
         } else {
-            warn!("post not found");
+            Err(PostDeleteError::PostNotFound.into())
         }
-        Ok(())
     }
 
     async fn modify_favorite(
@@ -607,10 +776,10 @@ impl PostCreateService for DBPostCreateService {
                 .map(|p| p.id)?
         };
 
-        match action {
+        let modified_id = match action {
             PostInteractionAction::Add => {
                 let id = generate_uuid();
-                sqlx::query!(
+                let result = sqlx::query!(
                     r#"
                     INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=id
                     "#,
@@ -620,22 +789,89 @@ impl PostCreateService for DBPostCreateService {
                     as_bookmark
                 )
                 .execute(&self.pool).await?;
+                if result.rows_affected() > 0 {
+                    Some(id)
+                } else {
+                    None
+                }
             }
             PostInteractionAction::Remove => {
-                sqlx::query!(
+                let mut tx = self.pool.begin().await?;
+                // first, select to get id
+                let record = sqlx::query!(
                     r#"
-                    DELETE FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=?
+                    SELECT id AS `id: Simple` FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=? FOR UPDATE
                     "#,
                     user.id.to_string(),
                     post_id.to_string(),
-                    as_bookmark
-                )
-                .execute(&self.pool)
-                .await?;
+                    as_bookmark,
+                ).fetch_optional(&mut *tx).await?;
+                if let Some(id) = record {
+                    // then, delete
+                    sqlx::query!(
+                        r#"
+                        DELETE FROM post_favorites WHERE id=?
+                        "#,
+                        id.id.to_string(),
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                    tx.commit().await?;
+                    Some(id.id)
+                } else {
+                    tx.rollback().await?;
+                    None
+                }
             }
+        };
+
+        let modified_id = match modified_id {
+            None => return Ok(()), // no change occurred
+            Some(id) => id,
+        };
+        if as_bookmark {
+            // bookmarks are private
+            return Ok(());
         }
 
-        // TODO! send apub
+        // Apub should be sent when the actor is a local user
+        if user.uri.is_none() {
+            // local user
+            // send apub
+            // LikeActivity with no content
+            // or UndoActivity with LikeActivity
+            let actor = self
+                .finder
+                .find_user_by_specifier(&UserSpecifier::from_id(user.id))
+                .await?;
+            let post = self
+                .fetch_post_locally_stored(&PostSpecifier::from_id(post_id), false)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("post with modified favorite not found"))?;
+
+            let is_add = match action {
+                PostInteractionAction::Add => true,
+                PostInteractionAction::Remove => false,
+            };
+            let activity = self.renderer.render_post_reaction(
+                &modified_id.to_string(),
+                &actor,
+                &post,
+                None as Option<&str>,
+                is_add,
+            )?;
+
+            let (post, _) = self.get_target_computable_post(post.id).await?;
+            let targets = self.renderer.calculate_post_involved_users(&post, true)?;
+            let inboxes = self.find_target_inboxes(&targets).await?;
+            for inbox in inboxes {
+                let signer = self
+                    .signer
+                    .fetch_signer(&UserSpecifier::from_id(user.id))
+                    .await?;
+                self.req.post_to_inbox(&inbox, &activity, signer).await?;
+            }
+        }
 
         return Ok(());
     }
@@ -661,13 +897,13 @@ impl PostCreateService for DBPostCreateService {
 
         let (reaction_str, custom_reaction_id): (Option<String>, Option<u64>) = match reaction {
             Reaction::Unicode(u) => (Some(u.to_string()), None),
-            Reaction::Custom(c) => todo!("custom reaction support"),
+            Reaction::Custom(_c) => todo!("custom reaction support"),
         };
 
-        match action {
+        let modified_id = match action {
             PostInteractionAction::Add => {
                 let id = generate_uuid();
-                sqlx::query!(
+                let result = sqlx::query!(
                     r#"
                     INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id
                     "#,
@@ -678,23 +914,86 @@ impl PostCreateService for DBPostCreateService {
                     custom_reaction_id,
                 )
                 .execute(&self.pool).await?;
+                if result.rows_affected() > 0 {
+                    Some(id)
+                } else {
+                    None
+                }
             }
             PostInteractionAction::Remove => {
-                sqlx::query!(
+                let mut tx = self.pool.begin().await?;
+                // first, select to get id
+                let record = sqlx::query!(
                     r#"
-                    DELETE FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str=? AND custom_reaction_id=?
+                    SELECT id AS `id: Simple` FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str<=>? AND custom_reaction_id<=>?
                     "#,
                     user.id.to_string(),
                     post_id.to_string(),
                     reaction_str,
                     custom_reaction_id,
-                )
-                .execute(&self.pool)
+                ).fetch_optional(&mut *tx).await?;
+                if let Some(id) = record {
+                    // then, delete
+                    sqlx::query!(
+                        r#"
+                        DELETE FROM post_reactions WHERE id=?
+                        "#,
+                        id.id.to_string(),
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                    tx.commit().await?;
+                    Some(id.id)
+                } else {
+                    tx.rollback().await?;
+                    None
+                }
+            }
+        };
+
+        let modified_id = match modified_id {
+            None => return Ok(()), // no change occurred
+            Some(id) => id,
+        };
+
+        // Apub should be sent when local user and remote post
+        if user.uri.is_none() {
+            // local user
+            // send apub
+            // LikeActivity with no content
+            // or UndoActivity with LikeActivity
+            let actor = self
+                .finder
+                .find_user_by_specifier(&UserSpecifier::from_id(user.id))
                 .await?;
+            let post = self
+                .fetch_post_locally_stored(&PostSpecifier::from_id(post_id), false)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("post with modified favorite not found"))?;
+
+            let is_add = match action {
+                PostInteractionAction::Add => true,
+                PostInteractionAction::Remove => false,
+            };
+            let activity = self.renderer.render_post_reaction(
+                &modified_id.to_string(),
+                &actor,
+                &post,
+                Some(reaction.to_apub()),
+                is_add,
+            )?;
+
+            let (post, _) = self.get_target_computable_post(post.id).await?;
+            let targets = self.renderer.calculate_post_involved_users(&post, true)?;
+            let inboxes = self.find_target_inboxes(&targets).await?;
+            for inbox in inboxes {
+                let signer = self
+                    .signer
+                    .fetch_signer(&UserSpecifier::from_id(user.id))
+                    .await?;
+                self.req.post_to_inbox(&inbox, &activity, signer).await?;
             }
         }
-
-        // TODO! send apub
 
         return Ok(());
     }
@@ -704,7 +1003,7 @@ impl DBPostCreateService {
     async fn find_target_inboxes(
         &mut self,
         targets: &Vec<TargetedUser>,
-    ) -> Result<Vec<String>, ()> {
+    ) -> Result<Vec<String>, anyhow::Error> {
         let mut inboxes = vec![];
         let mut inbox_set = HashSet::new();
 
@@ -763,6 +1062,7 @@ struct LocalPost {
     created_at: chrono::DateTime<chrono::Utc>,
     mentioned_users: Vec<LocalMentionedUser>,
     repost_of_uri: Option<String>,
+    reply_to_uri: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -829,6 +1129,10 @@ impl ApubRenderablePost for LocalPost {
         self.repost_of_uri.clone()
     }
 
+    fn reply_to_id(&self) -> Option<String> {
+        self.reply_to_uri.clone()
+    }
+
     fn mentioned(&self) -> Vec<crate::models::ApubMentionedUser> {
         self.mentioned_users
             .iter()
@@ -880,6 +1184,13 @@ struct UserPost {
     reposted_by_you: Option<bool>,
     favorited_by_you: Option<bool>,
     bookmarked_by_you: Option<bool>,
+    reaction_str_by_you: Option<String>,
+}
+
+#[derive(Debug)]
+struct ReactionCount {
+    reaction_str: Option<String>,
+    count: i64,
 }
 
 struct UserPostAsPost<'a>(pub &'a UserPost);
@@ -940,12 +1251,13 @@ impl UserPostService for DBUserPostService {
                 p.reply_to_id AS `reply_to_id: Simple`,
                 p.created_at,
                 p.deleted_at,
-                0 AS `count_replies`,
-                0 AS `count_reposts`,
-                0 AS `count_quotes`,
-                NULL AS `reposted_by_you: bool`,
-                NULL AS `favorited_by_you: bool`,
-                NULL AS `bookmarked_by_you: bool`
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1)) AS `reaction_str_by_you?: String`
             FROM posts p
             INNER JOIN users u ON p.poster_id = u.id
             WHERE p.id = ?
@@ -962,6 +1274,10 @@ impl UserPostService for DBUserPostService {
                 )
               )
             "#,
+            viewer_id, viewer_id,
+            viewer_id, viewer_id,
+            viewer_id, viewer_id,
+            viewer_id, viewer_id,
             post_id,
             viewer_id,
             viewer_id.is_some(),
@@ -973,6 +1289,40 @@ impl UserPostService for DBUserPostService {
         .await?;
 
         if let Some(p) = post {
+            let reaction_count = sqlx::query_as!(
+                ReactionCount,
+                r#"
+            SELECT r.reaction_str, COUNT(*) AS `count`
+            FROM post_reactions r
+            WHERE r.post_id=?
+              AND r.reaction_str IS NOT NULL
+            GROUP BY r.reaction_str
+            "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let reaction_count = reaction_count
+                .into_iter()
+                .map(|r| PostReaction {
+                    name: r.reaction_str.unwrap(),
+                    count: r.count,
+                })
+                .collect();
+
+            let mentioned_users = sqlx::query_as!(
+                PostMentionedUser,
+                r#"
+                    SELECT u.id AS `id: Simple`, u.uri AS `uri`, u.username, u.host, u.inbox
+                    FROM post_mentions m
+                    INNER JOIN users u ON m.target_user_id=u.id
+                    WHERE m.post_id=?
+                    "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
             let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
             let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
 
@@ -981,6 +1331,15 @@ impl UserPostService for DBUserPostService {
                 Some(repost_of_id) => {
                     let p = self
                         .fetch_single_post(&PostSpecifier::from_id(repost_of_id), &viewer)
+                        .await?;
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+            let reply_to_uri = match p.reply_to_id {
+                None => None,
+                Some(reply_to_id) => {
+                    let p = self
+                        .fetch_single_post(&PostSpecifier::from_id(reply_to_id), &viewer)
                         .await?;
                     Some(self.id_getter.get_post_id(&p))
                 }
@@ -1005,6 +1364,7 @@ impl UserPostService for DBUserPostService {
                 .repost_of_id(p.repost_of_id)
                 .repost_of_uri(repost_of_uri)
                 .reply_to_id(p.reply_to_id)
+                .reply_to_uri(reply_to_uri)
                 .created_at(chrono::DateTime::from_naive_utc_and_offset(
                     p.created_at,
                     chrono::Utc,
@@ -1015,7 +1375,7 @@ impl UserPostService for DBUserPostService {
                 )
                 .counts(
                     PostCountsBuilder::default()
-                        .reactions(vec![])
+                        .reactions(reaction_count)
                         .replies(p.count_replies)
                         .reposts(p.count_reposts)
                         .quotes(p.count_quotes)
@@ -1025,13 +1385,52 @@ impl UserPostService for DBUserPostService {
                 .reposted_by_you(p.reposted_by_you)
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
-                .mentioned_users(vec![]) // TODO
+                .mentioned_users(mentioned_users)
                 .build()
                 .unwrap())
         } else {
             return Err(PostFetchError::PostNotFound.into());
         }
     }
+
+    // async fn delete_single_post(
+    //     &mut self,
+    //     post: &PostSpecifier,
+    //     viewer: &UserSpecifier,
+    // ) -> Result<(), anyhow::Error> {
+    //     let post = self.fetch_single_post(post, &Some(viewer.clone())).await;
+    //     let post = match post {
+    //         Ok(p) => p,
+    //         Err(e) => match e.downcast::<PostFetchError>() {
+    //             Ok(PostFetchError::PostNotFound) => {
+    //                 return Err(PostDeleteError::PostNotFound.into())
+    //             }
+    //             Err(e) => return Err(e),
+    //         },
+    //     };
+
+    //     // check if viewer is the author
+    //     let viewer_user = self.finder.find_user_by_specifier(viewer).await?;
+    //     if *post.author().id() != viewer_user.id {
+    //         return Err(PostDeleteError::Unauthorized.into());
+    //     }
+
+    //     let mut tx = self.pool.begin().await?;
+
+    //     let post_id = post.id();
+    //     sqlx::query!(
+    //         r#"
+    //         UPDATE posts SET deleted_at=CURRENT_TIMESTAMP WHERE id=?
+    //         "#,
+    //         post_id.to_string()
+    //     )
+    //     .execute(&mut *tx)
+    //     .await?;
+
+    //     tx.commit().await?;
+
+    //     Ok(())
+    // }
 
     async fn fetch_user_posts(
         &mut self,
@@ -1070,12 +1469,13 @@ impl UserPostService for DBUserPostService {
                         p.reply_to_id AS `reply_to_id: Simple`,
                         p.created_at,
                         p.deleted_at,
-                        0 AS `count_replies`,
-                        0 AS `count_reposts`,
-                        0 AS `count_quotes`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
                         NULL AS `reposted_by_you: bool`,
                         NULL AS `favorited_by_you: bool`,
-                        NULL AS `bookmarked_by_you: bool`
+                        NULL AS `bookmarked_by_you: bool`,
+                        NULL AS `reaction_str_by_you?: String`
                     FROM posts p
                     INNER JOIN users u ON p.poster_id = u.id
                     WHERE p.poster_id=?
@@ -1112,12 +1512,13 @@ impl UserPostService for DBUserPostService {
                         p.reply_to_id AS `reply_to_id: Simple`,
                         p.created_at,
                         p.deleted_at,
-                        0 AS `count_replies`,
-                        0 AS `count_reposts`,
-                        0 AS `count_quotes`,
-                        NULL AS `reposted_by_you: bool`,
-                        NULL AS `favorited_by_you: bool`,
-                        NULL AS `bookmarked_by_you: bool`
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                        (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1) AS `reposted_by_you: bool`,
+                        (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1) AS `favorited_by_you: bool`,
+                        (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1) AS `bookmarked_by_you: bool`,
+                        (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1) AS `reaction_str_by_you?: String`
                     FROM posts p
                     INNER JOIN users u ON p.poster_id = u.id
                     WHERE p.poster_id=?
@@ -1132,6 +1533,10 @@ impl UserPostService for DBUserPostService {
                     ORDER BY p.created_at DESC
                     LIMIT ?
                     "#,
+                    viewer.id.to_string(),
+                    viewer.id.to_string(),
+                    viewer.id.to_string(),
+                    viewer.id.to_string(),
                     user.id.to_string(),
                     viewer.id.to_string(),
                     user.id.to_string(),
@@ -1149,6 +1554,40 @@ impl UserPostService for DBUserPostService {
 
         let mut entries = Vec::new();
         for p in posts {
+            let reaction_count = sqlx::query_as!(
+                ReactionCount,
+                r#"
+            SELECT r.reaction_str, COUNT(*) AS `count`
+            FROM post_reactions r
+            WHERE r.post_id=?
+              AND r.reaction_str IS NOT NULL
+            GROUP BY r.reaction_str
+            "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let reaction_count = reaction_count
+                .into_iter()
+                .map(|r| PostReaction {
+                    name: r.reaction_str.unwrap(),
+                    count: r.count,
+                })
+                .collect();
+
+            let mentioned_users = sqlx::query_as!(
+                PostMentionedUser,
+                r#"
+                SELECT u.id AS `id: Simple`, u.uri AS `uri`, u.username, u.host, u.inbox
+                FROM post_mentions m
+                INNER JOIN users u ON m.target_user_id=u.id
+                WHERE m.post_id=?
+                "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
             let entry = {
                 let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
                 let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
@@ -1158,6 +1597,15 @@ impl UserPostService for DBUserPostService {
                     Some(repost_of_id) => {
                         let p = self
                             .fetch_single_post(&PostSpecifier::from_id(repost_of_id), &viewer)
+                            .await?;
+                        Some(self.id_getter.get_post_id(&p))
+                    }
+                };
+                let reply_to_uri = match p.reply_to_id {
+                    None => None,
+                    Some(reply_to_id) => {
+                        let p = self
+                            .fetch_single_post(&PostSpecifier::from_id(reply_to_id), &viewer)
                             .await?;
                         Some(self.id_getter.get_post_id(&p))
                     }
@@ -1182,6 +1630,7 @@ impl UserPostService for DBUserPostService {
                     .repost_of_id(p.repost_of_id)
                     .repost_of_uri(repost_of_uri)
                     .reply_to_id(p.reply_to_id)
+                    .reply_to_uri(reply_to_uri)
                     .created_at(chrono::DateTime::from_naive_utc_and_offset(
                         p.created_at,
                         chrono::Utc,
@@ -1192,7 +1641,7 @@ impl UserPostService for DBUserPostService {
                     )
                     .counts(
                         PostCountsBuilder::default()
-                            .reactions(vec![])
+                            .reactions(reaction_count)
                             .replies(p.count_replies)
                             .reposts(p.count_reposts)
                             .quotes(p.count_quotes)
@@ -1202,7 +1651,7 @@ impl UserPostService for DBUserPostService {
                     .reposted_by_you(p.reposted_by_you)
                     .favorited_by_you(p.favorited_by_you)
                     .bookmarked_by_you(p.bookmarked_by_you)
-                    .mentioned_users(vec![]) // TODO
+                    .mentioned_users(mentioned_users)
                     .build()
                     .unwrap()
             };
@@ -1241,12 +1690,13 @@ impl UserPostService for DBUserPostService {
                 p.reply_to_id AS `reply_to_id: Simple`,
                 p.created_at,
                 p.deleted_at,
-                0 AS `count_replies`,
-                0 AS `count_reposts`,
-                0 AS `count_quotes`,
-                NULL AS `reposted_by_you: bool`,
-                NULL AS `favorited_by_you: bool`,
-                NULL AS `bookmarked_by_you: bool`
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1) AS `reposted_by_you: bool`,
+                (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1) AS `favorited_by_you: bool`,
+                (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1) AS `bookmarked_by_you: bool`,
+                (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1) AS `reaction_str_by_you?: String`
             FROM posts p
             INNER JOIN users u ON p.poster_id = u.id
             WHERE (
@@ -1261,6 +1711,10 @@ impl UserPostService for DBUserPostService {
             LIMIT ?
             "#,
             user.id.to_string(),
+            user.id.to_string(),
+            user.id.to_string(),
+            user.id.to_string(),
+            user.id.to_string(),
             options.include_all_public,
             user.id.to_string(),
             user.id.to_string(),
@@ -1273,6 +1727,40 @@ impl UserPostService for DBUserPostService {
 
         let mut entries = Vec::new();
         for p in posts {
+            let reaction_count = sqlx::query_as!(
+                ReactionCount,
+                r#"
+            SELECT r.reaction_str, COUNT(*) AS `count`
+            FROM post_reactions r
+            WHERE r.post_id=?
+              AND r.reaction_str IS NOT NULL
+            GROUP BY r.reaction_str
+            "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let reaction_count = reaction_count
+                .into_iter()
+                .map(|r| PostReaction {
+                    name: r.reaction_str.unwrap(),
+                    count: r.count,
+                })
+                .collect();
+
+            let mentioned_users = sqlx::query_as!(
+                PostMentionedUser,
+                r#"
+                    SELECT u.id AS `id: Simple`, u.uri AS `uri`, u.username, u.host, u.inbox
+                    FROM post_mentions m
+                    INNER JOIN users u ON m.target_user_id=u.id
+                    WHERE m.post_id=?
+                    "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
             let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
             let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
 
@@ -1282,6 +1770,18 @@ impl UserPostService for DBUserPostService {
                     let p = self
                         .fetch_single_post(
                             &PostSpecifier::from_id(repost_of_id),
+                            &Some(user_spec.clone()),
+                        )
+                        .await?;
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+            let reply_to_uri = match p.repost_of_id {
+                None => None,
+                Some(reply_to_id) => {
+                    let p = self
+                        .fetch_single_post(
+                            &PostSpecifier::from_id(reply_to_id),
                             &Some(user_spec.clone()),
                         )
                         .await?;
@@ -1308,6 +1808,7 @@ impl UserPostService for DBUserPostService {
                 .repost_of_id(p.repost_of_id)
                 .repost_of_uri(repost_of_uri)
                 .reply_to_id(p.reply_to_id)
+                .reply_to_uri(reply_to_uri)
                 .created_at(chrono::DateTime::from_naive_utc_and_offset(
                     p.created_at,
                     chrono::Utc,
@@ -1318,7 +1819,7 @@ impl UserPostService for DBUserPostService {
                 )
                 .counts(
                     PostCountsBuilder::default()
-                        .reactions(vec![])
+                        .reactions(reaction_count)
                         .replies(p.count_replies)
                         .reposts(p.count_reposts)
                         .quotes(p.count_quotes)
@@ -1328,7 +1829,7 @@ impl UserPostService for DBUserPostService {
                 .reposted_by_you(p.reposted_by_you)
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
-                .mentioned_users(vec![]) // TODO
+                .mentioned_users(mentioned_users)
                 .build()
                 .unwrap();
             entries.push(entry);

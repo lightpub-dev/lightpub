@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                        DELETE FROM post_favorites WHERE id=?\n                        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ad88073f1f8bd6eed860ba0abb935de054806c19cf0a7e698432030253e0ae75"
+}

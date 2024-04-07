@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "\n                    SELECT\n                        p.id AS `id: Simple`,\n                        p.uri AS `uri`,\n                        u.id `author_id: Simple`,\n                        u.uri AS `author_uri`,\n                        u.username AS `author_username`,\n                        u.host AS `author_host`,\n                        u.nickname AS `author_nickname`,\n                        p.content,\n                        p.privacy,\n                        p.repost_of_id AS `repost_of_id: Simple`,\n                        p.reply_to_id AS `reply_to_id: Simple`,\n                        p.created_at,\n                        p.deleted_at,\n                        0 AS `count_replies`,\n                        0 AS `count_reposts`,\n                        0 AS `count_quotes`,\n                        NULL AS `reposted_by_you: bool`,\n                        NULL AS `favorited_by_you: bool`,\n                        NULL AS `bookmarked_by_you: bool`\n                    FROM posts p\n                    INNER JOIN users u ON p.poster_id = u.id\n                    WHERE p.poster_id=?\n                      AND p.privacy IN ('public', 'unlisted')\n                      AND (NOT ? OR p.created_at <= ?)\n                      AND (? OR p.deleted_at IS NULL)\n                    ORDER BY p.created_at DESC\n                    LIMIT ?\n                    ",
+  "query": "\n                    SELECT\n                        p.id AS `id: Simple`,\n                        p.uri AS `uri`,\n                        u.id `author_id: Simple`,\n                        u.uri AS `author_uri`,\n                        u.username AS `author_username`,\n                        u.host AS `author_host`,\n                        u.nickname AS `author_nickname`,\n                        p.content,\n                        p.privacy,\n                        p.repost_of_id AS `repost_of_id: Simple`,\n                        p.reply_to_id AS `reply_to_id: Simple`,\n                        p.created_at,\n                        p.deleted_at,\n                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,\n                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,\n                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,\n                        NULL AS `reposted_by_you: bool`,\n                        NULL AS `favorited_by_you: bool`,\n                        NULL AS `bookmarked_by_you: bool`,\n                        NULL AS `reaction_str_by_you?: String`\n                    FROM posts p\n                    INNER JOIN users u ON p.poster_id = u.id\n                    WHERE p.poster_id=?\n                      AND p.privacy IN ('public', 'unlisted')\n                      AND (NOT ? OR p.created_at <= ?)\n                      AND (? OR p.deleted_at IS NULL)\n                    ORDER BY p.created_at DESC\n                    LIMIT ?\n                    ",
   "describe": {
     "columns": [
       {
@@ -135,32 +135,32 @@
       },
       {
         "ordinal": 13,
-        "name": "count_replies",
+        "name": "count_replies!",
         "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | BINARY",
+          "type": "LongLong",
+          "flags": "BINARY",
           "char_set": 63,
-          "max_size": 1
+          "max_size": 21
         }
       },
       {
         "ordinal": 14,
-        "name": "count_reposts",
+        "name": "count_reposts!",
         "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | BINARY",
+          "type": "LongLong",
+          "flags": "BINARY",
           "char_set": 63,
-          "max_size": 1
+          "max_size": 21
         }
       },
       {
         "ordinal": 15,
-        "name": "count_quotes",
+        "name": "count_quotes!",
         "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | BINARY",
+          "type": "LongLong",
+          "flags": "BINARY",
           "char_set": 63,
-          "max_size": 1
+          "max_size": 21
         }
       },
       {
@@ -192,6 +192,16 @@
           "char_set": 63,
           "max_size": 0
         }
+      },
+      {
+        "ordinal": 19,
+        "name": "reaction_str_by_you?: String",
+        "type_info": {
+          "type": "Null",
+          "flags": "BINARY",
+          "char_set": 63,
+          "max_size": 0
+        }
       }
     ],
     "parameters": {
@@ -211,13 +221,14 @@
       true,
       false,
       true,
-      false,
-      false,
-      false,
+      true,
+      true,
+      true,
+      true,
       true,
       true,
       true
     ]
   },
-  "hash": "a5854b2e2f35b93533e3ed1dc582fbb1cf7278c0f062f6d3fd729c2445080360"
+  "hash": "2a3cdbd81c22689d118d614fc8429c08c07d69f53acb7f8c3b59df474fcf320d"
 }

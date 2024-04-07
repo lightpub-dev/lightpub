@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::fmt::Simple;
 
+use crate::utils::user::UserSpecifier;
+
 use self::api_response::{PostAuthor, PostMentionedUser};
 #[derive(Debug)]
 pub struct User {
@@ -23,6 +25,12 @@ pub struct User {
     // pub private_key: Option<String>, // intentionally omitted to prevent accidental private key leaks
     pub public_key: Option<String>,
     pub created_at: chrono::NaiveDateTime,
+}
+
+impl User {
+    pub fn as_specifier(&self) -> UserSpecifier {
+        UserSpecifier::from_id(self.id)
+    }
 }
 
 impl HasRemoteUri for User {
@@ -81,14 +89,38 @@ impl FromStr for PostPrivacy {
 pub trait HasRemoteUri {
     fn get_local_id(&self) -> String;
     fn get_remote_uri(&self) -> Option<String>;
+
+    fn as_remote_uri_only<'a>(&'a self) -> HasRemoteUriOnlyObject<'a, Self> {
+        HasRemoteUriOnlyObject { obj: self }
+    }
 }
 
-#[derive(Debug, Clone, Builder, Getters)]
+pub struct HasRemoteUriOnlyObject<'a, T: ?Sized> {
+    obj: &'a T,
+}
+
+impl<T: HasRemoteUri> HasRemoteUriOnly for HasRemoteUriOnlyObject<'_, T> {
+    fn get_remote_uri(&self) -> Option<String> {
+        self.obj.get_remote_uri()
+    }
+}
+
+pub trait HasRemoteUriOnly {
+    fn get_remote_uri(&self) -> Option<String>;
+}
+
+#[derive(Debug, Clone, Getters)]
 pub struct ApubMentionedUser {
     pub inbox: Option<String>,
     pub username: String,
     pub host: Option<String>,
     pub uri: Option<String>,
+}
+
+impl HasRemoteUriOnly for ApubMentionedUser {
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
 }
 
 impl From<&PostAuthor> for ApubMentionedUser {
@@ -124,6 +156,7 @@ pub trait ApubRenderablePost {
     fn deleted_at(&self) -> Option<chrono::DateTime<chrono::Utc>>;
     fn mentioned(&self) -> Vec<ApubMentionedUser>;
     fn repost_of_id(&self) -> Option<String>;
+    fn reply_to_id(&self) -> Option<String>;
 
     fn created_at_fixed_offset(&self) -> chrono::DateTime<chrono::FixedOffset> {
         self.created_at()
@@ -134,6 +167,40 @@ pub trait ApubRenderablePost {
         self.deleted_at()
             .map(|dt| dt.with_timezone(&chrono::FixedOffset::east_opt(0).unwrap()))
     }
+
+    fn as_target_computable(&self) -> ApubPostTargetComputableObject<'_, Self> {
+        ApubPostTargetComputableObject { obj: self }
+    }
+}
+
+pub struct ApubPostTargetComputableObject<'a, T: ?Sized> {
+    obj: &'a T,
+}
+
+impl<T: ApubRenderablePost> ApubPostTargetComputable for ApubPostTargetComputableObject<'_, T> {
+    type Poster = T::Poster;
+    type Actor = ApubMentionedUser;
+
+    fn privacy(&self) -> PostPrivacy {
+        self.obj.privacy()
+    }
+
+    fn poster(&self) -> Self::Poster {
+        self.obj.poster()
+    }
+
+    fn mentioned(&self) -> Vec<Self::Actor> {
+        self.obj.mentioned()
+    }
+}
+
+pub trait ApubPostTargetComputable {
+    type Poster: HasRemoteUri;
+    type Actor: HasRemoteUriOnly;
+
+    fn privacy(&self) -> PostPrivacy;
+    fn poster(&self) -> Self::Poster;
+    fn mentioned(&self) -> Vec<Self::Actor>;
 }
 
 pub trait ApubRenderableUser {
@@ -230,8 +297,9 @@ pub mod api_response {
 
     use super::{ApubRenderablePost, HasRemoteUri, PostPrivacy};
 
-    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    #[derive(Debug, Clone, Serialize)]
     pub struct PostMentionedUser {
+        pub id: Simple,
         pub inbox: Option<String>,
         pub username: String,
         pub host: Option<String>,
@@ -248,6 +316,7 @@ pub mod api_response {
         repost_of_id: Option<Simple>,
         repost_of_uri: Option<String>,
         reply_to_id: Option<Simple>,
+        reply_to_uri: Option<String>,
         created_at: chrono::DateTime<chrono::Utc>,
         mentioned_users: Vec<PostMentionedUser>,
         #[serde(skip)]
@@ -309,6 +378,10 @@ pub mod api_response {
         fn repost_of_id(&self) -> Option<String> {
             self.repost_of_uri.as_ref().map(|s| s.to_string())
         }
+
+        fn reply_to_id(&self) -> Option<String> {
+            self.repost_of_uri.as_ref().map(|s| s.to_string())
+        }
     }
 
     impl PaginatableItem for UserPostEntry {
@@ -327,10 +400,10 @@ pub mod api_response {
         quotes: i64,
     }
 
-    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    #[derive(Debug, Clone, Serialize)]
     pub struct PostReaction {
-        name: String,
-        count: i64,
+        pub name: String,
+        pub count: i64,
     }
 
     #[derive(Debug, Clone, Builder, Getters, Serialize)]
@@ -723,11 +796,26 @@ pub mod reaction {
     use serde::{Deserialize, Serialize};
     use thiserror::Error;
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone)]
     pub enum Reaction {
         Unicode(String),
         Custom(CustomReaction),
     }
+
+    impl Reaction {
+        pub fn to_apub(&self) -> &str {
+            match self {
+                Reaction::Unicode(s) => s,
+                Reaction::Custom(_) => todo!("custom emoji"),
+            }
+        }
+    }
+
+    // #[derive(Debug, Clone)]
+    // pub struct UnicodeEmoji {
+    //     pub original: String,
+    //     pub short_code: Option<String>,
+    // }
 
     #[derive(Debug, Error)]
     pub enum ReactionError {
@@ -744,7 +832,7 @@ pub mod reaction {
             } else {
                 let emoji = emojis::get(value.as_str());
                 match emoji {
-                    Some(e) => Ok(Reaction::Unicode(value)),
+                    Some(_e) => Ok(Reaction::Unicode(value)),
                     None => Err(ReactionError::InvalidUnicodeEmoji),
                 }
             }

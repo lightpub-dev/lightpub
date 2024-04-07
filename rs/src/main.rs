@@ -45,18 +45,19 @@ use config::Config;
 use lapin::ConnectionProperties;
 use models::apub::LikeActivity;
 use models::http::{HeaderMapWrapper, Method};
+use models::reaction::ReactionError;
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use services::apub::render::RenderedNoteObject;
 use services::db::{new_all_user_finder_service, new_db_key_fetcher_service};
-use services::PostFetchError;
 use services::{
     db::{new_auth_service, new_local_user_finder_service},
     id::IDGetterService,
     AuthError, LocalUserFindError, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
     UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
 };
+use services::{PostDeleteError, PostFetchError};
 use sqlx::mysql::MySqlPoolOptions;
 use state::AppState;
 use std::borrow::BorrowMut;
@@ -1030,7 +1031,10 @@ async fn user_inbox(
                 app.config().clone(),
             );
             post_service
-                .delete_post(&PostSpecifier::from_uri(note_id))
+                .delete_post(
+                    &PostSpecifier::from_uri(note_id),
+                    &Some(authed_user.as_specifier()),
+                )
                 .await
                 .map_err(|e| {
                     warn!("Failed to delete post: {:?}", e);
@@ -1321,6 +1325,45 @@ async fn get_single_post(
             Err(ErrorResponse::new_status(500, "internal server error"))
         }
         Ok(p) => Ok(HttpResponse::Ok().json(p)),
+    }
+}
+
+#[delete("/post/{post_id}")]
+async fn delete_single_post(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let viewer = auth.must_auth()?;
+
+    let post_id = &PostSpecifier::from_id(path.post_id);
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
+
+    let post = post_service
+        .delete_post(post_id, &Some(viewer.as_specifier()))
+        .await;
+
+    match post {
+        Err(e) => match e.downcast_ref::<PostDeleteError>() {
+            Some(PostDeleteError::PostNotFound) => {
+                return Err(ErrorResponse::new_status(404, "post not found"));
+            }
+            Some(PostDeleteError::Unauthorized) => {
+                return Err(ErrorResponse::new_status(
+                    403,
+                    "only the author can delete the post",
+                ));
+            }
+            None => {
+                error!("Failed to delete post: {:?}", e);
+                return Err(ErrorResponse::new_status(500, "internal server error"));
+            }
+        },
+        Ok(_) => Ok(HttpResponse::Ok().finish()),
     }
 }
 
@@ -1738,6 +1781,59 @@ async fn delete_post_bookmark(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct PostReactionRequest {
+    reaction: String,
+    add: bool,
+}
+
+#[post("/post/{post_id}/reaction")]
+async fn modify_post_reaction(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    body: web::Json<PostReactionRequest>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let post_spec = &path.post_id.into();
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
+
+    let reaction = Reaction::try_from(body.reaction.clone());
+    let reaction = match reaction {
+        Ok(r) => r,
+        Err(e) => match e {
+            ReactionError::InvalidUnicodeEmoji => {
+                return Err(ErrorResponse::new_status(400, "invalid reaction"));
+            }
+        },
+    };
+
+    post_service
+        .modify_reaction(
+            &authed_user.id.into(),
+            post_spec,
+            &reaction,
+            false,
+            if body.add {
+                PostInteractionAction::Add
+            } else {
+                PostInteractionAction::Remove
+            },
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to add favorite: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -1840,10 +1936,12 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_outbox)
             .service(timeline)
             .service(get_single_post)
+            .service(delete_single_post)
             .service(add_post_favorite)
             .service(add_post_bookmark)
             .service(delete_post_favorite)
             .service(delete_post_bookmark)
+            .service(modify_post_reaction)
     })
     .bind(("0.0.0.0", 8000))?
     .run()

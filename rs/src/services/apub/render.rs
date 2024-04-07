@@ -4,10 +4,13 @@ use uuid::Uuid;
 
 use crate::models::apub::{
     Activity, AnnounceActivity, AnnounceActivityBuilder, CreatableObject, CreateActivity,
-    CreateActivityBuilder, IdOrObject, NoteBuilder, Person, PersonBuilder, PublicKeyBuilder,
-    TombstoneBuilder, PUBLIC,
+    CreateActivityBuilder, DeleteActivity, IdOrObject, LikeActivity, NoteBuilder, Person,
+    PersonBuilder, PublicKeyBuilder, TombstoneBuilder, UndoActivity, UndoableActivity, PUBLIC,
 };
-use crate::models::{ApubRenderablePost, ApubRenderableUser, HasRemoteUri, PostPrivacy};
+use crate::models::{
+    ApubPostTargetComputable, ApubRenderablePost, ApubRenderableUser, HasRemoteUri,
+    HasRemoteUriOnly, PostPrivacy,
+};
 use crate::services::id::IDGetterService;
 use crate::services::id::UserAttribute;
 use crate::utils::user::UserSpecifier;
@@ -53,6 +56,12 @@ pub struct RenderedNoteCreate {
     targeted_users: Vec<TargetedUser>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RenderedNoteDelete {
+    pub note_delete: DeleteActivity,
+    pub targeted_users: Vec<TargetedUser>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RenderedNoteCreateActivity {
@@ -81,9 +90,60 @@ impl ApubRendererService {
         Self { id_getter }
     }
 
-    fn calculate_to_and_cc(
+    pub fn render_post_reaction<A, P>(
         &self,
-        post: &impl ApubRenderablePost,
+        internal_reaction_id: &str,
+        actor: &A,
+        post: &P,
+        reaction: Option<impl Into<String>>,
+        is_add: bool,
+    ) -> Result<Activity, anyhow::Error>
+    where
+        A: HasRemoteUri,
+        P: HasRemoteUri,
+    {
+        let activity_id = self
+            .id_getter
+            .get_reaction_id(internal_reaction_id, reaction.is_some());
+        let actor_id = self.id_getter.get_user_id(actor);
+        let post_id = self.id_getter.get_post_id(post);
+        let content = reaction.map(|r| r.into());
+
+        let like = LikeActivity {
+            id: activity_id,
+            actor: actor_id.clone(),
+            object: post_id,
+            content: content,
+            published: None,
+        };
+        if is_add {
+            Ok(Activity::Like(like))
+        } else {
+            Ok(Activity::Undo(UndoActivity {
+                id: None,
+                actor: actor_id,
+                object: UndoableActivity::Like(like),
+            }))
+        }
+    }
+
+    pub fn calculate_post_involved_users<P: ApubPostTargetComputable>(
+        &self,
+        post: &P,
+        include_poster: bool,
+    ) -> Result<Vec<TargetedUser>, anyhow::Error> {
+        let (_, _, mut targeted_users) = self.calculate_to_and_cc(post)?;
+        if include_poster {
+            targeted_users.push(TargetedUser::Mentioned(UserSpecifier::from_id(
+                Uuid::from_str(&post.poster().get_local_id()).unwrap(),
+            )));
+        }
+        Ok(targeted_users)
+    }
+
+    fn calculate_to_and_cc<P: ApubPostTargetComputable>(
+        &self,
+        post: &P,
     ) -> Result<(Vec<String>, Vec<String>, Vec<TargetedUser>), anyhow::Error> {
         let privacy = post.privacy();
         let poster = &post.poster();
@@ -130,7 +190,7 @@ impl ApubRendererService {
 
         // add mentioned users
         for user in post.mentioned() {
-            let uri = user.uri();
+            let uri = user.get_remote_uri();
             if let Some(uri) = uri {
                 to.push(uri.clone());
                 targets.push(TargetedUser::Mentioned(UserSpecifier::from_url(uri)));
@@ -193,6 +253,32 @@ impl ApubRendererService {
         })
     }
 
+    pub fn render_delete_post<P, A>(
+        &self,
+        post: &P,
+        author: &A,
+    ) -> Result<RenderedNoteDelete, anyhow::Error>
+    where
+        P: ApubPostTargetComputable + HasRemoteUri,
+        A: HasRemoteUri,
+    {
+        let (_, _, targeted_users) = self.calculate_to_and_cc(post)?;
+
+        let post_id = self.id_getter.get_post_id(post);
+        let actor = self.id_getter.get_user_id(author);
+
+        let note_delete = DeleteActivity {
+            id: None,
+            actor,
+            object: IdOrObject::Id(post_id),
+        };
+
+        Ok(RenderedNoteDelete {
+            note_delete,
+            targeted_users,
+        })
+    }
+
     pub fn render_post(
         &self,
         post: &(impl ApubRenderablePost + HasRemoteUri),
@@ -201,7 +287,7 @@ impl ApubRendererService {
 
         let poster_id = self.id_getter.get_user_id(&post.poster());
 
-        let (to, cc, targeted_users) = self.calculate_to_and_cc(post)?;
+        let (to, cc, targeted_users) = self.calculate_to_and_cc(&post.as_target_computable())?;
 
         let (note, targeted_users) = {
             let note = if let Some(content) = post.content() {
@@ -215,6 +301,7 @@ impl ApubRendererService {
                             .to(to)
                             .cc(cc)
                             .published(post.created_at_fixed_offset().to_utc())
+                            .in_reply_to(post.reply_to_id().map(|id| Box::new(IdOrObject::Id(id))))
                             .build()
                             .unwrap(),
                     ),

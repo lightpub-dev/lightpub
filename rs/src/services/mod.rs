@@ -491,7 +491,11 @@ pub trait PostCreateService {
         req: &PostCreateRequest,
     ) -> Result<Simple, ServiceError<PostCreateError>>;
 
-    async fn delete_post(&mut self, req: &PostSpecifier) -> Result<(), anyhow::Error>;
+    async fn delete_post(
+        &mut self,
+        req: &PostSpecifier,
+        actor: &Option<UserSpecifier>,
+    ) -> Result<(), anyhow::Error>;
 
     async fn modify_favorite(
         &mut self,
@@ -602,7 +606,7 @@ pub trait UserFollowService {
     ) -> Result<bool, anyhow::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PostToInboxError {}
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -679,9 +683,11 @@ pub trait ApubFollowService {
     ) -> Result<AcceptActivity, anyhow::Error>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum SignerError {
+    #[error("signer not found")]
     UserNotFound,
+    #[error("private key not set for the signer")]
     PrivateKeyNotSet,
 }
 
@@ -719,6 +725,14 @@ pub enum PostInteractionAction {
     Remove,
 }
 
+#[derive(Debug, Clone, Error)]
+pub enum PostDeleteError {
+    #[error("post not found")]
+    PostNotFound,
+    #[error("user not authorized to delete the post")]
+    Unauthorized,
+}
+
 #[async_trait]
 pub trait UserPostService {
     async fn fetch_user_posts(
@@ -739,6 +753,12 @@ pub trait UserPostService {
         post: &PostSpecifier,
         viewer: &Option<UserSpecifier>,
     ) -> Result<UserPostEntry, anyhow::Error>;
+
+    // async fn delete_single_post(
+    //     &mut self,
+    //     post: &PostSpecifier,
+    //     viewer: &UserSpecifier,
+    // ) -> Result<(), anyhow::Error>;
 }
 
 #[async_trait]

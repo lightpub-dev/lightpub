@@ -101,6 +101,15 @@ impl IDGetterService {
         }
     }
 
+    pub fn get_reaction_id(&self, internal_reaction_id: &str, with_emoji: bool) -> String {
+        format!(
+            "{}/{}/{}",
+            self.config.base_url(),
+            if with_emoji { "reaction" } else { "favorite" },
+            internal_reaction_id
+        )
+    }
+
     pub fn get_follower_request_id(&self, follow_req: &impl HasRemoteUri) -> String {
         if let Some(uri) = follow_req.get_remote_uri() {
             uri
