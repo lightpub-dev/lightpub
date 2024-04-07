@@ -459,6 +459,17 @@ impl DBPostCreateService {
                     Some(self.id_getter.get_post_id(&p))
                 }
             };
+            let reply_to_uri = match reply_to_id {
+                None => None,
+                Some(id) => {
+                    let p = self
+                        .fetch_post_locally_stored(&PostSpecifier::ID(id.into()), false)
+                        .await?
+                        .expect("reply should exist");
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+
             let post = LocalPost {
                 id: post_id,
                 poster: LocalPoster { id: poster_id },
@@ -470,6 +481,7 @@ impl DBPostCreateService {
                 ),
                 mentioned_users,
                 repost_of_uri,
+                reply_to_uri,
             };
             let note = self
                 .renderer
@@ -511,6 +523,17 @@ impl DBPostCreateService {
                     self.id_getter.get_post_id(&p)
                 }
             };
+            let reply_to_uri = match reply_to_id {
+                None => None,
+                Some(id) => {
+                    let p = self
+                        .fetch_post_locally_stored(&PostSpecifier::ID(id.into()), false)
+                        .await?
+                        .expect("reply should exist");
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
+
             let post = LocalPost {
                 id: post_id,
                 poster: LocalPoster { id: poster_id },
@@ -522,6 +545,7 @@ impl DBPostCreateService {
                 ),
                 mentioned_users,
                 repost_of_uri: Some(repost_of_uri),
+                reply_to_uri,
             };
             let note = self
                 .renderer
@@ -909,6 +933,7 @@ struct LocalPost {
     created_at: chrono::DateTime<chrono::Utc>,
     mentioned_users: Vec<LocalMentionedUser>,
     repost_of_uri: Option<String>,
+    reply_to_uri: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -973,6 +998,10 @@ impl ApubRenderablePost for LocalPost {
 
     fn repost_of_id(&self) -> Option<String> {
         self.repost_of_uri.clone()
+    }
+
+    fn reply_to_id(&self) -> Option<String> {
+        self.reply_to_uri.clone()
     }
 
     fn mentioned(&self) -> Vec<crate::models::ApubMentionedUser> {
@@ -1131,6 +1160,15 @@ impl UserPostService for DBUserPostService {
                     Some(self.id_getter.get_post_id(&p))
                 }
             };
+            let reply_to_uri = match p.reply_to_id {
+                None => None,
+                Some(reply_to_id) => {
+                    let p = self
+                        .fetch_single_post(&PostSpecifier::from_id(reply_to_id), &viewer)
+                        .await?;
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
 
             Ok(UserPostEntryBuilder::default()
                 .id(p.id)
@@ -1151,6 +1189,7 @@ impl UserPostService for DBUserPostService {
                 .repost_of_id(p.repost_of_id)
                 .repost_of_uri(repost_of_uri)
                 .reply_to_id(p.reply_to_id)
+                .reply_to_uri(reply_to_uri)
                 .created_at(chrono::DateTime::from_naive_utc_and_offset(
                     p.created_at,
                     chrono::Utc,
@@ -1308,6 +1347,15 @@ impl UserPostService for DBUserPostService {
                         Some(self.id_getter.get_post_id(&p))
                     }
                 };
+                let reply_to_uri = match p.reply_to_id {
+                    None => None,
+                    Some(reply_to_id) => {
+                        let p = self
+                            .fetch_single_post(&PostSpecifier::from_id(reply_to_id), &viewer)
+                            .await?;
+                        Some(self.id_getter.get_post_id(&p))
+                    }
+                };
 
                 UserPostEntryBuilder::default()
                     .id(p.id)
@@ -1328,6 +1376,7 @@ impl UserPostService for DBUserPostService {
                     .repost_of_id(p.repost_of_id)
                     .repost_of_uri(repost_of_uri)
                     .reply_to_id(p.reply_to_id)
+                    .reply_to_uri(reply_to_uri)
                     .created_at(chrono::DateTime::from_naive_utc_and_offset(
                         p.created_at,
                         chrono::Utc,
@@ -1434,6 +1483,18 @@ impl UserPostService for DBUserPostService {
                     Some(self.id_getter.get_post_id(&p))
                 }
             };
+            let reply_to_uri = match p.repost_of_id {
+                None => None,
+                Some(reply_to_id) => {
+                    let p = self
+                        .fetch_single_post(
+                            &PostSpecifier::from_id(reply_to_id),
+                            &Some(user_spec.clone()),
+                        )
+                        .await?;
+                    Some(self.id_getter.get_post_id(&p))
+                }
+            };
 
             let entry = UserPostEntryBuilder::default()
                 .id(p.id)
@@ -1454,6 +1515,7 @@ impl UserPostService for DBUserPostService {
                 .repost_of_id(p.repost_of_id)
                 .repost_of_uri(repost_of_uri)
                 .reply_to_id(p.reply_to_id)
+                .reply_to_uri(reply_to_uri)
                 .created_at(chrono::DateTime::from_naive_utc_and_offset(
                     p.created_at,
                     chrono::Utc,
