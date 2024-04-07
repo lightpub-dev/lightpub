@@ -277,6 +277,7 @@ services:
     user: "911:911"
     command: chmod o= /etc/pleroma/config.exs && /pleroma/docker-entrypoint.sh
 
+  # Lightpub instnace (1)
   lightpub_api:
     build:
       context: .
@@ -383,6 +384,95 @@ services:
     profiles:
       - lightpub-dev
 
+  # Lightpub instance (2)
+  lightpub_api2:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    healthcheck:
+      test: curl -s -S -o /dev/null http://localhost:8000
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - internal_network
+      - external_network
+    ports:
+      - 18000:8000
+    profiles:
+      - lightpub2
+    depends_on:
+      lightpub_db2:
+        condition: service_healthy
+      lightpub_cache2:
+        condition: service_healthy
+      lightpub_queue2:
+        condition: service_healthy
+    volumes:
+      - ./lightpub.yml.docker2:/lightpub/lightpub.yml.sample
+      - ./refinery.docker2.toml:/lightpub/refinery.toml
+
+  lightpub_db2:
+    image: mariadb:latest
+    networks:
+      - internal_network
+      - external_network
+    ports:
+      - 13306:3306
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lightpub
+      MYSQL_USER: lightpub
+      MYSQL_PASSWORD: lightpub
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized",
+        ]
+      start_period: 1m
+      start_interval: 10s
+      interval: 1m
+      timeout: 5s
+      retries: 3
+    volumes:
+      - lightpub_db2_data:/var/lib/mysql
+    profiles:
+      - lightpub2
+
+  lightpub_queue2:
+    image: cloudamqp/lavinmq
+    networks:
+      - internal_network
+      - external_network
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+      start_interval: 2s
+    ports:
+      - 5673:5672 # amqp
+      - 15673:15672 # management
+    profiles:
+      - lightpub2
+
+  lightpub_cache2:
+    build:
+      context: memcached
+      dockerfile: Dockerfile
+    container_name: lightpub-cache
+    ports:
+      - "11212:11211"
+    profiles:
+      - lightpub2
+
+  # Federation test runner
   test_runner:
     build:
       context: ./tests_federation
