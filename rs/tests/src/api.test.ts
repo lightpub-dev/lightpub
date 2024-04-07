@@ -1013,6 +1013,7 @@ describe("favorite and bookmark", function () {
     });
     let favoriteSuccess = false;
     let bookmarkSuccess = false;
+    let reactionSuccess = false;
     it("can favorite a public post", async function () {
         const res = await axios.put(
             "/post/" + postId + "/favorite",
@@ -1035,6 +1036,20 @@ describe("favorite and bookmark", function () {
         expect(res.status).equal(200);
         bookmarkSuccess = true;
     });
+    it("can create a reaction", async function () {
+        const res = await axios.post(
+            "/post/" + postId + "/reaction",
+            {
+                reaction: "🎉",
+                add: true,
+            },
+            {
+                ...authHeader(userToken2),
+            }
+        );
+        expect(res.status).equal(200);
+        reactionSuccess = true;
+    });
     it("can delete a favorite", async function () {
         if (!favoriteSuccess) {
             this.skip();
@@ -1051,6 +1066,22 @@ describe("favorite and bookmark", function () {
         const res = await axios.delete("/post/" + postId + "/bookmark", {
             ...authHeader(userToken2),
         });
+        expect(res.status).equal(200);
+    });
+    it("can delete a reaction", async function () {
+        if (!reactionSuccess) {
+            this.skip();
+        }
+        const res = await axios.post(
+            "/post/" + postId + "/reaction",
+            {
+                reaction: "🎉",
+                add: false,
+            },
+            {
+                ...authHeader(userToken2),
+            }
+        );
         expect(res.status).equal(200);
     });
 });

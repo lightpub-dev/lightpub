@@ -252,6 +252,7 @@ impl ApubRendererService {
                             .to(to)
                             .cc(cc)
                             .published(post.created_at_fixed_offset().to_utc())
+                            .in_reply_to(post.reply_to_id().map(|id| Box::new(IdOrObject::Id(id))))
                             .build()
                             .unwrap(),
                     ),
