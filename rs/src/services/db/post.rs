@@ -14,9 +14,10 @@ use crate::{
             PostAuthorBuilder, PostCountsBuilder, PostMentionedUser, PostReaction, UserPostEntry,
             UserPostEntryBuilder,
         },
-        apub::CreatableObject,
+        apub::{Activity, CreatableObject},
         reaction::Reaction,
-        ApubMentionedUser, ApubRenderablePost, HasRemoteUri, PostPrivacy,
+        ApubMentionedUser, ApubPostTargetComputable, ApubRenderablePost, HasRemoteUri,
+        HasRemoteUriOnly, PostPrivacy,
     },
     services::{
         apub::{
@@ -25,8 +26,9 @@ use crate::{
         },
         id::IDGetterService,
         AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
-        PostCreateRequest, PostCreateService, PostFetchError, PostInteractionAction, ServiceError,
-        SignerService, TimelineOptions, UserFollowService, UserPostService,
+        PostCreateRequest, PostCreateService, PostDeleteError, PostFetchError,
+        PostInteractionAction, ServiceError, SignerService, TimelineOptions, UserFollowService,
+        UserPostService,
     },
     utils::{
         generate_uuid,
@@ -197,16 +199,16 @@ impl DBPostCreateService {
         }
     }
 
-    #[async_recursion]
-    async fn fetch_post_id_locally_stored(
-        &mut self,
-        spec: &PostSpecifier,
-        include_deleted: bool,
-    ) -> Result<Option<Simple>, ServiceError<PostCreateError>> {
-        self.fetch_post_locally_stored(spec, include_deleted)
-            .await
-            .map(|p| p.map(|p| p.id))
-    }
+    // #[async_recursion]
+    // async fn fetch_post_id_locally_stored(
+    //     &mut self,
+    //     spec: &PostSpecifier,
+    //     include_deleted: bool,
+    // ) -> Result<Option<Simple>, ServiceError<PostCreateError>> {
+    //     self.fetch_post_locally_stored(spec, include_deleted)
+    //         .await
+    //         .map(|p| p.map(|p| p.id))
+    // }
 
     #[async_recursion]
     async fn fetch_post_locally_stored(
@@ -583,6 +585,74 @@ impl DBPostCreateService {
     }
 }
 
+#[derive(Debug)]
+struct DeletedDetailedPostDB {
+    id: Simple,
+    uri: Option<String>,
+    poster_id: Simple,
+    poster_uri: Option<String>,
+    privacy: String,
+}
+
+#[derive(Debug, Clone)]
+struct DeletedDetailedPostUser {
+    id: Simple,
+    uri: Option<String>,
+}
+
+impl HasRemoteUri for DeletedDetailedPostUser {
+    fn get_local_id(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
+impl HasRemoteUriOnly for DeletedDetailedPostUser {
+    fn get_remote_uri(&self) -> Option<String> {
+        self.uri.clone()
+    }
+}
+
+#[derive(Debug)]
+struct DeletedDetailedPost {
+    db: DeletedDetailedPostDB,
+    privacy: PostPrivacy,
+    mentioned_users: Vec<DeletedDetailedPostUser>,
+}
+
+impl HasRemoteUri for DeletedDetailedPost {
+    fn get_local_id(&self) -> String {
+        self.db.id.to_string()
+    }
+
+    fn get_remote_uri(&self) -> Option<String> {
+        self.db.uri.clone()
+    }
+}
+
+impl ApubPostTargetComputable for DeletedDetailedPost {
+    type Poster = DeletedDetailedPostUser;
+    type Actor = DeletedDetailedPostUser;
+
+    fn privacy(&self) -> PostPrivacy {
+        self.privacy
+    }
+
+    fn poster(&self) -> Self::Poster {
+        DeletedDetailedPostUser {
+            id: self.db.poster_id,
+            uri: self.db.poster_uri.clone(),
+        }
+    }
+
+    fn mentioned(&self) -> Vec<Self::Actor> {
+        self.mentioned_users.clone()
+    }
+}
+
 #[async_trait]
 impl PostCreateService for DBPostCreateService {
     async fn create_post(
@@ -592,27 +662,88 @@ impl PostCreateService for DBPostCreateService {
         self.create_post_(req, 0).await
     }
 
-    async fn delete_post(&mut self, req: &PostSpecifier) -> Result<(), anyhow::Error> {
-        let post = self.fetch_post_id_locally_stored(req, false).await?;
+    async fn delete_post(
+        &mut self,
+        req: &PostSpecifier,
+        actor: &Option<UserSpecifier>,
+    ) -> Result<(), anyhow::Error> {
+        let post = self.fetch_post_locally_stored(req, false).await?;
         if let Some(post) = post {
+            // if actor is specified
+            if let Some(actor) = actor {
+                // check if actor is the poster
+                let actor_id = self.finder.find_user_by_specifier(actor).await?.id;
+                if post.poster != actor_id {
+                    return Err(PostDeleteError::Unauthorized.into());
+                }
+            }
+
             let mut tx = self.pool.begin().await?;
 
             // delete post and its reposts
             sqlx::query!(
                 "UPDATE posts SET deleted_at=CURRENT_TIMESTAMP WHERE id=? OR (repost_of_id=? AND content IS NULL AND deleted_at IS NULL)",
-                post.to_string(),
-                post.to_string(),
+                post.id.to_string(),
+                post.id.to_string(),
             )
             .execute(&mut *tx)
             .await?;
 
-            // TODO: send apub
-
             tx.commit().await?;
+
+            // send apub if local post
+            if post.uri.is_none() {
+                let detailed_post = sqlx::query_as!(DeletedDetailedPostDB, r#"
+                SELECT p.id AS `id: Simple`, p.uri AS `uri`, p.poster_id AS `poster_id!: Simple`, u.uri AS `poster_uri`, p.privacy
+                FROM posts AS p
+                INNER JOIN users AS u ON p.poster_id=u.id
+                WHERE p.id=?
+                "#, post.id.to_string()).fetch_one(&self.pool).await?;
+                let mentioned_users = sqlx::query_as!(
+                    DeletedDetailedPostUser,
+                    r#"
+                SELECT u.id AS `id: Simple`, u.uri AS `uri`
+                FROM post_mentions m
+                INNER JOIN users u ON m.target_user_id=u.id
+                WHERE m.post_id=?
+                "#,
+                    post.id.to_string()
+                )
+                .fetch_all(&self.pool)
+                .await?;
+
+                let privacy = detailed_post.privacy.parse().unwrap();
+                let detailed_post = DeletedDetailedPost {
+                    db: detailed_post,
+                    privacy: privacy,
+                    mentioned_users,
+                };
+                let author = DeletedDetailedPostUser {
+                    id: detailed_post.db.poster_id,
+                    uri: detailed_post.db.poster_uri.clone(),
+                };
+
+                let note_delete = self.renderer.render_delete_post(&detailed_post, &author)?;
+
+                let inboxes = self
+                    .find_target_inboxes(&note_delete.targeted_users)
+                    .await
+                    .unwrap();
+
+                let activity = Activity::Delete(note_delete.note_delete);
+                for inbox in inboxes {
+                    let signer = self
+                        .signer
+                        .fetch_signer(&UserSpecifier::from_id(post.poster))
+                        .await?; // FIXME: do not generate signer for each inbox
+                    self.req.post_to_inbox(&inbox, &activity, signer).await?;
+                }
+            }
+
+            Ok(())
         } else {
-            warn!("post not found");
+            Err(PostDeleteError::PostNotFound.into())
         }
-        Ok(())
     }
 
     async fn modify_favorite(
@@ -1266,6 +1397,45 @@ impl UserPostService for DBUserPostService {
             return Err(PostFetchError::PostNotFound.into());
         }
     }
+
+    // async fn delete_single_post(
+    //     &mut self,
+    //     post: &PostSpecifier,
+    //     viewer: &UserSpecifier,
+    // ) -> Result<(), anyhow::Error> {
+    //     let post = self.fetch_single_post(post, &Some(viewer.clone())).await;
+    //     let post = match post {
+    //         Ok(p) => p,
+    //         Err(e) => match e.downcast::<PostFetchError>() {
+    //             Ok(PostFetchError::PostNotFound) => {
+    //                 return Err(PostDeleteError::PostNotFound.into())
+    //             }
+    //             Err(e) => return Err(e),
+    //         },
+    //     };
+
+    //     // check if viewer is the author
+    //     let viewer_user = self.finder.find_user_by_specifier(viewer).await?;
+    //     if *post.author().id() != viewer_user.id {
+    //         return Err(PostDeleteError::Unauthorized.into());
+    //     }
+
+    //     let mut tx = self.pool.begin().await?;
+
+    //     let post_id = post.id();
+    //     sqlx::query!(
+    //         r#"
+    //         UPDATE posts SET deleted_at=CURRENT_TIMESTAMP WHERE id=?
+    //         "#,
+    //         post_id.to_string()
+    //     )
+    //     .execute(&mut *tx)
+    //     .await?;
+
+    //     tx.commit().await?;
+
+    //     Ok(())
+    // }
 
     async fn fetch_user_posts(
         &mut self,

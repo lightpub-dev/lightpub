@@ -4,10 +4,13 @@ use uuid::Uuid;
 
 use crate::models::apub::{
     Activity, AnnounceActivity, AnnounceActivityBuilder, CreatableObject, CreateActivity,
-    CreateActivityBuilder, IdOrObject, LikeActivity, NoteBuilder, Person, PersonBuilder,
-    PublicKeyBuilder, TombstoneBuilder, UndoActivity, UndoableActivity, PUBLIC,
+    CreateActivityBuilder, DeleteActivity, IdOrObject, LikeActivity, NoteBuilder, Person,
+    PersonBuilder, PublicKeyBuilder, TombstoneBuilder, UndoActivity, UndoableActivity, PUBLIC,
 };
-use crate::models::{ApubRenderablePost, ApubRenderableUser, HasRemoteUri, PostPrivacy};
+use crate::models::{
+    ApubPostTargetComputable, ApubRenderablePost, ApubRenderableUser, HasRemoteUri,
+    HasRemoteUriOnly, PostPrivacy,
+};
 use crate::services::id::IDGetterService;
 use crate::services::id::UserAttribute;
 use crate::utils::user::UserSpecifier;
@@ -51,6 +54,12 @@ pub struct RepostInfo {
 pub struct RenderedNoteCreate {
     note_create: RenderedNoteCreateActivity,
     targeted_users: Vec<TargetedUser>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RenderedNoteDelete {
+    pub note_delete: DeleteActivity,
+    pub targeted_users: Vec<TargetedUser>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,9 +127,9 @@ impl ApubRendererService {
         }
     }
 
-    fn calculate_to_and_cc(
+    fn calculate_to_and_cc<P: ApubPostTargetComputable>(
         &self,
-        post: &impl ApubRenderablePost,
+        post: &P,
     ) -> Result<(Vec<String>, Vec<String>, Vec<TargetedUser>), anyhow::Error> {
         let privacy = post.privacy();
         let poster = &post.poster();
@@ -167,7 +176,7 @@ impl ApubRendererService {
 
         // add mentioned users
         for user in post.mentioned() {
-            let uri = user.uri();
+            let uri = user.get_remote_uri();
             if let Some(uri) = uri {
                 to.push(uri.clone());
                 targets.push(TargetedUser::Mentioned(UserSpecifier::from_url(uri)));
@@ -230,6 +239,32 @@ impl ApubRendererService {
         })
     }
 
+    pub fn render_delete_post<P, A>(
+        &self,
+        post: &P,
+        author: &A,
+    ) -> Result<RenderedNoteDelete, anyhow::Error>
+    where
+        P: ApubPostTargetComputable + HasRemoteUri,
+        A: HasRemoteUri,
+    {
+        let (_, _, targeted_users) = self.calculate_to_and_cc(post)?;
+
+        let post_id = self.id_getter.get_post_id(post);
+        let actor = self.id_getter.get_user_id(author);
+
+        let note_delete = DeleteActivity {
+            id: None,
+            actor,
+            object: IdOrObject::Id(post_id),
+        };
+
+        Ok(RenderedNoteDelete {
+            note_delete,
+            targeted_users,
+        })
+    }
+
     pub fn render_post(
         &self,
         post: &(impl ApubRenderablePost + HasRemoteUri),
@@ -238,7 +273,7 @@ impl ApubRendererService {
 
         let poster_id = self.id_getter.get_user_id(&post.poster());
 
-        let (to, cc, targeted_users) = self.calculate_to_and_cc(post)?;
+        let (to, cc, targeted_users) = self.calculate_to_and_cc(&post.as_target_computable())?;
 
         let (note, targeted_users) = {
             let note = if let Some(content) = post.content() {
