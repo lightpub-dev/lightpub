@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "\n            SELECT\n                p.id AS `id: Simple`,\n                p.uri AS `uri`,\n                u.id `author_id: Simple`,\n                u.uri AS `author_uri`,\n                u.username AS `author_username`,\n                u.host AS `author_host`,\n                u.nickname AS `author_nickname`,\n                p.content,\n                p.privacy,\n                p.repost_of_id AS `repost_of_id: Simple`,\n                p.reply_to_id AS `reply_to_id: Simple`,\n                p.created_at,\n                p.deleted_at,\n                0 AS `count_replies`,\n                0 AS `count_reposts`,\n                0 AS `count_quotes`,\n                NULL AS `reposted_by_you: bool`,\n                NULL AS `favorited_by_you: bool`,\n                NULL AS `bookmarked_by_you: bool`\n            FROM posts p\n            INNER JOIN users u ON p.poster_id = u.id\n            WHERE (\n                p.poster_id=?\n                OR (? AND p.privacy = 'public')\n                OR (p.privacy IN ('public', 'unlisted', 'follower') AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=p.poster_id AND follower_id=?))\n                OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))\n              )\n              AND (NOT ? OR p.created_at <= ?)\n              AND deleted_at IS NULL\n            ORDER BY p.created_at DESC\n            LIMIT ?\n            ",
+  "query": "\n            SELECT\n                p.id AS `id: Simple`,\n                p.uri AS `uri`,\n                u.id `author_id: Simple`,\n                u.uri AS `author_uri`,\n                u.username AS `author_username`,\n                u.host AS `author_host`,\n                u.nickname AS `author_nickname`,\n                p.content,\n                p.privacy,\n                p.repost_of_id AS `repost_of_id: Simple`,\n                p.reply_to_id AS `reply_to_id: Simple`,\n                p.created_at,\n                p.deleted_at,\n                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,\n                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,\n                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,\n                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,\n                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,\n                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,\n                IF(? IS NULL, NULL, (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1)) AS `reaction_str_by_you?: String`\n            FROM posts p\n            INNER JOIN users u ON p.poster_id = u.id\n            WHERE p.id = ?\n              AND (\n                (p.poster_id = ?)\n                OR (\n                    p.privacy IN ('public', 'unlisted')\n                    OR (? AND p.privacy = 'follower' AND EXISTS(\n                        SELECT 1 FROM user_follows WHERE followee_id=p.poster_id AND follower_id=?\n                    ))\n                    OR (? AND p.privacy = 'private' AND EXISTS(\n                        SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?\n                    ))\n                )\n              )\n            ",
   "describe": {
     "columns": [
       {
@@ -135,67 +135,77 @@
       },
       {
         "ordinal": 13,
-        "name": "count_replies",
+        "name": "count_replies!",
         "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | BINARY",
+          "type": "LongLong",
+          "flags": "BINARY",
           "char_set": 63,
-          "max_size": 1
+          "max_size": 21
         }
       },
       {
         "ordinal": 14,
-        "name": "count_reposts",
+        "name": "count_reposts!",
         "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | BINARY",
+          "type": "LongLong",
+          "flags": "BINARY",
           "char_set": 63,
-          "max_size": 1
+          "max_size": 21
         }
       },
       {
         "ordinal": 15,
-        "name": "count_quotes",
+        "name": "count_quotes!",
         "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | BINARY",
+          "type": "LongLong",
+          "flags": "BINARY",
           "char_set": 63,
-          "max_size": 1
+          "max_size": 21
         }
       },
       {
         "ordinal": 16,
         "name": "reposted_by_you: bool",
         "type_info": {
-          "type": "Null",
+          "type": "Long",
           "flags": "BINARY",
           "char_set": 63,
-          "max_size": 0
+          "max_size": 1
         }
       },
       {
         "ordinal": 17,
         "name": "favorited_by_you: bool",
         "type_info": {
-          "type": "Null",
+          "type": "Long",
           "flags": "BINARY",
           "char_set": 63,
-          "max_size": 0
+          "max_size": 1
         }
       },
       {
         "ordinal": 18,
         "name": "bookmarked_by_you: bool",
         "type_info": {
-          "type": "Null",
+          "type": "Long",
           "flags": "BINARY",
           "char_set": 63,
-          "max_size": 0
+          "max_size": 1
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "reaction_str_by_you?: String",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 1020
         }
       }
     ],
     "parameters": {
-      "Right": 7
+      "Right": 14
     },
     "nullable": [
       false,
@@ -211,13 +221,14 @@
       true,
       false,
       true,
-      false,
-      false,
-      false,
+      true,
+      true,
+      true,
+      true,
       true,
       true,
       true
     ]
   },
-  "hash": "e5f52f3231b3cc6a15102d2da25d44d60d1405b1e2328464d2561999e755e515"
+  "hash": "e0ec68a03378448b1bb809df8cb95865bb7a62d499c37bb0086750a94bc85762"
 }
