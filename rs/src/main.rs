@@ -45,6 +45,7 @@ use config::Config;
 use lapin::ConnectionProperties;
 use models::apub::LikeActivity;
 use models::http::{HeaderMapWrapper, Method};
+use models::reaction::ReactionError;
 use models::{PostPrivacy, User};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -1738,6 +1739,59 @@ async fn delete_post_bookmark(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct PostReactionRequest {
+    reaction: String,
+    add: bool,
+}
+
+#[post("/post/{post_id}/reaction")]
+async fn modify_post_reaction(
+    app: web::Data<AppState>,
+    path: web::Path<PostChooseParams>,
+    body: web::Json<PostReactionRequest>,
+    auth: AuthUser,
+) -> HandlerResponse<impl Responder> {
+    let authed_user = auth.must_auth()?;
+
+    let post_spec = &path.post_id.into();
+    let mut post_service = new_post_create_service(
+        app.pool().clone(),
+        app.queue().clone(),
+        app.config().clone(),
+    );
+
+    let reaction = Reaction::try_from(body.reaction.clone());
+    let reaction = match reaction {
+        Ok(r) => r,
+        Err(e) => match e {
+            ReactionError::InvalidUnicodeEmoji => {
+                return Err(ErrorResponse::new_status(400, "invalid reaction"));
+            }
+        },
+    };
+
+    post_service
+        .modify_reaction(
+            &authed_user.id.into(),
+            post_spec,
+            &reaction,
+            false,
+            if body.add {
+                PostInteractionAction::Add
+            } else {
+                PostInteractionAction::Remove
+            },
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to add favorite: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -1844,6 +1898,7 @@ async fn main() -> std::io::Result<()> {
             .service(add_post_bookmark)
             .service(delete_post_favorite)
             .service(delete_post_bookmark)
+            .service(modify_post_reaction)
     })
     .bind(("0.0.0.0", 8000))?
     .run()
