@@ -586,7 +586,7 @@ impl DBPostCreateService {
 }
 
 #[derive(Debug)]
-struct DeletedDetailedPostDB {
+struct TargetComputablePostDB {
     id: Simple,
     uri: Option<String>,
     poster_id: Simple,
@@ -595,12 +595,12 @@ struct DeletedDetailedPostDB {
 }
 
 #[derive(Debug, Clone)]
-struct DeletedDetailedPostUser {
+struct TargetComputablePostUser {
     id: Simple,
     uri: Option<String>,
 }
 
-impl HasRemoteUri for DeletedDetailedPostUser {
+impl HasRemoteUri for TargetComputablePostUser {
     fn get_local_id(&self) -> String {
         self.id.to_string()
     }
@@ -610,20 +610,20 @@ impl HasRemoteUri for DeletedDetailedPostUser {
     }
 }
 
-impl HasRemoteUriOnly for DeletedDetailedPostUser {
+impl HasRemoteUriOnly for TargetComputablePostUser {
     fn get_remote_uri(&self) -> Option<String> {
         self.uri.clone()
     }
 }
 
 #[derive(Debug)]
-struct DeletedDetailedPost {
-    db: DeletedDetailedPostDB,
+struct TargetComputablePost {
+    db: TargetComputablePostDB,
     privacy: PostPrivacy,
-    mentioned_users: Vec<DeletedDetailedPostUser>,
+    mentioned_users: Vec<TargetComputablePostUser>,
 }
 
-impl HasRemoteUri for DeletedDetailedPost {
+impl HasRemoteUri for TargetComputablePost {
     fn get_local_id(&self) -> String {
         self.db.id.to_string()
     }
@@ -633,16 +633,16 @@ impl HasRemoteUri for DeletedDetailedPost {
     }
 }
 
-impl ApubPostTargetComputable for DeletedDetailedPost {
-    type Poster = DeletedDetailedPostUser;
-    type Actor = DeletedDetailedPostUser;
+impl ApubPostTargetComputable for TargetComputablePost {
+    type Poster = TargetComputablePostUser;
+    type Actor = TargetComputablePostUser;
 
     fn privacy(&self) -> PostPrivacy {
         self.privacy
     }
 
     fn poster(&self) -> Self::Poster {
-        DeletedDetailedPostUser {
+        TargetComputablePostUser {
             id: self.db.poster_id,
             uri: self.db.poster_uri.clone(),
         }
@@ -650,6 +650,45 @@ impl ApubPostTargetComputable for DeletedDetailedPost {
 
     fn mentioned(&self) -> Vec<Self::Actor> {
         self.mentioned_users.clone()
+    }
+}
+
+impl DBPostCreateService {
+    async fn get_target_computable_post(
+        &mut self,
+        post_id: Simple,
+    ) -> Result<(TargetComputablePost, TargetComputablePostUser), anyhow::Error> {
+        let detailed_post = sqlx::query_as!(TargetComputablePostDB, r#"
+                SELECT p.id AS `id: Simple`, p.uri AS `uri`, p.poster_id AS `poster_id!: Simple`, u.uri AS `poster_uri`, p.privacy
+                FROM posts AS p
+                INNER JOIN users AS u ON p.poster_id=u.id
+                WHERE p.id=?
+                "#, post_id.to_string()).fetch_one(&self.pool).await?;
+        let mentioned_users = sqlx::query_as!(
+            TargetComputablePostUser,
+            r#"
+                SELECT u.id AS `id: Simple`, u.uri AS `uri`
+                FROM post_mentions m
+                INNER JOIN users u ON m.target_user_id=u.id
+                WHERE m.post_id=?
+                "#,
+            post_id.to_string()
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let privacy = detailed_post.privacy.parse().unwrap();
+        let detailed_post = TargetComputablePost {
+            db: detailed_post,
+            privacy: privacy,
+            mentioned_users,
+        };
+        let author = TargetComputablePostUser {
+            id: detailed_post.db.poster_id,
+            uri: detailed_post.db.poster_uri.clone(),
+        };
+
+        Ok((detailed_post, author))
     }
 }
 
@@ -693,35 +732,7 @@ impl PostCreateService for DBPostCreateService {
 
             // send apub if local post
             if post.uri.is_none() {
-                let detailed_post = sqlx::query_as!(DeletedDetailedPostDB, r#"
-                SELECT p.id AS `id: Simple`, p.uri AS `uri`, p.poster_id AS `poster_id!: Simple`, u.uri AS `poster_uri`, p.privacy
-                FROM posts AS p
-                INNER JOIN users AS u ON p.poster_id=u.id
-                WHERE p.id=?
-                "#, post.id.to_string()).fetch_one(&self.pool).await?;
-                let mentioned_users = sqlx::query_as!(
-                    DeletedDetailedPostUser,
-                    r#"
-                SELECT u.id AS `id: Simple`, u.uri AS `uri`
-                FROM post_mentions m
-                INNER JOIN users u ON m.target_user_id=u.id
-                WHERE m.post_id=?
-                "#,
-                    post.id.to_string()
-                )
-                .fetch_all(&self.pool)
-                .await?;
-
-                let privacy = detailed_post.privacy.parse().unwrap();
-                let detailed_post = DeletedDetailedPost {
-                    db: detailed_post,
-                    privacy: privacy,
-                    mentioned_users,
-                };
-                let author = DeletedDetailedPostUser {
-                    id: detailed_post.db.poster_id,
-                    uri: detailed_post.db.poster_uri.clone(),
-                };
+                let (detailed_post, author) = self.get_target_computable_post(post.id).await?;
 
                 let note_delete = self.renderer.render_delete_post(&detailed_post, &author)?;
 
@@ -823,7 +834,7 @@ impl PostCreateService for DBPostCreateService {
             return Ok(());
         }
 
-        // Apub should be sent when local user and remote post
+        // Apub should be sent when the actor is a local user
         if user.uri.is_none() {
             // local user
             // send apub
@@ -837,10 +848,7 @@ impl PostCreateService for DBPostCreateService {
                 .fetch_post_locally_stored(&PostSpecifier::from_id(post_id), false)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("post with modified favorite not found"))?;
-            if post.uri.is_none() {
-                // local post
-                return Ok(());
-            }
+
             let is_add = match action {
                 PostInteractionAction::Add => true,
                 PostInteractionAction::Remove => false,
@@ -853,20 +861,15 @@ impl PostCreateService for DBPostCreateService {
                 is_add,
             )?;
 
-            let inbox = self
-                .find_target_inboxes(&vec![TargetedUser::Mentioned(UserSpecifier::from_id(
-                    post.poster,
-                ))])
-                .await?
-                .pop(); // should be only one inbox
-            if let Some(inbox) = inbox {
+            let (post, _) = self.get_target_computable_post(post.id).await?;
+            let targets = self.renderer.calculate_post_involved_users(&post, true)?;
+            let inboxes = self.find_target_inboxes(&targets).await?;
+            for inbox in inboxes {
                 let signer = self
                     .signer
                     .fetch_signer(&UserSpecifier::from_id(user.id))
                     .await?;
                 self.req.post_to_inbox(&inbox, &activity, signer).await?;
-            } else {
-                warn!("no inbox found for post author (post={})", post.id);
             }
         }
 
@@ -967,10 +970,7 @@ impl PostCreateService for DBPostCreateService {
                 .fetch_post_locally_stored(&PostSpecifier::from_id(post_id), false)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("post with modified favorite not found"))?;
-            if post.uri.is_none() {
-                // local post
-                return Ok(());
-            }
+
             let is_add = match action {
                 PostInteractionAction::Add => true,
                 PostInteractionAction::Remove => false,
@@ -983,20 +983,15 @@ impl PostCreateService for DBPostCreateService {
                 is_add,
             )?;
 
-            let inbox = self
-                .find_target_inboxes(&vec![TargetedUser::Mentioned(UserSpecifier::from_id(
-                    post.poster,
-                ))])
-                .await?
-                .pop(); // should be only one inbox
-            if let Some(inbox) = inbox {
+            let (post, _) = self.get_target_computable_post(post.id).await?;
+            let targets = self.renderer.calculate_post_involved_users(&post, true)?;
+            let inboxes = self.find_target_inboxes(&targets).await?;
+            for inbox in inboxes {
                 let signer = self
                     .signer
                     .fetch_signer(&UserSpecifier::from_id(user.id))
                     .await?;
                 self.req.post_to_inbox(&inbox, &activity, signer).await?;
-            } else {
-                warn!("no inbox found for post author (post={})", post.id);
             }
         }
 

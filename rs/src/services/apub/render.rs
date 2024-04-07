@@ -127,6 +127,20 @@ impl ApubRendererService {
         }
     }
 
+    pub fn calculate_post_involved_users<P: ApubPostTargetComputable>(
+        &self,
+        post: &P,
+        include_poster: bool,
+    ) -> Result<Vec<TargetedUser>, anyhow::Error> {
+        let (_, _, mut targeted_users) = self.calculate_to_and_cc(post)?;
+        if include_poster {
+            targeted_users.push(TargetedUser::Mentioned(UserSpecifier::from_id(
+                Uuid::from_str(&post.poster().get_local_id()).unwrap(),
+            )));
+        }
+        Ok(targeted_users)
+    }
+
     fn calculate_to_and_cc<P: ApubPostTargetComputable>(
         &self,
         post: &P,
