@@ -10,7 +10,10 @@ use uuid::{fmt::Simple, Uuid};
 use crate::{
     holder,
     models::{
-        api_response::{PostAuthorBuilder, PostCountsBuilder, UserPostEntry, UserPostEntryBuilder},
+        api_response::{
+            PostAuthorBuilder, PostCountsBuilder, PostMentionedUser, PostReaction, UserPostEntry,
+            UserPostEntryBuilder,
+        },
         apub::CreatableObject,
         reaction::Reaction,
         ApubMentionedUser, ApubRenderablePost, HasRemoteUri, PostPrivacy,
@@ -1055,6 +1058,13 @@ struct UserPost {
     reposted_by_you: Option<bool>,
     favorited_by_you: Option<bool>,
     bookmarked_by_you: Option<bool>,
+    reaction_str_by_you: Option<String>,
+}
+
+#[derive(Debug)]
+struct ReactionCount {
+    reaction_str: Option<String>,
+    count: i64,
 }
 
 struct UserPostAsPost<'a>(pub &'a UserPost);
@@ -1115,12 +1125,13 @@ impl UserPostService for DBUserPostService {
                 p.reply_to_id AS `reply_to_id: Simple`,
                 p.created_at,
                 p.deleted_at,
-                0 AS `count_replies`,
-                0 AS `count_reposts`,
-                0 AS `count_quotes`,
-                NULL AS `reposted_by_you: bool`,
-                NULL AS `favorited_by_you: bool`,
-                NULL AS `bookmarked_by_you: bool`
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1)) AS `reaction_str_by_you?: String`
             FROM posts p
             INNER JOIN users u ON p.poster_id = u.id
             WHERE p.id = ?
@@ -1137,6 +1148,10 @@ impl UserPostService for DBUserPostService {
                 )
               )
             "#,
+            viewer_id, viewer_id,
+            viewer_id, viewer_id,
+            viewer_id, viewer_id,
+            viewer_id, viewer_id,
             post_id,
             viewer_id,
             viewer_id.is_some(),
@@ -1148,6 +1163,40 @@ impl UserPostService for DBUserPostService {
         .await?;
 
         if let Some(p) = post {
+            let reaction_count = sqlx::query_as!(
+                ReactionCount,
+                r#"
+            SELECT r.reaction_str, COUNT(*) AS `count`
+            FROM post_reactions r
+            WHERE r.post_id=?
+              AND r.reaction_str IS NOT NULL
+            GROUP BY r.reaction_str
+            "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let reaction_count = reaction_count
+                .into_iter()
+                .map(|r| PostReaction {
+                    name: r.reaction_str.unwrap(),
+                    count: r.count,
+                })
+                .collect();
+
+            let mentioned_users = sqlx::query_as!(
+                PostMentionedUser,
+                r#"
+                    SELECT u.id AS `id: Simple`, u.uri AS `uri`, u.username, u.host, u.inbox
+                    FROM post_mentions m
+                    INNER JOIN users u ON m.target_user_id=u.id
+                    WHERE m.post_id=?
+                    "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
             let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
             let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
 
@@ -1200,7 +1249,7 @@ impl UserPostService for DBUserPostService {
                 )
                 .counts(
                     PostCountsBuilder::default()
-                        .reactions(vec![])
+                        .reactions(reaction_count)
                         .replies(p.count_replies)
                         .reposts(p.count_reposts)
                         .quotes(p.count_quotes)
@@ -1210,7 +1259,7 @@ impl UserPostService for DBUserPostService {
                 .reposted_by_you(p.reposted_by_you)
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
-                .mentioned_users(vec![]) // TODO
+                .mentioned_users(mentioned_users)
                 .build()
                 .unwrap())
         } else {
@@ -1255,12 +1304,13 @@ impl UserPostService for DBUserPostService {
                         p.reply_to_id AS `reply_to_id: Simple`,
                         p.created_at,
                         p.deleted_at,
-                        0 AS `count_replies`,
-                        0 AS `count_reposts`,
-                        0 AS `count_quotes`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
                         NULL AS `reposted_by_you: bool`,
                         NULL AS `favorited_by_you: bool`,
-                        NULL AS `bookmarked_by_you: bool`
+                        NULL AS `bookmarked_by_you: bool`,
+                        NULL AS `reaction_str_by_you?: String`
                     FROM posts p
                     INNER JOIN users u ON p.poster_id = u.id
                     WHERE p.poster_id=?
@@ -1297,12 +1347,13 @@ impl UserPostService for DBUserPostService {
                         p.reply_to_id AS `reply_to_id: Simple`,
                         p.created_at,
                         p.deleted_at,
-                        0 AS `count_replies`,
-                        0 AS `count_reposts`,
-                        0 AS `count_quotes`,
-                        NULL AS `reposted_by_you: bool`,
-                        NULL AS `favorited_by_you: bool`,
-                        NULL AS `bookmarked_by_you: bool`
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                        (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1) AS `reposted_by_you: bool`,
+                        (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1) AS `favorited_by_you: bool`,
+                        (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1) AS `bookmarked_by_you: bool`,
+                        (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1) AS `reaction_str_by_you?: String`
                     FROM posts p
                     INNER JOIN users u ON p.poster_id = u.id
                     WHERE p.poster_id=?
@@ -1317,6 +1368,10 @@ impl UserPostService for DBUserPostService {
                     ORDER BY p.created_at DESC
                     LIMIT ?
                     "#,
+                    viewer.id.to_string(),
+                    viewer.id.to_string(),
+                    viewer.id.to_string(),
+                    viewer.id.to_string(),
                     user.id.to_string(),
                     viewer.id.to_string(),
                     user.id.to_string(),
@@ -1334,6 +1389,40 @@ impl UserPostService for DBUserPostService {
 
         let mut entries = Vec::new();
         for p in posts {
+            let reaction_count = sqlx::query_as!(
+                ReactionCount,
+                r#"
+            SELECT r.reaction_str, COUNT(*) AS `count`
+            FROM post_reactions r
+            WHERE r.post_id=?
+              AND r.reaction_str IS NOT NULL
+            GROUP BY r.reaction_str
+            "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let reaction_count = reaction_count
+                .into_iter()
+                .map(|r| PostReaction {
+                    name: r.reaction_str.unwrap(),
+                    count: r.count,
+                })
+                .collect();
+
+            let mentioned_users = sqlx::query_as!(
+                PostMentionedUser,
+                r#"
+                SELECT u.id AS `id: Simple`, u.uri AS `uri`, u.username, u.host, u.inbox
+                FROM post_mentions m
+                INNER JOIN users u ON m.target_user_id=u.id
+                WHERE m.post_id=?
+                "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
             let entry = {
                 let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
                 let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
@@ -1387,7 +1476,7 @@ impl UserPostService for DBUserPostService {
                     )
                     .counts(
                         PostCountsBuilder::default()
-                            .reactions(vec![])
+                            .reactions(reaction_count)
                             .replies(p.count_replies)
                             .reposts(p.count_reposts)
                             .quotes(p.count_quotes)
@@ -1397,7 +1486,7 @@ impl UserPostService for DBUserPostService {
                     .reposted_by_you(p.reposted_by_you)
                     .favorited_by_you(p.favorited_by_you)
                     .bookmarked_by_you(p.bookmarked_by_you)
-                    .mentioned_users(vec![]) // TODO
+                    .mentioned_users(mentioned_users)
                     .build()
                     .unwrap()
             };
@@ -1436,12 +1525,13 @@ impl UserPostService for DBUserPostService {
                 p.reply_to_id AS `reply_to_id: Simple`,
                 p.created_at,
                 p.deleted_at,
-                0 AS `count_replies`,
-                0 AS `count_reposts`,
-                0 AS `count_quotes`,
-                NULL AS `reposted_by_you: bool`,
-                NULL AS `favorited_by_you: bool`,
-                NULL AS `bookmarked_by_you: bool`
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1) AS `reposted_by_you: bool`,
+                (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1) AS `favorited_by_you: bool`,
+                (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1) AS `bookmarked_by_you: bool`,
+                (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1) AS `reaction_str_by_you?: String`
             FROM posts p
             INNER JOIN users u ON p.poster_id = u.id
             WHERE (
@@ -1456,6 +1546,10 @@ impl UserPostService for DBUserPostService {
             LIMIT ?
             "#,
             user.id.to_string(),
+            user.id.to_string(),
+            user.id.to_string(),
+            user.id.to_string(),
+            user.id.to_string(),
             options.include_all_public,
             user.id.to_string(),
             user.id.to_string(),
@@ -1468,6 +1562,40 @@ impl UserPostService for DBUserPostService {
 
         let mut entries = Vec::new();
         for p in posts {
+            let reaction_count = sqlx::query_as!(
+                ReactionCount,
+                r#"
+            SELECT r.reaction_str, COUNT(*) AS `count`
+            FROM post_reactions r
+            WHERE r.post_id=?
+              AND r.reaction_str IS NOT NULL
+            GROUP BY r.reaction_str
+            "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let reaction_count = reaction_count
+                .into_iter()
+                .map(|r| PostReaction {
+                    name: r.reaction_str.unwrap(),
+                    count: r.count,
+                })
+                .collect();
+
+            let mentioned_users = sqlx::query_as!(
+                PostMentionedUser,
+                r#"
+                    SELECT u.id AS `id: Simple`, u.uri AS `uri`, u.username, u.host, u.inbox
+                    FROM post_mentions m
+                    INNER JOIN users u ON m.target_user_id=u.id
+                    WHERE m.post_id=?
+                    "#,
+                p.id.to_string()
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
             let post_uri = self.id_getter.get_post_id(&UserPostAsPost(&p));
             let user_uri = self.id_getter.get_user_id(&UserPostAsAuthor(&p));
 
@@ -1526,7 +1654,7 @@ impl UserPostService for DBUserPostService {
                 )
                 .counts(
                     PostCountsBuilder::default()
-                        .reactions(vec![])
+                        .reactions(reaction_count)
                         .replies(p.count_replies)
                         .reposts(p.count_reposts)
                         .quotes(p.count_quotes)
@@ -1536,7 +1664,7 @@ impl UserPostService for DBUserPostService {
                 .reposted_by_you(p.reposted_by_you)
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
-                .mentioned_users(vec![]) // TODO
+                .mentioned_users(mentioned_users)
                 .build()
                 .unwrap();
             entries.push(entry);

@@ -231,8 +231,9 @@ pub mod api_response {
 
     use super::{ApubRenderablePost, HasRemoteUri, PostPrivacy};
 
-    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    #[derive(Debug, Clone, Serialize)]
     pub struct PostMentionedUser {
+        pub id: Simple,
         pub inbox: Option<String>,
         pub username: String,
         pub host: Option<String>,
@@ -333,10 +334,10 @@ pub mod api_response {
         quotes: i64,
     }
 
-    #[derive(Debug, Clone, Builder, Getters, Serialize)]
+    #[derive(Debug, Clone, Serialize)]
     pub struct PostReaction {
-        name: String,
-        count: i64,
+        pub name: String,
+        pub count: i64,
     }
 
     #[derive(Debug, Clone, Builder, Getters, Serialize)]
