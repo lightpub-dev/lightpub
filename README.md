@@ -3,11 +3,7 @@
 ![server-test](https://github.com/lightpub-dev/lightpub/actions/workflows/server-test.yaml/badge.svg)
 
 ## Server 建て方
-1. `cd rs`
-2. `docker compose up -d`
-3. `cargo install refinery_cli`
-4. `refinery migrate`
-5. `cargo run`
+For instructions on how to set up the server, please see the README in the `rs` directory.
 
 ## Frontend 建て方
 1. `cd frontend`
