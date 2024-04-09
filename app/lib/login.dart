@@ -10,6 +10,27 @@ class LoginView extends StatefulWidget {
 class _LoginViewState extends State<LoginView> {
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Row(children: []));
+    return Center(
+        child: Column(children: [
+      const SizedBox(
+          width: double.infinity,
+          child: TextField(
+            decoration: InputDecoration(hintText: "Username"),
+            autocorrect: false,
+          )),
+      const SizedBox(
+          width: double.infinity,
+          child: TextField(
+            decoration: InputDecoration(hintText: "Password"),
+            autocorrect: false,
+            obscureText: true,
+          )),
+      ElevatedButton(
+          onPressed: () {
+            debugPrint("Login button pressed");
+            
+          },
+          child: const Text('Login'))
+    ]));
   }
 }
