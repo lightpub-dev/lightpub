@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Timeline } from "./routes/Timeline";
+import { RegisterView } from "./routes/Register";
+import { createRequester, RequestContext, Requester } from "./requester";
 
 const router = createBrowserRouter(
   [
@@ -16,6 +18,10 @@ const router = createBrowserRouter(
       path: "/",
       element: <div>Root</div>,
     },
+    {
+      path: "/register",
+      element: <RegisterView />,
+    },
   ],
   {
     basename: "/web",
@@ -23,9 +29,11 @@ const router = createBrowserRouter(
 );
 
 export default function App() {
+  const requester = createRequester();
+
   return (
-    <React.StrictMode>
+    <RequestContext.Provider value={requester}>
       <RouterProvider router={router} />
-    </React.StrictMode>
+    </RequestContext.Provider>
   );
 }
