@@ -54,3 +54,4 @@ clap = { version = "4.5.2", features = ["derive"] }
 lapin = "2.3.1"
 futures = "0.3.30"
 emojis = "0.6.1"
+actix-cors = "0.7.0"
