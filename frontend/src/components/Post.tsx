@@ -1,4 +1,5 @@
 import { Col, Row } from "antd";
+import { List } from "immutable";
 import React from "react";
 
 export interface PostEntry {
@@ -24,6 +25,16 @@ export function Post({ post }: { post: PostEntry }) {
       <Row>
         <Col>{post.createdAt.toLocaleString()}</Col>
       </Row>
+    </div>
+  );
+}
+
+export function PostList({ posts }: { posts: List<PostEntry> }) {
+  return (
+    <div>
+      {posts.map((post) => (
+        <Post key={post.id} post={post} />
+      ))}
     </div>
   );
 }
