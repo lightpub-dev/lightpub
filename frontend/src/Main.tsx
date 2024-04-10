@@ -4,6 +4,8 @@ import { Timeline } from "./routes/Timeline";
 import { RegisterView } from "./routes/Register";
 import { createRequester, RequestContext, Requester } from "./requester";
 import { LoginView } from "./routes/Login";
+import { UserProfile } from "./routes/UserProfile";
+import { loader as userProfileLoader } from "./routes/UserProfile";
 
 const router = createBrowserRouter(
   [
@@ -26,6 +28,11 @@ const router = createBrowserRouter(
     {
       path: "/login",
       element: <LoginView />,
+    },
+    {
+      path: "/user/:userId",
+      element: <UserProfile />,
+      loader: userProfileLoader as any,
     },
   ],
   {
