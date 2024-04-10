@@ -3,6 +3,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Timeline } from "./routes/Timeline";
 import { RegisterView } from "./routes/Register";
 import { createRequester, RequestContext, Requester } from "./requester";
+import { LoginView } from "./routes/Login";
 
 const router = createBrowserRouter(
   [
@@ -21,6 +22,10 @@ const router = createBrowserRouter(
     {
       path: "/register",
       element: <RegisterView />,
+    },
+    {
+      path: "/login",
+      element: <LoginView />,
     },
   ],
   {

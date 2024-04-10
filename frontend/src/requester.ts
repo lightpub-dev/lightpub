@@ -1,4 +1,10 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import axios from "axios";
 import { API_URL } from "./settings";
 
@@ -12,8 +18,22 @@ export const useRequestContext = () => useContext(RequestContext);
 
 export type Requester = ReturnType<typeof createRequester>;
 
+const LS_BEARER_TOKEN = "bearerToken";
+
 export function createRequester() {
-  const [bearerToken, setBearerToken] = useState<string | null>(null);
+  const [bearerToken, setBearerToken_] = useState<string | null>(null);
+  useEffect(() => {
+    const tokenInStorage = localStorage.getItem(LS_BEARER_TOKEN);
+    setBearerToken_(tokenInStorage);
+  }, []);
+  const setBearerToken = useCallback((bearerToken: string | null) => {
+    setBearerToken_(bearerToken);
+    if (bearerToken === null) {
+      localStorage.removeItem(LS_BEARER_TOKEN);
+    } else {
+      localStorage.setItem(LS_BEARER_TOKEN, bearerToken);
+    }
+  }, []);
 
   const mergeHeaders = useCallback(
     <T extends object>(headers?: T) => {
