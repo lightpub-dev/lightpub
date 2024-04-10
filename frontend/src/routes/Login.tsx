@@ -30,7 +30,7 @@ export function LoginView() {
         console.error(err);
         alert("Login failed");
       });
-  }, [req]);
+  }, [req, username, password]);
 
   return (
     <div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRequestContext } from "../requester";
 import { useLoaderData } from "react-router-dom";
 import { Button, Col, Row } from "antd";
@@ -23,14 +23,28 @@ export function UserProfile() {
       .catch((err) => console.error(err));
   }, [userId, req]);
 
+  const followUser = useCallback(() => {
+    req.put(`/user/${userId}/follow`, {}).catch((err) => console.error(err));
+  }, [req, userId]);
+  const unfollowUser = useCallback(() => {
+    req.delete(`/user/${userId}/follow`, {}).catch((err) => console.error(err));
+  }, [req, userId]);
+
   return (
     <div>
       <Row>
         <Col span={24}>{user?.id ?? "loading..."}</Col>
       </Row>
       <Row>
-        <Col>
-          <Button type="primary">Follow</Button>
+        <Col span={8}>
+          <Button type="primary" onClick={followUser}>
+            Follow
+          </Button>
+        </Col>
+        <Col span={8}>
+          <Button type="primary" danger onClick={unfollowUser}>
+            Unfollow
+          </Button>
         </Col>
       </Row>
     </div>

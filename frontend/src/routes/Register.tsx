@@ -1,9 +1,11 @@
 import { Button, Col, Input, Row } from "antd";
 import { useRequestContext } from "../requester";
 import { useCallback, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export function RegisterView() {
   const req = useRequestContext();
+  const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
   const [nickname, setNickname] = useState("");
@@ -21,13 +23,14 @@ export function RegisterView() {
       .then((res) => {
         setIsRegistering(false);
         console.log(res);
+        navigate("/login");
       })
       .catch((err) => {
         setIsRegistering(false);
         console.error(err);
         alert("Failed to register");
       });
-  }, [req]);
+  }, [req, username, nickname, password]);
 
   return (
     <div>
