@@ -27,6 +27,7 @@
     "antd": "^5.16.1",
     "axios": "^1.6.8",
     "http-proxy-middleware": "^3.0.0",
+    "immutable": "^5.0.0-beta.5",
     "localforage": "^1.10.0",
     "match-sorter": "^6.3.4",
     "react": "^18.2.0",

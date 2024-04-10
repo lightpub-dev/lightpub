@@ -21,11 +21,10 @@ export type Requester = ReturnType<typeof createRequester>;
 const LS_BEARER_TOKEN = "bearerToken";
 
 export function createRequester() {
-  const [bearerToken, setBearerToken_] = useState<string | null>(null);
-  useEffect(() => {
+  const [bearerToken, setBearerToken_] = useState<string | null>(() => {
     const tokenInStorage = localStorage.getItem(LS_BEARER_TOKEN);
-    setBearerToken_(tokenInStorage);
-  }, []);
+    return tokenInStorage;
+  });
   const setBearerToken = useCallback((bearerToken: string | null) => {
     setBearerToken_(bearerToken);
     if (bearerToken === null) {
