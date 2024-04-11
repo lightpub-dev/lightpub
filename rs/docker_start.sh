@@ -1,2 +1,2 @@
 #!/bin/bash
-refinery migrate && lightpub
+refinery migrate && lightpub_api

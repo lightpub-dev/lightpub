@@ -5,7 +5,8 @@ COPY . .
 
 RUN mkdir /out
 ENV CARGO_HOME=/cache/cargo
-RUN --mount=type=cache,target=/usr/src/app/target --mount=type=cache,target=/cache/cargo cargo build --release && cp target/release/lightpub /out/lightpub
+ARG BUILD_TYPE
+RUN --mount=type=cache,target=/usr/src/app/target --mount=type=cache,target=/cache/cargo ./docker_build.sh ${BUILD_TYPE}
 
 FROM debian:bullseye AS runtime
 
@@ -18,6 +19,6 @@ RUN apt-get update -qq && apt install -qq -y ./refinery_0.8.4_amd64.deb
 WORKDIR /lightpub
 COPY migrations ./migrations
 COPY docker_start.sh .
-COPY --from=builder /out/lightpub /usr/bin/lightpub
+COPY --from=builder /out/lightpub_api /usr/bin/lightpub_api
 
 CMD ["./docker_start.sh"]

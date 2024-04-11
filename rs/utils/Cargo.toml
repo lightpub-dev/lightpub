@@ -1,0 +1,26 @@
+[package]
+name = "lightpub_utils"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.7.0", features = ["v4", "v7", "serde", "fast-rng"] }
+serde_with = "3.7.0"
+regex = "1"
+lazy_static = "1.4.0"
+base64 = "0.22.0"
+async-trait = "0.1.77"
+derive_builder = "0.20.0"
+derive_more = { version = "=1.0.0-beta.6", features = ["constructor", "from"] }
+linked-hash-map = "0.5.6"
+rsa = { version = "0.9.6", features = ["sha2", "serde"] }
+lightpub_model = {path = "../model"}
+thiserror = "1.0"
+tracing = "0.1.40"
+rand = "0.8.5"
+anyhow = { version = "1.0.80", features = ["backtrace"] }
+reqwest = { version = "0.11.24", features = ["json"] }
+httpdate = "1.0.3"
