@@ -424,6 +424,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "api"
+version = "0.1.0"
+
+[[package]]
 name = "async-channel"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -610,6 +614,47 @@ name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+
+[[package]]
+name = "backend"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-recursion",
+ "async-trait",
+ "base64 0.22.0",
+ "bcrypt",
+ "chrono",
+ "clap",
+ "derive-getters",
+ "derive_builder",
+ "derive_more 1.0.0-beta.6",
+ "digest",
+ "emojis",
+ "futures",
+ "httpdate",
+ "json-ld",
+ "lazy_static",
+ "linked-hash-map",
+ "pkcs8",
+ "rand 0.8.5",
+ "regex",
+ "rsa",
+ "scraper",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "serde_with",
+ "serde_yaml",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "urlencoding",
+ "uuid 1.7.0",
+ "valico",
+]
 
 [[package]]
 name = "backtrace"
@@ -943,6 +988,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d16048cd947b08fa32c24458a22f5dc5e835264f689f4f5653210c69fd107363"
 dependencies = [
  "crossbeam-utils",
+]
+
+[[package]]
+name = "config"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_yaml",
 ]
 
 [[package]]
@@ -2476,6 +2529,24 @@ dependencies = [
  "urlencoding",
  "uuid 1.7.0",
  "valico",
+]
+
+[[package]]
+name = "lightpub_model"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "chrono",
+ "derive-getters",
+ "derive_builder",
+ "derive_more 1.0.0-beta.6",
+ "emojis",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_with",
+ "thiserror",
+ "uuid 1.7.0",
 ]
 
 [[package]]
@@ -4880,6 +4951,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 
 [[package]]
+name = "utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.0",
+ "derive_builder",
+ "derive_more 1.0.0-beta.6",
+ "httpdate",
+ "lazy_static",
+ "lightpub_model",
+ "linked-hash-map",
+ "rand 0.8.5",
+ "regex",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_with",
+ "thiserror",
+ "tracing",
+ "uuid 1.7.0",
+]
+
+[[package]]
 name = "uuid"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5249,6 +5344,10 @@ dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
 ]
+
+[[package]]
+name = "worker"
+version = "0.1.0"
 
 [[package]]
 name = "wyz"

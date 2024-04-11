@@ -1,3 +1,6 @@
+pub mod apub;
+pub mod db;
+pub mod id;
 use crate::models::{
     api_response::{FollowListEntry, UserPostEntry},
     apub::{AcceptActivity, Activity, FollowActivity, HasId, UndoActivity},
@@ -21,10 +24,6 @@ use crate::{
     },
     utils::{post::PostSpecifier, user::UserSpecifier},
 };
-
-pub mod apub;
-pub mod db;
-pub mod id;
 
 pub type Holder<T> = Box<T>;
 #[macro_export]
