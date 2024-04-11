@@ -3,6 +3,7 @@ http_scheme: https
 instance:
   name: Lightpub dev
   description: Lightpub development server
+  open_registration: true
 frontend_url: http://localhost:5173/#
 allowed_hosts:
   - lightpub.tinax.local
