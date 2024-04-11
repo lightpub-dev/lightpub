@@ -12,9 +12,9 @@ use tracing::{debug, info, warn};
 
 use lightpub_model::{
     apub::{
-        context::ContextAttachable, AcceptActivity, AcceptActivityBuilder, Activity, Actor,
-        CreatableObject, FollowActivity, FollowActivityBuilder, IdOrObject, UndoActivity,
-        UndoActivityBuilder, UndoableActivity,
+        context::ContextAttachable, AcceptActivity, AcceptActivityBuilder, AcceptableActivity,
+        Activity, Actor, CreatableObject, FollowActivity, FollowActivityBuilder, IdOrObject,
+        UndoActivity, UndoActivityBuilder, UndoableActivity,
     },
     ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri,
 };
@@ -400,15 +400,14 @@ impl ApubFollowService for DBApubFollowService {
         let accept = AcceptActivityBuilder::default()
             .id(None)
             .actor(followee_id.clone())
-            .object(IdOrObject::Object(
+            .object(IdOrObject::Object(AcceptableActivity::Follow(
                 FollowActivityBuilder::default()
                     .id(Some(uf.req_uri))
                     .actor(follower_id)
                     .object(IdOrObject::Id(followee_id))
                     .build()
-                    .unwrap()
-                    .into(),
-            ))
+                    .unwrap(),
+            )))
             .build()
             .unwrap();
         Ok(accept)

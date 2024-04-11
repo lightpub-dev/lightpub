@@ -280,6 +280,15 @@ struct RemoteUser {
     fetched_at: chrono::NaiveDateTime,
 }
 
+fn process_public_key_pem(pem: &str) -> String {
+    // Pleroma sends public key with a extra newline at the end,
+    // which leads to public key import failure.
+    // Trim all newlines from the end,
+    // then append a newline
+    let trimmed = pem.trim_end_matches('\n');
+    format!("{}\n", trimmed)
+}
+
 async fn find_user_by_url(
     url: impl Into<String>,
     req: &mut holder!(ApubRequestService),
@@ -325,7 +334,7 @@ async fn find_user_by_url(
     let followers = actor.followers;
     let liked = actor.liked;
     let pubkey = actor.public_key;
-    let pubkey_pem = pubkey.public_key_pem;
+    let pubkey_pem = process_public_key_pem(&pubkey.public_key_pem);
     let pubkey_owner = pubkey.owner;
     let pubkey_id = pubkey.id;
     let created_at = chrono::Utc::now().naive_utc();
