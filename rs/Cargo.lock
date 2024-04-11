@@ -2385,6 +2385,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "lightpub_worker"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "futures",
+ "lapin",
+ "lightpub_backend",
+ "lightpub_config",
+ "lightpub_model",
+ "lightpub_utils",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid 1.7.0",
+]
+
+[[package]]
 name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4878,10 +4900,6 @@ dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
 ]
-
-[[package]]
-name = "worker"
-version = "0.1.0"
 
 [[package]]
 name = "yasna"

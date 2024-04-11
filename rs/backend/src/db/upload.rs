@@ -3,7 +3,7 @@ use derive_more::Constructor;
 use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 
-use crate::{holder, LocalUserFinderService, UploadService};
+use crate::{holder, Holder, LocalUserFinderService, UploadService};
 use lightpub_model::UserSpecifier;
 
 #[derive(Constructor)]

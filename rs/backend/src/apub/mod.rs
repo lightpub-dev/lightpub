@@ -43,7 +43,7 @@ pub mod queue;
 pub mod render;
 #[derive(Debug, Clone)]
 pub struct ApubReqwester {
-    client: reqwest::Client,
+    pub client: reqwest::Client,
 }
 
 impl ApubReqwester {
@@ -78,7 +78,7 @@ pub fn new_apub_reqwester_service(
 
 #[derive(Debug)]
 pub struct ApubReqwest {
-    client: ApubReqwester,
+    pub client: ApubReqwester,
 }
 
 impl ApubReqwest {
@@ -285,17 +285,17 @@ impl ApubRequestService for ApubReqwest {
 }
 
 #[derive(Debug, Deserialize)]
-struct WebfingerResponse {
+pub struct WebfingerResponse {
     #[allow(unused)]
-    subject: String,
-    links: Vec<WebfingerLinks>,
+    pub subject: String,
+    pub links: Vec<WebfingerLinks>,
 }
 
 #[derive(Debug, Deserialize)]
-struct WebfingerLinks {
-    href: Option<String>,
-    rel: Option<String>,
-    r#type: Option<String>,
+pub struct WebfingerLinks {
+    pub href: Option<String>,
+    pub rel: Option<String>,
+    pub r#type: Option<String>,
 }
 
 pub struct DBApubFollowService {

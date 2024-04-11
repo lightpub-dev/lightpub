@@ -1,6 +1,4 @@
-use lightpub_backend::apub::queue::worker::{ApubDirector, WorkerType};
 use lightpub_backend::apub::queue::QueuedApubRequester;
-use lightpub_backend::apub::ApubReqwester;
 use lightpub_backend::db::new_db_user_post_service;
 use lightpub_model::apub::context::ContextAttachable;
 use lightpub_model::apub::{
@@ -1879,19 +1877,6 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("initialize amqp queue");
     tracing::info!("Connected to queue");
-
-    // spawn background workers
-    let mut director = ApubDirector::prepare(&queue).await;
-    director
-        .add_workers(1, &queue, WorkerType::PostToInbox, || {
-            ApubReqwester::new(&config)
-        })
-        .await;
-    director
-        .add_workers(3, &queue, WorkerType::Fetcher, || {
-            ApubReqwester::new(&config)
-        })
-        .await;
 
     // create upload_dir
     let upload_dir = config.upload_dir.clone();

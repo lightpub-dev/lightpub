@@ -8,7 +8,6 @@ use tracing::warn;
 use uuid::fmt::Simple;
 use uuid::Uuid;
 
-use crate::holder;
 use crate::id::IDGetterService;
 use crate::id::UserAttribute;
 use crate::AllUserFinderService;
@@ -30,6 +29,7 @@ use crate::UserLoginRequest;
 use crate::UserLoginResult;
 use crate::UserProfileService;
 use crate::UserProfileUpdate;
+use crate::{holder, Holder};
 use lightpub_model;
 use lightpub_model::apub::Actor;
 use lightpub_model::ApubSigner;

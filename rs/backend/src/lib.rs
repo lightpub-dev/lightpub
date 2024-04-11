@@ -25,7 +25,7 @@ pub type Holder<T> = Box<T>;
 #[macro_export]
 macro_rules! holder {
     ($t:tt) => {
-        crate::Holder<dyn $t + Send + Sync>
+        Holder<dyn $t + Send + Sync>
     };
 }
 

@@ -4,7 +4,7 @@ use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
 use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 
-use crate::{holder, AllUserFinderService};
+use crate::{holder, AllUserFinderService, Holder};
 use lightpub_model::UserSpecifier;
 use lightpub_utils::key::{KeyFetcher, KeyFetcherResult};
 

@@ -14,7 +14,7 @@ use crate::{
     },
     holder,
     id::IDGetterService,
-    AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
+    AllUserFinderService, ApubRequestService, FetchUserPostsOptions, Holder, PostCreateError,
     PostCreateRequest, PostCreateService, PostDeleteError, PostFetchError, PostInteractionAction,
     ServiceError, SignerService, TimelineOptions, UserFollowService, UserPostService,
 };
