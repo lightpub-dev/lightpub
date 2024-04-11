@@ -1,18 +1,16 @@
-use crate::services::ApubSigner;
+use crate::ApubSigner;
 use async_trait::async_trait;
 use derive_more::Constructor;
 use thiserror::Error;
 
+use crate::holder;
 use crate::{
-    holder,
-    models::{
-        apub::{Activity, Actor, CreatableObject},
-        ApubWebfingerResponse,
-    },
-    services::{
-        ApubFetchPostError, ApubFetchUserError, ApubRequestService, MiscError, PostToInboxError,
-        ServiceError, WebfingerError,
-    },
+    ApubFetchPostError, ApubFetchUserError, ApubRequestService, MiscError, PostToInboxError,
+    ServiceError, WebfingerError,
+};
+use lightpub_model::{
+    apub::{Activity, Actor, CreatableObject},
+    ApubWebfingerResponse,
 };
 
 #[derive(Constructor)]

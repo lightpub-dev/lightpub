@@ -8,33 +8,29 @@ use tracing::warn;
 use uuid::{fmt::Simple, Uuid};
 
 use crate::{
+    apub::{
+        post::PostContentService,
+        render::{ApubRendererService, TargetedUser},
+    },
     holder,
-    models::{
-        api_response::{
-            PostAuthorBuilder, PostCountsBuilder, PostMentionedUser, PostReaction, UserPostEntry,
-            UserPostEntryBuilder,
-        },
-        apub::{Activity, CreatableObject},
-        reaction::Reaction,
-        ApubMentionedUser, ApubPostTargetComputable, ApubRenderablePost, HasRemoteUri,
-        HasRemoteUriOnly, PostPrivacy,
+    id::IDGetterService,
+    AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
+    PostCreateRequest, PostCreateService, PostDeleteError, PostFetchError, PostInteractionAction,
+    ServiceError, SignerService, TimelineOptions, UserFollowService, UserPostService,
+};
+use lightpub_model::{
+    api_response::{
+        PostAuthorBuilder, PostCountsBuilder, PostMentionedUser, PostReaction, UserPostEntry,
+        UserPostEntryBuilder,
     },
-    services::{
-        apub::{
-            post::PostContentService,
-            render::{ApubRendererService, TargetedUser},
-        },
-        id::IDGetterService,
-        AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
-        PostCreateRequest, PostCreateService, PostDeleteError, PostFetchError,
-        PostInteractionAction, ServiceError, SignerService, TimelineOptions, UserFollowService,
-        UserPostService,
-    },
-    utils::{
-        generate_uuid,
-        post::{find_hashtags, find_mentions, PostSpecifier},
-        user::UserSpecifier,
-    },
+    apub::{Activity, CreatableObject},
+    reaction::Reaction,
+    ApubMentionedUser, ApubPostTargetComputable, ApubRenderablePost, HasRemoteUri,
+    HasRemoteUriOnly, PostPrivacy, PostSpecifier, UserSpecifier,
+};
+use lightpub_utils::{
+    generate_uuid,
+    post::{find_hashtags, find_mentions},
 };
 
 #[derive(Constructor)]
@@ -263,9 +259,9 @@ impl DBPostCreateService {
 
     async fn create_post_(
         &mut self,
-        req: &crate::services::PostCreateRequest,
+        req: &crate::PostCreateRequest,
         depth: i32,
-    ) -> Result<Simple, crate::services::ServiceError<crate::services::PostCreateError>> {
+    ) -> Result<Simple, crate::ServiceError<crate::PostCreateError>> {
         let mut tx = self.pool.begin().await?;
         let uri = req.uri();
         if let Some(uri) = uri {
@@ -696,8 +692,8 @@ impl DBPostCreateService {
 impl PostCreateService for DBPostCreateService {
     async fn create_post(
         &mut self,
-        req: &crate::services::PostCreateRequest,
-    ) -> Result<Simple, crate::services::ServiceError<crate::services::PostCreateError>> {
+        req: &crate::PostCreateRequest,
+    ) -> Result<Simple, crate::ServiceError<crate::PostCreateError>> {
         self.create_post_(req, 0).await
     }
 
@@ -1133,7 +1129,7 @@ impl ApubRenderablePost for LocalPost {
         self.reply_to_uri.clone()
     }
 
-    fn mentioned(&self) -> Vec<crate::models::ApubMentionedUser> {
+    fn mentioned(&self) -> Vec<ApubMentionedUser> {
         self.mentioned_users
             .iter()
             .map(|s| s.clone().into())

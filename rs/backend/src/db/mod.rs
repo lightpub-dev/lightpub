@@ -6,7 +6,9 @@ pub mod user;
 
 use sqlx::MySqlPool;
 
-use crate::{config::Config, holder, new_id_getter_service, utils::key::KeyFetcher};
+use crate::{holder, id::IDGetterService};
+use lightpub_config::Config;
+use lightpub_utils::key::KeyFetcher;
 
 use self::{key::DBKeyFetcher, post::DBPostCreateService, user::DBSignerService};
 
@@ -19,6 +21,10 @@ use super::{
     UploadService, UserAuthService, UserCreateService, UserFollowService, UserPostService,
     UserProfileService,
 };
+
+pub fn new_id_getter_service(config: Config) -> IDGetterService {
+    IDGetterService::new(config)
+}
 
 pub fn new_user_service(pool: MySqlPool) -> holder!(UserCreateService) {
     Holder::new(user::DBUserCreateService::new(pool))

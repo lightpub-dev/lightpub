@@ -1,4 +1,5 @@
-use crate::{config::Config, models::HasRemoteUri};
+use lightpub_config::Config;
+use lightpub_model::HasRemoteUri;
 
 #[derive(Debug, Clone)]
 pub struct IDGetterService {

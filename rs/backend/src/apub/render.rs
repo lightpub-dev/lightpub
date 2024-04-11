@@ -2,18 +2,16 @@ use derive_getters::Getters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::models::apub::{
+use crate::id::{IDGetterService, UserAttribute};
+use lightpub_model::apub::{
     Activity, AnnounceActivity, AnnounceActivityBuilder, CreatableObject, CreateActivity,
     CreateActivityBuilder, DeleteActivity, IdOrObject, LikeActivity, NoteBuilder, Person,
     PersonBuilder, PublicKeyBuilder, TombstoneBuilder, UndoActivity, UndoableActivity, PUBLIC,
 };
-use crate::models::{
+use lightpub_model::{
     ApubPostTargetComputable, ApubRenderablePost, ApubRenderableUser, HasRemoteUri,
-    HasRemoteUriOnly, PostPrivacy,
+    HasRemoteUriOnly, PostPrivacy, UserSpecifier,
 };
-use crate::services::id::IDGetterService;
-use crate::services::id::UserAttribute;
-use crate::utils::user::UserSpecifier;
 use std::str::FromStr;
 
 use anyhow::Result;

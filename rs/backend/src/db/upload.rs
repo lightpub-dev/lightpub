@@ -3,11 +3,8 @@ use derive_more::Constructor;
 use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 
-use crate::{
-    holder,
-    services::{LocalUserFinderService, UploadService},
-    utils::user::UserSpecifier,
-};
+use crate::{holder, LocalUserFinderService, UploadService};
+use lightpub_model::UserSpecifier;
 
 #[derive(Constructor)]
 pub struct DBUploadService {

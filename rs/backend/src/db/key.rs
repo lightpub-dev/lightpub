@@ -4,14 +4,9 @@ use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
 use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 
-use crate::{
-    holder,
-    services::AllUserFinderService,
-    utils::{
-        key::{KeyFetcher, KeyFetcherResult},
-        user::UserSpecifier,
-    },
-};
+use crate::{holder, AllUserFinderService};
+use lightpub_model::UserSpecifier;
+use lightpub_utils::key::{KeyFetcher, KeyFetcherResult};
 
 #[derive(Constructor)]
 pub struct DBKeyFetcher {

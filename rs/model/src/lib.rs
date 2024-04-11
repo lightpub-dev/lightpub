@@ -1,6 +1,8 @@
 pub mod pagination;
+pub mod post;
 pub mod user;
 
+pub use post::PostSpecifier;
 pub use user::UserSpecifier;
 
 use std::str::FromStr;

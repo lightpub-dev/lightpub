@@ -4,20 +4,17 @@ use tracing::{debug, warn};
 use uuid::fmt::Simple;
 
 use crate::{
-    holder,
-    models::{
-        self,
-        api_response::{FollowListEntry, FollowListEntryBuilder},
-        HasRemoteUri,
-    },
-    services::{
-        id::IDGetterService, AllUserFinderService, ApubFollowService, ApubRequestService,
-        FetchFollowListOptions, FollowError, FollowRequestAccepted, FollowRequestSpecifier,
-        IncomingFollowRequest, ServiceError, SignerError, SignerService, UserFindError,
-        UserFollowService,
-    },
-    utils::{generate_uuid, user::UserSpecifier},
+    holder, id::IDGetterService, AllUserFinderService, ApubFollowService, ApubRequestService,
+    FetchFollowListOptions, FollowError, FollowRequestAccepted, FollowRequestSpecifier,
+    IncomingFollowRequest, ServiceError, SignerError, SignerService, UserFindError,
+    UserFollowService,
 };
+use lightpub_model::{
+    self,
+    api_response::{FollowListEntry, FollowListEntryBuilder},
+    HasRemoteUri, User, UserSpecifier,
+};
+use lightpub_utils::generate_uuid;
 
 pub struct DBUserFollowService {
     pool: MySqlPool,
@@ -53,7 +50,7 @@ impl DBUserFollowService {
         &mut self,
         user: &UserSpecifier,
         not_found_error: FollowError,
-    ) -> Result<models::User, ServiceError<FollowError>> {
+    ) -> Result<User, ServiceError<FollowError>> {
         self.finder
             .find_user_by_specifier(user)
             .await
@@ -215,7 +212,7 @@ impl UserFollowService for DBUserFollowService {
         &mut self,
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
-    ) -> Result<(), crate::services::ServiceError<crate::services::FollowError>> {
+    ) -> Result<(), crate::ServiceError<crate::FollowError>> {
         let follower = self
             .find_user(follower_spec, FollowError::FollowerNotFound)
             .await?;
@@ -287,7 +284,7 @@ impl UserFollowService for DBUserFollowService {
         &mut self,
         follower_spec: &UserSpecifier,
         followee_spec: &UserSpecifier,
-    ) -> Result<(), crate::services::ServiceError<crate::services::FollowError>> {
+    ) -> Result<(), crate::ServiceError<crate::FollowError>> {
         let follower = self
             .find_user(follower_spec, FollowError::FollowerNotFound)
             .await?;
@@ -346,7 +343,7 @@ impl UserFollowService for DBUserFollowService {
 
     async fn follow_request_accepted(
         &mut self,
-        accepted_request: &crate::services::FollowRequestSpecifier,
+        accepted_request: &crate::FollowRequestSpecifier,
     ) -> Result<FollowRequestAccepted, ServiceError<FollowError>> {
         let mut tx = self.pool.begin().await?;
 

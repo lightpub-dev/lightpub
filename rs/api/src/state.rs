@@ -1,6 +1,7 @@
 use sqlx::MySqlPool;
 
-use crate::{config::Config, services::apub::queue::QueuedApubRequesterBuilder};
+use lightpub_backend::apub::queue::QueuedApubRequesterBuilder;
+use lightpub_config::Config;
 
 #[derive(Debug, Clone)]
 pub struct AppState {

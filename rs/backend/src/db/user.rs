@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Constructor;
+use lightpub_model::User;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
@@ -8,34 +9,34 @@ use uuid::fmt::Simple;
 use uuid::Uuid;
 
 use crate::holder;
-use crate::models;
-use crate::models::apub::Actor;
-use crate::models::ApubSigner;
-use crate::services::id::IDGetterService;
-use crate::services::id::UserAttribute;
-use crate::services::AllUserFinderService;
-use crate::services::ApubRequestService;
-use crate::services::InboxPair;
-use crate::services::LocalUserFindError;
-use crate::services::LocalUserFinderService;
-use crate::services::ServiceError;
-use crate::services::SignerError;
-use crate::services::SignerService;
-use crate::services::UserAuthService;
-use crate::services::UserCreateError;
-use crate::services::UserCreateRequest;
-use crate::services::UserCreateResult;
-use crate::services::UserCreateService;
-use crate::services::UserFindError;
-use crate::services::UserLoginError;
-use crate::services::UserLoginRequest;
-use crate::services::UserLoginResult;
-use crate::services::UserProfileService;
-use crate::services::UserProfileUpdate;
-use crate::utils;
-use crate::utils::generate_uuid;
-use crate::utils::generate_uuid_random;
-use crate::utils::user::UserSpecifier;
+use crate::id::IDGetterService;
+use crate::id::UserAttribute;
+use crate::AllUserFinderService;
+use crate::ApubRequestService;
+use crate::InboxPair;
+use crate::LocalUserFindError;
+use crate::LocalUserFinderService;
+use crate::ServiceError;
+use crate::SignerError;
+use crate::SignerService;
+use crate::UserAuthService;
+use crate::UserCreateError;
+use crate::UserCreateRequest;
+use crate::UserCreateResult;
+use crate::UserCreateService;
+use crate::UserFindError;
+use crate::UserLoginError;
+use crate::UserLoginRequest;
+use crate::UserLoginResult;
+use crate::UserProfileService;
+use crate::UserProfileUpdate;
+use lightpub_model;
+use lightpub_model::apub::Actor;
+use lightpub_model::ApubSigner;
+use lightpub_model::UserSpecifier;
+use lightpub_utils;
+use lightpub_utils::generate_uuid;
+use lightpub_utils::generate_uuid_random;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use std::str::FromStr;
 
@@ -93,7 +94,7 @@ impl UserCreateService for DBUserCreateService {
 
         // generate rsa keys
         let (private_key, public_key) = tokio::task::spawn_blocking(|| {
-            let private_key = utils::key::generate();
+            let private_key = lightpub_utils::key::generate();
             let public_key = private_key.to_public_key();
             let private_key = private_key
                 .to_pkcs8_pem(pkcs8::LineEnding::LF)
@@ -164,8 +165,8 @@ impl UserAuthService for DBAuthService {
     async fn authenticate_user(
         &mut self,
         token: &str,
-    ) -> Result<models::User, ServiceError<crate::services::AuthError>> {
-        let u = sqlx::query_as!(models::User,
+    ) -> Result<User, ServiceError<crate::AuthError>> {
+        let u = sqlx::query_as!(User,
             "SELECT users.id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, users.created_at FROM users INNER JOIN user_tokens ON users.id = user_tokens.user_id WHERE token = ?",
             token
         ).fetch_one(&self.pool).await?;
@@ -190,7 +191,7 @@ impl LocalUserFinderService for DBLocalUserFinderService {
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
-    ) -> Result<models::User, ServiceError<LocalUserFindError>> {
+    ) -> Result<User, ServiceError<LocalUserFindError>> {
         match spec {
             UserSpecifier::Username(username, host) => {
                 if let Some(_) = host {
@@ -199,7 +200,7 @@ impl LocalUserFinderService for DBLocalUserFinderService {
                     ));
                 }
 
-                let u = sqlx::query_as!(models::User,
+                let u = sqlx::query_as!(User,
                 "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host IS NULL", username).fetch_one(&self.pool).await?;
                 return Ok(u);
             }
@@ -207,7 +208,7 @@ impl LocalUserFinderService for DBLocalUserFinderService {
                 return Err(ServiceError::from_se(LocalUserFindError::NotLocalUser));
             }
             UserSpecifier::ID(id) => {
-                let u = sqlx::query_as!(models::User,
+                let u = sqlx::query_as!(User,
                 "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE id = ?", id.simple().to_string()).fetch_one(&self.pool).await?;
                 if u.host.is_some() {
                     return Err(ServiceError::from_se(
@@ -268,12 +269,12 @@ async fn find_user_by_url(
     url: impl Into<String>,
     req: &mut holder!(ApubRequestService),
     pool: &MySqlPool,
-) -> Result<models::User, ServiceError<crate::services::UserFindError>> {
+) -> Result<User, ServiceError<crate::UserFindError>> {
     let url = url.into();
     // we can assume that the url is a remote-user url
 
     // try to fetch user from db
-    let u = sqlx::query_as!(models::User,
+    let u = sqlx::query_as!(User,
         "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE uri = ?", url).fetch_optional(pool).await?;
     if let Some(u) = u {
         // try to fetch remote_users
@@ -332,7 +333,7 @@ async fn find_user_by_url(
         generate_uuid()
     };
 
-    let user = models::User {
+    let user = User {
         id: user_id,
         username: username.to_string(),
         host: Some(host),
@@ -402,7 +403,7 @@ impl AllUserFinderService for DBAllUserFinderService {
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
-    ) -> Result<models::User, ServiceError<crate::services::UserFindError>> {
+    ) -> Result<User, ServiceError<crate::UserFindError>> {
         match spec {
             UserSpecifier::Username(username, host) => {
                 if let Some(host) = host {
@@ -419,7 +420,7 @@ impl AllUserFinderService for DBAllUserFinderService {
                     }
 
                     // check if already exists in local db
-                    let u = sqlx::query_as!(models::User,
+                    let u = sqlx::query_as!(User,
                         "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host = ?", username, host).fetch_optional(&self.pool).await?;
                     if let Some(u) = u {
                         // TODO: check if user is up-to-date
@@ -453,7 +454,7 @@ impl AllUserFinderService for DBAllUserFinderService {
                 }
             }
             UserSpecifier::ID(id) => {
-                let u = sqlx::query_as!(models::User,
+                let u = sqlx::query_as!(User,
                     "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE id = ?", id.simple().to_string()).fetch_one(&self.pool).await?;
 
                 return Ok(u);
@@ -530,7 +531,7 @@ impl SignerService for DBSignerService {
     async fn fetch_signer(
         &mut self,
         user: &UserSpecifier,
-    ) -> Result<holder!(ApubSigner), ServiceError<crate::services::SignerError>> {
+    ) -> Result<holder!(ApubSigner), ServiceError<crate::SignerError>> {
         let u = self
             .fetch
             .find_user_by_specifier(user)

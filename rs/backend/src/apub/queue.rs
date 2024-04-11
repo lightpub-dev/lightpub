@@ -5,12 +5,15 @@ use std::{
 };
 
 use crate::{
-    models::ApubSigner,
-    services::{
-        apub::queue::transport::{encode_payload, PostToInboxPayload},
-        MiscError,
-    },
+    apub::queue::transport::{encode_payload, PostToInboxPayload},
+    holder, ApubFetchPostError, ApubFetchUserError, ApubRequestService, MiscError,
+    PostToInboxError, ServiceError, WebfingerError,
 };
+use lightpub_model::{
+    apub::{Activity, Actor, CreatableObject},
+    ApubSigner, ApubWebfingerResponse,
+};
+
 use async_trait::async_trait;
 use futures::{stream::StreamExt, Future};
 use lapin::{
@@ -23,18 +26,6 @@ use lapin::{
 };
 use serde::Deserialize;
 
-use crate::{
-    holder,
-    models::{
-        apub::{Activity, Actor, CreatableObject},
-        ApubWebfingerResponse,
-    },
-    services::{
-        ApubFetchPostError, ApubFetchUserError, ApubRequestService, PostToInboxError, ServiceError,
-        WebfingerError,
-    },
-};
-
 use self::transport::{decode_payload, GetRequestPayload, GetWebfingerPayload, ResponsePayload};
 
 pub mod transport {
@@ -44,10 +35,8 @@ pub mod transport {
     use serde::{Deserialize, Serialize};
     use thiserror::Error;
 
-    use crate::{
-        models::apub::Activity,
-        services::{MiscError, ServiceError},
-    };
+    use crate::{MiscError, ServiceError};
+    use lightpub_model::apub::Activity;
 
     #[derive(Debug, Serialize, Deserialize)]
     pub struct PostToInboxPayload {
@@ -168,17 +157,14 @@ pub mod worker {
     use tracing::info;
 
     use crate::{
-        holder,
-        models::{
-            apub::{context::ContextAttachable, Activity, Actor, CreatableObject},
-            ApubSigner, ApubWebfingerResponse, ApubWebfingerResponseBuilder,
-        },
-        services::{
-            apub::{map_error, ApubReqwestError, ApubReqwester, WebfingerResponse},
-            ApubFetchPostError, ApubFetchUserError, ServiceError, WebfingerError,
-        },
-        utils::key::{attach_signature, SignKeyBuilder},
+        apub::{map_error, ApubReqwestError, ApubReqwester, WebfingerResponse},
+        holder, ApubFetchPostError, ApubFetchUserError, ServiceError, WebfingerError,
     };
+    use lightpub_model::{
+        apub::{context::ContextAttachable, Activity, Actor, CreatableObject},
+        ApubSigner, ApubWebfingerResponse, ApubWebfingerResponseBuilder,
+    };
+    use lightpub_utils::key::{attach_signature, SignKeyBuilder};
 
     use super::{
         transport::{

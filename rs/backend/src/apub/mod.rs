@@ -10,27 +10,20 @@ use serde::Deserialize;
 use sqlx::MySqlPool;
 use tracing::{debug, info, warn};
 
-use crate::{
-    models::apub::{
-        context::ContextAttachable, UndoActivity, UndoActivityBuilder, UndoableActivity,
+use lightpub_model::{
+    apub::{
+        context::ContextAttachable, AcceptActivity, AcceptActivityBuilder, Activity, Actor,
+        CreatableObject, FollowActivity, FollowActivityBuilder, IdOrObject, UndoActivity,
+        UndoActivityBuilder, UndoableActivity,
     },
-    utils::user::UserSpecifier,
+    ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri,
 };
+use lightpub_model::{ApubWebfingerResponse, UserSpecifier};
+use lightpub_utils::key::{attach_signature, SignKeyBuilder};
 use uuid::fmt::Simple;
 
-use crate::{
-    config::Config,
-    holder,
-    models::{
-        apub::{
-            AcceptActivity, AcceptActivityBuilder, Activity, Actor, CreatableObject,
-            FollowActivity, FollowActivityBuilder, IdOrObject,
-        },
-        ApubSigner, ApubWebfingerResponseBuilder, HasRemoteUri,
-    },
-    services::{ServiceError, WebfingerError},
-    utils::key::{attach_signature, SignKeyBuilder},
-};
+use crate::{holder, ServiceError, WebfingerError};
+use lightpub_config::Config;
 
 use self::{
     dummy::DummyRequester,
@@ -244,8 +237,7 @@ impl ApubRequestService for ApubReqwest {
         &mut self,
         username: &str,
         host: &str,
-    ) -> Result<crate::models::ApubWebfingerResponse, super::ServiceError<super::WebfingerError>>
-    {
+    ) -> Result<ApubWebfingerResponse, super::ServiceError<super::WebfingerError>> {
         let url = format!(
             "https://{}/.well-known/webfinger?resource=acct:{}@{}",
             host, username, host

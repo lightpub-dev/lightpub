@@ -1,10 +1,15 @@
 pub mod apub;
 pub mod db;
 pub mod id;
-use crate::models::{
+use lightpub_model::{
+    self,
     api_response::{FollowListEntry, UserPostEntry},
-    apub::{AcceptActivity, Activity, FollowActivity, HasId, UndoActivity},
+    apub::{
+        AcceptActivity, Activity, Actor, CreatableObject, FollowActivity, HasId, Note, TagEnum,
+        UndoActivity, PUBLIC,
+    },
     reaction::Reaction,
+    ApubSigner, ApubWebfingerResponse, PostPrivacy, PostSpecifier, User, UserSpecifier,
 };
 use std::fmt::Display;
 
@@ -16,20 +21,11 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::{fmt::Simple, Uuid};
 
-use crate::{
-    models::{
-        self,
-        apub::{Actor, CreatableObject, Note, TagEnum, PUBLIC},
-        ApubSigner, ApubWebfingerResponse, PostPrivacy,
-    },
-    utils::{post::PostSpecifier, user::UserSpecifier},
-};
-
 pub type Holder<T> = Box<T>;
 #[macro_export]
 macro_rules! holder {
     ($t:tt) => {
-        crate::services::Holder<dyn $t + Send + Sync>
+        crate::Holder<dyn $t + Send + Sync>
     };
 }
 
@@ -183,7 +179,7 @@ pub trait LocalUserFinderService {
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
-    ) -> Result<models::User, ServiceError<LocalUserFindError>>;
+    ) -> Result<User, ServiceError<LocalUserFindError>>;
 }
 
 #[derive(Debug, Clone, Error)]
@@ -199,7 +195,7 @@ pub trait AllUserFinderService {
     async fn find_user_by_specifier(
         &mut self,
         spec: &UserSpecifier,
-    ) -> Result<models::User, ServiceError<UserFindError>>;
+    ) -> Result<User, ServiceError<UserFindError>>;
 
     async fn find_followers_inboxes(
         &mut self,
@@ -522,10 +518,7 @@ pub enum AuthError {
 
 #[async_trait]
 pub trait UserAuthService {
-    async fn authenticate_user(
-        &mut self,
-        token: &str,
-    ) -> Result<models::User, ServiceError<AuthError>>;
+    async fn authenticate_user(&mut self, token: &str) -> Result<User, ServiceError<AuthError>>;
 }
 
 #[derive(Debug, Clone, Error)]
