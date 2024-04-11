@@ -254,6 +254,7 @@ describe("/post", function () {
                 BASE_URL + "/post/538ec871f81348c79158fecda95325e5",
                 {
                     ...authHeader(token),
+                    validateStatus: () => true,
                 }
             );
             expect(res.status).equal(404);
