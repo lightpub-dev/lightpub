@@ -7,6 +7,8 @@ const MISSKEY_TOKEN = "p6jFYxtFO7QJGbQSpZthKJzTPGfzqhQt";
 const MISSKEY_USER_ID = "9r70xhde0mav0001";
 const LP_BASE_URL = "https://lightpub.tinax.local";
 
+const GOOD_PASSWORD = "1234AbcD!?";
+
 async function sleep(ms: number) {
     return new Promise((resolve) => {
         setTimeout(resolve, ms);
@@ -25,14 +27,14 @@ describe("Misskey federation test", function () {
         // create admin user for lightpub
         const res = await axios.post(LP_BASE_URL + "/register", {
             username: "admin",
-            password: "1234abcd",
+            password: GOOD_PASSWORD,
             nickname: "admin dayo",
         });
         expect(res.status).to.be(200);
         // login
         const res2 = await axios.post(LP_BASE_URL + "/login", {
             username: "admin",
-            password: "1234abcd",
+            password: GOOD_PASSWORD,
         });
         expect(res2.status).to.be(200);
         const lpToken = res2.data.token;
@@ -42,11 +44,11 @@ describe("Misskey federation test", function () {
     before(async function () {
         this.timeout(0);
         // create admin user for lightpub
-        lpToken = await createLpUser("admin", "admin dayo", "1234abcd");
+        lpToken = await createLpUser("admin", "admin dayo", GOOD_PASSWORD);
         // lpNoFollowToken = await createLpUser(
         //     "no_follow",
         //     "I have no followers",
-        //     "1234abcd",
+        //     GOOD_PASSWORD,
         // );
     });
 

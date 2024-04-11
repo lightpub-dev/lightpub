@@ -6,6 +6,8 @@ import mocha from "mocha";
 const BASE_URL = "https://lightpub.tinax.local";
 axios.defaults.baseURL = BASE_URL;
 
+const GOOD_PASSWORD = "1234AbcD!?";
+
 const truncateDB = () => {
     // execute truncate_db.sh
     return new Promise((resolve, reject) => {
@@ -67,7 +69,7 @@ describe("/register", function () {
             {
                 username: "initialuser",
                 nickname: "initialnick",
-                password: "password",
+                password: GOOD_PASSWORD,
             },
             {
                 timeout: 30000,
@@ -84,7 +86,7 @@ describe("/register", function () {
                 {
                     username: "duplicateduser",
                     nickname: "duplicatednick",
-                    password: "password",
+                    password: GOOD_PASSWORD,
                 },
                 {
                     timeout: 30000,
@@ -99,7 +101,7 @@ describe("/register", function () {
                 {
                     username: "duplicateduser",
                     nickname: "duplicatednick",
-                    password: "password",
+                    password: GOOD_PASSWORD,
                 },
                 {
                     timeout: 30000,
@@ -108,6 +110,69 @@ describe("/register", function () {
             );
             expect(response.status).equal(400);
         }
+    });
+    context("bad usernames", function () {
+        async function checkFails(username: string) {
+            const response = await axios.post(
+                BASE_URL + "/register",
+                {
+                    username,
+                    nickname: "nickname",
+                    password: GOOD_PASSWORD,
+                },
+                {
+                    timeout: 30000,
+                    validateStatus: () => true,
+                }
+            );
+            expect(response.status).equal(400);
+        }
+        it("contains kanji", async function () {
+            await checkFails("kanji感じ");
+        });
+        it("too short", async function () {
+            await checkFails("ab");
+        });
+        it("too long", async function () {
+            await checkFails("123456789abcdefgh");
+        });
+        it("contains special characters", async function () {
+            await checkFails("special!char@foobar");
+        });
+    });
+    context("bad passwords", function () {
+        async function checkFails(password: string) {
+            const response = await axios.post(
+                BASE_URL + "/register",
+                {
+                    username: "username",
+                    nickname: "nickname",
+                    password,
+                },
+                {
+                    timeout: 30000,
+                    validateStatus: () => true,
+                }
+            );
+            expect(response.status).equal(400);
+        }
+        it("too short", async function () {
+            await checkFails("1234Ab!");
+        });
+        it("no uppercase", async function () {
+            await checkFails("1234abcd!?");
+        });
+        it("no lowercase", async function () {
+            await checkFails("1234ABCD!?");
+        });
+        it("no special chars", async function () {
+            await checkFails("1234ABCDEFgh");
+        });
+        it("too long", async function () {
+            await checkFails(
+                "1234ABCDEojt3039a84u5v90u908!h9a8u?Fgu09ta0w85gv0a7h"
+            );
+        });
     });
 });
 
@@ -121,7 +186,7 @@ describe("/login", function () {
                 {
                     username: "initialuser",
                     nickname: "initialnick",
-                    password: "password",
+                    password: GOOD_PASSWORD,
                 },
                 {
                     timeout: 30000,
@@ -137,7 +202,7 @@ describe("/login", function () {
     it("can login with correct credentials", async function () {
         const response = await axios.post(BASE_URL + "/login", {
             username: "initialuser",
-            password: "password",
+            password: GOOD_PASSWORD,
         });
         expect(response.status).equal(200);
         expect(response.data).have.property("token");
@@ -162,7 +227,7 @@ describe("/login", function () {
             BASE_URL + "/login",
             {
                 username: "nonexistinguser",
-                password: "password",
+                password: GOOD_PASSWORD,
             },
             {
                 validateStatus: () => true,
@@ -177,8 +242,8 @@ describe("/post", function () {
     before(async function () {
         this.timeout(60000);
         await truncateDB();
-        token = await createAndLoginUser("testuser", "password");
-        token2 = await createAndLoginUser("testuser2", "password");
+        token = await createAndLoginUser("testuser", GOOD_PASSWORD);
+        token2 = await createAndLoginUser("testuser2", GOOD_PASSWORD);
     });
     describe("normal post", function () {
         it("can create a public post", async function () {
@@ -572,8 +637,8 @@ describe("/post/{id}", function () {
     before(async function () {
         this.timeout(60000);
         await truncateDB();
-        token = await createAndLoginUser("testuser", "password");
-        tokenOthers = await createAndLoginUser("testuser2", "password");
+        token = await createAndLoginUser("testuser", GOOD_PASSWORD);
+        tokenOthers = await createAndLoginUser("testuser2", GOOD_PASSWORD);
 
         const public_res = await axios.post(
             BASE_URL + "/post",
@@ -690,8 +755,8 @@ describe("/follow", function () {
     before(async function () {
         this.timeout(60000);
         await truncateDB();
-        userToken1 = await createAndLoginUser("user1", "password");
-        userToken2 = await createAndLoginUser("user2", "password");
+        userToken1 = await createAndLoginUser("user1", GOOD_PASSWORD);
+        userToken2 = await createAndLoginUser("user2", GOOD_PASSWORD);
     });
     describe("follow and unfollow", function () {
         it("can follow a user", async function () {
@@ -777,10 +842,10 @@ describe("user posts", function () {
         this.timeout(60000);
         await truncateDB();
         [userToken1, userToken2, userToken3, userToken4] = await Promise.all([
-            createAndLoginUser("user1", "password"),
-            createAndLoginUser("user2", "password"),
-            createAndLoginUser("user3", "password"),
-            createAndLoginUser("user4", "password"),
+            createAndLoginUser("user1", GOOD_PASSWORD),
+            createAndLoginUser("user2", GOOD_PASSWORD),
+            createAndLoginUser("user3", GOOD_PASSWORD),
+            createAndLoginUser("user4", GOOD_PASSWORD),
         ]);
 
         // user3 follows user1
@@ -896,10 +961,10 @@ describe("timeline", function () {
         this.timeout(60000);
         await truncateDB();
         [userToken1, userToken2, userToken3, userToken4] = await Promise.all([
-            createAndLoginUser("user1", "password"),
-            createAndLoginUser("user2", "password"),
-            createAndLoginUser("user3", "password"),
-            createAndLoginUser("user4", "password"),
+            createAndLoginUser("user1", GOOD_PASSWORD),
+            createAndLoginUser("user2", GOOD_PASSWORD),
+            createAndLoginUser("user3", GOOD_PASSWORD),
+            createAndLoginUser("user4", GOOD_PASSWORD),
         ]);
 
         // user3 follows user1
@@ -997,8 +1062,8 @@ describe("favorite and bookmark", function () {
     before(async function () {
         this.timeout(60000);
         await truncateDB();
-        userToken1 = await createAndLoginUser("admin", "password");
-        userToken2 = await createAndLoginUser("user2", "password");
+        userToken1 = await createAndLoginUser("admin", GOOD_PASSWORD);
+        userToken2 = await createAndLoginUser("user2", GOOD_PASSWORD);
 
         const publicPost = await axios.post(
             "/post",
