@@ -4,7 +4,7 @@ CREATE TABLE `remote_user_details` (
     `following_uri` varchar(512) DEFAULT NULL,
     `followers_uri` varchar(512) DEFAULT NULL,
     `liked_uri` varchar(512) DEFAULT NULL,
-    `fetched_at` datetime NOT NULL DEFAULT current_timestamp(),
+    `fetched_at` datetime(6) NOT NULL DEFAULT current_timestamp(6),
     PRIMARY KEY (`id`)
 );
 
