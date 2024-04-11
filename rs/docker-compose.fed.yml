@@ -305,6 +305,7 @@ services:
     volumes:
       - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
       - ./refinery.docker.toml:/lightpub/refinery.toml
+    init: true # necessary for shutting down gracefully
 
   lightpub_db:
     image: mariadb:latest

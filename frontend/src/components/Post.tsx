@@ -1,6 +1,8 @@
 import { Col, Row } from "antd";
 import { List } from "immutable";
-import React from "react";
+import React, { useMemo } from "react";
+import * as styles from "./Post.module.css";
+import { Link } from "react-router-dom";
 
 export interface PostEntry {
   id: string;
@@ -8,16 +10,35 @@ export interface PostEntry {
     id: string;
     username: string;
     nickname: string;
+    host?: string;
   };
   content: string;
   createdAt: Date;
 }
 
+export function formatUsernameAndHost(username: string, host?: string) {
+  if (host) {
+    return `@${username}@${host}`;
+  }
+  return `@${username}`;
+}
+
 export function Post({ post }: { post: PostEntry }) {
+  const formattedUsername = useMemo(() => {
+    return formatUsernameAndHost(post.author.username, post.author.host);
+  }, [post.author.username, post.author.host]);
+
   return (
-    <div>
+    <div className={styles.post}>
       <Row>
-        <Col>{post.author.nickname}</Col>
+        <Col>
+          <Link
+            className={styles["post-author"]}
+            to={`/user/${post.author.id}`}
+          >
+            {post.author.nickname} ({formattedUsername})
+          </Link>
+        </Col>
       </Row>
       <Row>
         <Col>{post.content}</Col>

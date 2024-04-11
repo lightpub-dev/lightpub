@@ -5,6 +5,7 @@ import { Button, Col, Row } from "antd";
 
 interface UserProfileModel {
   id: string;
+  // username: string;
 }
 
 export async function loader({ params }: { params: { userId: string } }) {
@@ -35,6 +36,9 @@ export function UserProfile() {
       <Row>
         <Col span={24}>{user?.id ?? "loading..."}</Col>
       </Row>
+      {/* <Row>
+        <Col span={12}>{user?.</Col>
+      </Row> */}
       <Row>
         <Col span={8}>
           <Button type="primary" onClick={followUser}>

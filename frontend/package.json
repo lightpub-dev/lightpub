@@ -2,12 +2,12 @@
   "name": "lightpub",
   "version": "0.1.0",
   "description": "lightpub frontend",
-  "main": "index.js",
   "author": "lightpub-dev",
   "license": "AGPL-3.0-only",
   "private": false,
   "scripts": {
-    "serve": "parcel src/index.html --public-url /web"
+    "serve": "parcel src/index.html --public-url /web",
+    "build": "node build.js && parcel build src/index.html --public-url /web"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -16,6 +16,7 @@
     "buffer": "^5.5.0||^6.0.0",
     "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.34.1",
+    "fs-extra": "^11.2.0",
     "globals": "^15.0.0",
     "parcel": "^2.12.0",
     "prettier": "^3.2.5",

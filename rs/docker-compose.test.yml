@@ -101,6 +101,7 @@ services:
     volumes:
       - ./lightpub.yml.test:/lightpub/lightpub.yml.sample
       - ./refinery.docker.toml:/lightpub/refinery.toml
+    init: true # necessary for shutting down gracefully
   test-runner:
     build: ./tests
     networks:
