@@ -10,6 +10,8 @@ docker compose -f docker-compose.fed.yml --profile lightpub-dev up -d # start th
 refinery migrate # run the migrations
 ```
 
+Please note that you need to use MariaDB instead of MySQL (it does not work with MySQL yet).
+
 ### Running the server
 To start the API server for development, execute `run_dev_server.sh`
 
