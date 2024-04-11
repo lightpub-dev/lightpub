@@ -78,7 +78,9 @@ services:
   lightpub_api:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      args:
+        BUILD_TYPE: debug
     container_name: lightpub-server-test
     ports:
       - "8000:8000"
@@ -101,6 +103,8 @@ services:
     volumes:
       - ./lightpub.yml.test:/lightpub/lightpub.yml.sample
       - ./refinery.docker.toml:/lightpub/refinery.toml
+    init: true # necessary for shutting down gracefully
+
   test-runner:
     build: ./tests
     networks:

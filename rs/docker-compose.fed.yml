@@ -280,7 +280,9 @@ services:
   lightpub_api:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      args:
+        BUILD_TYPE: debug
     healthcheck:
       test: curl -s -S -o /dev/null http://localhost:8000
       interval: 30s
@@ -305,6 +307,33 @@ services:
     volumes:
       - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
       - ./refinery.docker.toml:/lightpub/refinery.toml
+    init: true # necessary for shutting down gracefully
+
+  lightpub_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        BUILD_TYPE: debug
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - internal_network
+    profiles:
+      - lightpub
+    depends_on:
+      lightpub_queue:
+        condition: service_healthy
+    volumes:
+      - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
+    environment:
+      WORKERS_POST: 1
+      WORKERS_FETCH: 3
+    init: true # necessary for shutting down gracefully
 
   lightpub_db:
     image: mariadb:latest
@@ -391,6 +420,8 @@ services:
       - internal_network
     depends_on:
       lightpub_api:
+        condition: service_healthy
+      lightpub_worker:
         condition: service_healthy
       misskey_web:
         condition: service_healthy
