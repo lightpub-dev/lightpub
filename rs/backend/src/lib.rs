@@ -511,9 +511,12 @@ pub trait PostCreateService {
     ) -> Result<(), anyhow::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum AuthError {
+    #[error("user not found")]
     TokenNotSet,
+    #[error("internal server error")]
+    Other,
 }
 
 #[async_trait]

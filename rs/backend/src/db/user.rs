@@ -4,6 +4,7 @@ use lightpub_model::User;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::MySqlPool;
+use tracing::error;
 use tracing::warn;
 use uuid::fmt::Simple;
 use uuid::Uuid;
@@ -12,6 +13,7 @@ use crate::id::IDGetterService;
 use crate::id::UserAttribute;
 use crate::AllUserFinderService;
 use crate::ApubRequestService;
+use crate::AuthError;
 use crate::InboxPair;
 use crate::LocalUserFindError;
 use crate::LocalUserFinderService;
@@ -169,9 +171,22 @@ impl UserAuthService for DBAuthService {
         let u = sqlx::query_as!(User,
             "SELECT users.id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, users.created_at FROM users INNER JOIN user_tokens ON users.id = user_tokens.user_id WHERE token = ?",
             token
-        ).fetch_one(&self.pool).await?;
+        ).fetch_one(&self.pool).await;
 
-        Ok(u)
+        match u {
+            Ok(u) => {
+                return Ok(u);
+            }
+            Err(e) => match e {
+                sqlx::Error::RowNotFound => {
+                    return Err(ServiceError::from_se(AuthError::TokenNotSet));
+                }
+                _ => {
+                    error!("Error during authentication: {:?}", e);
+                    return Err(ServiceError::from_se(AuthError::Other));
+                }
+            },
+        }
     }
 }
 
