@@ -8,7 +8,9 @@ use lightpub_model::apub::{
 use lightpub_model::reaction::Reaction;
 use lightpub_model::{PostSpecifier, UserSpecifier};
 
+use actix_cors::Cors;
 use actix_multipart::form::MultipartForm;
+use actix_web::http::header;
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
     Responder,
@@ -1889,8 +1891,18 @@ async fn main() -> std::io::Result<()> {
     let app_state = AppState::new(pool, queue_builder, config.clone());
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allowed_origin("http://localhost:5173")
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "PATCH"])
+            .allowed_headers(vec![
+                header::AUTHORIZATION,
+                header::CONTENT_TYPE,
+                header::ACCEPT,
+            ]);
+
         App::new()
             .app_data(web::Data::new(app_state.clone()))
+            .wrap(cors)
             .wrap(Logger::default())
             .service(register)
             .service(login)
