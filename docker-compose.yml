@@ -2,9 +2,12 @@ version: "3.8"
 
 services:
   api:
+    image: tinaxd2/lightpub:latest
     build:
       context: ./rs
       dockerfile: Dockerfile
+      args:
+        - BUILD_TYPE=release
     healthcheck:
       test: curl -s -S -o /dev/null http://localhost:8000
       interval: 30s
@@ -26,6 +29,31 @@ services:
     volumes:
       - ./rs/lightpub.docker.prod.yml:/lightpub/lightpub.yml.sample
       - ./rs/refinery.docker.prod.toml:/lightpub/refinery.toml
+    init: true # necessary for shutting down gracefully
+
+  lightpub_worker:
+    image: tinaxd2/lightpub-worker:latest
+    build:
+      context: ./rs
+      dockerfile: Dockerfile.worker
+      args:
+        BUILD_TYPE: release
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - internal_network
+    depends_on:
+      queue:
+        condition: service_healthy
+    volumes:
+      - ./rs/lightpub.docker.prod.yml:/lightpub/lightpub.yml.sample
+    environment:
+      WORKERS_POST: 1
+      WORKERS_FETCH: 3
     init: true # necessary for shutting down gracefully
 
   db:
@@ -83,6 +111,7 @@ services:
       - 127.0.0.1:11211:11211
 
   frontend:
+    image: tinaxd2/lightpub-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile

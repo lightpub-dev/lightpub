@@ -52,6 +52,7 @@ pub struct QueueConfig {
 pub struct InstanceConfig {
     pub name: String,
     pub description: String,
+    pub open_registration: bool,
 }
 
 #[test]
@@ -89,7 +90,8 @@ fn read_config_yaml() {
             },
             instance: InstanceConfig {
                 name: "Lightpub dev".to_string(),
-                description: "Lightpub development server".to_string()
+                description: "Lightpub development server".to_string(),
+                open_registration: true,
             },
             upload_dir: "uploads".to_string(),
             dev: DevConfig {

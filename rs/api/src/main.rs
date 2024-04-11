@@ -312,6 +312,10 @@ async fn register(
     body: web::Json<RegisterBody>,
     data: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
+    if !data.config().instance.open_registration {
+        return Err(ErrorResponse::new_status(403, "registration is closed"));
+    }
+
     let mut us = new_user_service(data.pool().clone());
     let req = us.create_user(&body.0.into()).await;
     match req {

@@ -3,6 +3,7 @@ http_scheme: https
 instance:
   name: Lightpub dev
   description: Lightpub development server
+  open_registration: true
 secret_key: django-insecure-xzq@q61sbr3m8j!x-$)riyl4*glj6@e%4ibn79*eh2a7qr2*y9
 frontend_url: http://localhost:5173/#
 allowed_hosts:
