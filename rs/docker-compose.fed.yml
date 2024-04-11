@@ -280,7 +280,9 @@ services:
   lightpub_api:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      args:
+        BUILD_TYPE: debug
     healthcheck:
       test: curl -s -S -o /dev/null http://localhost:8000
       interval: 30s

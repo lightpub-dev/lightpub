@@ -78,7 +78,9 @@ services:
   lightpub_api:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      args:
+        BUILD_TYPE: debug
     container_name: lightpub-server-test
     ports:
       - "8000:8000"
