@@ -1039,9 +1039,20 @@ async fn user_inbox(
                     &Some(authed_user.as_specifier()),
                 )
                 .await
-                .map_err(|e| {
-                    warn!("Failed to delete post: {:?}", e);
-                    ErrorResponse::new_status(500, "internal server error")
+                .map_err(|e| match e.downcast_ref::<PostDeleteError>() {
+                    Some(PostDeleteError::PostNotFound) => {
+                        return ErrorResponse::new_status(404, "post not found");
+                    }
+                    Some(PostDeleteError::Unauthorized) => {
+                        return ErrorResponse::new_status(
+                            403,
+                            "only the author can delete the post",
+                        );
+                    }
+                    None => {
+                        error!("Failed to delete post: {:?}", e);
+                        return ErrorResponse::new_status(500, "internal server error");
+                    }
                 })?;
         }
         Like(like) => {
