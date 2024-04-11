@@ -181,6 +181,7 @@ describe("/post", function () {
         token2 = await createAndLoginUser("testuser2", "password");
     });
     describe("normal post", function () {
+        let publicPostId: string | undefined;
         it("can create a public post", async function () {
             const res = await axios.post(
                 BASE_URL + "/post",
@@ -194,6 +195,7 @@ describe("/post", function () {
             );
             expect(res.status).equal(200);
             expect(res.data).have.property("post_id");
+            publicPostId = res.data.post_id;
         });
         it("can create an unlisted post", async function () {
             const res = await axios.post(
@@ -236,6 +238,25 @@ describe("/post", function () {
             );
             expect(res.status).equal(200);
             expect(res.data).have.property("post_id");
+        });
+        it("can delete my post", async function () {
+            if (!publicPostId) {
+                this.skip();
+            }
+
+            const res = await axios.delete(BASE_URL + "/post/" + publicPostId, {
+                ...authHeader(token),
+            });
+            expect(res.status).equal(200);
+        });
+        it("returns 404 when deleting non-existing post", async function () {
+            const res = await axios.delete(
+                BASE_URL + "/post/538ec871f81348c79158fecda95325e5",
+                {
+                    ...authHeader(token),
+                }
+            );
+            expect(res.status).equal(404);
         });
     });
     describe("reply", function () {
