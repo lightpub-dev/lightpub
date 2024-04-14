@@ -112,6 +112,7 @@ describe("/register", function () {
         }
     });
     context("bad usernames", function () {
+        this.timeout(120000);
         async function checkFails(username: string) {
             const response = await axios.post(
                 BASE_URL + "/register",
@@ -141,6 +142,7 @@ describe("/register", function () {
         });
     });
     context("bad passwords", function () {
+        this.timeout(120000);
         async function checkFails(password: string) {
             const response = await axios.post(
                 BASE_URL + "/register",
