@@ -40,7 +40,7 @@ pub fn validate_password(password: &str) -> bool {
     // - contain at least one uppercase letter
     // - contain at least one lowercase letter
     // - contain at least one digit
-    // - contain at least one special character (!@#$%^&*=+-_)
+    // - contain at least one special character (!?@#$%^&*=+-_)
 
     if password.len() < 8 || password.len() > 48 {
         return false;
@@ -57,7 +57,7 @@ pub fn validate_password(password: &str) -> bool {
             has_lower = true;
         } else if ch.is_digit(10) {
             has_digit = true;
-        } else if "!@#$%^&*=+-_".contains(ch) {
+        } else if "!?@#$%^&*=+-_".contains(ch) {
             has_special = true;
         } else {
             // invalid character
@@ -66,4 +66,34 @@ pub fn validate_password(password: &str) -> bool {
     }
 
     has_upper && has_lower && has_digit && has_special
+}
+
+mod tests {
+    use super::validate_password;
+    use super::validate_username;
+
+    #[test]
+    fn check_valid_username() {
+        assert!(validate_username("abc"));
+        assert!(!validate_username("ab"));
+        assert!(validate_username("12c"));
+        assert!(validate_username("long_user_name_1"));
+        assert!(!validate_username("long_user_name_12"));
+        assert!(!validate_username("-damedayo"));
+        assert!(!validate_username("_damedayo"));
+        assert!(!validate_username("no_python__style"));
+        assert!(!validate_username("no_python--style"));
+        assert!(validate_username("username"));
+        assert!(validate_username("username1234"));
+    }
+
+    #[test]
+    fn check_valid_password() {
+        assert!(validate_password("Password1!"));
+        assert!(validate_password("1234AbcD!?"));
+        assert!(!validate_password("ToSrt!"));
+        assert!(!validate_password("alphabetOnly!"));
+        assert!(!validate_password("noSymbols1234"));
+        assert!(!validate_password("12345609801!?"));
+    }
 }
