@@ -12,7 +12,7 @@ pub fn validate_username(username: &str) -> bool {
     }
 
     for ch in username.chars() {
-        if !ch.is_alphanumeric() && ch != '-' && ch != '_' {
+        if !ch.is_ascii_alphanumeric() && ch != '-' && ch != '_' {
             return false;
         }
     }
@@ -68,6 +68,7 @@ pub fn validate_password(password: &str) -> bool {
     has_upper && has_lower && has_digit && has_special
 }
 
+#[cfg(test)]
 mod tests {
     use super::validate_password;
     use super::validate_username;
@@ -85,6 +86,7 @@ mod tests {
         assert!(!validate_username("no_python--style"));
         assert!(validate_username("username"));
         assert!(validate_username("username1234"));
+        assert!(!validate_username("with漢字"));
     }
 
     #[test]
@@ -95,5 +97,6 @@ mod tests {
         assert!(!validate_password("alphabetOnly!"));
         assert!(!validate_password("noSymbols1234"));
         assert!(!validate_password("12345609801!?"));
+        assert!(!validate_password("1234AbcD!?with漢字"))
     }
 }
