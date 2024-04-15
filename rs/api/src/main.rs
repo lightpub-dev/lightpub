@@ -1,3 +1,4 @@
+use lightpub_api::{validate_password, validate_username};
 use lightpub_backend::apub::queue::QueuedApubRequester;
 use lightpub_backend::db::new_db_user_post_service;
 use lightpub_model::apub::context::ContextAttachable;
@@ -314,6 +315,13 @@ async fn register(
 ) -> Result<impl Responder, ErrorResponse> {
     if !data.config().instance.open_registration {
         return Err(ErrorResponse::new_status(403, "registration is closed"));
+    }
+
+    if !validate_username(&body.username) {
+        return Err(ErrorResponse::new_status(400, "invalid username"));
+    }
+    if !validate_password(&body.password) {
+        return Err(ErrorResponse::new_status(400, "invalid password"));
     }
 
     let mut us = new_user_service(data.pool().clone());
