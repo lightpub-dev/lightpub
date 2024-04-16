@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Lightpub Timeline</title>
+        <meta charset="utf-8">
+    </head>
+    <body>
+        <h1>Lightpub Timeline</h1>
+        {{if .Error}}
+            <p>Error: {{.Error}}</p>
+        {{end}}
+        <form action="/post" method="POST">
+            <label for="content">Content:</label>
+            <input type="text" name="content" id="content">
+            <label for="privacy">Privacy</label>
+            <select name="privacy" id="privacy">
+                <option value="public">Public</option>
+                <option value="unlisted">Unlisted</option>
+                <option value="follower">Follower-only</option>
+                <option value="private">Private</option>
+            </select>
+            <input type="submit" value="Post">
+        </form>
+        <ul>
+            {{range .Posts}}
+                <li>{{.Content}} - {{.Author}}</li>
+            {{end}}
+        </ul>
+    </body>
+</html>

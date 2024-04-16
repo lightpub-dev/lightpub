@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Lightpub register</title>
+        <meta charset="utf-8">
+    </head>
+    <body>
+        <h1>Lightpub register</h1>
+        {{if .Error}}
+            <p>Error: {{.Error}}</p>
+        {{end}}
+        <form action="/register" method="POST">
+            <label for="username">Username:</label>
+            <input type="text" name="username" id="username">
+            <label for="nickname">Nickname:</label>
+            <input type="text" name="nickname" id="nickname">
+            <label for="password">Password:</label>
+            <input type="password" name="password" id="password">
+            <input type="submit" value="Login">
+        </form>
+    </body>
+</html>
