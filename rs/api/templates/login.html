@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lightpub login</title>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <h1>Lightpub login</h1>
+    {% match error %}
+    {% when Some with (err) %}
+    <p>Error: {{err}}</p>
+    {% when None %}
+    {% endmatch %}
+    <form action="/login" method="POST">
+      <label for="username">Username:</label>
+      <input type="text" name="username" id="username" />
+      <label for="password">Password:</label>
+      <input type="password" name="password" id="password" />
+      <input type="submit" value="Login" />
+    </form>
+  </body>
+</html>

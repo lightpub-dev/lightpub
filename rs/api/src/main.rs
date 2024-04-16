@@ -1953,6 +1953,12 @@ async fn main() -> std::io::Result<()> {
             .service(delete_post_favorite)
             .service(delete_post_bookmark)
             .service(modify_post_reaction)
+            .service({
+                use lightpub_api::ssr::*;
+                web::scope(SSR_BASE_URL)
+                    .service(login_get)
+                    .service(register_get)
+            })
     })
     .bind(("0.0.0.0", 8000))?
     .run()

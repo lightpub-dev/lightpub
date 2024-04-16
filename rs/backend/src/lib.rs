@@ -76,9 +76,9 @@ impl MiscError for lapin::Error {
 
 #[derive(Debug, Clone, Builder)]
 pub struct UserCreateRequest {
-    username: String,
-    nickname: String,
-    password: String,
+    pub username: String,
+    pub nickname: String,
+    pub password: String,
 }
 
 #[derive(Debug, Clone, Getters)]
@@ -139,8 +139,8 @@ pub enum UserCreateError {
 
 #[derive(Debug, Clone, Builder)]
 pub struct UserLoginRequest {
-    username: String,
-    password: String,
+    pub username: String,
+    pub password: String,
 }
 
 #[derive(Debug, Clone, Builder, Getters)]
