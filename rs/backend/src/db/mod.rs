@@ -4,7 +4,7 @@ pub mod post;
 pub mod upload;
 pub mod user;
 
-use sqlx::MySqlPool;
+use sqlx::SqlitePool;
 
 use crate::{holder, id::IDGetterService};
 use lightpub_config::Config;
@@ -26,20 +26,20 @@ pub fn new_id_getter_service(config: Config) -> IDGetterService {
     IDGetterService::new(config)
 }
 
-pub fn new_user_service(pool: MySqlPool) -> holder!(UserCreateService) {
+pub fn new_user_service(pool: SqlitePool) -> holder!(UserCreateService) {
     Holder::new(user::DBUserCreateService::new(pool))
 }
 
-pub fn new_auth_service(pool: MySqlPool) -> holder!(UserAuthService) {
+pub fn new_auth_service(pool: SqlitePool) -> holder!(UserAuthService) {
     Holder::new(user::DBAuthService::new(pool))
 }
 
-pub fn new_local_user_finder_service(pool: MySqlPool) -> holder!(LocalUserFinderService) {
+pub fn new_local_user_finder_service(pool: SqlitePool) -> holder!(LocalUserFinderService) {
     Holder::new(user::DBLocalUserFinderService::new(pool))
 }
 
 pub fn new_all_user_finder_service(
-    pool: MySqlPool,
+    pool: SqlitePool,
     queue: QueuedApubRequesterBuilder,
     config: Config,
 ) -> holder!(AllUserFinderService) {
@@ -52,7 +52,7 @@ pub fn new_all_user_finder_service(
 }
 
 pub fn new_follow_service(
-    pool: MySqlPool,
+    pool: SqlitePool,
     queue: QueuedApubRequesterBuilder,
     config: Config,
 ) -> holder!(UserFollowService) {
@@ -71,7 +71,7 @@ pub fn new_follow_service(
 }
 
 pub fn new_post_create_service(
-    pool: MySqlPool,
+    pool: SqlitePool,
     queue: QueuedApubRequesterBuilder,
     config: Config,
 ) -> holder!(PostCreateService) {
@@ -87,7 +87,7 @@ pub fn new_post_create_service(
     ))
 }
 
-pub fn new_db_user_signer_service(pool: MySqlPool, config: Config) -> holder!(SignerService) {
+pub fn new_db_user_signer_service(pool: SqlitePool, config: Config) -> holder!(SignerService) {
     Box::new(DBSignerService::new(
         pool.clone(),
         new_local_user_finder_service(pool.clone()),
@@ -100,7 +100,7 @@ pub fn new_post_content_service() -> PostContentService {
 }
 
 pub fn new_db_key_fetcher_service(
-    pool: MySqlPool,
+    pool: SqlitePool,
     queue: QueuedApubRequesterBuilder,
     config: Config,
 ) -> holder!(KeyFetcher) {
@@ -110,7 +110,7 @@ pub fn new_db_key_fetcher_service(
     ))
 }
 
-pub fn new_db_file_upload_service(pool: MySqlPool, _config: Config) -> holder!(UploadService) {
+pub fn new_db_file_upload_service(pool: SqlitePool, _config: Config) -> holder!(UploadService) {
     Box::new(upload::DBUploadService::new(
         pool.clone(),
         new_local_user_finder_service(pool),
@@ -118,7 +118,7 @@ pub fn new_db_file_upload_service(pool: MySqlPool, _config: Config) -> holder!(U
 }
 
 pub fn new_db_user_profile_service(
-    pool: MySqlPool,
+    pool: SqlitePool,
     _config: Config,
 ) -> holder!(UserProfileService) {
     Box::new(user::DBUserProfileService::new(
@@ -128,7 +128,7 @@ pub fn new_db_user_profile_service(
 }
 
 pub fn new_db_user_post_service(
-    pool: MySqlPool,
+    pool: SqlitePool,
     queue: QueuedApubRequesterBuilder,
     config: Config,
 ) -> holder!(UserPostService) {

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sqlx::MySqlPool;
+use sqlx::SqlitePool;
 use tracing::{debug, warn};
 use uuid::fmt::Simple;
 
@@ -17,7 +17,7 @@ use lightpub_model::{
 use lightpub_utils::generate_uuid;
 
 pub struct DBUserFollowService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     finder: holder!(AllUserFinderService),
     pubfollow: holder!(ApubFollowService),
     req: holder!(ApubRequestService),
@@ -27,7 +27,7 @@ pub struct DBUserFollowService {
 
 impl DBUserFollowService {
     pub fn new(
-        pool: MySqlPool,
+        pool: SqlitePool,
         finder: holder!(AllUserFinderService),
         pubfollow: holder!(ApubFollowService),
         req: holder!(ApubRequestService),
@@ -127,7 +127,7 @@ impl UserFollowService for DBUserFollowService {
 
         let rows = sqlx::query_as!(FollowUser,
         r#"
-            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at
+            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at AS `created_at: chrono::NaiveDateTime`
             FROM users u
             INNER JOIN user_follows f ON u.id = f.followee_id
             WHERE f.follower_id = ? AND (NOT ? OR f.created_at <= ?)
@@ -172,7 +172,7 @@ impl UserFollowService for DBUserFollowService {
 
         let rows = sqlx::query_as!(FollowUser,
         r#"
-            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at
+            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at AS `created_at: chrono::NaiveDateTime`
             FROM users u
             INNER JOIN user_follows f ON u.id = f.follower_id
             WHERE f.followee_id = ? AND (NOT ? OR f.created_at <= ?)
@@ -268,7 +268,7 @@ impl UserFollowService for DBUserFollowService {
             sqlx::query!(
                 r#"
             INSERT INTO user_follows (follower_id, followee_id) VALUES(?,?)
-            ON DUPLICATE KEY UPDATE id=id
+            ON CONFLICT DO NOTHING
             "#,
                 follower_id.to_string(),
                 followee_id.to_string()
@@ -373,7 +373,7 @@ impl UserFollowService for DBUserFollowService {
         sqlx::query!(
             r#"
             INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE id=id
+            ON CONFLICT DO NOTHING
             "#,
             follow_req.follower_id.to_string(),
             follow_req.followee_id.to_string()
@@ -424,7 +424,7 @@ impl UserFollowService for DBUserFollowService {
         let follower_id = follower.id;
         let followee_id = followee.id;
         sqlx::query!(
-            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE id=?, uri=?",
+            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON CONFLICT DO UPDATE SET id=?, uri=?",
             follow_req_id.to_string(),
             follow_req_uri,
             follower_id.to_string(),
@@ -477,7 +477,7 @@ impl UserFollowService for DBUserFollowService {
             sqlx::query!(
                 r#"
                 INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
-                ON DUPLICATE KEY UPDATE id=id
+                ON CONFLICT DO NOTHING
                 "#,
                 follower_id.to_string(),
                 followee_id.to_string()

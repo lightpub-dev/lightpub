@@ -21,7 +21,7 @@ uuid = { version = "1.7.0", features = ["v4", "v7", "serde", "fast-rng"] }
 valico = "2"
 sqlx = { version = "0.7", features = [
     "runtime-tokio",
-    "mysql",
+    "sqlite",
     "chrono",
     "json",
     "uuid",

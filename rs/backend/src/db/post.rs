@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_more::Constructor;
-use sqlx::MySqlPool;
+use sqlx::SqlitePool;
 use tracing::warn;
 use uuid::{fmt::Simple, Uuid};
 
@@ -35,7 +35,7 @@ use lightpub_utils::{
 
 #[derive(Constructor)]
 pub struct DBPostCreateService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     finder: holder!(AllUserFinderService),
     renderer: ApubRendererService,
     req: holder!(ApubRequestService),
@@ -266,7 +266,7 @@ impl DBPostCreateService {
         let uri = req.uri();
         if let Some(uri) = uri {
             if sqlx::query!(
-                "SELECT EXISTS(SELECT 1 FROM posts WHERE uri=?) AS `exists: bool`",
+                "SELECT EXISTS(SELECT 1 FROM posts WHERE uri=?) AS `exists!: bool`",
                 uri
             )
             .fetch_one(&mut *tx)
@@ -777,7 +777,7 @@ impl PostCreateService for DBPostCreateService {
                 let id = generate_uuid();
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=id
+                    INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON CONFLICT DO NOTHING
                     "#,
                     id.to_string(),
                     user.id.to_string(),
@@ -796,7 +796,7 @@ impl PostCreateService for DBPostCreateService {
                 // first, select to get id
                 let record = sqlx::query!(
                     r#"
-                    SELECT id AS `id: Simple` FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=? FOR UPDATE
+                    SELECT id AS `id: Simple` FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=?
                     "#,
                     user.id.to_string(),
                     post_id.to_string(),
@@ -891,7 +891,7 @@ impl PostCreateService for DBPostCreateService {
                 .map(|p| p.id)?
         };
 
-        let (reaction_str, custom_reaction_id): (Option<String>, Option<u64>) = match reaction {
+        let (reaction_str, custom_reaction_id): (Option<String>, Option<i64>) = match reaction {
             Reaction::Unicode(u) => (Some(u.to_string()), None),
             Reaction::Custom(_c) => todo!("custom reaction support"),
         };
@@ -901,7 +901,7 @@ impl PostCreateService for DBPostCreateService {
                 let id = generate_uuid();
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id
+                    INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING
                     "#,
                     id.to_string(),
                     user.id.to_string(),
@@ -910,18 +910,18 @@ impl PostCreateService for DBPostCreateService {
                     custom_reaction_id,
                 )
                 .execute(&self.pool).await?;
-                if result.rows_affected() > 0 {
-                    Some(id)
-                } else {
-                    None
-                }
+                // if result > 0 {
+                //     Some(id)
+                // } else {
+                //     None
+                // }
             }
             PostInteractionAction::Remove => {
                 let mut tx = self.pool.begin().await?;
                 // first, select to get id
-                let record = sqlx::query!(
+                let record: Option<Simple> = sqlx::query!(
                     r#"
-                    SELECT id AS `id: Simple` FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str<=>? AND custom_reaction_id<=>?
+                    SELECT id AS `id: Simple` FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str=? AND custom_reaction_id=?
                     "#,
                     user.id.to_string(),
                     post_id.to_string(),
@@ -1154,7 +1154,7 @@ impl HasRemoteUri for LocalPoster {
 
 #[derive(Constructor)]
 pub struct DBUserPostService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     finder: holder!(AllUserFinderService),
     id_getter: IDGetterService,
 }
@@ -1250,10 +1250,10 @@ impl UserPostService for DBUserPostService {
                 (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
                 (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
                 (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
-                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,
-                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,
-                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,
-                IF(? IS NULL, NULL, (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1)) AS `reaction_str_by_you?: String`
+                IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,
+                IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,
+                IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,
+                IIF(? IS NULL, NULL, (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1)) AS `reaction_str_by_you?: String`
             FROM posts p
             INNER JOIN users u ON p.poster_id = u.id
             WHERE p.id = ?
