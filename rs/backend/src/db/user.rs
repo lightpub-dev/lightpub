@@ -3,7 +3,7 @@ use derive_more::Constructor;
 use lightpub_model::User;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
-use sqlx::MySqlPool;
+use sqlx::SqlitePool;
 use tracing::error;
 use tracing::warn;
 use uuid::fmt::Simple;
@@ -44,22 +44,22 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct DBUserCreateService {
-    pool: MySqlPool,
+    pool: SqlitePool,
 }
 
 impl DBUserCreateService {
-    pub fn new(pool: MySqlPool) -> Self {
+    pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 }
 
 #[derive(Debug)]
 pub struct DBAuthService {
-    pool: MySqlPool,
+    pool: SqlitePool,
 }
 
 impl DBAuthService {
-    pub fn new(pool: MySqlPool) -> Self {
+    pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 }
@@ -77,7 +77,7 @@ impl UserCreateService for DBUserCreateService {
     ) -> Result<UserCreateResult, ServiceError<UserCreateError>> {
         let exist = sqlx::query!(
             r#"
-        SELECT COUNT(*) AS count FROM users WHERE username=? AND host IS NULL FOR UPDATE
+        SELECT COUNT(*) AS count FROM users WHERE username=? AND host IS NULL
         "#,
             req.username
         )
@@ -132,7 +132,7 @@ impl UserCreateService for DBUserCreateService {
         let user = sqlx::query_as!(
             LoginDB,
             "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
-            &req.username
+            req.username
         )
         .fetch_optional(&self.pool)
         .await?;
@@ -169,7 +169,7 @@ impl UserAuthService for DBAuthService {
         token: &str,
     ) -> Result<User, ServiceError<crate::AuthError>> {
         let u = sqlx::query_as!(User,
-            "SELECT users.id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, users.created_at FROM users INNER JOIN user_tokens ON users.id = user_tokens.user_id WHERE token = ?",
+            "SELECT users.id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, users.created_at AS `created_at: chrono::NaiveDateTime` FROM users INNER JOIN user_tokens ON users.id = user_tokens.user_id WHERE token = ?",
             token
         ).fetch_one(&self.pool).await;
 
@@ -192,11 +192,11 @@ impl UserAuthService for DBAuthService {
 
 #[derive(Debug)]
 pub struct DBLocalUserFinderService {
-    pool: MySqlPool,
+    pool: SqlitePool,
 }
 
 impl DBLocalUserFinderService {
-    pub fn new(pool: MySqlPool) -> Self {
+    pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 }
@@ -216,15 +216,16 @@ impl LocalUserFinderService for DBLocalUserFinderService {
                 }
 
                 let u = sqlx::query_as!(User,
-                "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host IS NULL", username).fetch_one(&self.pool).await?;
+                "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at AS `created_at: chrono::NaiveDateTime` FROM users WHERE username = ? AND host IS NULL", username).fetch_one(&self.pool).await?;
                 return Ok(u);
             }
             UserSpecifier::URL(_url) => {
                 return Err(ServiceError::from_se(LocalUserFindError::NotLocalUser));
             }
             UserSpecifier::ID(id) => {
+                let id_str = id.simple().to_string();
                 let u = sqlx::query_as!(User,
-                "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE id = ?", id.simple().to_string()).fetch_one(&self.pool).await?;
+                "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at AS `created_at: chrono::NaiveDateTime` FROM users WHERE id = ?", id_str).fetch_one(&self.pool).await?;
                 if u.host.is_some() {
                     return Err(ServiceError::from_se(
                         LocalUserFindError::NotLocalUser.into(),
@@ -237,7 +238,7 @@ impl LocalUserFinderService for DBLocalUserFinderService {
 }
 
 pub struct DBAllUserFinderService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     req: holder!(ApubRequestService),
     local: holder!(LocalUserFinderService),
     id_getter: IDGetterService,
@@ -245,7 +246,7 @@ pub struct DBAllUserFinderService {
 
 impl DBAllUserFinderService {
     pub fn new(
-        pool: MySqlPool,
+        pool: SqlitePool,
         req: holder!(ApubRequestService),
         local: holder!(LocalUserFinderService),
         id_getter: IDGetterService,
@@ -292,22 +293,23 @@ fn process_public_key_pem(pem: &str) -> String {
 async fn find_user_by_url(
     url: impl Into<String>,
     req: &mut holder!(ApubRequestService),
-    pool: &MySqlPool,
+    pool: &SqlitePool,
 ) -> Result<User, ServiceError<crate::UserFindError>> {
     let url = url.into();
     // we can assume that the url is a remote-user url
 
     // try to fetch user from db
     let u = sqlx::query_as!(User,
-        "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE uri = ?", url).fetch_optional(pool).await?;
+        "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at AS `created_at: chrono::NaiveDateTime` FROM users WHERE uri = ?", url).fetch_optional(pool).await?;
     if let Some(u) = u {
         // try to fetch remote_users
+        let user_id_str = u.id.to_string();
         let ru = sqlx::query_as!(RemoteUser,
-            "SELECT user_id AS `user_id!: Simple`, following, followers, liked, fetched_at FROM remote_users WHERE user_id = ?", u.id.to_string()).fetch_optional(pool).await?;
+            "SELECT user_id AS `user_id!: Simple`, following, followers, liked, fetched_at AS `fetched_at: chrono::NaiveDateTime` FROM remote_users WHERE user_id = ?", user_id_str).fetch_optional(pool).await?;
         if let Some(ru) = ru {
             // check if info is up-to-date
             let now = chrono::Utc::now().naive_utc();
-            if now - ru.fetched_at < chrono::Duration::try_hours(1).unwrap() {
+            if (now - ru.fetched_at) < chrono::Duration::try_hours(1).unwrap() {
                 return Ok(u);
             }
         }
@@ -379,9 +381,10 @@ async fn find_user_by_url(
     };
 
     let mut tx = pool.begin().await?;
+    let user_id_str = user.id.to_string();
     sqlx::query!(
-        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox, bio) VALUES (?,?,?,NULL,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?, bio = ?",
-        user.id.to_string(),
+        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox, bio) VALUES (?,?,?,NULL,?,?,?,?,?,?) ON CONFLICT DO UPDATE SET username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?, bio = ?",
+        user_id_str,
         user.username,
         user.host,
         user.nickname,
@@ -400,9 +403,10 @@ async fn find_user_by_url(
         user.bio,
     ).execute(&mut *tx).await?;
 
+    let user_id_str = ru.user_id.to_string();
     sqlx::query!(
-        "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE following = ?, followers = ?, liked = ?, fetched_at = ?",
-        ru.user_id.to_string(),
+        "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?) ON CONFLICT DO UPDATE SET following = ?, followers = ?, liked = ?, fetched_at = ?",
+        user_id_str,
         ru.following,
         ru.followers,
         ru.liked,
@@ -413,9 +417,10 @@ async fn find_user_by_url(
         ru.fetched_at,
     ).execute(&mut *tx).await?;
 
+    let user_id_str = user_id.to_string();
     sqlx::query!("
-        INSERT INTO user_keys (id, owner_id, public_key) VALUES (?,?,?) ON DUPLICATE KEY UPDATE owner_id=?, public_key=?, updated_at=CURRENT_TIMESTAMP
-    ", pubkey_id, user_id.to_string(), pubkey_pem, user_id.to_string(), pubkey_pem).execute(&mut *tx).await?;
+        INSERT INTO user_keys (id, owner_id, public_key) VALUES (?,?,?) ON CONFLICT DO UPDATE SET owner_id=?, public_key=?, updated_at=DATETIME('now')
+    ", pubkey_id, user_id_str, pubkey_pem, user_id_str, pubkey_pem).execute(&mut *tx).await?;
 
     tx.commit().await?;
 
@@ -445,7 +450,7 @@ impl AllUserFinderService for DBAllUserFinderService {
 
                     // check if already exists in local db
                     let u = sqlx::query_as!(User,
-                        "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE username = ? AND host = ?", username, host).fetch_optional(&self.pool).await?;
+                        "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at AS `created_at: chrono::NaiveDateTime` FROM users WHERE username = ? AND host = ?", username, host).fetch_optional(&self.pool).await?;
                     if let Some(u) = u {
                         // TODO: check if user is up-to-date
                         return Ok(u);
@@ -478,8 +483,9 @@ impl AllUserFinderService for DBAllUserFinderService {
                 }
             }
             UserSpecifier::ID(id) => {
+                let id_str = id.simple().to_string();
                 let u = sqlx::query_as!(User,
-                    "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at FROM users WHERE id = ?", id.simple().to_string()).fetch_one(&self.pool).await?;
+                    "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at AS `created_at: chrono::NaiveDateTime` FROM users WHERE id = ?", id_str).fetch_one(&self.pool).await?;
 
                 return Ok(u);
             }
@@ -492,6 +498,7 @@ impl AllUserFinderService for DBAllUserFinderService {
     ) -> Result<Vec<InboxPair>, ServiceError<UserFindError>> {
         let user_id = self.find_user_by_specifier(user).await?.id;
 
+        let user_id_str = user_id.to_string();
         let follower_inboxes = sqlx::query_as!(
             InboxPair,
             r#"
@@ -500,7 +507,7 @@ impl AllUserFinderService for DBAllUserFinderService {
             INNER JOIN users u ON uf.follower_id = u.id
             WHERE uf.followee_id = ? AND (u.inbox IS NOT NULL OR u.shared_inbox IS NOT NULL)
             "#,
-            user_id.to_string()
+            user_id_str
         )
         .fetch_all(&self.pool)
         .await?;
@@ -510,14 +517,14 @@ impl AllUserFinderService for DBAllUserFinderService {
 }
 
 pub struct DBSignerService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     fetch: holder!(LocalUserFinderService),
     id_getter: IDGetterService,
 }
 
 impl DBSignerService {
     pub fn new(
-        pool: MySqlPool,
+        pool: SqlitePool,
         fetch: holder!(LocalUserFinderService),
         id_getter: IDGetterService,
     ) -> Self {
@@ -567,12 +574,10 @@ impl SignerService for DBSignerService {
                 _ => e.convert(),
             })?;
 
-        let private_key = sqlx::query!(
-            "SELECT private_key FROM users WHERE id = ?",
-            u.id.to_string()
-        )
-        .fetch_one(&self.pool)
-        .await?;
+        let u_id_str = u.id.to_string();
+        let private_key = sqlx::query!("SELECT private_key FROM users WHERE id = ?", u_id_str)
+            .fetch_one(&self.pool)
+            .await?;
         let private_key = private_key
             .private_key
             .ok_or(ServiceError::from_se(SignerError::PrivateKeyNotSet))?;
@@ -592,7 +597,7 @@ impl SignerService for DBSignerService {
 
 #[derive(Constructor)]
 pub struct DBUserProfileService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     finder: holder!(LocalUserFinderService),
 }
 
@@ -614,6 +619,7 @@ impl UserProfileService for DBUserProfileService {
                 _ => e.convert(),
             })?;
 
+        let u_id_str = u.id.to_string();
         sqlx::query!(
             r#"
             UPDATE users SET nickname=?, bio=?, avatar_id=? WHERE id=?
@@ -621,7 +627,7 @@ impl UserProfileService for DBUserProfileService {
             update.nickname,
             update.bio,
             update.avatar_id,
-            u.id.to_string()
+            u_id_str
         )
         .execute(&self.pool)
         .await?;

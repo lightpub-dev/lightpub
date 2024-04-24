@@ -7,7 +7,7 @@ use reqwest::{
     Method, Request, RequestBuilder,
 };
 use serde::Deserialize;
-use sqlx::MySqlPool;
+use sqlx::SqlitePool;
 use tracing::{debug, info, warn};
 
 use lightpub_model::{
@@ -299,13 +299,13 @@ pub struct WebfingerLinks {
 }
 
 pub struct DBApubFollowService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     id_getter: IDGetterService,
     user_finder: holder!(AllUserFinderService),
 }
 
 pub fn new_apub_follow_service(
-    pool: MySqlPool,
+    pool: SqlitePool,
     id_getter: IDGetterService,
     user_finder: holder!(AllUserFinderService),
 ) -> holder!(ApubFollowService) {
@@ -366,13 +366,14 @@ impl ApubFollowService for DBApubFollowService {
         &mut self,
         follow_req_id: uuid::Uuid,
     ) -> Result<AcceptActivity, anyhow::Error> {
+        let follow_req_id_str = follow_req_id.simple().to_string();
         let uf = sqlx::query_as!(UserFollowInfoWithUri, r#"
         SELECT r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri, r.uri AS `req_uri!`
         FROM user_follow_requests AS r
         INNER JOIN users u1 ON r.follower_id = u1.id
         INNER JOIN users u2 ON r.followee_id = u2.id
         WHERE r.id = ? AND r.incoming = 1
-        "#, follow_req_id.simple().to_string()).fetch_optional(&self.pool).await?;
+        "#, follow_req_id_str).fetch_optional(&self.pool).await?;
         let uf = match uf {
             None => return Err(anyhow!("follow request not found")),
             Some(uf) => uf,
@@ -417,13 +418,14 @@ impl ApubFollowService for DBApubFollowService {
         &mut self,
         follow_req_id: uuid::Uuid,
     ) -> Result<FollowActivity, anyhow::Error> {
+        let follow_req_id_str = follow_req_id.simple().to_string();
         let uf = sqlx::query_as!(UserFollowInfo, r#"
         SELECT r.id AS `req_id: Simple`, r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri
         FROM user_follow_requests AS r
         INNER JOIN users u1 ON r.follower_id = u1.id
         INNER JOIN users u2 ON r.followee_id = u2.id
         WHERE r.id = ? AND r.uri IS NULL AND r.incoming = 0
-        "#, follow_req_id.simple().to_string()).fetch_optional(&self.pool).await?;
+        "#, follow_req_id_str).fetch_optional(&self.pool).await?;
         let uf = match uf {
             None => return Err(anyhow!("follow request not found")),
             Some(uf) => uf,

@@ -54,10 +54,9 @@ use lightpub_utils::key::VerifyError;
 use lightpub_utils::key::{verify_signature, KeyFetcher};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::mysql::MySqlPoolOptions;
+use sqlx::sqlite::SqlitePoolOptions;
 use std::borrow::BorrowMut;
 use std::path::PathBuf;
-use std::time::Duration;
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
@@ -1873,18 +1872,8 @@ async fn main() -> std::io::Result<()> {
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let conn_str = format!(
-        "mysql://{}:{}@{}:{}/{}",
-        config.database.user,
-        config.database.password,
-        config.database.host,
-        config.database.port,
-        config.database.name
-    );
-    let pool = MySqlPoolOptions::new()
-        .max_connections(config.database.max_connections)
-        .idle_timeout(Duration::from_secs(30))
-        .acquire_timeout(Duration::from_secs(5))
+    let conn_str = format!("sqlite://{}", config.database.path);
+    let pool = SqlitePoolOptions::new()
         .connect(&conn_str)
         .await
         .expect("connect to database");

@@ -146,15 +146,18 @@ impl DBPostCreateService {
         include_deleted: bool,
     ) -> Result<Simple, ServiceError<PostCreateError>> {
         match spec {
-            PostSpecifier::ID(id) => sqlx::query!(
-                "SELECT id AS `id: Simple` FROM posts WHERE id=? AND (? OR deleted_at IS NULL)",
-                id.simple().to_string(),
-                include_deleted,
-            )
-            .fetch_optional(&self.pool)
-            .await?
-            .map(|p| p.id)
-            .ok_or(ServiceError::from_se(not_found_err)),
+            PostSpecifier::ID(id) => {
+                let id_str = id.simple().to_string();
+                sqlx::query!(
+                    "SELECT id AS `id: Simple` FROM posts WHERE id=? AND (? OR deleted_at IS NULL)",
+                    id_str,
+                    include_deleted,
+                )
+                .fetch_optional(&self.pool)
+                .await?
+                .map(|p| p.id)
+                .ok_or(ServiceError::from_se(not_found_err))
+            }
             PostSpecifier::URI(uri) => {
                 let local_post_id = self.id_getter.extract_local_post_id(uri);
                 if let Some(local_post_id) = local_post_id {
@@ -218,9 +221,11 @@ impl DBPostCreateService {
         include_deleted: bool,
     ) -> Result<Option<SimplePost>, ServiceError<PostCreateError>> {
         let id = match spec {
-            PostSpecifier::ID(id) => sqlx::query!(
+            PostSpecifier::ID(id) => {
+                let id_str = id.simple().to_string();
+                sqlx::query!(
                 "SELECT id AS `id: Simple`, uri AS `uri`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE id=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
-                id.simple().to_string(),
+                id_str,
                 include_deleted,
             )
             .fetch_optional(&self.pool)
@@ -230,7 +235,8 @@ impl DBPostCreateService {
                 uri: p.uri,
                 poster: p.poster,
                 privacy: p.privacy.parse().unwrap(),
-            }),
+            })
+            }
             PostSpecifier::URI(uri) => {
                 let local_post_id = self.id_getter.extract_local_post_id(uri);
                 if let Some(local_post_id) = local_post_id {
@@ -726,10 +732,11 @@ impl PostCreateService for DBPostCreateService {
             let mut tx = self.pool.begin().await?;
 
             // delete post and its reposts
+            let post_id_str = post.id.to_string();
             sqlx::query!(
                 "UPDATE posts SET deleted_at=CURRENT_TIMESTAMP WHERE id=? OR (repost_of_id=? AND content IS NULL AND deleted_at IS NULL)",
-                post.id.to_string(),
-                post.id.to_string(),
+                post_id_str,
+                post_id_str,
             )
             .execute(&mut *tx)
             .await?;
@@ -785,13 +792,16 @@ impl PostCreateService for DBPostCreateService {
         let modified_id = match action {
             PostInteractionAction::Add => {
                 let id = generate_uuid();
+                let id_str = id.to_string();
+                let user_id_str = user.id.to_string();
+                let post_id_str = post_id.to_string();
                 let result = sqlx::query!(
                     r#"
                     INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON CONFLICT DO NOTHING
                     "#,
-                    id.to_string(),
-                    user.id.to_string(),
-                    post_id.to_string(),
+                    id_str,
+                    user_id_str,
+                    post_id_str,
                     as_bookmark
                 )
                 .execute(&self.pool).await?;
@@ -804,21 +814,24 @@ impl PostCreateService for DBPostCreateService {
             PostInteractionAction::Remove => {
                 let mut tx = self.pool.begin().await?;
                 // first, select to get id
+                let user_id_str = user.id.to_string();
+                let post_id_str = post_id.to_string();
                 let record = sqlx::query!(
                     r#"
                     SELECT id AS `id: Simple` FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=?
                     "#,
-                    user.id.to_string(),
-                    post_id.to_string(),
+                    user_id_str,
+                    post_id_str,
                     as_bookmark,
                 ).fetch_optional(&mut *tx).await?;
                 if let Some(id) = record {
                     // then, delete
+                    let id_str = id.id.to_string();
                     sqlx::query!(
                         r#"
                         DELETE FROM post_favorites WHERE id=?
                         "#,
-                        id.id.to_string(),
+                        id_str,
                     )
                     .execute(&mut *tx)
                     .await?;
@@ -909,47 +922,57 @@ impl PostCreateService for DBPostCreateService {
         let modified_id = match action {
             PostInteractionAction::Add => {
                 let id = generate_uuid();
+                let id_str = id.to_string();
+                let user_id_str = user.id.to_string();
+                let post_id_str = post_id.to_string();
                 let result = sqlx::query!(
                     r#"
                     INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING
                     "#,
-                    id.to_string(),
-                    user.id.to_string(),
-                    post_id.to_string(),
+                    id_str,
+                    user_id_str,
+                    post_id_str,
                     reaction_str,
                     custom_reaction_id,
                 )
                 .execute(&self.pool).await?;
-                // if result > 0 {
-                //     Some(id)
-                // } else {
-                //     None
-                // }
+                if result.rows_affected() > 0 {
+                    Some(id)
+                } else {
+                    None
+                }
             }
             PostInteractionAction::Remove => {
                 let mut tx = self.pool.begin().await?;
                 // first, select to get id
-                let record: Option<Simple> = sqlx::query!(
+                let user_id_str = user.id.to_string();
+                let post_id_str = post_id.to_string();
+                struct QueryResult {
+                    id: Simple,
+                }
+                let record = sqlx::query_as!(
+                    QueryResult,
                     r#"
                     SELECT id AS `id: Simple` FROM post_reactions WHERE user_id=? AND post_id=? AND reaction_str=? AND custom_reaction_id=?
                     "#,
-                    user.id.to_string(),
-                    post_id.to_string(),
+                    user_id_str,
+                    post_id_str,
                     reaction_str,
                     custom_reaction_id,
                 ).fetch_optional(&mut *tx).await?;
-                if let Some(id) = record {
+                if let Some(record) = record {
                     // then, delete
+                    let id_str = record.id.to_string();
                     sqlx::query!(
                         r#"
                         DELETE FROM post_reactions WHERE id=?
                         "#,
-                        id.id.to_string(),
+                        id_str,
                     )
                     .execute(&mut *tx)
                     .await?;
                     tx.commit().await?;
-                    Some(id.id)
+                    Some(record.id)
                 } else {
                     tx.rollback().await?;
                     None
@@ -1240,6 +1263,7 @@ impl UserPostService for DBUserPostService {
             PostSpecifier::URI(_) => todo!("fetch_single_post: URI"),
         };
 
+        let viewer_id_is_valid = viewer_id.is_some();
         let post = sqlx::query_as!(
             UserPost,
             r#"
@@ -1255,11 +1279,11 @@ impl UserPostService for DBUserPostService {
                 p.privacy,
                 p.repost_of_id AS `repost_of_id: Simple`,
                 p.reply_to_id AS `reply_to_id: Simple`,
-                p.created_at,
-                p.deleted_at,
-                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
-                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
-                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                p.created_at AS `created_at: chrono::NaiveDateTime`,
+                p.deleted_at AS `deleted_at: chrono::NaiveDateTime`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!: i64`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!: i64`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!: i64`,
                 IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,
                 IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,
                 IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,
@@ -1286,15 +1310,16 @@ impl UserPostService for DBUserPostService {
             viewer_id, viewer_id,
             post_id,
             viewer_id,
-            viewer_id.is_some(),
+            viewer_id_is_valid,
             viewer_id,
-            viewer_id.is_some(),
+            viewer_id_is_valid,
             viewer_id
         )
         .fetch_optional(&self.pool)
         .await?;
 
         if let Some(p) = post {
+            let p_id_str = p.id.to_string();
             let reaction_count = sqlx::query_as!(
                 ReactionCount,
                 r#"
@@ -1304,7 +1329,7 @@ impl UserPostService for DBUserPostService {
               AND r.reaction_str IS NOT NULL
             GROUP BY r.reaction_str
             "#,
-                p.id.to_string()
+                p_id_str
             )
             .fetch_all(&self.pool)
             .await?;
@@ -1316,6 +1341,7 @@ impl UserPostService for DBUserPostService {
                 })
                 .collect();
 
+            let p_id_str = p.id.to_string();
             let mentioned_users = sqlx::query_as!(
                 PostMentionedUser,
                 r#"
@@ -1324,7 +1350,7 @@ impl UserPostService for DBUserPostService {
                     INNER JOIN users u ON m.target_user_id=u.id
                     WHERE m.post_id=?
                     "#,
-                p.id.to_string()
+                p_id_str
             )
             .fetch_all(&self.pool)
             .await?;
@@ -1458,6 +1484,7 @@ impl UserPostService for DBUserPostService {
 
         let posts = match viewer_u {
             None => {
+                let user_id_str = user.id.to_string();
                 sqlx::query_as!(
                     UserPost,
                     r#"
@@ -1473,11 +1500,11 @@ impl UserPostService for DBUserPostService {
                         p.privacy,
                         p.repost_of_id AS `repost_of_id: Simple`,
                         p.reply_to_id AS `reply_to_id: Simple`,
-                        p.created_at,
-                        p.deleted_at,
-                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
-                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
-                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                        p.created_at AS `created_at: chrono::NaiveDateTime`,
+                        p.deleted_at AS `deleted_at: chrono::NaiveDateTime`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!: i64`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!: i64`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!: i64`,
                         NULL AS `reposted_by_you: bool`,
                         NULL AS `favorited_by_you: bool`,
                         NULL AS `bookmarked_by_you: bool`,
@@ -1491,7 +1518,7 @@ impl UserPostService for DBUserPostService {
                     ORDER BY p.created_at DESC
                     LIMIT ?
                     "#,
-                    user.id.to_string(),
+                    user_id_str,
                     before_date_valid,
                     before_date,
                     options.include_deleted,
@@ -1501,6 +1528,8 @@ impl UserPostService for DBUserPostService {
                 .await?
             }
             Some(viewer) => {
+                let user_id_str = user.id.to_string();
+                let viewer_id_str = viewer.id.to_string();
                 sqlx::query_as!(
                     UserPost,
                     r#"
@@ -1516,11 +1545,11 @@ impl UserPostService for DBUserPostService {
                         p.privacy,
                         p.repost_of_id AS `repost_of_id: Simple`,
                         p.reply_to_id AS `reply_to_id: Simple`,
-                        p.created_at,
-                        p.deleted_at,
-                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
-                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
-                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                        p.created_at AS `created_at: chrono::NaiveDateTime`,
+                        p.deleted_at AS `deleted_at: chrono::NaiveDateTime`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!: i64`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!: i64`,
+                        (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!: i64`,
                         (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1) AS `reposted_by_you: bool`,
                         (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1) AS `favorited_by_you: bool`,
                         (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1) AS `bookmarked_by_you: bool`,
@@ -1539,15 +1568,15 @@ impl UserPostService for DBUserPostService {
                     ORDER BY p.created_at DESC
                     LIMIT ?
                     "#,
-                    viewer.id.to_string(),
-                    viewer.id.to_string(),
-                    viewer.id.to_string(),
-                    viewer.id.to_string(),
-                    user.id.to_string(),
-                    viewer.id.to_string(),
-                    user.id.to_string(),
-                    viewer.id.to_string(),
-                    viewer.id.to_string(),
+                    viewer_id_str,
+                    viewer_id_str,
+                    viewer_id_str,
+                    viewer_id_str,
+                    user_id_str,
+                    viewer_id_str,
+                    user_id_str,
+                    viewer_id_str,
+                    viewer_id_str,
                     before_date_valid,
                     before_date,
                     options.include_deleted,
@@ -1560,6 +1589,7 @@ impl UserPostService for DBUserPostService {
 
         let mut entries = Vec::new();
         for p in posts {
+            let p_id_str = p.id.to_string();
             let reaction_count = sqlx::query_as!(
                 ReactionCount,
                 r#"
@@ -1569,7 +1599,7 @@ impl UserPostService for DBUserPostService {
               AND r.reaction_str IS NOT NULL
             GROUP BY r.reaction_str
             "#,
-                p.id.to_string()
+                p_id_str
             )
             .fetch_all(&self.pool)
             .await?;
@@ -1589,7 +1619,7 @@ impl UserPostService for DBUserPostService {
                 INNER JOIN users u ON m.target_user_id=u.id
                 WHERE m.post_id=?
                 "#,
-                p.id.to_string()
+                p_id_str
             )
             .fetch_all(&self.pool)
             .await?;
@@ -1679,6 +1709,7 @@ impl UserPostService for DBUserPostService {
             options.before_date.map(|d| d.naive_utc()),
         );
 
+        let user_id_str = user.id.to_string();
         let posts = sqlx::query_as!(
             UserPost,
             r#"
@@ -1694,11 +1725,11 @@ impl UserPostService for DBUserPostService {
                 p.privacy,
                 p.repost_of_id AS `repost_of_id: Simple`,
                 p.reply_to_id AS `reply_to_id: Simple`,
-                p.created_at,
-                p.deleted_at,
-                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!`,
-                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!`,
-                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!`,
+                p.created_at AS `created_at: chrono::NaiveDateTime`,
+                p.deleted_at AS `deleted_at: chrono::NaiveDateTime`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!: i64`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!: i64`,
+                (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!: i64`,
                 (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1) AS `reposted_by_you: bool`,
                 (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1) AS `favorited_by_you: bool`,
                 (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1) AS `bookmarked_by_you: bool`,
@@ -1716,14 +1747,14 @@ impl UserPostService for DBUserPostService {
             ORDER BY p.created_at DESC
             LIMIT ?
             "#,
-            user.id.to_string(),
-            user.id.to_string(),
-            user.id.to_string(),
-            user.id.to_string(),
-            user.id.to_string(),
+            user_id_str,
+            user_id_str,
+            user_id_str,
+            user_id_str,
+            user_id_str,
             options.include_all_public,
-            user.id.to_string(),
-            user.id.to_string(),
+            user_id_str,
+            user_id_str,
             before_date_valid,
             before_date,
             options.limit,
@@ -1733,6 +1764,7 @@ impl UserPostService for DBUserPostService {
 
         let mut entries = Vec::new();
         for p in posts {
+            let p_id_str = p.id.to_string();
             let reaction_count = sqlx::query_as!(
                 ReactionCount,
                 r#"
@@ -1742,7 +1774,7 @@ impl UserPostService for DBUserPostService {
               AND r.reaction_str IS NOT NULL
             GROUP BY r.reaction_str
             "#,
-                p.id.to_string()
+                p_id_str
             )
             .fetch_all(&self.pool)
             .await?;
@@ -1762,7 +1794,7 @@ impl UserPostService for DBUserPostService {
                     INNER JOIN users u ON m.target_user_id=u.id
                     WHERE m.post_id=?
                     "#,
-                p.id.to_string()
+                p_id_str
             )
             .fetch_all(&self.pool)
             .await?;

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Constructor;
-use sqlx::MySqlPool;
+use sqlx::SqlitePool;
 use uuid::fmt::Simple;
 
 use crate::{holder, Holder, LocalUserFinderService, UploadService};
@@ -8,7 +8,7 @@ use lightpub_model::UserSpecifier;
 
 #[derive(Constructor)]
 pub struct DBUploadService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     finder: holder!(LocalUserFinderService),
 }
 
@@ -22,13 +22,15 @@ impl UploadService for DBUploadService {
     ) -> Result<(), anyhow::Error> {
         let user_id = self.finder.find_user_by_specifier(user).await?.id;
 
+        let file_id_str = file_id.to_string();
+        let user_id_str = user_id.to_string();
         sqlx::query!(
             r#"
             INSERT INTO uploaded_files (id, file_ext, uploaded_by_id) VALUES (?, ?, ?)
         "#,
-            file_id.to_string(),
+            file_id_str,
             file_ext,
-            user_id.to_string()
+            user_id_str
         )
         .execute(&self.pool)
         .await?;
