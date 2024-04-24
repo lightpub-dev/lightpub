@@ -1,5 +1,5 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "\n            UPDATE users SET nickname=?, bio=?, avatar_id=? WHERE id=?\n            ",
   "describe": {
     "columns": [],

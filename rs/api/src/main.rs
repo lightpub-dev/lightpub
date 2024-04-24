@@ -54,10 +54,9 @@ use lightpub_utils::key::VerifyError;
 use lightpub_utils::key::{verify_signature, KeyFetcher};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::mysql::MySqlPoolOptions;
+use sqlx::sqlite::SqlitePoolOptions;
 use std::borrow::BorrowMut;
 use std::path::PathBuf;
-use std::time::Duration;
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
@@ -1848,6 +1847,41 @@ async fn modify_post_reaction(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[post("/debug/truncate")]
+async fn truncate_database(app: web::Data<AppState>) -> impl Responder {
+    let table_names = [
+        "users",
+        "posts",
+        "uploaded_files",
+        "user_follows",
+        "user_labels",
+        "user_tokens",
+        "post_attachments",
+        "post_favorites",
+        "post_hashtags",
+        "post_mentions",
+        "reactions",
+        "post_reactions",
+        "user_follow_requests",
+        "remote_user_details",
+        "user_keys",
+        "remote_users",
+    ];
+    for table_name in table_names {
+        match sqlx::query("DELETE FROM users").execute(app.pool()).await {
+            Ok(_) => {
+                info!("Truncated table: {}", table_name);
+            }
+            Err(e) => {
+                error!("Failed to truncate table {}: {:?}", table_name, e);
+                return HttpResponse::InternalServerError().finish();
+            }
+        }
+    }
+
+    HttpResponse::Ok().finish()
+}
+
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -1873,18 +1907,8 @@ async fn main() -> std::io::Result<()> {
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let conn_str = format!(
-        "mysql://{}:{}@{}:{}/{}",
-        config.database.user,
-        config.database.password,
-        config.database.host,
-        config.database.port,
-        config.database.name
-    );
-    let pool = MySqlPoolOptions::new()
-        .max_connections(config.database.max_connections)
-        .idle_timeout(Duration::from_secs(30))
-        .acquire_timeout(Duration::from_secs(5))
+    let conn_str = format!("sqlite:{}", config.database.path);
+    let pool = SqlitePoolOptions::new()
         .connect(&conn_str)
         .await
         .expect("connect to database");
@@ -1923,7 +1947,7 @@ async fn main() -> std::io::Result<()> {
                 header::ACCEPT,
             ]);
 
-        App::new()
+        let mut app = App::new()
             .app_data(web::Data::new(app_state.clone()))
             .wrap(cors)
             .wrap(Logger::default())
@@ -1952,7 +1976,13 @@ async fn main() -> std::io::Result<()> {
             .service(add_post_bookmark)
             .service(delete_post_favorite)
             .service(delete_post_bookmark)
-            .service(modify_post_reaction)
+            .service(modify_post_reaction);
+
+        if config.dev.debug {
+            app = app.service(truncate_database);
+        }
+
+        app
     })
     .bind(("0.0.0.0", 8000))?
     .run()

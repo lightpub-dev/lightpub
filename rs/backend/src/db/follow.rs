@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sqlx::MySqlPool;
+use sqlx::SqlitePool;
 use tracing::{debug, warn};
 use uuid::fmt::Simple;
 
@@ -17,7 +17,7 @@ use lightpub_model::{
 use lightpub_utils::generate_uuid;
 
 pub struct DBUserFollowService {
-    pool: MySqlPool,
+    pool: SqlitePool,
     finder: holder!(AllUserFinderService),
     pubfollow: holder!(ApubFollowService),
     req: holder!(ApubRequestService),
@@ -27,7 +27,7 @@ pub struct DBUserFollowService {
 
 impl DBUserFollowService {
     pub fn new(
-        pool: MySqlPool,
+        pool: SqlitePool,
         finder: holder!(AllUserFinderService),
         pubfollow: holder!(ApubFollowService),
         req: holder!(ApubRequestService),
@@ -101,12 +101,14 @@ impl UserFollowService for DBUserFollowService {
         let follower_id = &follower.id;
         let followee_id = &followee.id;
 
+        let follower_id_str = follower_id.to_string();
+        let followee_id_str = followee_id.to_string();
         let row = sqlx::query!(
             r#"
             SELECT id FROM user_follows WHERE follower_id=? AND followee_id=? LIMIT 1
             "#,
-            follower_id.to_string(),
-            followee_id.to_string()
+            follower_id_str,
+            followee_id_str
         )
         .fetch_optional(&self.pool)
         .await?;
@@ -125,15 +127,16 @@ impl UserFollowService for DBUserFollowService {
             None => (false, None),
         };
 
+        let user_id_str = user.id.to_string();
         let rows = sqlx::query_as!(FollowUser,
         r#"
-            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at
+            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at AS `created_at: chrono::NaiveDateTime`
             FROM users u
             INNER JOIN user_follows f ON u.id = f.followee_id
             WHERE f.follower_id = ? AND (NOT ? OR f.created_at <= ?)
             ORDER BY f.created_at DESC
             LIMIT ?
-        "#, user.id.to_string(), before_date_valid, before_date, options.limit)
+        "#, user_id_str, before_date_valid, before_date, options.limit)
             .fetch_all(&self.pool)
             .await?;
 
@@ -170,16 +173,17 @@ impl UserFollowService for DBUserFollowService {
             None => (false, None),
         };
 
+        let user_id_str = user.id.to_string();
         let rows = sqlx::query_as!(FollowUser,
         r#"
-            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at
+            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at AS `created_at: chrono::NaiveDateTime`
             FROM users u
             INNER JOIN user_follows f ON u.id = f.follower_id
             WHERE f.followee_id = ? AND (NOT ? OR f.created_at <= ?)
             ORDER BY f.created_at DESC
             LIMIT ?
         "#,
-        user.id.to_string(),
+        user_id_str,
         before_date_valid,
         before_date,
         options.limit)
@@ -232,14 +236,16 @@ impl UserFollowService for DBUserFollowService {
                 ServiceError::from_se(FollowError::FolloweeNotFound)
             })?;
             let request_id = generate_uuid();
+            let request_id_str = request_id.to_string();
+            let follower_id_str = follower_id.to_string();
+            let followee_id_str = followee_id.to_string();
             sqlx::query!(
                 r#"
-                INSERT INTO user_follow_requests (id, incoming, follower_id, followee_id) VALUES (?, ?, ?, ?)
+                INSERT INTO user_follow_requests (id, incoming, follower_id, followee_id) VALUES (?, FALSE, ?, ?)
                 "#,
-                request_id.to_string(),
-                0,
-                follower_id.to_string(),
-                followee_id.to_string()
+                request_id_str,
+                follower_id_str,
+                followee_id_str
             ).execute(&self.pool).await?;
 
             // send request
@@ -265,13 +271,15 @@ impl UserFollowService for DBUserFollowService {
                 .map_err(|e| e.convert())?;
         } else {
             // local follow
+            let follower_id_str = follower_id.to_string();
+            let followee_id_str = followee_id.to_string();
             sqlx::query!(
                 r#"
             INSERT INTO user_follows (follower_id, followee_id) VALUES(?,?)
-            ON DUPLICATE KEY UPDATE id=id
+            ON CONFLICT DO NOTHING
             "#,
-                follower_id.to_string(),
-                followee_id.to_string()
+                follower_id_str,
+                followee_id_str
             )
             .execute(&self.pool)
             .await?;
@@ -295,12 +303,14 @@ impl UserFollowService for DBUserFollowService {
         let follower_id = &follower.id;
         let followee_id = &followee.id;
 
+        let follower_id_str = follower_id.to_string();
+        let followee_id_str = followee_id.to_string();
         sqlx::query!(
             r#"
             DELETE FROM user_follows WHERE follower_id=? AND followee_id=?
             "#,
-            follower_id.to_string(),
-            followee_id.to_string()
+            follower_id_str,
+            followee_id_str
         )
         .execute(&self.pool)
         .await?;
@@ -363,30 +373,35 @@ impl UserFollowService for DBUserFollowService {
                 let followee = self.finder.find_user_by_specifier(followee_uri).await.unwrap();
                 let follower_id = follower.id;
                 let followee_id = followee.id;
+                let follower_id_str = follower_id.to_string();
+                let followee_id_str = followee_id.to_string();
                 sqlx::query_as!(UserFollowRequest, r#"
                 SELECT id AS `id: Simple`, uri, incoming AS `incoming: bool`, follower_id AS `follower_id: Simple`, followee_id AS `followee_id: Simple` FROM user_follow_requests WHERE follower_id = ? AND followee_id = ?
-                "#, follower_id.to_string(), followee_id.to_string()).fetch_optional(&mut *tx).await?
+                "#, follower_id_str, followee_id_str).fetch_optional(&mut *tx).await?
             }
         }.ok_or_else(|| ServiceError::from_se(FollowError::RequestNotFound))?;
 
         // insert into actual follow table
+        let follow_req_follower_id_str = follow_req.follower_id.to_string();
+        let follow_req_followee_id_str = follow_req.followee_id.to_string();
         sqlx::query!(
             r#"
             INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE id=id
+            ON CONFLICT DO NOTHING
             "#,
-            follow_req.follower_id.to_string(),
-            follow_req.followee_id.to_string()
+            follow_req_follower_id_str,
+            follow_req_followee_id_str
         )
         .execute(&mut *tx)
         .await?;
 
         // delete the request
+        let follow_req_id_str = follow_req.id.to_string();
         sqlx::query!(
             r#"
             DELETE FROM user_follow_requests WHERE id = ?
             "#,
-            follow_req.id.to_string()
+            follow_req_id_str
         )
         .execute(&mut *tx)
         .await?;
@@ -423,13 +438,16 @@ impl UserFollowService for DBUserFollowService {
         let follow_req_uri = req_uri;
         let follower_id = follower.id;
         let followee_id = followee.id;
+        let follow_req_id_str = follow_req_id.to_string();
+        let follower_id_str = follower_id.to_string();
+        let followee_id_str = followee_id.to_string();
         sqlx::query!(
-            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE id=?, uri=?",
-            follow_req_id.to_string(),
+            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON CONFLICT DO UPDATE SET id=?, uri=?",
+            follow_req_id_str,
             follow_req_uri,
-            follower_id.to_string(),
-            followee_id.to_string(),
-            follow_req_id.to_string(),
+            follower_id_str,
+            followee_id_str,
+            follow_req_id_str,
             follow_req_uri,
         ).execute(&self.pool).await?;
 
@@ -465,22 +483,25 @@ impl UserFollowService for DBUserFollowService {
             // and insert actual follow
             let mut tx = self.pool.begin().await?;
 
+            let follow_req_id_str = follow_req_id.to_string();
             sqlx::query!(
                 r#"
                 DELETE FROM user_follow_requests WHERE id = ?
                 "#,
-                follow_req_id.to_string()
+                follow_req_id_str
             )
             .execute(&mut *tx)
             .await?;
 
+            let follower_id_str = follower_id.to_string();
+            let followee_id_str = followee_id.to_string();
             sqlx::query!(
                 r#"
                 INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
-                ON DUPLICATE KEY UPDATE id=id
+                ON CONFLICT DO NOTHING
                 "#,
-                follower_id.to_string(),
-                followee_id.to_string()
+                follower_id_str,
+                followee_id_str
             )
             .execute(&mut *tx)
             .await?;

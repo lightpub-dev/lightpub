@@ -31,26 +31,6 @@ services:
       lightpub_api:
         condition: service_healthy
 
-  lightpub_db:
-    image: mariadb:11
-    container_name: lightpub-db-test
-    environment:
-      MARIADB_USER: lightpub
-      MARIADB_PASSWORD: lightpub
-      MARIADB_ROOT_PASSWORD: lightpub
-      MARIADB_DATABASE: lightpub
-    networks:
-      - lightpub_test
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-      start_interval: 2s
-
   lightpub_queue:
     image: cloudamqp/lavinmq
     networks:
@@ -87,8 +67,6 @@ services:
     networks:
       - lightpub_test
     depends_on:
-      lightpub_db:
-        condition: service_healthy
       lightpub_cache:
         condition: service_healthy
       lightpub_queue:

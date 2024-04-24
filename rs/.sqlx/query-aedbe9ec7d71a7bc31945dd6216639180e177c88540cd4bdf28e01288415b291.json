@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?) ON CONFLICT DO UPDATE SET following = ?, followers = ?, liked = ?, fetched_at = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "aedbe9ec7d71a7bc31945dd6216639180e177c88540cd4bdf28e01288415b291"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO user_follow_requests (id, incoming, follower_id, followee_id) VALUES (?, FALSE, ?, ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "3ebe23a5abfc710a07545f69369027417ef3696cdb1f1e131df44183081da5a7"
+}

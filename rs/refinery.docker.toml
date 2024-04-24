@@ -1,8 +1,3 @@
 [main]
-db_type = "Mysql"
-db_host = "lightpub_db"
-db_port = "3306"
-db_user = "lightpub"
-db_pass = "lightpub"
-db_name = "lightpub"
-trust_cert = false
+db_type = "Sqlite"
+db_path = "db.sqlite3"

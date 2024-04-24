@@ -32,12 +32,7 @@ impl Config {
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct DatabaseConfig {
-    pub host: String,
-    pub port: u16,
-    pub name: String,
-    pub user: String,
-    pub password: String,
-    pub max_connections: u32,
+    pub path: String,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
@@ -75,12 +70,7 @@ fn read_config_yaml() {
             http_scheme: "https".to_string(),
             frontend_url: "http://localhost:5173/#".to_string(),
             database: DatabaseConfig {
-                host: "127.0.0.1".to_string(),
-                port: 3307,
-                name: "lightpub_dev".to_string(),
-                user: "lightpub".to_string(),
-                password: "lightpub".to_string(),
-                max_connections: 5
+                path: "./sample_db.sqlite3".to_string()
             },
             queue: QueueConfig {
                 host: "127.0.0.1".to_string(),

@@ -1,5 +1,5 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "INSERT INTO post_mentions (post_id, target_user_id) VALUES (?, ?)",
   "describe": {
     "columns": [],

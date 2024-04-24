@@ -1,57 +1,32 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "\n                    SELECT u.id AS `id: Simple`, u.uri AS `uri`, u.username, u.host, u.inbox\n                    FROM post_mentions m\n                    INNER JOIN users u ON m.target_user_id=u.id\n                    WHERE m.post_id=?\n                    ",
   "describe": {
     "columns": [
       {
-        "ordinal": 0,
         "name": "id: Simple",
-        "type_info": {
-          "type": "String",
-          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
-          "char_set": 224,
-          "max_size": 128
-        }
+        "ordinal": 0,
+        "type_info": "Text"
       },
       {
-        "ordinal": 1,
         "name": "uri",
-        "type_info": {
-          "type": "VarString",
-          "flags": "",
-          "char_set": 224,
-          "max_size": 2048
-        }
+        "ordinal": 1,
+        "type_info": "Text"
       },
       {
-        "ordinal": 2,
         "name": "username",
-        "type_info": {
-          "type": "VarString",
-          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
-          "char_set": 224,
-          "max_size": 256
-        }
+        "ordinal": 2,
+        "type_info": "Text"
       },
       {
-        "ordinal": 3,
         "name": "host",
-        "type_info": {
-          "type": "VarString",
-          "flags": "",
-          "char_set": 224,
-          "max_size": 512
-        }
+        "ordinal": 3,
+        "type_info": "Text"
       },
       {
-        "ordinal": 4,
         "name": "inbox",
-        "type_info": {
-          "type": "VarString",
-          "flags": "",
-          "char_set": 224,
-          "max_size": 2048
-        }
+        "ordinal": 4,
+        "type_info": "Text"
       }
     ],
     "parameters": {

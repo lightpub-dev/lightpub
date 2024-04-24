@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON CONFLICT DO NOTHING\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "873c3266a89f2f394a045093c1fd2b244276dd7cffbc4c200e725c3dc6840a06"
+}

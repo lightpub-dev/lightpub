@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    SELECT id AS `id: Simple` FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=?\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: Simple",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "61de7df0f03daf5d9ee074bfb3a25cb3cb3141ac23b86b2e79ca335a532f7ee3"
+}

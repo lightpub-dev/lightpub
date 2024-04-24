@@ -298,8 +298,6 @@ services:
     profiles:
       - lightpub
     depends_on:
-      lightpub_db:
-        condition: service_healthy
       lightpub_cache:
         condition: service_healthy
       lightpub_queue:
@@ -334,37 +332,6 @@ services:
       WORKERS_POST: 1
       WORKERS_FETCH: 3
     init: true # necessary for shutting down gracefully
-
-  lightpub_db:
-    image: mariadb:latest
-    networks:
-      - internal_network
-      - external_network
-    ports:
-      - 3306:3306
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: lightpub
-      MYSQL_USER: lightpub
-      MYSQL_PASSWORD: lightpub
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "healthcheck.sh",
-          "--su-mysql",
-          "--connect",
-          "--innodb_initialized",
-        ]
-      start_period: 1m
-      start_interval: 10s
-      interval: 1m
-      timeout: 5s
-      retries: 3
-    volumes:
-      - lightpub_db_data:/var/lib/mysql
-    profiles:
-      - lightpub
 
   lightpub_queue:
     image: cloudamqp/lavinmq
@@ -435,7 +402,6 @@ volumes:
   misskey_files:
   misskey_db_data:
   misskey_redis_data:
-  lightpub_db_data:
   lightpub_dev_db_data:
   pleroma_db_data:
   pleroma_uploads:

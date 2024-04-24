@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)\n                ON CONFLICT DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "9fa56927d3f0e29f28a552d7c3a3a72f3ecb44f9200fe61f4fbf3fe295b0e961"
+}
