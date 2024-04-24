@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON CONFLICT DO UPDATE SET id=?, uri=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "7b394e1e95f22eec5f9880e870818f83e637ebe0312e0a1f1416ef89db4e852b"
+}

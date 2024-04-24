@@ -1,2 +1,2 @@
 #!/bin/bash
-refinery migrate && lightpub_api
+touch db.sqlite3 && refinery migrate && lightpub_api

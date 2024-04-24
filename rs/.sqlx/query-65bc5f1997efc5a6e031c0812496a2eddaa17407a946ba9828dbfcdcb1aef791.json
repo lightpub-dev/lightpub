@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT u.id AS `id: Simple`, u.uri, u.username, u.host, u.avatar_id AS `avatar_id: Simple`, u.nickname, f.created_at AS `created_at: chrono::NaiveDateTime`\n            FROM users u\n            INNER JOIN user_follows f ON u.id = f.follower_id\n            WHERE f.followee_id = ? AND (NOT ? OR f.created_at <= ?)\n            ORDER BY f.created_at DESC\n            LIMIT ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: Simple",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "uri",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "username",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "host",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "avatar_id: Simple",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "nickname",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at: chrono::NaiveDateTime",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "65bc5f1997efc5a6e031c0812496a2eddaa17407a946ba9828dbfcdcb1aef791"
+}

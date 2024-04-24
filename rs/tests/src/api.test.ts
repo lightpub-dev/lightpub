@@ -1,6 +1,5 @@
 import axios from "axios";
 import expect from "expect.js";
-import { exec } from "child_process";
 import mocha from "mocha";
 
 const BASE_URL = "https://lightpub.tinax.local";
@@ -8,28 +7,8 @@ axios.defaults.baseURL = BASE_URL;
 
 const GOOD_PASSWORD = "1234AbcD!?";
 
-const truncateDB = () => {
-    // execute truncate_db.sh
-    return new Promise((resolve, reject) => {
-        const proc = exec("bash ./truncate_db.sh", (error, stdout, stderr) => {
-            console.log("stdout:", stdout);
-            console.log("stderr:", stderr);
-            if (error) {
-                console.error(`exec error: ${error}`);
-                reject(error);
-                return;
-            }
-        });
-        proc.on("exit", (code) => {
-            if (code === 0) {
-                console.log("Truncate DB success");
-                resolve(null);
-            } else {
-                console.error("Truncate DB failed");
-                reject();
-            }
-        });
-    });
+const truncateDB = async () => {
+    await axios.post(BASE_URL + "/debug/truncate");
 };
 
 const createAndLoginUser = async (

@@ -1,5 +1,5 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "INSERT INTO user_tokens (user_id, token) VALUES(?, ?)",
   "describe": {
     "columns": [],

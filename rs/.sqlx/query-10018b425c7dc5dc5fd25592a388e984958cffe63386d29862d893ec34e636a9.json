@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox, bio) VALUES (?,?,?,NULL,?,?,?,?,?,?) ON CONFLICT DO UPDATE SET username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?, bio = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 17
+    },
+    "nullable": []
+  },
+  "hash": "10018b425c7dc5dc5fd25592a388e984958cffe63386d29862d893ec34e636a9"
+}

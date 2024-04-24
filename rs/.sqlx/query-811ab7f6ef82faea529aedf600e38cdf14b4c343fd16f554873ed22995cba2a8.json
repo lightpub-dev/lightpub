@@ -1,17 +1,12 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "SELECT id AS `id!: Simple` FROM users WHERE uri = ?",
   "describe": {
     "columns": [
       {
-        "ordinal": 0,
         "name": "id!: Simple",
-        "type_info": {
-          "type": "String",
-          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
-          "char_set": 224,
-          "max_size": 128
-        }
+        "ordinal": 0,
+        "type_info": "Text"
       }
     ],
     "parameters": {

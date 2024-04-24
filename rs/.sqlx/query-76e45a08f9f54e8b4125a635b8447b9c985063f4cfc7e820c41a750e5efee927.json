@@ -1,27 +1,17 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "\n            SELECT u.inbox, u.shared_inbox\n            FROM user_follows uf\n            INNER JOIN users u ON uf.follower_id = u.id\n            WHERE uf.followee_id = ? AND (u.inbox IS NOT NULL OR u.shared_inbox IS NOT NULL)\n            ",
   "describe": {
     "columns": [
       {
-        "ordinal": 0,
         "name": "inbox",
-        "type_info": {
-          "type": "VarString",
-          "flags": "",
-          "char_set": 224,
-          "max_size": 2048
-        }
+        "ordinal": 0,
+        "type_info": "Text"
       },
       {
-        "ordinal": 1,
         "name": "shared_inbox",
-        "type_info": {
-          "type": "VarString",
-          "flags": "",
-          "char_set": 224,
-          "max_size": 2048
-        }
+        "ordinal": 1,
+        "type_info": "Text"
       }
     ],
     "parameters": {

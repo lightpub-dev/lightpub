@@ -1,5 +1,5 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "INSERT INTO post_hashtags (post_id, hashtag_name) VALUES (?, ?)",
   "describe": {
     "columns": [],

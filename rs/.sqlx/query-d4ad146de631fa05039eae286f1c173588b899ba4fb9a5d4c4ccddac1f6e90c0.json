@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT user_id AS `user_id!: Simple`, following, followers, liked, fetched_at AS `fetched_at: chrono::NaiveDateTime` FROM remote_users WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id!: Simple",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "following",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "followers",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "liked",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "fetched_at: chrono::NaiveDateTime",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "d4ad146de631fa05039eae286f1c173588b899ba4fb9a5d4c4ccddac1f6e90c0"
+}

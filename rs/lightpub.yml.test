@@ -14,12 +14,7 @@ cors_allowed_origins:
   - http://localhost:5173
   - https://lightpub.tinax.local
 database:
-  host: lightpub_db
-  port: 3306
-  name: lightpub
-  user: lightpub
-  password: lightpub
-  max_connections: 5
+  path: ./db.sqlite3
 queue:
   host: lightpub_queue
   port: 5672

@@ -1,27 +1,17 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "\n            SELECT r.reaction_str, COUNT(*) AS `count`\n            FROM post_reactions r\n            WHERE r.post_id=?\n              AND r.reaction_str IS NOT NULL\n            GROUP BY r.reaction_str\n            ",
   "describe": {
     "columns": [
       {
-        "ordinal": 0,
         "name": "reaction_str",
-        "type_info": {
-          "type": "VarString",
-          "flags": "",
-          "char_set": 224,
-          "max_size": 1020
-        }
+        "ordinal": 0,
+        "type_info": "Text"
       },
       {
-        "ordinal": 1,
         "name": "count",
-        "type_info": {
-          "type": "LongLong",
-          "flags": "NOT_NULL | BINARY",
-          "char_set": 63,
-          "max_size": 21
-        }
+        "ordinal": 1,
+        "type_info": "Int64"
       }
     ],
     "parameters": {

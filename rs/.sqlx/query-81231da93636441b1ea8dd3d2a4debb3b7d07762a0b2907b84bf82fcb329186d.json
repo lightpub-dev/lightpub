@@ -1,5 +1,5 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "\n            INSERT INTO uploaded_files (id, file_ext, uploaded_by_id) VALUES (?, ?, ?)\n        ",
   "describe": {
     "columns": [],

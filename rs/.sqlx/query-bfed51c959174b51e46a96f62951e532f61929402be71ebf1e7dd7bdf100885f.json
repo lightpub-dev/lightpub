@@ -1,5 +1,5 @@
 {
-  "db_name": "MySQL",
+  "db_name": "SQLite",
   "query": "\n                        DELETE FROM post_reactions WHERE id=?\n                        ",
   "describe": {
     "columns": [],
