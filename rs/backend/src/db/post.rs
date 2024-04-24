@@ -118,14 +118,19 @@ impl DBPostCreateService {
                     return Ok(false);
                 }
                 // check if viewer is mentioned in the post
-                let mentiond = sqlx::query!(
-                    r#"SELECT id FROM post_mentions WHERE post_id=? AND target_user_id=?
+
+                let mentiond = {
+                    let post_id_str = post_id.to_string();
+                    let viewer_id_str = viewer_id.to_string();
+                    sqlx::query!(
+                        r#"SELECT id FROM post_mentions WHERE post_id=? AND target_user_id=?
                     "#,
-                    post_id.to_string(),
-                    viewer_id.to_string()
-                )
-                .fetch_optional(&self.pool)
-                .await?;
+                        post_id_str,
+                        viewer_id_str
+                    )
+                    .fetch_optional(&self.pool)
+                    .await?
+                };
 
                 Ok(mentiond.is_some())
             }
@@ -382,7 +387,10 @@ impl DBPostCreateService {
             .map(|t| t.naive_utc())
             .unwrap_or_else(|| chrono::Utc::now().naive_utc());
 
-        sqlx::query!(
+        {
+            let repost_of_id_str = repost_of_id.as_ref().map(|s| s.to_string());
+            let reply_to_id_str = reply_to_id.as_ref().map(|s| s.to_string());
+            sqlx::query!(
                 "INSERT INTO posts (id, uri, poster_id, content, privacy, created_at, repost_of_id, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
                 post_id_str,
                 uri,
@@ -390,11 +398,12 @@ impl DBPostCreateService {
                 content,
                 privacy,
                 created_at,
-                repost_of_id.map(|s|s.to_string()),
-                reply_to_id.map(|s|s.to_string())
+                repost_of_id_str,
+                reply_to_id_str
             )
             .execute(&mut *tx)
             .await?;
+        }
 
         // FIXME: batch insert
         for hashtag in &hashtags {
@@ -654,12 +663,13 @@ impl DBPostCreateService {
         &mut self,
         post_id: Simple,
     ) -> Result<(TargetComputablePost, TargetComputablePostUser), anyhow::Error> {
+        let post_id_str = post_id.to_string();
         let detailed_post = sqlx::query_as!(TargetComputablePostDB, r#"
                 SELECT p.id AS `id: Simple`, p.uri AS `uri`, p.poster_id AS `poster_id!: Simple`, u.uri AS `poster_uri`, p.privacy
                 FROM posts AS p
                 INNER JOIN users AS u ON p.poster_id=u.id
                 WHERE p.id=?
-                "#, post_id.to_string()).fetch_one(&self.pool).await?;
+                "#, post_id_str).fetch_one(&self.pool).await?;
         let mentioned_users = sqlx::query_as!(
             TargetComputablePostUser,
             r#"
@@ -668,7 +678,7 @@ impl DBPostCreateService {
                 INNER JOIN users u ON m.target_user_id=u.id
                 WHERE m.post_id=?
                 "#,
-            post_id.to_string()
+            post_id_str
         )
         .fetch_all(&self.pool)
         .await?;
