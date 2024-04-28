@@ -27,6 +27,6 @@ OpenAPI specification is defined at `openapi.yaml`.
 ## Used software
 - [Actix web](https://actix.rs/): Web framework.
 - [Refinery](https://github.com/rust-db/refinery): Database migration tool written in Rust.
-- [MariaDB](https://mariadb.org/): SQL database.
+- [SQLite](https://www.sqlite.org/): SQL database.
 - [LavinMQ](https://lavinmq.com/): AMQP broker. Used to execute background tasks asynchronously.
 - [Memcached](https://memcached.org/): In-memory key-value store. Used for caching.
