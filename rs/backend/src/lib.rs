@@ -145,7 +145,7 @@ pub struct UserLoginRequest {
 
 #[derive(Debug, Clone, Builder, Getters)]
 pub struct UserLoginResult {
-    user_token: Simple,
+    user_token: String,
 }
 
 #[derive(Debug)]
