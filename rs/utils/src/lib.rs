@@ -1,3 +1,4 @@
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use uuid::{NoContext, Uuid};
 
 pub mod key;
@@ -8,8 +9,12 @@ pub fn generate_uuid() -> uuid::fmt::Simple {
     Uuid::new_v7(ts).simple()
 }
 
-pub fn generate_uuid_random() -> uuid::fmt::Simple {
-    Uuid::new_v4().simple()
+pub fn generate_uuid_random() -> String {
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(64)
+        .map(char::from)
+        .collect()
 }
 
 pub fn uuid_to_string(uuid: &Uuid) -> String {
