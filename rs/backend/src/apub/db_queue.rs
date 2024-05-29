@@ -1,72 +1,25 @@
-use futures::StreamExt;
-use reqwest::{Method, Request, RequestBuilder};
-use rsa::RsaPrivateKey;
-use tracing::{info, warn};
-
-use lightpub_backend::{
-    apub::{ApubReqwestError, ApubReqwestErrorBuilder, ApubReqwester, WebfingerResponse},
-    holder, ApubFetchPostError, ApubFetchUserError, Holder, PostToInboxError, ServiceError,
-    WebfingerError,
-};
 use lightpub_model::{
     apub::{context::ContextAttachable, Activity, Actor, CreatableObject},
-    ApubSigner, ApubWebfingerResponse, ApubWebfingerResponseBuilder,
+    ApubWebfingerResponse, ApubWebfingerResponseBuilder,
 };
 use lightpub_utils::key::{attach_signature, SignKeyBuilder};
+use reqwest::{Method, Request, RequestBuilder};
+use sqlx::SqlitePool;
+use tracing::{info, warn};
 
-use lightpub_backend::apub::queue::{
-    transport::{
-        decode_payload, encode_payload, GetRequestPayload, GetWebfingerPayload, PostToInboxPayload,
-        ResponsePayload,
-    },
-    DLX_HEADER, FETCH_POST_ROUTING_KEY, FETCH_USER_ROUTING_KEY, FETCH_WEBFINGER_ROUTING_KEY,
-    GET_REQUEST_EXCHANGE, INBOX_POST_ROUTING_KEY, POST_DLX, POST_EXCHANGE,
+use crate::{
+    apub::{ApubReqwestError, ApubReqwestErrorBuilder},
+    holder, ApubFetchPostError, ApubFetchUserError, PostToInboxError, ServiceError, WebfingerError,
 };
 
-fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
-    warn!("reqwest error: {:#?}", e);
-    ServiceError::MiscError(Box::new(
-        ApubReqwestErrorBuilder::default()
-            .status(
-                e.status()
-                    .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR),
-            )
-            .body(e.to_string())
-            .build()
-            .unwrap(),
-    ))
-}
+use super::{ApubReqwester, WebfingerResponse};
 
-const GET_QUEUE: &str = "processing_get"; // TODO: queues should be separated for more important messages to be processed more quickly
-const POST_QUEUE: &str = "processing_post";
-
-pub struct ApubWorker {
-    chan: lapin::Channel,
+pub struct ApubQueueService {
+    pool: SqlitePool,
     client: ApubReqwester,
 }
 
-#[derive(Debug)]
-struct SimpleSigner {
-    user_id: String,
-    key_id: String,
-    private_key: RsaPrivateKey,
-}
-
-impl ApubSigner for SimpleSigner {
-    fn get_private_key(&self) -> RsaPrivateKey {
-        self.private_key.clone()
-    }
-
-    fn get_private_key_id(&self) -> String {
-        self.key_id.clone()
-    }
-
-    fn get_user_id(&self) -> String {
-        self.user_id.clone()
-    }
-}
-
-impl ApubWorker {
+impl ApubQueueService {
     fn client(&self) -> reqwest::Client {
         self.client.client.clone()
     }
@@ -221,51 +174,16 @@ impl ApubWorker {
     }
 }
 
-// #[derive(Debug)]
-// pub enum WorkerTask {
-//     PostToInbox(PostToInboxPayload),
-//     FetchUser(GetRequestPayload),
-//     FetchPost(GetRequestPayload),
-//     FetchWebfinger(GetWebfingerPayload),
-// }
-
-pub struct ApubDirector {}
-
-impl ApubDirector {
-    pub async fn prepare(conn: &lapin::Connection) -> Self {
-        Self {}
-    }
-
-    pub async fn add_workers<F>(
-        &mut self,
-        n_workers: u32,
-        conn: &lapin::Connection,
-        worker_type: WorkerType,
-        make_client: F,
-    ) where
-        F: Fn() -> ApubReqwester,
-    {
-        for _ in 0..n_workers {
-            let chan = conn.create_channel().await.unwrap();
-            let worker = ApubWorker::new(chan, make_client());
-            tokio::spawn(async move {
-                worker.start(worker_type.queue_name()).await;
-            });
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum WorkerType {
-    PostToInbox,
-    Fetcher,
-}
-
-impl WorkerType {
-    pub fn queue_name(&self) -> &'static str {
-        match self {
-            WorkerType::PostToInbox => POST_QUEUE,
-            WorkerType::Fetcher => GET_QUEUE,
-        }
-    }
+fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
+    warn!("reqwest error: {:#?}", e);
+    ServiceError::MiscError(Box::new(
+        ApubReqwestErrorBuilder::default()
+            .status(
+                e.status()
+                    .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR),
+            )
+            .body(e.to_string())
+            .build()
+            .unwrap(),
+    ))
 }

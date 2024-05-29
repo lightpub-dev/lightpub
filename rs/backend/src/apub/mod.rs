@@ -36,11 +36,13 @@ use super::{
     ApubRequestService, Holder, MiscError,
 };
 
+pub mod db_queue;
 pub mod dummy;
 pub mod inbox;
 pub mod post;
 pub mod queue;
 pub mod render;
+
 #[derive(Debug, Clone)]
 pub struct ApubReqwester {
     pub client: reqwest::Client,
