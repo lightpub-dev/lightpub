@@ -1,77 +1,82 @@
+use async_trait::async_trait;
 use lightpub_model::{
     apub::{context::ContextAttachable, Activity, Actor, CreatableObject},
     ApubWebfingerResponse, ApubWebfingerResponseBuilder,
 };
 use lightpub_utils::key::{attach_signature, SignKeyBuilder};
 use reqwest::{Method, Request, RequestBuilder};
+use rsa::RsaPrivateKey;
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tracing::{info, warn};
 
+use super::{ApubReqwester, WebfingerResponse};
 use crate::{
     apub::{ApubReqwestError, ApubReqwestErrorBuilder},
-    holder, ApubFetchPostError, ApubFetchUserError, PostToInboxError, ServiceError, WebfingerError,
+    holder, ApubFetchPostError, ApubFetchUserError, ApubRequestService, ApubSigner, Holder,
+    PostToInboxError, ServiceError, WebfingerError,
 };
-
-use super::{ApubReqwester, WebfingerResponse};
 
 pub struct ApubQueueService {
     pool: SqlitePool,
     client: ApubReqwester,
 }
 
-impl ApubQueueService {
-    fn client(&self) -> reqwest::Client {
-        self.client.client.clone()
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum WorkerTask {
+    PostToInbox(PostToInboxPayload),
+}
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PostToInboxPayload {
+    url: String,
+    activity: Activity,
+    actor: SignerPayload,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SignerPayload {
+    user_id: String,
+    private_key: RsaPrivateKey,
+    private_key_id: String,
+}
+
+#[async_trait]
+impl ApubRequestService for ApubQueueService {
     async fn post_to_inbox(
         &mut self,
         url: &str,
         activity: &Activity,
         actor: holder!(ApubSigner),
     ) -> Result<(), ServiceError<PostToInboxError>> {
-        let body = serde_json::to_string(&activity.with_context()).unwrap();
-        info!("body: {:?}", &body);
+        let user_id = actor.get_user_id();
+        let private_key = actor.get_private_key();
+        let private_key_id = actor.get_private_key_id();
+        let payload = WorkerTask::PostToInbox(PostToInboxPayload {
+            url: url.to_string(),
+            activity: activity.clone(),
+            actor: SignerPayload {
+                user_id,
+                private_key: private_key.clone(),
+                private_key_id: private_key_id.clone(),
+            },
+        });
+        let payload_json = serde_json::to_string(&payload).unwrap();
 
-        let client = self.client();
-
-        let mut req = RequestBuilder::from_parts(
-            self.client(),
-            Request::new(Method::POST, url.parse().unwrap()),
+        sqlx::query!(
+            r#"
+        INSERT INTO QueuedTask(started_at, max_retry, payload) VALUES(NULL, 3, ?)
+        "#,
+            payload_json
         )
-        .header(
-            "Content-Type",
-            r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
-        )
-        .body(body)
-        .build()
-        .unwrap();
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            warn!("failed to insert task: {:#?}", e);
+            ServiceError::MiscError(Box::new(e))
+        })?;
 
-        // sign the request
-        let priv_key = actor.get_private_key();
-        let key_id = actor.get_private_key_id();
-        attach_signature(
-            &mut req,
-            SignKeyBuilder::default()
-                .private_key(priv_key)
-                .id(key_id)
-                .build()
-                .unwrap(),
-        )
-        .expect("failed to attach http-signature");
-
-        // send to the inbox
-        info!("sending to inbox: {:?}", req);
-        let res = client.execute(req).await.map_err(map_error)?;
-
-        if res.status().is_success() {
-            return Ok(());
-        }
-
-        tracing::warn!("Failed to send to inbox: {:?}", res);
-        return Err(ServiceError::MiscError(Box::new(
-            ApubReqwestError::from_response(res).await,
-        )));
+        Ok(())
     }
 
     async fn fetch_user(&mut self, url: &str) -> Result<Actor, ServiceError<ApubFetchUserError>> {
@@ -171,6 +176,62 @@ impl ApubQueueService {
             .build()
             .unwrap();
         Ok(result)
+    }
+}
+
+impl ApubQueueService {
+    fn client(&self) -> reqwest::Client {
+        self.client.client.clone()
+    }
+
+    async fn post_to_inbox(
+        &mut self,
+        url: &str,
+        activity: &Activity,
+        actor: holder!(ApubSigner),
+    ) -> Result<(), ServiceError<PostToInboxError>> {
+        let body = serde_json::to_string(&activity.with_context()).unwrap();
+        info!("body: {:?}", &body);
+
+        let client = self.client();
+
+        let mut req = RequestBuilder::from_parts(
+            self.client(),
+            Request::new(Method::POST, url.parse().unwrap()),
+        )
+        .header(
+            "Content-Type",
+            r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
+        )
+        .body(body)
+        .build()
+        .unwrap();
+
+        // sign the request
+        let priv_key = actor.get_private_key();
+        let key_id = actor.get_private_key_id();
+        attach_signature(
+            &mut req,
+            SignKeyBuilder::default()
+                .private_key(priv_key)
+                .id(key_id)
+                .build()
+                .unwrap(),
+        )
+        .expect("failed to attach http-signature");
+
+        // send to the inbox
+        info!("sending to inbox: {:?}", req);
+        let res = client.execute(req).await.map_err(map_error)?;
+
+        if res.status().is_success() {
+            return Ok(());
+        }
+
+        tracing::warn!("Failed to send to inbox: {:?}", res);
+        return Err(ServiceError::MiscError(Box::new(
+            ApubReqwestError::from_response(res).await,
+        )));
     }
 }
 

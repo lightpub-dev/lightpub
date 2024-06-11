@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO QueuedTask(started_at, max_retry, payload) VALUES(NULL, 3, ?)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "7e54bfe3703f685f92de63584836ef6a1ce42fe16524253d19e2907ab71831b3"
+}
