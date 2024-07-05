@@ -1,3 +1,4 @@
+-- Add migration script here
 CREATE TABLE `users` (
     `id` TEXT NOT NULL PRIMARY KEY,
     `username` TEXT NOT NULL,
@@ -148,4 +149,62 @@ CREATE TABLE `user_keys` (
     public_key TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+);
+
+CREATE TABLE remote_users(
+    user_id TEXT NOT NULL PRIMARY KEY,
+    following TEXT NULL DEFAULT NULL,
+    followers TEXT NULL DEFAULT NULL,
+    liked TEXT NULL DEFAULT NULL,
+    fetched_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    FOREIGN KEY(`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+);
+
+DROP TABLE `posts`;
+
+CREATE TABLE `posts` (
+    `id` TEXT NOT NULL PRIMARY KEY,
+    `poster_id` TEXT DEFAULT NULL,
+    `content` TEXT DEFAULT NULL,
+    `inserted_at` TEXT NOT NULL DEFAULT (DATETIME('now')),
+    `created_at` TEXT NOT NULL DEFAULT (DATETIME('now')),
+    `deleted_at` TEXT DEFAULT NULL,
+    `privacy` TEXT CHECK (
+        `privacy` IN ('public', 'unlisted', 'follower', 'private')
+    ) NOT NULL,
+    `reply_to_id` TEXT DEFAULT NULL,
+    `repost_of_id` TEXT DEFAULT NULL,
+    `uri` TEXT DEFAULT NULL,
+    FOREIGN KEY(`poster_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY(`reply_to_id`) REFERENCES `posts`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY(`repost_of_id`) REFERENCES `posts`(`id`) ON DELETE CASCADE
+);
+
+CREATE TABLE QueuedTask (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT DEFAULT (DATETIME('now')),
+    scheduled_at TEXT NOT NULL,
+    started_at TEXT,
+    retry INTEGER DEFAULT 0,
+    max_retry INTEGER NOT NULL,
+    has_return INTEGER NOT NULL,
+    payload TEXT NOT NULL
+);
+
+CREATE TABLE TaskResult (
+    id INTEGER PRIMARY KEY,
+    added_at TEXT DEFAULT (DATETIME('now')),
+    body TEXT NOT NULL
+);
+
+DROP TABLE QueuedTask;
+DROP TABLE TaskResult;
+
+CREATE TABLE QueuedTask(
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    started_at TEXT,
+    current_retry INTEGER NOT NULL DEFAULT 0,
+    max_retry INTEGER NOT NULL,
+    payload TEXT NOT NULL
 );
