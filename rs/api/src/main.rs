@@ -1914,6 +1914,13 @@ async fn main() -> std::io::Result<()> {
         .expect("connect to database");
     tracing::info!("Connected to database");
 
+    tracing::info!("Running migrations");
+    sqlx::migrate!("../migrations")
+        .run(&pool)
+        .await
+        .expect("run migrations");
+    tracing::info!("Migrations complete");
+
     // connect to queue
     let queue_uri = format!(
         "amqp://{}:{}@{}:{}",
