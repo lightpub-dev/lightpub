@@ -1,5 +1,6 @@
 pub mod pagination;
 pub mod post;
+pub mod queue;
 pub mod user;
 
 pub use post::PostSpecifier;

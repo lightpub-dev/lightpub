@@ -2323,7 +2323,6 @@ dependencies = [
  "futures",
  "httpdate",
  "json-ld",
- "lapin",
  "lazy_static",
  "lightpub_config",
  "lightpub_model",
@@ -2332,7 +2331,6 @@ dependencies = [
  "pkcs8",
  "rand 0.8.5",
  "regex",
- "reqwest",
  "rsa",
  "scraper",
  "serde",
@@ -2404,6 +2402,7 @@ dependencies = [
 name = "lightpub_worker"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "futures",
  "lapin",
@@ -2416,6 +2415,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sqlx",
+ "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",

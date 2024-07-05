@@ -36,27 +36,20 @@ async fn main() {
         .expect("Unable to read file");
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
-    // connect to queue
-    let queue_uri = format!(
-        "amqp://{}:{}@{}:{}",
-        config.queue.user, config.queue.password, config.queue.host, config.queue.port
-    );
-    let queue = lapin::Connection::connect(&queue_uri, ConnectionProperties::default())
+    // connect to db
+    let conn_str = format!("sqlite:{}", config.database.path);
+    let pool = SqlitePoolOptions::new()
+        .connect(&conn_str)
         .await
-        .expect("connect to amqp queue");
+        .expect("connect to database");
+    tracing::info!("Connected to database");
 
-    // spawn background workers
-    let mut director = ApubDirector::prepare(&queue).await;
-    director
-        .add_workers(1, &queue, WorkerType::PostToInbox, || {
-            ApubReqwester::new(&config)
-        })
-        .await;
-    director
-        .add_workers(3, &queue, WorkerType::Fetcher, || {
-            ApubReqwester::new(&config)
-        })
-        .await;
+    // reqwester
+    let requester = || ApubReqwester::new(&config);
+
+    // director
+    let director = ApubDirector::new(pool, requester);
+    director.start_workers().await;
 
     if let Some(run) = cli.generate_run_file {
         // generate a empty file

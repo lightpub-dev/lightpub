@@ -1,6 +1,7 @@
 use futures::StreamExt;
 use reqwest::{Method, Request, RequestBuilder};
 use rsa::RsaPrivateKey;
+use sqlx::{Pool, Sqlite};
 use tracing::{info, warn};
 
 use lightpub_backend::{
@@ -37,11 +38,8 @@ fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
     ))
 }
 
-const GET_QUEUE: &str = "processing_get"; // TODO: queues should be separated for more important messages to be processed more quickly
-const POST_QUEUE: &str = "processing_post";
-
 pub struct ApubWorker {
-    chan: lapin::Channel,
+    pool: Pool<Sqlite>,
     client: ApubReqwester,
 }
 
@@ -66,9 +64,37 @@ impl ApubSigner for SimpleSigner {
     }
 }
 
+#[derive(Debug)]
+struct QueuedTask {
+    id: i64,
+    created_at: chrono::NaiveDateTime,
+    started_at: Option<chrono::NaiveDateTime>,
+    current_entry: i32,
+    max_retry: i32,
+    payload: String,
+}
+
 impl ApubWorker {
+    pub fn new(pool: Pool<Sqlite>, client: ApubReqwester) -> Self {
+        Self { pool, client }
+    }
+
     fn client(&self) -> reqwest::Client {
         self.client.client.clone()
+    }
+
+    pub async fn start(&mut self) -> Result<(), anyhow::Error> {
+        loop {
+            let mut tx = self.pool.begin().await?;
+            let task = sqlx::query_as!(
+                QueuedTask,
+                "
+            SELECT id, current_retry, max_retry, payload FROM QueuedTask ORDER BY id ASC LIMIT 1
+            "
+            )
+            .fetch_optional(&mut tx)
+            .await?;
+        }
     }
 
     async fn post_to_inbox(
@@ -120,138 +146,31 @@ impl ApubWorker {
             ApubReqwestError::from_response(res).await,
         )));
     }
-
-    async fn fetch_user(&mut self, url: &str) -> Result<Actor, ServiceError<ApubFetchUserError>> {
-        // TODO: sign req with maintenance user
-        let req = RequestBuilder::from_parts(
-            self.client(),
-            Request::new(Method::GET, url.parse().unwrap()),
-        )
-        .header(
-            "Accept",
-            r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
-        )
-        .build()
-        .unwrap();
-
-        let res = self.client().execute(req).await.map_err(map_error)?;
-        let bytes = res.json::<serde_json::Value>().await.map_err(map_error)?;
-        // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
-        tracing::debug!("body: {:#?}", bytes);
-        let person = serde_json::from_value(bytes).map_err(|e| {
-            tracing::warn!("failed to parse actor: {:#?}", e);
-            ServiceError::MiscError(Box::new(e))
-        })?;
-
-        Ok(person)
-    }
-
-    async fn fetch_post(
-        &mut self,
-        url: &str,
-    ) -> Result<CreatableObject, ServiceError<ApubFetchPostError>> {
-        // TODO: sign req with maintenance user
-        let req = RequestBuilder::from_parts(
-            self.client(),
-            Request::new(Method::GET, url.parse().unwrap()),
-        )
-        .header(
-            "Accept",
-            r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
-        )
-        .build()
-        .unwrap();
-
-        let res = self.client().execute(req).await.map_err(map_error)?;
-        // let body = res.json::<serde_json::Value>().await.map_err(map_error)?;
-        // debug!("body: {:#?}", body);
-        let note = res.json::<CreatableObject>().await.map_err(map_error)?;
-
-        Ok(note)
-    }
-
-    async fn fetch_webfinger(
-        &mut self,
-        username: &str,
-        host: &str,
-    ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>> {
-        let url = format!(
-            "https://{}/.well-known/webfinger?resource=acct:{}@{}",
-            host, username, host
-        );
-        let res = self
-            .client()
-            .get(url)
-            .header("accept", "application/json")
-            .send()
-            .await
-            .map_err(map_error)?;
-
-        let json_body = res.json::<WebfingerResponse>().await.map_err(map_error)?;
-        let links: Vec<_> = json_body
-            .links
-            .iter()
-            .filter_map(
-                |l| match (l.rel.clone(), l.r#type.clone(), l.href.clone()) {
-                    (Some(r), Some(t), Some(h)) => Some((r, t, h)),
-                    _ => None,
-                },
-            )
-            .collect();
-
-        let result = ApubWebfingerResponseBuilder::default()
-            .api_url(
-                links
-                    .iter()
-                    .find(|link| link.0 == "self" || link.1 == "application/activity+json")
-                    .map(|link| link.2.clone())
-                    .ok_or(ServiceError::from_se(WebfingerError::ApiUrlNotFound))?,
-            )
-            .profile_url(
-                links
-                    .iter()
-                    .find(|link| {
-                        link.0 == "http://webfinger.net/rel/profile-page" || link.1 == "text/html"
-                    })
-                    .map(|link| link.2.clone()),
-            )
-            .build()
-            .unwrap();
-        Ok(result)
-    }
 }
 
-// #[derive(Debug)]
-// pub enum WorkerTask {
-//     PostToInbox(PostToInboxPayload),
-//     FetchUser(GetRequestPayload),
-//     FetchPost(GetRequestPayload),
-//     FetchWebfinger(GetWebfingerPayload),
-// }
-
-pub struct ApubDirector {}
+pub struct ApubDirector<F>
+where
+    F: Fn() -> ApubReqwester,
+{
+    pool: Pool<Sqlite>,
+    client_maker: F,
+}
 
 impl ApubDirector {
-    pub async fn prepare(conn: &lapin::Connection) -> Self {
-        Self {}
+    pub fn new(pool: Pool<Sqlite>, client_maker: F) -> Self {
+        Self { pool, client_maker }
     }
 
-    pub async fn add_workers<F>(
-        &mut self,
-        n_workers: u32,
-        conn: &lapin::Connection,
-        worker_type: WorkerType,
-        make_client: F,
-    ) where
+    pub async fn start_workers(&mut self) {}
+
+    pub async fn add_workers<F>(&mut self)
+    where
         F: Fn() -> ApubReqwester,
     {
-        for _ in 0..n_workers {
-            let chan = conn.create_channel().await.unwrap();
-            let worker = ApubWorker::new(chan, make_client());
-            tokio::spawn(async move {
-                worker.start(worker_type.queue_name()).await;
-            });
-        }
+        let worker = ApubWorker::new(pool, self.client_maker());
+        tokio::spawn(async move {
+            worker.start().await;
+        });
     }
 }
 

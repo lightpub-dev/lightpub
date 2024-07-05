@@ -5,8 +5,6 @@ use lightpub_model::{
 };
 use lightpub_utils::key::{attach_signature, SignKeyBuilder};
 use reqwest::{Method, Request, RequestBuilder};
-use rsa::RsaPrivateKey;
-use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tracing::{info, warn};
 
@@ -17,28 +15,11 @@ use crate::{
     PostToInboxError, ServiceError, WebfingerError,
 };
 
+use lightpub_model::queue::{PostToInboxPayload, SignerPayload, WorkerTask};
+
 pub struct ApubQueueService {
     pool: SqlitePool,
     client: ApubReqwester,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum WorkerTask {
-    PostToInbox(PostToInboxPayload),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PostToInboxPayload {
-    url: String,
-    activity: Activity,
-    actor: SignerPayload,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SignerPayload {
-    user_id: String,
-    private_key: RsaPrivateKey,
-    private_key_id: String,
 }
 
 #[async_trait]

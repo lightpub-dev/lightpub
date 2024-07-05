@@ -22,3 +22,13 @@ serde_yaml = "0.9.34"
 reqwest = { version = "0.11.24", features = ["json"] }
 rsa = { version = "0.9.6", features = ["sha2", "serde"] }
 futures = "0.3.30"
+sqlx = { version = "0.7", features = [
+    "runtime-tokio",
+    "sqlite",
+    "chrono",
+    "json",
+    "uuid",
+    "macros",
+] }
+anyhow = { version = "1.0.80", features = ["backtrace"] }
+thiserror = "1.0"
