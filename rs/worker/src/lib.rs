@@ -88,9 +88,7 @@ impl ApubWorker {
             let mut tx = self.pool.begin().await?;
             let task = sqlx::query_as!(
                 QueuedTask,
-                "
-            SELECT id, current_retry, max_retry, payload FROM QueuedTask ORDER BY id ASC LIMIT 1
-            "
+                "SELECT id, current_retry, max_retry, payload FROM QueuedTask ORDER BY id ASC LIMIT 1"
             )
             .fetch_optional(&mut tx)
             .await?;
