@@ -1,4 +1,3 @@
-pub mod main;
 pub mod state;
 
 pub fn validate_username(username: &str) -> bool {

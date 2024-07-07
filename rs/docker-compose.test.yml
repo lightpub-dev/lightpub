@@ -31,20 +31,6 @@ services:
       lightpub_api:
         condition: service_healthy
 
-  lightpub_queue:
-    image: cloudamqp/lavinmq
-    networks:
-      - lightpub_test
-    healthcheck:
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 10s
-      start_interval: 2s
-    ports:
-      - 5672:5672 # amqp
-      - 15672:15672 # management
-
   lightpub_cache:
     build:
       context: memcached
@@ -69,10 +55,8 @@ services:
     depends_on:
       lightpub_cache:
         condition: service_healthy
-      lightpub_queue:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "nc", "-z", "-v", "-w30", "localhost", "8000"]
+      test: ["CMD", "nc", "-z", "-v", "-w30", "127.0.0.1", "8000"]
       timeout: 10s
       interval: 30s
       retries: 3

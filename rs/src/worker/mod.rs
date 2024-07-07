@@ -1,4 +1,3 @@
-pub mod main;
 use reqwest::{Method, Request, RequestBuilder};
 use rsa::RsaPrivateKey;
 use sqlx::{Pool, Sqlite};

@@ -1,48 +1,13 @@
-use crate::api::{validate_password, validate_username};
-use crate::backend::apub::queue::QueuedApubRequester;
-use crate::backend::db::new_db_user_post_service;
-use crate::model::apub::context::ContextAttachable;
-use crate::model::apub::{
+use lightpub::api::{validate_password, validate_username};
+use lightpub::backend::db::new_db_user_post_service;
+use lightpub::model::apub::context::ContextAttachable;
+use lightpub::model::apub::{
     AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
     UndoableActivity, PUBLIC,
 };
-use crate::model::reaction::Reaction;
-use crate::model::{PostSpecifier, UserSpecifier};
+use lightpub::model::reaction::Reaction;
+use lightpub::model::{PostSpecifier, UserSpecifier};
 
-use crate::api::state::AppState;
-use crate::backend::apub::render::RenderedNoteObject;
-use crate::backend::db::{new_all_user_finder_service, new_db_key_fetcher_service};
-use crate::backend::db::{new_db_file_upload_service, new_db_user_profile_service};
-use crate::backend::{
-    apub::{new_apub_renderer_service, new_apub_reqester_service},
-    db::{new_follow_service, new_post_create_service},
-    FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
-    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
-    PostCreateRequestRepostBuilder,
-};
-use crate::backend::{
-    db::{new_auth_service, new_local_user_finder_service},
-    id::IDGetterService,
-    AuthError, LocalUserFindError, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
-    UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
-};
-use crate::backend::{
-    FetchFollowListOptions, FetchUserPostsOptions, PostInteractionAction, TimelineOptions,
-    UserCreateError, UserProfileUpdate,
-};
-use crate::backend::{PostDeleteError, PostFetchError};
-use crate::config::Config;
-use crate::model::apub::LikeActivity;
-use crate::model::http::{HeaderMapWrapper, Method};
-use crate::model::pagination::{
-    CollectionPageResponse, CollectionPageType, CollectionResponse, CollectionType,
-    PaginatableWrapper, PaginatedResponse,
-};
-use crate::model::reaction::ReactionError;
-use crate::model::{PostPrivacy, User};
-use crate::utils::generate_uuid;
-use crate::utils::key::VerifyError;
-use crate::utils::key::{verify_signature, KeyFetcher};
 use actix_cors::Cors;
 use actix_multipart::form::MultipartForm;
 use actix_web::http::header;
@@ -51,7 +16,40 @@ use actix_web::{
     Responder,
 };
 use clap::Parser;
-use lapin::ConnectionProperties;
+use lightpub::api::state::AppState;
+use lightpub::backend::apub::render::RenderedNoteObject;
+use lightpub::backend::db::{new_all_user_finder_service, new_db_key_fetcher_service};
+use lightpub::backend::db::{new_db_file_upload_service, new_db_user_profile_service};
+use lightpub::backend::{
+    apub::{new_apub_renderer_service, new_apub_reqester_service},
+    db::{new_follow_service, new_post_create_service},
+    FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
+    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
+    PostCreateRequestRepostBuilder,
+};
+use lightpub::backend::{
+    db::{new_auth_service, new_local_user_finder_service},
+    id::IDGetterService,
+    AuthError, LocalUserFindError, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
+    UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
+};
+use lightpub::backend::{
+    FetchFollowListOptions, FetchUserPostsOptions, PostInteractionAction, TimelineOptions,
+    UserCreateError, UserProfileUpdate,
+};
+use lightpub::backend::{PostDeleteError, PostFetchError};
+use lightpub::config::Config;
+use lightpub::model::apub::LikeActivity;
+use lightpub::model::http::{HeaderMapWrapper, Method};
+use lightpub::model::pagination::{
+    CollectionPageResponse, CollectionPageType, CollectionResponse, CollectionType,
+    PaginatableWrapper, PaginatedResponse,
+};
+use lightpub::model::reaction::ReactionError;
+use lightpub::model::{PostPrivacy, User};
+use lightpub::utils::generate_uuid;
+use lightpub::utils::key::VerifyError;
+use lightpub::utils::key::{verify_signature, KeyFetcher};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -66,7 +64,7 @@ use std::{
 use tracing::{debug, error, info, warn};
 use uuid::{fmt::Simple, Uuid};
 
-use crate::backend::db::new_user_service;
+use lightpub::backend::db::new_user_service;
 
 #[derive(Debug)]
 struct AuthUser {
@@ -735,7 +733,7 @@ async fn user_inbox(
     let authed_user_uri = id_getter.get_user_id(authed_user);
 
     // deserialize into ActivityPub activity
-    let activity = crate::model::apub::Activity::deserialize(&body.0).map_err(|e| {
+    let activity = lightpub::model::apub::Activity::deserialize(&body.0).map_err(|e| {
         warn!("Failed to deserialize activity: {:?}", e);
         ErrorResponse::new_status(400, "invalid activity")
     })?;
@@ -749,7 +747,7 @@ async fn user_inbox(
 
     debug!("parsed activity {:#?}", activity);
 
-    use crate::model::apub::Activity::*;
+    use lightpub::model::apub::Activity::*;
     match activity {
         Accept(a) => {
             let actor_id = a.actor;
@@ -757,8 +755,8 @@ async fn user_inbox(
                 return authfail();
             }
             let req_spec = match a.object {
-                crate::model::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
-                crate::model::apub::IdOrObject::Object(obj) => match obj {
+                lightpub::model::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
+                lightpub::model::apub::IdOrObject::Object(obj) => match obj {
                     AcceptableActivity::Follow(obj) => {
                         let object_actor_id = obj.actor;
                         let object_object_id = obj.object.get_id();

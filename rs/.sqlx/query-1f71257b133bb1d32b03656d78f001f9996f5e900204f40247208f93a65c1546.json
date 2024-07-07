@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, current_retry, max_retry, payload FROM QueuedTask ORDER BY id ASC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "current_retry",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "max_retry",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "payload",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1f71257b133bb1d32b03656d78f001f9996f5e900204f40247208f93a65c1546"
+}

@@ -1,10 +1,11 @@
-use std::{io::Read, path::PathBuf};
-
-use crate::backend::apub::ApubReqwester;
-use crate::config::Config;
-use crate::worker::ApubDirector;
+extern crate lightpub;
 use clap::Parser;
+
+use lightpub::backend::apub::ApubReqwester;
+use lightpub::config::Config;
+use lightpub::worker::ApubDirector;
 use sqlx::sqlite::SqlitePoolOptions;
+use std::{io::Read, path::PathBuf};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

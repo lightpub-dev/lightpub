@@ -1,8 +1,16 @@
 [package]
-name = "lightpub_api"
+name = "lightpub"
 version = "0.1.0"
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "lightpub_api"
+path = "src/api_main.rs"
+
+[[bin]]
+name = "lightpub_worker"
+path = "src/worker_main.rs"
 
 [dependencies]
 actix-cors = "0.7.0"

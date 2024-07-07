@@ -10,6 +10,8 @@ RUN --mount=type=cache,target=/usr/src/app/target --mount=type=cache,target=/cac
 
 FROM debian:bullseye AS runtime
 
+RUN apt-get update -qq && apt-get install -qq -y netcat-openbsd
+
 WORKDIR /lightpub
 COPY migrations ./migrations
 COPY docker_start.sh .

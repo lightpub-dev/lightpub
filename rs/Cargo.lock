@@ -2279,7 +2279,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lightpub_api"
+name = "lightpub"
 version = "0.1.0"
 dependencies = [
  "actix-cors",
