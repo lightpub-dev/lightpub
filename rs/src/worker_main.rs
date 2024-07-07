@@ -6,6 +6,7 @@ use lightpub::config::Config;
 use lightpub::worker::ApubDirector;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::{io::Read, path::PathBuf};
+use tracing::info;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -13,10 +14,6 @@ struct Cli {
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
-    #[arg(long)]
-    post_worker: u32,
-    #[arg(long)]
-    fetch_worker: u32,
     #[arg(long, default_value = "false")]
     generate_run_file: Option<PathBuf>,
 }
@@ -39,6 +36,7 @@ async fn main() {
 
     // connect to db
     let conn_str = format!("sqlite:{}", config.database.path);
+    info!("Connecting to database: {}", &conn_str);
     let pool = SqlitePoolOptions::new()
         .connect(&conn_str)
         .await

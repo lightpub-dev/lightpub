@@ -13,7 +13,7 @@ use crate::backend::{
         render::{ApubRendererService, TargetedUser},
     },
     id::IDGetterService,
-    AllUserFinderService, ApubRequestService, FetchUserPostsOptions, Holder, PostCreateError,
+    AllUserFinderService, ApubRequestService, FetchUserPostsOptions, PostCreateError,
     PostCreateRequest, PostCreateService, PostDeleteError, PostFetchError, PostInteractionAction,
     ServiceError, SignerService, TimelineOptions, UserFollowService, UserPostService,
 };

@@ -14,7 +14,6 @@ use crate::backend::id::UserAttribute;
 use crate::backend::AllUserFinderService;
 use crate::backend::ApubRequestService;
 use crate::backend::AuthError;
-use crate::backend::Holder;
 use crate::backend::InboxPair;
 use crate::backend::LocalUserFindError;
 use crate::backend::LocalUserFinderService;

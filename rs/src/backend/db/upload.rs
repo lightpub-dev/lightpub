@@ -3,7 +3,7 @@ use derive_more::Constructor;
 use sqlx::SqlitePool;
 use uuid::fmt::Simple;
 
-use crate::backend::{Holder, LocalUserFinderService, UploadService};
+use crate::backend::{LocalUserFinderService, UploadService};
 use crate::holder;
 use crate::model::UserSpecifier;
 

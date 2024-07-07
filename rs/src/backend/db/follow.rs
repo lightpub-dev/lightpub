@@ -6,7 +6,7 @@ use uuid::fmt::Simple;
 use crate::backend::ServiceError;
 use crate::backend::{
     id::IDGetterService, AllUserFinderService, ApubFollowService, ApubRequestService,
-    FetchFollowListOptions, FollowError, FollowRequestAccepted, FollowRequestSpecifier, Holder,
+    FetchFollowListOptions, FollowError, FollowRequestAccepted, FollowRequestSpecifier,
     IncomingFollowRequest, SignerError, SignerService, UserFindError, UserFollowService,
 };
 use crate::holder;

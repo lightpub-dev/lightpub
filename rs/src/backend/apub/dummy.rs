@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use thiserror::Error;
 
-use crate::backend::Holder;
 use crate::backend::{
     ApubFetchPostError, ApubFetchUserError, ApubRequestService, MiscError, PostToInboxError,
     ServiceError, WebfingerError,

@@ -10,11 +10,8 @@ use crate::model::{
     ApubSigner, ApubWebfingerResponse,
 };
 
-use self::transport::{decode_payload, ResponsePayload};
 use crate::model::queue::{PostToInboxPayload as PostToInboxQueuePayload, SignerPayload};
 use async_trait::async_trait;
-use futures::Future;
-use serde::Deserialize;
 
 pub mod transport {
     use std::fmt::Display;
@@ -140,24 +137,9 @@ pub struct QueuedApubRequester {
 #[derive(Debug, Clone)]
 pub struct QueuedApubRequesterBuilder {}
 
-async fn report_warn<R, E: Debug, T: Future<Output = Result<R, E>>>(task: T) {
-    let result = task.await;
-    match result {
-        Ok(_) => {}
-        Err(e) => {
-            tracing::warn!("error: {:?}", e);
-        }
-    }
-}
-
 impl QueuedApubRequester {
     pub fn new(pool: sqlx::Pool<sqlx::Sqlite>, requester: holder!(ApubRequestService)) -> Self {
         Self { pool, requester }
-    }
-
-    fn generate_random_id() -> String {
-        let v4 = uuid::Uuid::new_v4();
-        v4.simple().to_string()
     }
 }
 
@@ -180,35 +162,6 @@ impl TaskTimeoutError {
     }
 }
 
-async fn wait_for_result<T, E>(
-    rx: tokio::sync::oneshot::Receiver<Vec<u8>>,
-    timeout: std::time::Duration,
-) -> Result<T, ServiceError<E>>
-where
-    T: for<'de> Deserialize<'de> + Debug,
-    E: for<'de> Deserialize<'de> + Debug,
-{
-    let result = tokio::time::timeout(timeout, rx).await;
-
-    match result {
-        Ok(r) => match r {
-            Ok(r) => {
-                let decoded: ResponsePayload<T, E> = decode_payload(&r);
-                tracing::debug!("got response from worker: {:?}", &decoded);
-                decoded.into()
-            }
-            Err(e) => {
-                tracing::error!("failed to receive response from worker: {:?}", e);
-                Err(ServiceError::MiscError(Box::new(TaskTimeoutError::new())))
-            }
-        },
-        Err(e) => {
-            tracing::warn!("worker task timeout: {:?}", e);
-            Err(ServiceError::MiscError(Box::new(TaskTimeoutError::new())))
-        }
-    }
-}
-
 #[async_trait]
 impl ApubRequestService for QueuedApubRequester {
     async fn post_to_inbox(
@@ -228,10 +181,13 @@ impl ApubRequestService for QueuedApubRequester {
         };
 
         let payload_text = serde_json::ser::to_string(&payload).unwrap();
-        sqlx::query!("INSERT INTO QueuedTask(payload) VALUES (?)", payload_text)
-            .execute(&self.pool)
-            .await
-            .unwrap();
+        sqlx::query!(
+            "INSERT INTO QueuedTask(payload, max_retry) VALUES (?, 10)",
+            payload_text
+        )
+        .execute(&self.pool)
+        .await
+        .unwrap();
 
         Ok(())
     }

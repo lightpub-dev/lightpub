@@ -1,6 +1,5 @@
 use sqlx::SqlitePool;
 
-use crate::backend::apub::queue::QueuedApubRequesterBuilder;
 use crate::config::Config;
 
 #[derive(Debug, Clone)]

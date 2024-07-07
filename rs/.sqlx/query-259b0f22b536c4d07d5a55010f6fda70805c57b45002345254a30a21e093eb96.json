@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, current_retry, max_retry, payload FROM QueuedTask ORDER BY id ASC LIMIT 1",
+  "query": "SELECT id, current_retry, max_retry, payload FROM QueuedTask WHERE started_at IS NULL ORDER BY id ASC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "1f71257b133bb1d32b03656d78f001f9996f5e900204f40247208f93a65c1546"
+  "hash": "259b0f22b536c4d07d5a55010f6fda70805c57b45002345254a30a21e093eb96"
 }

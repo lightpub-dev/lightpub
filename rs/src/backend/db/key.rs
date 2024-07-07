@@ -4,7 +4,7 @@ use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
 use sqlx::SqlitePool;
 use uuid::fmt::Simple;
 
-use crate::backend::{AllUserFinderService, Holder};
+use crate::backend::AllUserFinderService;
 use crate::holder;
 use crate::model::UserSpecifier;
 use crate::utils::key::{KeyFetcher, KeyFetcherResult};

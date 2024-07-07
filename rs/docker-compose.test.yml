@@ -31,16 +31,6 @@ services:
       lightpub_api:
         condition: service_healthy
 
-  lightpub_cache:
-    build:
-      context: memcached
-      dockerfile: Dockerfile
-    networks:
-      - lightpub_test
-    container_name: lightpub-cache-test
-    ports:
-      - "11211:11211"
-
   lightpub_api:
     build:
       context: .
@@ -52,9 +42,6 @@ services:
       - "8000:8000"
     networks:
       - lightpub_test
-    depends_on:
-      lightpub_cache:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "nc", "-z", "-v", "-w30", "127.0.0.1", "8000"]
       timeout: 10s

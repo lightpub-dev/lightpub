@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM QueuedTask WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "0f3f47b2729686dcc072a4f9417338f572b363cc6f34b30a7624e05cf3dce93d"
+}

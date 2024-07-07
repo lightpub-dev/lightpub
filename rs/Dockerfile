@@ -13,6 +13,7 @@ FROM debian:bullseye AS runtime
 RUN apt-get update -qq && apt-get install -qq -y netcat-openbsd
 
 WORKDIR /lightpub
+RUN mkdir db
 COPY migrations ./migrations
 COPY docker_start.sh .
 COPY --from=builder /out/lightpub_api /usr/bin/lightpub_api
