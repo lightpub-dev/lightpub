@@ -284,11 +284,12 @@ services:
       args:
         BUILD_TYPE: debug
     healthcheck:
-      test: curl -s -S -o /dev/null http://localhost:8000
+      test: ["CMD", "nc", "-z", "-v", "-w30", "127.0.0.1", "8000"]
+      timeout: 10s
       interval: 30s
-      retries: 5
+      retries: 3
+      start_period: 60s
       start_interval: 2s
-      start_period: 30s
     restart: unless-stopped
     networks:
       - internal_network
@@ -297,14 +298,10 @@ services:
       - 8000:8000
     profiles:
       - lightpub
-    depends_on:
-      lightpub_cache:
-        condition: service_healthy
-      lightpub_queue:
-        condition: service_healthy
     volumes:
       - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
       - ./refinery.docker.toml:/lightpub/refinery.toml
+      - lightpub_sqlite:/lightpub/db
     init: true # necessary for shutting down gracefully
 
   lightpub_worker:
@@ -323,61 +320,16 @@ services:
       - internal_network
     profiles:
       - lightpub
-    depends_on:
-      lightpub_queue:
-        condition: service_healthy
     volumes:
       - ./lightpub.yml.docker:/lightpub/lightpub.yml.sample
+      - lightpub_sqlite:/lightpub/db
     environment:
       WORKERS_POST: 1
       WORKERS_FETCH: 3
+    depends_on:
+      lightpub_api:
+        condition: service_healthy # wait until migrations are done
     init: true # necessary for shutting down gracefully
-
-  lightpub_queue:
-    image: cloudamqp/lavinmq
-    networks:
-      - internal_network
-      - external_network
-    healthcheck:
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 10s
-      start_interval: 2s
-    ports:
-      - 5672:5672 # amqp
-      - 15672:15672 # management
-    profiles:
-      - lightpub
-
-  lightpub_cache:
-    build:
-      context: memcached
-      dockerfile: Dockerfile
-    container_name: lightpub-cache
-    ports:
-      - "11211:11211"
-    profiles:
-      - lightpub
-
-  lightpub_dev_db:
-    image: mariadb:latest
-    networks:
-      - external_network
-    expose:
-      - 3307
-    ports:
-      - 3307:3307
-    environment:
-      - MYSQL_TCP_PORT=3307
-      - MYSQL_USER=lightpub
-      - MYSQL_PASSWORD=lightpub
-      - MYSQL_DATABASE=lightpub_dev
-      - MYSQL_ROOT_PASSWORD=root
-    volumes:
-      - lightpub_dev_db_data:/var/lib/mysql
-    profiles:
-      - lightpub-dev
 
   test_runner:
     build:
@@ -402,7 +354,7 @@ volumes:
   misskey_files:
   misskey_db_data:
   misskey_redis_data:
-  lightpub_dev_db_data:
+  lightpub_sqlite:
   pleroma_db_data:
   pleroma_uploads:
   pleroma_static:

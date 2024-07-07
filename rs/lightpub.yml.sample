@@ -13,7 +13,7 @@ cors_allowed_origins:
   - http://localhost:5173
   - https://lightpub.tinax.local
 database:
-  path: ./sample_db.sqlite3
+  path: ./db/sample_db.sqlite3
 queue:
   host: 127.0.0.1
   port: 5672
