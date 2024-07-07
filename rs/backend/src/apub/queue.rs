@@ -1,11 +1,6 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::fmt::Debug;
 
 use crate::{
-    apub::queue::transport::{encode_payload, PostToInboxPayload},
     holder, ApubFetchPostError, ApubFetchUserError, ApubRequestService, Holder, MiscError,
     PostToInboxError, ServiceError, WebfingerError,
 };
@@ -14,19 +9,11 @@ use lightpub_model::{
     ApubSigner, ApubWebfingerResponse,
 };
 
+use self::transport::{decode_payload, ResponsePayload};
 use async_trait::async_trait;
-use futures::{stream::StreamExt, Future};
-use lapin::{
-    options::{
-        BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicRejectOptions,
-        ExchangeBindOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions,
-    },
-    types::{FieldTable, LongString},
-    BasicProperties, ExchangeKind,
-};
+use futures::Future;
+use lightpub_model::queue::{PostToInboxPayload as PostToInboxQueuePayload, SignerPayload};
 use serde::Deserialize;
-
-use self::transport::{decode_payload, GetRequestPayload, GetWebfingerPayload, ResponsePayload};
 
 pub mod transport {
     use std::fmt::Display;
@@ -144,44 +131,13 @@ pub mod transport {
 
 pub mod worker {}
 
-#[derive(Debug)]
 pub struct QueuedApubRequester {
-    chan: lapin::Channel,
-
-    response_tx_map: Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<Vec<u8>>>>>,
+    pool: sqlx::Pool<sqlx::Sqlite>,
+    requester: holder!(ApubRequestService),
 }
-
-pub const POST_EXCHANGE: &str = "post";
-pub const POST_DLX: &str = "post_dlx";
-const POST_X_DELAYED: &str = "post_delayed";
-pub const GET_REQUEST_EXCHANGE: &str = "get_request";
-const RESPONSE_QUEUE: &str = "response";
-const POST_DLX_QUEUE: &str = "post_dlx_queue";
-
-pub const INBOX_POST_ROUTING_KEY: &str = "post.inbox";
-pub const FETCH_USER_ROUTING_KEY: &str = "fetch.user";
-pub const FETCH_POST_ROUTING_KEY: &str = "fetch.post";
-pub const FETCH_WEBFINGER_ROUTING_KEY: &str = "fetch.webfinger";
-
-pub const DLX_HEADER: &str = "x-dead-letter-exchange";
-pub const DELAY_HEADER: &str = "x-delay";
-pub const TTL_HEADER: &str = "x-message-ttl";
-pub const MAX_RETRY_HEADER: &str = "x-max-retry";
-pub const RETRY_COUNT_HEADER: &str = "x-retry-count";
-const INBOX_POST_MAX_RETRY: i32 = 10;
 
 #[derive(Debug, Clone)]
-pub struct QueuedApubRequesterBuilder {
-    chan: lapin::Channel,
-    response_tx_map: Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<Vec<u8>>>>>,
-}
-
-fn calculate_next_delay(current_retry: i32) -> std::time::Duration {
-    use std::time::Duration;
-    // delay = 2^(current_retry) + 4 s
-    let delay = Duration::from_secs(2u64.pow(current_retry as u32)) + Duration::from_secs(4);
-    return delay;
-}
+pub struct QueuedApubRequesterBuilder {}
 
 async fn report_warn<R, E: Debug, T: Future<Output = Result<R, E>>>(task: T) {
     let result = task.await;
@@ -194,258 +150,8 @@ async fn report_warn<R, E: Debug, T: Future<Output = Result<R, E>>>(task: T) {
 }
 
 impl QueuedApubRequester {
-    pub fn new(b: QueuedApubRequesterBuilder) -> Self {
-        Self {
-            chan: b.chan,
-            response_tx_map: b.response_tx_map,
-        }
-    }
-
-    pub async fn prepare(
-        conn: &lapin::Connection,
-    ) -> Result<QueuedApubRequesterBuilder, lapin::Error> {
-        let mut chan = conn.create_channel().await?;
-        let response_tx_map = Arc::new(Mutex::new(HashMap::new()));
-        Self::initialize(conn, &mut chan, response_tx_map.clone()).await?;
-        Ok(QueuedApubRequesterBuilder {
-            chan,
-            response_tx_map,
-        })
-    }
-
-    async fn initialize(
-        conn: &lapin::Connection,
-        chan: &mut lapin::Channel,
-        response_tx_map: Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<Vec<u8>>>>>,
-    ) -> Result<(), lapin::Error> {
-        let mut durable_options = ExchangeDeclareOptions::default();
-        durable_options.durable = true;
-        chan.exchange_declare(
-            POST_EXCHANGE,
-            ExchangeKind::Direct,
-            durable_options,
-            FieldTable::default(),
-        )
-        .await?;
-
-        // Dead letter exchange and queue for POST_EXCHANGE
-        chan.exchange_declare(
-            POST_DLX,
-            ExchangeKind::Direct,
-            durable_options,
-            FieldTable::default(),
-        )
-        .await?;
-        chan.exchange_declare(
-            POST_X_DELAYED,
-            ExchangeKind::Custom("x-delayed-message".to_string()),
-            durable_options,
-            {
-                let mut f = FieldTable::default();
-                f.insert(
-                    "x-delayed-type".into(),
-                    LongString::from("topic".as_bytes().to_vec()).into(),
-                );
-                f
-            },
-        )
-        .await?;
-        chan.exchange_bind(
-            POST_EXCHANGE,
-            POST_X_DELAYED,
-            "post.*",
-            ExchangeBindOptions::default(),
-            FieldTable::default(),
-        )
-        .await?;
-        chan.queue_declare(
-            POST_DLX_QUEUE,
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
-        .await?;
-        chan.queue_bind(
-            POST_DLX_QUEUE,
-            POST_DLX,
-            INBOX_POST_ROUTING_KEY,
-            QueueBindOptions::default(),
-            FieldTable::default(),
-        )
-        .await?;
-        // spawn a thread to handle messages in POST_DLX
-        let post_dlx_chan = conn.create_channel().await?;
-        tokio::spawn(async move {
-            let mut consumer = post_dlx_chan
-                .basic_consume(
-                    POST_DLX_QUEUE,
-                    "",
-                    BasicConsumeOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .expect("create consumer for POST_DLX_QUEUE");
-            tracing::info!("[DL WORKER] started POST_DLX_QUEUE thread");
-            while let Some(msg) = consumer.next().await {
-                tracing::debug!("[DL WORKER] received message from POST_DLX_QUEUE");
-                match msg {
-                    Err(_) => {
-                        tracing::error!("failed to receive post_dlx: {:?}", msg);
-                        continue;
-                    }
-                    Ok(msg) => {
-                        let props = &msg.properties;
-                        let headers = props.headers().as_ref();
-                        match headers {
-                            None => {
-                                tracing::warn!("post_dlx received message with no retry headers");
-                                report_warn(msg.reject(BasicRejectOptions { requeue: false }))
-                                    .await;
-                                continue;
-                            }
-                            Some(headers) => {
-                                let current_retry = match headers.inner().get(RETRY_COUNT_HEADER) {
-                                    None => {
-                                        tracing::warn!("{} not set", RETRY_COUNT_HEADER);
-                                        report_warn(
-                                            msg.reject(BasicRejectOptions { requeue: false }),
-                                        )
-                                        .await;
-                                        continue;
-                                    }
-                                    Some(v) => v.as_long_int().expect("RETRY_COUNT_HEADER is int"),
-                                };
-                                let max_retry = match headers.inner().get(MAX_RETRY_HEADER) {
-                                    None => {
-                                        tracing::warn!("{} not set", MAX_RETRY_HEADER);
-                                        report_warn(
-                                            msg.reject(BasicRejectOptions { requeue: false }),
-                                        )
-                                        .await;
-                                        continue;
-                                    }
-                                    Some(v) => v.as_long_int().expect("MAX_RETRY_HEADER is int"),
-                                };
-
-                                if current_retry >= max_retry {
-                                    // no more retry allowed
-                                    tracing::warn!(
-                                        "[DL WORKER] max retry reached [{}/{}], rejecting message",
-                                        current_retry,
-                                        max_retry
-                                    );
-                                    report_warn(msg.ack(BasicAckOptions::default())).await;
-                                    continue;
-                                }
-
-                                // re-enqueue
-                                let mut headers = headers.clone();
-                                headers
-                                    .insert(RETRY_COUNT_HEADER.into(), (current_retry + 1).into());
-                                headers.insert(
-                                    DELAY_HEADER.into(),
-                                    (calculate_next_delay(current_retry).as_millis() as i32).into(),
-                                );
-                                match post_dlx_chan
-                                    .basic_publish(
-                                        POST_X_DELAYED,
-                                        msg.routing_key.as_str(),
-                                        BasicPublishOptions::default(),
-                                        &msg.data,
-                                        BasicProperties::default().with_headers(headers),
-                                    )
-                                    .await
-                                {
-                                    Ok(_) => {
-                                        report_warn(msg.ack(BasicAckOptions::default())).await;
-                                        tracing::debug!(
-                                            "[DL WORKER] re-enqueued message with delay [{}/{}]",
-                                            current_retry,
-                                            max_retry
-                                        );
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(
-                                            "[DL WORKER] failed to re-enqueue message [{}/{}]: {:?}", current_retry, max_retry,
-                                            e
-                                        );
-                                        report_warn(msg.reject(BasicRejectOptions::default()))
-                                            .await;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        let default_options = ExchangeDeclareOptions::default();
-        chan.exchange_declare(
-            GET_REQUEST_EXCHANGE,
-            ExchangeKind::Direct,
-            default_options,
-            FieldTable::default(),
-        )
-        .await?;
-
-        chan.queue_declare(
-            RESPONSE_QUEUE,
-            QueueDeclareOptions::default(),
-            FieldTable::default(),
-        )
-        .await?;
-
-        // RPC receiver
-        let mut get_request_response_consumer = chan
-            .basic_consume(
-                RESPONSE_QUEUE,
-                "",
-                BasicConsumeOptions::default(),
-                FieldTable::default(),
-            )
-            .await?;
-        let response_tx_map = response_tx_map.clone();
-        // spawn a thread to handle RPC responses
-        tokio::spawn(async move {
-            while let Some(delivery) = get_request_response_consumer.next().await {
-                let delivery = match delivery {
-                    Ok(d) => d,
-                    Err(e) => {
-                        tracing::error!("failed to receive RPC response: {:?}", e);
-                        continue;
-                    }
-                };
-                match delivery.ack(BasicAckOptions::default()).await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        tracing::error!("failed to ack RPC response: {:?}", e);
-                        continue;
-                    }
-                };
-                let id = delivery
-                    .properties
-                    .correlation_id()
-                    .as_ref()
-                    .map(|id| id.to_string())
-                    .expect("correlation_id not set");
-
-                let mut map = response_tx_map.lock().unwrap();
-                // debug
-                tracing::debug!("dumping response tx map");
-                for (k, _) in map.iter() {
-                    tracing::debug!("response tx: {:?}", k);
-                }
-                tracing::debug!("dumping response tx map end");
-                let tx = map.remove(&id);
-                if let Some(tx) = tx {
-                    tx.send(delivery.data).expect("send response");
-                } else {
-                    tracing::warn!("response tx not found for corr_id: {:?}", id);
-                }
-            }
-        });
-
-        Ok(())
+    pub fn new(pool: sqlx::Pool<sqlx::Sqlite>, requester: holder!(ApubRequestService)) -> Self {
+        Self { pool, requester }
     }
 
     fn generate_random_id() -> String {
@@ -510,64 +216,27 @@ impl ApubRequestService for QueuedApubRequester {
         activity: &Activity,
         actor: holder!(ApubSigner),
     ) -> Result<(), ServiceError<PostToInboxError>> {
-        let chan = &mut self.chan;
-
-        let mut headers = FieldTable::default();
-        headers.insert(MAX_RETRY_HEADER.into(), INBOX_POST_MAX_RETRY.into());
-        headers.insert(RETRY_COUNT_HEADER.into(), 0.into());
-
-        let payload = PostToInboxPayload {
+        let payload = PostToInboxQueuePayload {
             url: url.to_string(),
             activity: activity.clone(),
-            actor_id: actor.get_user_id(),
-            actor_private_key: actor.get_private_key(),
-            actor_key_id: actor.get_private_key_id(),
+            actor: SignerPayload {
+                user_id: actor.get_user_id(),
+                private_key: actor.get_private_key(),
+                private_key_id: actor.get_private_key_id(),
+            },
         };
 
-        chan.basic_publish(
-            POST_EXCHANGE,
-            INBOX_POST_ROUTING_KEY,
-            BasicPublishOptions::default(),
-            &encode_payload(payload),
-            BasicProperties::default().with_headers(headers),
-        )
-        .await?;
+        let payload_text = serde_json::ser::to_string(&payload).unwrap();
+        sqlx::query!("INSERT INTO QueuedTask(payload) VALUES (?)", payload_text)
+            .execute(&self.pool)
+            .await
+            .unwrap();
 
         Ok(())
     }
 
     async fn fetch_user(&mut self, url: &str) -> Result<Actor, ServiceError<ApubFetchUserError>> {
-        let payload = GetRequestPayload {
-            url: url.to_string(),
-        };
-        let response_id = Self::generate_random_id();
-        let timeout = std::time::Duration::from_secs(5);
-
-        let mut headers = FieldTable::default();
-        headers.insert(TTL_HEADER.into(), (timeout.as_millis() as i32).into());
-
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        self.response_tx_map
-            .lock()
-            .unwrap()
-            .insert(response_id.clone(), tx);
-
-        self.chan
-            .basic_publish(
-                GET_REQUEST_EXCHANGE,
-                FETCH_USER_ROUTING_KEY,
-                BasicPublishOptions::default(),
-                &encode_payload(payload),
-                BasicProperties::default()
-                    .with_reply_to(RESPONSE_QUEUE.into())
-                    .with_correlation_id(response_id.clone().into())
-                    .with_headers(headers),
-            )
-            .await?;
-
-        let result = wait_for_result(rx, timeout).await;
-        self.response_tx_map.lock().unwrap().remove(&response_id);
-        result
+        self.requester.fetch_user(url).await
     }
 
     async fn fetch_webfinger(
@@ -575,74 +244,13 @@ impl ApubRequestService for QueuedApubRequester {
         username: &str,
         host: &str,
     ) -> Result<ApubWebfingerResponse, ServiceError<WebfingerError>> {
-        let payload = GetWebfingerPayload {
-            username: username.to_string(),
-            host: host.to_string(),
-        };
-        let response_id = Self::generate_random_id();
-        let timeout = std::time::Duration::from_secs(5);
-
-        let mut headers = FieldTable::default();
-        headers.insert(TTL_HEADER.into(), (timeout.as_millis() as i32).into());
-
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        self.response_tx_map
-            .lock()
-            .unwrap()
-            .insert(response_id.clone(), tx);
-
-        self.chan
-            .basic_publish(
-                GET_REQUEST_EXCHANGE,
-                FETCH_WEBFINGER_ROUTING_KEY,
-                BasicPublishOptions::default(),
-                &encode_payload(payload),
-                BasicProperties::default()
-                    .with_reply_to(RESPONSE_QUEUE.into())
-                    .with_correlation_id(response_id.clone().into())
-                    .with_headers(headers),
-            )
-            .await?;
-
-        let result = wait_for_result(rx, timeout).await;
-        self.response_tx_map.lock().unwrap().remove(&response_id);
-        result
+        self.requester.fetch_webfinger(username, host).await
     }
 
     async fn fetch_post(
         &mut self,
         url: &str,
     ) -> Result<CreatableObject, ServiceError<ApubFetchPostError>> {
-        let payload = GetRequestPayload {
-            url: url.to_string(),
-        };
-        let response_id = Self::generate_random_id();
-        let timeout = std::time::Duration::from_secs(5);
-
-        let mut headers = FieldTable::default();
-        headers.insert(TTL_HEADER.into(), (timeout.as_millis() as i32).into());
-
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        self.response_tx_map
-            .lock()
-            .unwrap()
-            .insert(response_id.clone(), tx);
-
-        self.chan
-            .basic_publish(
-                GET_REQUEST_EXCHANGE,
-                FETCH_POST_ROUTING_KEY,
-                BasicPublishOptions::default(),
-                &encode_payload(payload),
-                BasicProperties::default()
-                    .with_reply_to(RESPONSE_QUEUE.into())
-                    .with_correlation_id(response_id.clone().into())
-                    .with_headers(headers),
-            )
-            .await?;
-
-        let result = wait_for_result(rx, timeout).await;
-        self.response_tx_map.lock().unwrap().remove(&response_id);
-        result
+        self.requester.fetch_post(url).await
     }
 }

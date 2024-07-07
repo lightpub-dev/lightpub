@@ -2331,6 +2331,7 @@ dependencies = [
  "pkcs8",
  "rand 0.8.5",
  "regex",
+ "reqwest",
  "rsa",
  "scraper",
  "serde",

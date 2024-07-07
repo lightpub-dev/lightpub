@@ -45,7 +45,7 @@ pub fn new_all_user_finder_service(
 ) -> holder!(AllUserFinderService) {
     Holder::new(user::DBAllUserFinderService::new(
         pool.clone(),
-        new_apub_reqwester_service(queue, &config),
+        new_apub_reqwester_service(pool.clone(), &config),
         new_local_user_finder_service(pool),
         new_id_getter_service(config.clone()),
     ))
@@ -64,7 +64,7 @@ pub fn new_follow_service(
             new_id_getter_service(config.clone()),
             new_all_user_finder_service(pool.clone(), queue.clone(), config.clone()),
         ),
-        new_apub_reqwester_service(queue, &config),
+        new_apub_reqwester_service(pool.clone(), &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
         new_id_getter_service(config),
     ))
@@ -79,7 +79,7 @@ pub fn new_post_create_service(
         pool.clone(),
         new_all_user_finder_service(pool.clone(), queue.clone(), config.clone()),
         new_apub_renderer_service(config.clone()),
-        new_apub_reqwester_service(queue.clone(), &config),
+        new_apub_reqwester_service(pool.clone(), &config),
         new_db_user_signer_service(pool.clone(), config.clone()),
         new_id_getter_service(config.clone()),
         new_post_content_service(),

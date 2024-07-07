@@ -63,14 +63,14 @@ impl ApubReqwester {
 }
 
 pub fn new_apub_reqwester_service(
-    conn: QueuedApubRequesterBuilder,
+    pool: sqlx::Pool<sqlx::Sqlite>,
     config: &Config,
 ) -> holder!(ApubRequestService) {
     if config.federation.enabled {
-        // Holder::new(ApubReqwest {
-        //     client: ApubReqwester::new(config),
-        // })
-        Holder::new(QueuedApubRequester::new(conn))
+        let requester = Holder::new(ApubReqwest {
+            client: ApubReqwester::new(config),
+        });
+        Holder::new(QueuedApubRequester::new(pool, requester))
     } else {
         Holder::new(DummyRequester::new())
     }

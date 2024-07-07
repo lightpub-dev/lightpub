@@ -92,6 +92,18 @@ impl ApubWorker {
             )
             .fetch_optional(&mut tx)
             .await?;
+
+            if let Some(task) = task {
+                sqlx::query!(
+                    "UPDATE QueuedTask SET started_at = (DATETIME('now')) WHERE id = ?",
+                    task.id
+                )
+                .execute(&self.pool)
+                .await?;
+            } else {
+                tx.commit().await?;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await?;
+            }
         }
     }
 
