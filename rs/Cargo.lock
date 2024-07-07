@@ -2286,28 +2286,6 @@ dependencies = [
  "actix-multipart",
  "actix-web",
  "actix-web-httpauth",
- "chrono",
- "clap",
- "lapin",
- "lightpub_backend",
- "lightpub_config",
- "lightpub_model",
- "lightpub_utils",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "serde_yaml",
- "sqlx",
- "tracing",
- "tracing-subscriber",
- "urlencoding",
- "uuid 1.7.0",
-]
-
-[[package]]
-name = "lightpub_backend"
-version = "0.1.0"
-dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
@@ -2323,10 +2301,8 @@ dependencies = [
  "futures",
  "httpdate",
  "json-ld",
+ "lapin",
  "lazy_static",
- "lightpub_config",
- "lightpub_model",
- "lightpub_utils",
  "linked-hash-map",
  "pkcs8",
  "rand 0.8.5",
@@ -2347,81 +2323,6 @@ dependencies = [
  "urlencoding",
  "uuid 1.7.0",
  "valico",
-]
-
-[[package]]
-name = "lightpub_config"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_yaml",
-]
-
-[[package]]
-name = "lightpub_model"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "chrono",
- "derive-getters",
- "derive_builder",
- "derive_more 1.0.0-beta.6",
- "emojis",
- "reqwest",
- "rsa",
- "serde",
- "serde_with",
- "thiserror",
- "uuid 1.7.0",
-]
-
-[[package]]
-name = "lightpub_utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.22.0",
- "derive_builder",
- "derive_more 1.0.0-beta.6",
- "httpdate",
- "lazy_static",
- "lightpub_model",
- "linked-hash-map",
- "rand 0.8.5",
- "regex",
- "reqwest",
- "rsa",
- "serde",
- "serde_with",
- "thiserror",
- "tracing",
- "uuid 1.7.0",
-]
-
-[[package]]
-name = "lightpub_worker"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "futures",
- "lapin",
- "lightpub_backend",
- "lightpub_config",
- "lightpub_model",
- "lightpub_utils",
- "reqwest",
- "rsa",
- "serde",
- "serde_json",
- "serde_yaml",
- "sqlx",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "uuid 1.7.0",
 ]
 
 [[package]]
