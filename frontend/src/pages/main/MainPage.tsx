@@ -1,3 +1,4 @@
+import NewPostDialog from "../../components/post/NewPostDialog";
 import Sidebar from "../../components/sidebar/Sidebar";
 
 function MainPage() {
@@ -8,6 +9,7 @@ function MainPage() {
           children={
             <div className={"flex flex-col"}>
               <h1>Content</h1>
+              <NewPostDialog />
             </div>
           }
         />

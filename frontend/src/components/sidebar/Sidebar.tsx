@@ -32,6 +32,7 @@ import {
   FiBell,
   FiChevronDown,
 } from "react-icons/fi";
+import { IoAddOutline } from "react-icons/io5";
 import { IconType } from "react-icons";
 import { ReactText } from "react";
 import { RiTimeLine } from "react-icons/ri";
@@ -44,6 +45,7 @@ interface LinkItemProps {
 }
 
 const LinkItems: Array<LinkItemProps> = [
+  { name: "New Post", icon: IoAddOutline },
   { name: "Home", icon: FiHome },
   { name: "Trending", icon: FiTrendingUp },
   { name: "Settings", icon: FiSettings },
