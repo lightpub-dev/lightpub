@@ -109,6 +109,9 @@ function NetworkPostView({
           },
         })
         .then((res) => res.data as PostResponse);
+    },
+    {
+      revalidateOnFocus: false,
     }
   );
 
