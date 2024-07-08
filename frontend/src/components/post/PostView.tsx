@@ -38,6 +38,7 @@ export default function PostView({
   content,
   timestamp: timestampObj,
   isFavoritedByMe,
+  isBookmarkedByMe,
 }: {
   id: string;
   reposter?: {
@@ -51,6 +52,7 @@ export default function PostView({
   content: string;
   timestamp: Date;
   isFavoritedByMe?: boolean;
+  isBookmarkedByMe?: boolean;
 }) {
   const timestamp = timestampObj.toLocaleString();
 
@@ -129,6 +131,38 @@ export default function PostView({
     }
   }, [authorization, id, isFavoritedByMe]);
 
+  // bookmark
+  const bookmarkPost = useCallback(async () => {
+    if (isBookmarkedByMe === undefined) {
+      return;
+    }
+    try {
+      if (!isBookmarkedByMe) {
+        await axios.put(`/post/${id}/bookmark`, null, {
+          headers: {
+            authorization,
+          },
+        });
+      } else {
+        await axios.delete(`/post/${id}/bookmark`, {
+          headers: {
+            authorization,
+          },
+        });
+      }
+    } catch (ex: any) {
+      console.warn(ex.response);
+      alert("ブックマーク失敗");
+    }
+  }, [authorization, id, isBookmarkedByMe]);
+  const bookmarkToggleText = useMemo(() => {
+    if (!isBookmarkedByMe) {
+      return "ブックマークに追加";
+    } else {
+      return "ブックマークから削除";
+    }
+  }, [isBookmarkedByMe]);
+
   return (
     <Box p="6" boxShadow="md" borderRadius="md" borderWidth="1px">
       <Stack spacing={3}>
@@ -164,8 +198,12 @@ export default function PostView({
               variant="ghost"
             />
             <MenuList>
-              <MenuItem>
-                <Text>ブックマークに追加</Text>
+              <MenuItem
+                onClick={() => {
+                  bookmarkPost();
+                }}
+              >
+                <Text>{bookmarkToggleText}</Text>
               </MenuItem>
               <MenuItem
                 onClick={() => {

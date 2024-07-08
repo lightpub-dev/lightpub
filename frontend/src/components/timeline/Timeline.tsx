@@ -72,6 +72,7 @@ export default function Timeline() {
             content={p.content}
             timestamp={new Date(p.created_at)}
             isFavoritedByMe={p.favorited_by_you ?? undefined}
+            isBookmarkedByMe={p.bookmarked_by_you ?? undefined}
           />
         );
       })}
@@ -88,6 +89,7 @@ function NetworkPostView({
   content,
   timestamp,
   isFavoritedByMe,
+  isBookmarkedByMe,
 }: {
   id: string;
   repost_of_id?: string;
@@ -97,6 +99,7 @@ function NetworkPostView({
   content: string | null;
   timestamp: Date;
   isFavoritedByMe?: boolean;
+  isBookmarkedByMe?: boolean;
 }) {
   const authorization = useSelector(selectAuthorization);
   const { data, error, isLoading } = useSWR(
@@ -128,6 +131,7 @@ function NetworkPostView({
         content={content!}
         timestamp={timestamp}
         isFavoritedByMe={isFavoritedByMe}
+        isBookmarkedByMe={isBookmarkedByMe}
       />
     );
   }
@@ -154,6 +158,7 @@ function NetworkPostView({
         content={data.content!}
         timestamp={new Date(data.created_at)}
         isFavoritedByMe={data.favorited_by_you ?? undefined}
+        isBookmarkedByMe={data.bookmarked_by_you ?? undefined}
       />
     );
   }
