@@ -31,6 +31,7 @@ import axios from "axios";
 
 export default function PostView({
   id,
+  reposter,
   nickname,
   username,
   hostname,
@@ -38,6 +39,11 @@ export default function PostView({
   timestamp: timestampObj,
 }: {
   id: string;
+  reposter?: {
+    nickname: string;
+    username: string;
+    hostname: string | null;
+  };
   nickname: string;
   username: string;
   hostname: string | null;
@@ -53,8 +59,14 @@ export default function PostView({
     return `@${hostname}`;
   }, [hostname]);
 
+  const reposterAtHostname = useMemo(() => {
+    if (reposter?.hostname == null) return "";
+    return `@${reposter.hostname}`;
+  }, [reposter]);
+
   const authorization = useSelector(selectAuthorization);
 
+  // delete
   const {
     isOpen: isDeleteOpen,
     onOpen: onDeleteOpen,
@@ -69,17 +81,52 @@ export default function PostView({
     });
   }, [authorization, id]);
 
+  // repost
+  const repostPost = useCallback(async () => {
+    try {
+      await axios.post(
+        "/post",
+        {
+          privacy: "public",
+          repost_of_id: id,
+        },
+        {
+          headers: {
+            authorization,
+          },
+        }
+      );
+    } catch (ex: any) {
+      console.warn(ex.response);
+      alert("リポスト失敗");
+    }
+  }, [authorization, id]);
+
   return (
     <Box p="6" boxShadow="md" borderRadius="md" borderWidth="1px">
       <Stack spacing={3}>
+        {reposter && (
+          <Flex alignItems="center">
+            <Text>
+              <pre>Reposted by </pre>
+            </Text>
+            <Text fontWeight="bold" mr="2">
+              {reposter.nickname}
+            </Text>
+            <Text color="gray.500">
+              (@{username}
+              {reposterAtHostname})
+            </Text>
+          </Flex>
+        )}
         <Flex alignItems="center" justify="space-between">
           <Flex alignItems="center">
             <Text fontWeight="bold" mr="2">
               {nickname}
             </Text>
             <Text color="gray.500">
-              @{username}
-              {atHostname}
+              (@{username}
+              {atHostname})
             </Text>
           </Flex>
           <Menu>
@@ -113,6 +160,9 @@ export default function PostView({
             aria-label="Repost"
             icon={<FaRetweet />}
             variant="ghost"
+            onClick={() => {
+              repostPost();
+            }}
           />
           <IconButton
             aria-label="Favorite"
