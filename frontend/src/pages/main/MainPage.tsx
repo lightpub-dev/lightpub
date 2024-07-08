@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import NewPostDialog from "../../components/post/NewPostDialog";
 import Sidebar from "../../components/sidebar/Sidebar";
 import Timeline from "../../components/timeline/Timeline";
@@ -14,6 +15,8 @@ import {
 function MainPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
 
+  const navigate = useNavigate();
+
   return (
     <>
       <div className={"flex"}>
@@ -27,6 +30,9 @@ function MainPage() {
             switch (id) {
               case "new-post":
                 onOpen();
+                break;
+              case "home":
+                navigate("/");
                 break;
             }
           }}
