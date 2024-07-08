@@ -37,6 +37,7 @@ export default function PostView({
   hostname,
   content,
   timestamp: timestampObj,
+  isFavoritedByMe,
 }: {
   id: string;
   reposter?: {
@@ -49,6 +50,7 @@ export default function PostView({
   hostname: string | null;
   content: string;
   timestamp: Date;
+  isFavoritedByMe?: boolean;
 }) {
   const timestamp = timestampObj.toLocaleString();
 
@@ -101,6 +103,31 @@ export default function PostView({
       alert("リポスト失敗");
     }
   }, [authorization, id]);
+
+  // favorite
+  const favoritePost = useCallback(async () => {
+    if (isFavoritedByMe === undefined) {
+      return;
+    }
+    try {
+      if (!isFavoritedByMe) {
+        await axios.put(`/post/${id}/favorite`, null, {
+          headers: {
+            authorization,
+          },
+        });
+      } else {
+        await axios.delete(`/post/${id}/favorite`, {
+          headers: {
+            authorization,
+          },
+        });
+      }
+    } catch (ex: any) {
+      console.warn(ex.response);
+      alert("お気に入り失敗");
+    }
+  }, [authorization, id, isFavoritedByMe]);
 
   return (
     <Box p="6" boxShadow="md" borderRadius="md" borderWidth="1px">
@@ -168,6 +195,9 @@ export default function PostView({
             aria-label="Favorite"
             icon={<FaHeart />}
             variant="ghost"
+            onClick={() => {
+              favoritePost();
+            }}
           />
           <IconButton
             aria-label="Emoji Reaction"

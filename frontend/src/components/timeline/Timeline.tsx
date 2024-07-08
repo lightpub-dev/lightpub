@@ -71,6 +71,7 @@ export default function Timeline() {
             hostname={p.author.host}
             content={p.content}
             timestamp={new Date(p.created_at)}
+            isFavoritedByMe={p.favorited_by_you ?? undefined}
           />
         );
       })}
@@ -86,6 +87,7 @@ function NetworkPostView({
   hostname,
   content,
   timestamp,
+  isFavoritedByMe,
 }: {
   id: string;
   repost_of_id?: string;
@@ -94,6 +96,7 @@ function NetworkPostView({
   hostname: string | null;
   content: string | null;
   timestamp: Date;
+  isFavoritedByMe?: boolean;
 }) {
   const authorization = useSelector(selectAuthorization);
   const { data, error, isLoading } = useSWR(
@@ -124,6 +127,7 @@ function NetworkPostView({
         hostname={hostname}
         content={content!}
         timestamp={timestamp}
+        isFavoritedByMe={isFavoritedByMe}
       />
     );
   }
@@ -149,6 +153,7 @@ function NetworkPostView({
         hostname={data.author.host}
         content={data.content!}
         timestamp={new Date(data.created_at)}
+        isFavoritedByMe={data.favorited_by_you ?? undefined}
       />
     );
   }
