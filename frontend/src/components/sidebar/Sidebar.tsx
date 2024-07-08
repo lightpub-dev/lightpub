@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useCallback } from "react";
 import {
   IconButton,
   Avatar,
@@ -39,25 +39,43 @@ import { RiTimeLine } from "react-icons/ri";
 
 import logo from "../../assets/logo.png";
 
+type LinkItemId = "new-post" | "home" | "trending" | "settings";
+
 interface LinkItemProps {
+  id: LinkItemId;
   name: string;
   icon: IconType;
 }
 
 const LinkItems: Array<LinkItemProps> = [
-  { name: "New Post", icon: IoAddOutline },
-  { name: "Home", icon: FiHome },
-  { name: "Trending", icon: FiTrendingUp },
-  { name: "Settings", icon: FiSettings },
+  { id: "new-post", name: "New Post", icon: IoAddOutline },
+  { id: "home", name: "Home", icon: FiHome },
+  { id: "trending", name: "Trending", icon: FiTrendingUp },
+  { id: "settings", name: "Settings", icon: FiSettings },
 ];
 
-export default function Sidebar({ children }: { children: ReactNode }) {
+export default function Sidebar({
+  children,
+  onItemClick,
+}: {
+  children: ReactNode;
+  onItemClick?: (id: LinkItemId) => void;
+}) {
   const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const onClick = useCallback(
+    (id: LinkItemId) => {
+      if (onItemClick) onItemClick(id);
+    },
+    [onItemClick]
+  );
+
   return (
     <Box minH="100vh" bg={useColorModeValue("gray.100", "gray.900")}>
       <SidebarContent
         onClose={() => onClose}
         display={{ base: "none", md: "block" }}
+        onItemClick={onClick}
       />
       <Drawer
         autoFocus={false}
@@ -69,7 +87,7 @@ export default function Sidebar({ children }: { children: ReactNode }) {
         size="full"
       >
         <DrawerContent>
-          <SidebarContent onClose={onClose} />
+          <SidebarContent onClose={onClose} onItemClick={onClick} />
         </DrawerContent>
       </Drawer>
       {/* mobilenav */}
@@ -83,9 +101,10 @@ export default function Sidebar({ children }: { children: ReactNode }) {
 
 interface SidebarProps extends BoxProps {
   onClose: () => void;
+  onItemClick: (id: LinkItemId) => void;
 }
 
-const SidebarContent = ({ onClose, ...rest }: SidebarProps) => {
+const SidebarContent = ({ onClose, onItemClick, ...rest }: SidebarProps) => {
   return (
     <Box
       transition="3s ease"
@@ -102,7 +121,14 @@ const SidebarContent = ({ onClose, ...rest }: SidebarProps) => {
         <CloseButton display={{ base: "flex", md: "none" }} onClick={onClose} />
       </Flex>
       {LinkItems.map((link) => (
-        <NavItem key={link.name} icon={link.icon}>
+        <NavItem
+          key={link.name}
+          icon={link.icon}
+          onClick={() => {
+            // console.log("clicked: " + link.id);
+            onItemClick(link.id);
+          }}
+        >
           {link.name}
         </NavItem>
       ))}
