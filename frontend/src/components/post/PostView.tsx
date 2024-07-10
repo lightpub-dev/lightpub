@@ -168,14 +168,14 @@ export default function PostView({
   const navigate = useNavigate();
   const reposterProfilePage = useMemo(() => {
     if (!reposter) return null;
-    let url = `/user/${reposter.username}`;
+    let url = `/user/@${reposter.username}`;
     if (reposter.hostname) {
       url += `@${reposter.hostname}`;
     }
     return url;
   }, [reposter]);
   const authorProfilePage = useMemo(() => {
-    let url = `/user/${username}`;
+    let url = `/user/@${username}`;
     if (hostname) {
       url += `@${hostname}`;
     }
