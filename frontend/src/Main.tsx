@@ -10,18 +10,24 @@ import axios from "axios";
 import { ChakraProvider } from "@chakra-ui/react";
 import { store } from "./store";
 import { Provider } from "react-redux";
+import TimelinePage from "./pages/timeline/TimelinePage.tsx";
+import ProfilePage from "./pages/user/ProfilePage.tsx";
 
 axios.defaults.baseURL = import.meta.env["API_URL"] ?? "http://localhost:8000";
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <App />,
+    element: <TimelinePage />,
     errorElement: <ErrorPage />,
   },
   {
     path: "/login",
     element: <LoginPage />,
+  },
+  {
+    path: "/user/:userId",
+    element: <ProfilePage />,
   },
   {
     path: "/register",

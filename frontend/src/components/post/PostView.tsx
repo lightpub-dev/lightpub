@@ -28,6 +28,7 @@ import {
 import { useSelector } from "react-redux";
 import { selectAuthorization } from "../../stores/authSlice";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 export default function PostView({
   id,
@@ -163,6 +164,30 @@ export default function PostView({
     }
   }, [isBookmarkedByMe]);
 
+  // profile page jump
+  const navigate = useNavigate();
+  const reposterProfilePage = useMemo(() => {
+    if (!reposter) return null;
+    let url = `/user/${reposter.username}`;
+    if (reposter.hostname) {
+      url += `@${reposter.hostname}`;
+    }
+    return url;
+  }, [reposter]);
+  const authorProfilePage = useMemo(() => {
+    let url = `/user/${username}`;
+    if (hostname) {
+      url += `@${hostname}`;
+    }
+    return url;
+  }, [username, hostname]);
+  const jumpToReposter = useCallback(() => {
+    if (reposterProfilePage) navigate(reposterProfilePage);
+  }, [navigate, reposterProfilePage]);
+  const jumpToAuthor = useCallback(() => {
+    navigate(authorProfilePage);
+  }, [navigate, authorProfilePage]);
+
   return (
     <Box p="6" boxShadow="md" borderRadius="md" borderWidth="1px">
       <Stack spacing={3}>
@@ -171,10 +196,15 @@ export default function PostView({
             <Text>
               <pre>Reposted by </pre>
             </Text>
-            <Text fontWeight="bold" mr="2">
+            <Text
+              fontWeight="bold"
+              mr="2"
+              cursor="pointer"
+              onClick={jumpToReposter}
+            >
               {reposter.nickname}
             </Text>
-            <Text color="gray.500">
+            <Text color="gray.500" cursor="pointer" onClick={jumpToReposter}>
               (@{username}
               {reposterAtHostname})
             </Text>
@@ -182,10 +212,15 @@ export default function PostView({
         )}
         <Flex alignItems="center" justify="space-between">
           <Flex alignItems="center">
-            <Text fontWeight="bold" mr="2">
+            <Text
+              fontWeight="bold"
+              mr="2"
+              cursor="pointer"
+              onClick={jumpToAuthor}
+            >
               {nickname}
             </Text>
-            <Text color="gray.500">
+            <Text color="gray.500" cursor="pointer" onClick={jumpToAuthor}>
               (@{username}
               {atHostname})
             </Text>

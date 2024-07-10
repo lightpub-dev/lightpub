@@ -1034,8 +1034,8 @@ async fn user_inbox(
 async fn user_get(
     params: web::Path<UserChooseParams>,
     app: web::Data<AppState>,
+    apub_requested: ApubRequested,
 ) -> HandlerResponse<impl Responder> {
-    let renderer_service = new_apub_renderer_service(app.config().clone());
     let user_spec = &params.user_spec;
     let mut user_finder = new_local_user_finder_service(app.pool().clone());
     let user = user_finder
@@ -1048,17 +1048,30 @@ async fn user_get(
             _ => e.into(),
         })?;
 
-    let user = renderer_service.render_user(&user).map_err(|e| {
-        error!("Failed to render user: {:?}", e);
-        ErrorResponse::new_status(500, "internal server error")
-    })?;
-    let actor = Actor::Person(user).with_context();
-    let user_json = serde_json::to_string(&actor).unwrap();
-    debug!("user_json: {}", user_json);
+    if apub_requested.apub_requested() {
+        let renderer_service = new_apub_renderer_service(app.config().clone());
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/activity+json")
-        .body(user_json))
+        let user = renderer_service.render_user(&user).map_err(|e| {
+            error!("Failed to render user: {:?}", e);
+            ErrorResponse::new_status(500, "internal server error")
+        })?;
+        let actor = Actor::Person(user).with_context();
+        let user_json = serde_json::to_string(&actor).unwrap();
+        debug!("user_json: {}", user_json);
+
+        Ok(HttpResponse::Ok()
+            .content_type("application/activity+json")
+            .body(user_json))
+    } else {
+        Ok(HttpResponse::Ok().json(json!({
+            "id": user.id.to_string(),
+            "username": user.username,
+            "nickname": user.nickname,
+            "host": user.host,
+            "bio": user.bio,
+            // "created_at": user.created_at.
+        })))
+    }
 }
 
 #[derive(MultipartForm)]
