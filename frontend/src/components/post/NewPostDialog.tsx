@@ -12,7 +12,13 @@ import axios from "axios";
 import { useAppSelector } from "../../hooks";
 import { selectAuthorization } from "../../stores/authSlice";
 
-function NewPostDialog({ onPostFinished }: { onPostFinished?: () => void }) {
+function NewPostDialog({
+  onPostFinished,
+  replyToId,
+}: {
+  onPostFinished?: () => void;
+  replyToId?: string;
+}) {
   const [content, setContent] = useState("");
   const [visibility, setVisibility] = useState("public");
   const [postable, setPostable] = useState(true);
@@ -28,6 +34,7 @@ function NewPostDialog({ onPostFinished }: { onPostFinished?: () => void }) {
         {
           content: content,
           privacy: visibility,
+          reply_to_id: replyToId,
         },
         {
           headers: {

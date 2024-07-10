@@ -66,6 +66,7 @@ export default function Timeline() {
             key={p.id}
             id={p.id}
             repost_of_id={p.repost_of_id ?? undefined}
+            reply_to_id={p.reply_to_id ?? undefined}
             nickname={p.author.nickname}
             username={p.author.username}
             hostname={p.author.host}
@@ -83,6 +84,7 @@ export default function Timeline() {
 function NetworkPostView({
   id,
   repost_of_id,
+  reply_to_id,
   nickname,
   username,
   hostname,
@@ -93,6 +95,7 @@ function NetworkPostView({
 }: {
   id: string;
   repost_of_id?: string;
+  reply_to_id?: string;
   nickname: string;
   username: string;
   hostname: string | null;
@@ -102,7 +105,11 @@ function NetworkPostView({
   isBookmarkedByMe?: boolean;
 }) {
   const authorization = useSelector(selectAuthorization);
-  const { data, error, isLoading } = useSWR(
+  const {
+    data: repostData,
+    error: repostError,
+    isLoading: repostIsLoading,
+  } = useSWR(
     () => (repost_of_id === undefined ? null : [authorization, repost_of_id]),
     ([authorization, repost_of_id]: [
       string,
@@ -120,8 +127,27 @@ function NetworkPostView({
       revalidateOnFocus: false,
     }
   );
+  const {
+    data: replyData,
+    error: replyError,
+    isLoading: replyIsLoading,
+  } = useSWR(
+    () => (reply_to_id === undefined ? null : [authorization, reply_to_id]),
+    ([authorization, reply_to_id]: [string, string]): Promise<PostResponse> => {
+      return axios
+        .get(`/post/${reply_to_id}`, {
+          headers: {
+            authorization,
+          },
+        })
+        .then((res) => res.data as PostResponse);
+    },
+    {
+      revalidateOnFocus: false,
+    }
+  );
 
-  if (repost_of_id === undefined) {
+  if (repost_of_id === undefined && reply_to_id === undefined) {
     return (
       <PostView
         id={id}
@@ -136,14 +162,14 @@ function NetworkPostView({
     );
   }
 
-  if (isLoading) {
+  if (repostIsLoading || replyIsLoading) {
     return <div>Loading...</div>;
   }
-  if (error) {
+  if (repostError || replyError) {
     return <div>error</div>;
   }
 
-  if (data) {
+  if (repostData) {
     return (
       <PostView
         id={id}
@@ -152,13 +178,33 @@ function NetworkPostView({
           username: username,
           hostname: hostname,
         }}
-        nickname={data.author.nickname}
-        username={data.author.username}
-        hostname={data.author.host}
-        content={data.content!}
-        timestamp={new Date(data.created_at)}
-        isFavoritedByMe={data.favorited_by_you ?? undefined}
-        isBookmarkedByMe={data.bookmarked_by_you ?? undefined}
+        nickname={repostData.author.nickname}
+        username={repostData.author.username}
+        hostname={repostData.author.host}
+        content={repostData.content!}
+        timestamp={new Date(repostData.created_at)}
+        isFavoritedByMe={repostData.favorited_by_you ?? undefined}
+        isBookmarkedByMe={repostData.bookmarked_by_you ?? undefined}
+      />
+    );
+  }
+
+  if (replyData) {
+    return (
+      <PostView
+        id={id}
+        replyTo={{
+          nickname: replyData.author.nickname,
+          username: replyData.author.username,
+          hostname: replyData.author.host,
+        }}
+        nickname={nickname}
+        username={username}
+        hostname={hostname}
+        content={content!}
+        timestamp={timestamp}
+        isFavoritedByMe={isFavoritedByMe}
+        isBookmarkedByMe={isBookmarkedByMe}
       />
     );
   }

@@ -17,7 +17,7 @@ import {
   Button,
   useDisclosure,
 } from "@chakra-ui/react";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useContext, useMemo, useRef } from "react";
 import {
   FaReply,
   FaRetweet,
@@ -29,10 +29,12 @@ import { useSelector } from "react-redux";
 import { selectAuthorization } from "../../stores/authSlice";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { CreatePostContext } from "../../contexts/CreatePostContext";
 
 export default function PostView({
   id,
   reposter,
+  replyTo,
   nickname,
   username,
   hostname,
@@ -43,6 +45,11 @@ export default function PostView({
 }: {
   id: string;
   reposter?: {
+    nickname: string;
+    username: string;
+    hostname: string | null;
+  };
+  replyTo?: {
     nickname: string;
     username: string;
     hostname: string | null;
@@ -68,6 +75,11 @@ export default function PostView({
     if (reposter?.hostname == null) return "";
     return `@${reposter.hostname}`;
   }, [reposter]);
+
+  const repliedAuthorAtHostname = useMemo(() => {
+    if (replyTo?.hostname == null) return "";
+    return `@${replyTo.hostname}`;
+  }, [replyTo]);
 
   const authorization = useSelector(selectAuthorization);
 
@@ -181,21 +193,39 @@ export default function PostView({
     }
     return url;
   }, [username, hostname]);
+  const repliedProfilePage = useMemo(() => {
+    if (!replyTo) return null;
+    let url = `/user/@${replyTo.username}`;
+    if (replyTo.hostname) {
+      url += `@${replyTo.hostname}`;
+    }
+    return url;
+  }, [replyTo]);
   const jumpToReposter = useCallback(() => {
     if (reposterProfilePage) navigate(reposterProfilePage);
   }, [navigate, reposterProfilePage]);
   const jumpToAuthor = useCallback(() => {
     navigate(authorProfilePage);
   }, [navigate, authorProfilePage]);
+  const jumpToRepliedAuthor = useCallback(() => {
+    if (repliedProfilePage) navigate(repliedProfilePage);
+  }, [navigate, repliedProfilePage]);
+
+  // reply button
+  const createPostContext = useContext(CreatePostContext);
+  const onReplyClick = useCallback(() => {
+    if (!createPostContext) return;
+    createPostContext.showCreatePost({
+      reply_to_id: id,
+    });
+  }, [createPostContext, id]);
 
   return (
     <Box p="6" boxShadow="md" borderRadius="md" borderWidth="1px">
       <Stack spacing={3}>
         {reposter && (
-          <Flex alignItems="center">
-            <Text>
-              <pre>Reposted by </pre>
-            </Text>
+          <Flex alignItems="center" fontSize="small">
+            <Text marginRight="1em">リポスター: </Text>
             <Text
               fontWeight="bold"
               mr="2"
@@ -205,8 +235,29 @@ export default function PostView({
               {reposter.nickname}
             </Text>
             <Text color="gray.500" cursor="pointer" onClick={jumpToReposter}>
-              (@{username}
+              (@{reposter.username}
               {reposterAtHostname})
+            </Text>
+          </Flex>
+        )}
+        {replyTo && (
+          <Flex alignItems="center" fontSize="small">
+            <Text marginRight="1em">返信者: </Text>
+            <Text
+              fontWeight="bold"
+              mr="2"
+              cursor="pointer"
+              onClick={jumpToRepliedAuthor}
+            >
+              {replyTo.nickname}
+            </Text>
+            <Text
+              color="gray.500"
+              cursor="pointer"
+              onClick={jumpToRepliedAuthor}
+            >
+              (@{replyTo.username}
+              {repliedAuthorAtHostname})
             </Text>
           </Flex>
         )}
@@ -255,7 +306,14 @@ export default function PostView({
           {timestamp}
         </Text>
         <Flex justify="space-between" mt="4">
-          <IconButton aria-label="Reply" icon={<FaReply />} variant="ghost" />
+          <IconButton
+            aria-label="Reply"
+            icon={<FaReply />}
+            variant="ghost"
+            onClick={() => {
+              onReplyClick();
+            }}
+          />
           <IconButton
             aria-label="Repost"
             icon={<FaRetweet />}
@@ -266,7 +324,7 @@ export default function PostView({
           />
           <IconButton
             aria-label="Favorite"
-            icon={<FaHeart />}
+            icon={<FaHeart color={isFavoritedByMe ? "red" : "black"} />}
             variant="ghost"
             onClick={() => {
               favoritePost();
