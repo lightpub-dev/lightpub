@@ -1814,7 +1814,7 @@ impl UserPostService for DBUserPostService {
                     Some(self.id_getter.get_post_id(&p))
                 }
             };
-            let reply_to_uri = match p.repost_of_id {
+            let reply_to_uri = match p.reply_to_id {
                 None => None,
                 Some(reply_to_id) => {
                     let p = self
