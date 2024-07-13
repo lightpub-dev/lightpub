@@ -37,7 +37,7 @@ import { IconType } from "react-icons";
 import { ReactText } from "react";
 import { RiTimeLine } from "react-icons/ri";
 
-import logo from "../../assets/logo.png";
+import logo from "../../assets/lightpub.svg";
 
 type LinkItemId = "new-post" | "home" | "trending" | "settings";
 
