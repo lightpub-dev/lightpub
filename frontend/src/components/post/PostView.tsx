@@ -28,7 +28,7 @@ import {
 import { useSelector } from "react-redux";
 import { selectAuthorization } from "../../stores/authSlice";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CreatePostContext } from "../../contexts/CreatePostContext";
 
 export default function PostView({
@@ -220,6 +220,14 @@ export default function PostView({
     });
   }, [createPostContext, id]);
 
+  // detail view
+  const detailViewUrl = useMemo(() => {
+    return `post/${id}`;
+  }, [id]);
+  const jumpToDetailView = useCallback(() => {
+    navigate(detailViewUrl);
+  }, [detailViewUrl]);
+
   return (
     <Box p="6" boxShadow="md" borderRadius="md" borderWidth="1px">
       <Stack spacing={3}>
@@ -284,6 +292,10 @@ export default function PostView({
               variant="ghost"
             />
             <MenuList>
+              <MenuItem onClick={jumpToDetailView}>
+                <Text>詳細</Text>
+              </MenuItem>
+
               <MenuItem
                 onClick={() => {
                   bookmarkPost();
@@ -291,6 +303,7 @@ export default function PostView({
               >
                 <Text>{bookmarkToggleText}</Text>
               </MenuItem>
+
               <MenuItem
                 onClick={() => {
                   onDeleteOpen();
