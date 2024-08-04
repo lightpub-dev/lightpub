@@ -1,7 +1,7 @@
 import { useSelector } from "react-redux";
 import useSWR from "swr";
 import { selectAuthorization } from "../../stores/authSlice";
-import { PostResponse } from "../../models/post";
+import { convertReactions, PostResponse } from "../../models/post";
 import axios from "axios";
 import PostView from "./PostView";
 
@@ -14,6 +14,7 @@ export function NetworkPostView({
   hostname,
   content,
   timestamp,
+  reactions,
   isFavoritedByMe,
   isBookmarkedByMe,
 }: {
@@ -25,6 +26,7 @@ export function NetworkPostView({
   hostname: string | null;
   content: string | null;
   timestamp: Date;
+  reactions: { emoji: string; count: number }[];
   isFavoritedByMe?: boolean;
   isBookmarkedByMe?: boolean;
 }) {
@@ -82,6 +84,7 @@ export function NetworkPostView({
         timestamp={timestamp}
         isFavoritedByMe={isFavoritedByMe}
         isBookmarkedByMe={isBookmarkedByMe}
+        reactions={reactions}
       />
     );
   }
@@ -109,6 +112,7 @@ export function NetworkPostView({
         timestamp={new Date(repostData.created_at)}
         isFavoritedByMe={repostData.favorited_by_you ?? undefined}
         isBookmarkedByMe={repostData.bookmarked_by_you ?? undefined}
+        reactions={convertReactions(repostData.counts.reactions)}
       />
     );
   }
@@ -127,6 +131,7 @@ export function NetworkPostView({
         hostname={hostname}
         content={content!}
         timestamp={timestamp}
+        reactions={reactions}
         isFavoritedByMe={isFavoritedByMe}
         isBookmarkedByMe={isBookmarkedByMe}
       />

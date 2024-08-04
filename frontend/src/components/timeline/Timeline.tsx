@@ -2,7 +2,7 @@ import { useSelector } from "react-redux";
 import { selectAuthorization } from "../../stores/authSlice";
 import useSWR from "swr";
 import { authedFetcher } from "../../hooks";
-import { PostResponse } from "../../models/post";
+import { convertReactions, PostResponse } from "../../models/post";
 import { NetworkPostView } from "../post/NetworkPostView";
 
 type TimelineResponse = {
@@ -43,6 +43,7 @@ export default function Timeline() {
             hostname={p.author.host}
             content={p.content}
             timestamp={new Date(p.created_at)}
+            reactions={convertReactions(p.counts.reactions)}
             isFavoritedByMe={p.favorited_by_you ?? undefined}
             isBookmarkedByMe={p.bookmarked_by_you ?? undefined}
           />

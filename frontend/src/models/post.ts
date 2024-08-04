@@ -26,3 +26,16 @@ export type PostResponse = {
   favorited_by_you: boolean | null;
   bookmarked_by_you: boolean | null;
 };
+
+export function convertReactions(
+  reactions: Record<string, number>
+): Array<{ emoji: string; count: number }> {
+  const list = [];
+  for (let key in reactions) {
+    list.push({
+      emoji: key,
+      count: reactions[key],
+    });
+  }
+  return list;
+}

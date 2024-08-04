@@ -17,7 +17,7 @@ import {
   Button,
   useDisclosure,
 } from "@chakra-ui/react";
-import { useCallback, useContext, useMemo, useRef } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import {
   FaReply,
   FaRetweet,
@@ -28,8 +28,11 @@ import {
 import { useSelector } from "react-redux";
 import { selectAuthorization } from "../../stores/authSlice";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { CreatePostContext } from "../../contexts/CreatePostContext";
+
+import EmojiPicker from "emoji-picker-react";
+import EmojiBadge from "./EmojiBadge";
 
 export default function PostView({
   id,
@@ -42,6 +45,7 @@ export default function PostView({
   timestamp: timestampObj,
   isFavoritedByMe,
   isBookmarkedByMe,
+  reactions,
 }: {
   id: string;
   reposter?: {
@@ -61,6 +65,10 @@ export default function PostView({
   timestamp: Date;
   isFavoritedByMe?: boolean;
   isBookmarkedByMe?: boolean;
+  reactions: {
+    emoji: string;
+    count: number;
+  }[];
 }) {
   const timestamp = timestampObj.toLocaleString();
 
@@ -228,6 +236,36 @@ export default function PostView({
     navigate(detailViewUrl);
   }, [detailViewUrl]);
 
+  // emoji reactions
+  const [reactionOpen, setReactionOpen] = useState(false);
+  const toggleReactionOpen = useCallback(() => {
+    setReactionOpen((o) => !o);
+  }, []);
+  const onEmojiClick = useCallback(
+    async (emoji: { emoji: string; isCustom: boolean }) => {
+      // console.log(emoji);
+      try {
+        await axios.post(
+          `/post/${id}/reaction`,
+          {
+            reaction: emoji.emoji,
+            add: true,
+          },
+          {
+            headers: {
+              authorization,
+            },
+          }
+        );
+        setReactionOpen(false);
+      } catch (ex) {
+        console.warn(ex);
+        window.alert("リアクションに失敗しました");
+      }
+    },
+    []
+  );
+
   return (
     <Box p="6" boxShadow="md" borderRadius="md" borderWidth="1px">
       <Stack spacing={3}>
@@ -318,6 +356,11 @@ export default function PostView({
         <Text color="gray.500" fontSize="sm">
           {timestamp}
         </Text>
+        <Flex>
+          {reactions.map((reaction) => {
+            return <EmojiBadge emoji={reaction.emoji} count={reaction.count} />;
+          })}
+        </Flex>
         <Flex justify="space-between" mt="4">
           <IconButton
             aria-label="Reply"
@@ -347,8 +390,10 @@ export default function PostView({
             aria-label="Emoji Reaction"
             icon={<FaSmile />}
             variant="ghost"
+            onClick={toggleReactionOpen}
           />
         </Flex>
+        {reactionOpen && <EmojiPicker onEmojiClick={onEmojiClick} />}
       </Stack>
       <AlertDialog
         isOpen={isDeleteOpen}
