@@ -9,6 +9,8 @@ import {
 } from "@chakra-ui/react";
 import PostView from "../post/PostView";
 import { useMemo } from "react";
+import { useAppSelector } from "../../hooks";
+import { selectUsername } from "../../stores/authSlice";
 
 interface UserProfileProps {
   username: string;
@@ -35,6 +37,14 @@ function UserProfile({
     return "このユーザは自己紹介を登録していません。";
   }, [bio]);
 
+  const currentUsername = useAppSelector(selectUsername);
+  const showFollowButton = useMemo(() => {
+    return (
+      hostname !== undefined || // remote user
+      currentUsername !== username // different user
+    );
+  }, [username, hostname]);
+
   return (
     <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg">
       <VStack spacing={4} align="start">
@@ -55,7 +65,12 @@ function UserProfile({
           </Box>
         </HStack>
         <HStack spacing={4}>
-          <Button colorScheme="blue">Follow</Button>
+          <Button
+            colorScheme="blue"
+            display={showFollowButton ? "inherit" : "none"}
+          >
+            Follow
+          </Button>
           <Box>
             <Text>{bioText}</Text>
           </Box>

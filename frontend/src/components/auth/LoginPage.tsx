@@ -11,7 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAppDispatch } from "../../hooks";
-import { setToken } from "../../stores/authSlice";
+import { loggedIn } from "../../stores/authSlice";
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -29,8 +29,13 @@ const LoginPage: React.FC = () => {
         username: username,
         password: password,
       });
-      const token = result.data.token;
-      dispatch(setToken(token));
+      const token = result.data.token as string;
+      dispatch(
+        loggedIn({
+          token,
+          username,
+        })
+      );
       navigate("/");
     } catch (ex: any) {
       setError(ex.response.data);
