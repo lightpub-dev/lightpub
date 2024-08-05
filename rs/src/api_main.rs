@@ -35,7 +35,7 @@ use lightpub::backend::{
 };
 use lightpub::backend::{
     FetchFollowListOptions, FetchUserPostsOptions, PostInteractionAction, TimelineOptions,
-    UserCreateError, UserProfileUpdate,
+    UserCreateError, UserFindError, UserProfileUpdate,
 };
 use lightpub::backend::{PostDeleteError, PostFetchError};
 use lightpub::config::Config;
@@ -1035,20 +1035,23 @@ async fn user_get(
     params: web::Path<UserChooseParams>,
     app: web::Data<AppState>,
     apub_requested: ApubRequested,
+    auth: AuthUser,
 ) -> HandlerResponse<impl Responder> {
     let user_spec = &params.user_spec;
-    let mut user_finder = new_local_user_finder_service(app.pool().clone());
-    let user = user_finder
-        .find_user_by_specifier(user_spec)
-        .await
-        .map_err(|e| match e {
-            ServiceError::SpecificError(LocalUserFindError::NotLocalUser) => {
-                ErrorResponse::new_status(404, "user not found")
-            }
-            _ => e.into(),
-        })?;
 
     if apub_requested.apub_requested() {
+        // apub の場合は local user のみ検索
+        let mut user_finder = new_local_user_finder_service(app.pool().clone());
+        let user = user_finder
+            .find_user_by_specifier(user_spec)
+            .await
+            .map_err(|e| match e {
+                ServiceError::SpecificError(LocalUserFindError::NotLocalUser) => {
+                    ErrorResponse::new_status(404, "user not found")
+                }
+                _ => e.into(),
+            })?;
+
         let renderer_service = new_apub_renderer_service(app.config().clone());
 
         let user = renderer_service.render_user(&user).map_err(|e| {
@@ -1063,12 +1066,56 @@ async fn user_get(
             .content_type("application/activity+json")
             .body(user_json))
     } else {
+        // apub でない場合は remote user も検索
+        let mut user_finder = new_all_user_finder_service(app.pool().clone(), app.config().clone());
+        let user = user_finder
+            .find_user_by_specifier(user_spec)
+            .await
+            .map_err(|e| match e {
+                ServiceError::SpecificError(UserFindError::UserNotFound) => {
+                    ErrorResponse::new_status(404, "user not found")
+                }
+                _ => e.into(),
+            })?;
+
+        let follow_info = if let Some(authed_user) = auth.may_auth()? {
+            // check if authed_user follows user
+            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
+            let followed_by_you = follow_service
+                .is_following(
+                    &UserSpecifier::from_id(authed_user.id),
+                    &UserSpecifier::from_id(user.id),
+                )
+                .await
+                .map_err(|e| {
+                    error!("is_following error {:?}", e);
+                    ErrorResponse::new_status(500, "internal server error")
+                })?;
+
+            let is_following_you = follow_service
+                .is_following(
+                    &UserSpecifier::from_id(user.id),
+                    &UserSpecifier::from_id(authed_user.id),
+                )
+                .await
+                .map_err(|e| {
+                    error!("is_following error {:?}", e);
+                    ErrorResponse::new_status(500, "internal server error")
+                })?;
+
+            Some((followed_by_you, is_following_you))
+        } else {
+            None
+        };
+
         Ok(HttpResponse::Ok().json(json!({
             "id": user.id.to_string(),
             "username": user.username,
             "nickname": user.nickname,
             "host": user.host,
             "bio": user.bio,
+            "is_followed_by_you": follow_info.map(|i| i.0),
+            "is_following_you": follow_info.map(|i| i.1),
             // "created_at": user.created_at.
         })))
     }
