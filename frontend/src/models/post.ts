@@ -17,7 +17,7 @@ export type PostResponse = {
   created_at: string;
   mentioned_users: any[];
   counts: {
-    reactions: Record<string, number>;
+    reactions: { name: string; count: number }[];
     replies: number;
     reposts: number;
     quotes: number;
@@ -28,14 +28,12 @@ export type PostResponse = {
 };
 
 export function convertReactions(
-  reactions: Record<string, number>
+  reactions: PostResponse["counts"]["reactions"]
 ): Array<{ emoji: string; count: number }> {
-  const list = [];
-  for (let key in reactions) {
-    list.push({
-      emoji: key,
-      count: reactions[key],
-    });
-  }
-  return list;
+  return reactions.map((r) => {
+    return {
+      emoji: r.name,
+      count: r.count,
+    };
+  });
 }

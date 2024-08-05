@@ -3,9 +3,10 @@ import { Box, Text } from "@chakra-ui/react";
 interface EmojiBadgeProps {
   emoji: string;
   count: number;
+  onClick?: () => void;
 }
 
-function EmojiBadge({ emoji, count }: EmojiBadgeProps) {
+function EmojiBadge({ emoji, count, onClick }: EmojiBadgeProps) {
   return (
     <Box
       display="flex"
@@ -15,6 +16,11 @@ function EmojiBadge({ emoji, count }: EmojiBadgeProps) {
       p={2}
       minW="60px"
       justifyContent="space-between"
+      border="black solid 1px"
+      marginRight="1em"
+      onClick={() => {
+        if (onClick) onClick();
+      }}
     >
       <Text fontSize="xl" mr={2}>
         {emoji}
