@@ -9,9 +9,13 @@ import {
 } from "@chakra-ui/react";
 import PostView from "../post/PostView";
 import { useMemo, useState } from "react";
-import { useAppSelector } from "../../hooks";
+import { authedFetcher, useAppSelector } from "../../hooks";
 import { selectAuthorization, selectUsername } from "../../stores/authSlice";
 import axios from "axios";
+import useSWR from "swr";
+import { PaginatedResponse } from "../../models/pagination";
+import { convertReactions, PostResponse } from "../../models/post";
+import { NetworkPostView } from "../post/NetworkPostView";
 
 interface UserProfileProps {
   username: string;
@@ -104,45 +108,85 @@ function UserProfile({
     }
   };
 
+  // user posts
+  const userPostResult = useSWR(
+    [authorization, `user/@${username}${atHostname}/posts`],
+    authedFetcher<PaginatedResponse<PostResponse>>
+  );
+  const userPostElement = useMemo(() => {
+    if (userPostResult.error) {
+      console.error(userPostResult.error);
+      return <p>User post fetch error</p>;
+    }
+    if (userPostResult.isLoading) {
+      return <p>Posts loading...</p>;
+    }
+    if (!userPostResult.data) {
+      return <p>No posts</p>;
+    }
+
+    return userPostResult.data.result.map((post) => {
+      return (
+        <NetworkPostView
+          key={post.id}
+          id={post.id}
+          username={post.author.username}
+          nickname={post.author.nickname}
+          hostname={post.author.host}
+          content={post.content}
+          timestamp={new Date(post.created_at)}
+          reply_to_id={post.reply_to_id ?? undefined}
+          repost_of_id={post.repost_of_id ?? undefined}
+          reactions={convertReactions(post.counts.reactions)}
+          isBookmarkedByMe={post.bookmarked_by_you ?? undefined}
+          isFavoritedByMe={post.favorited_by_you ?? undefined}
+        />
+      );
+    });
+  }, [userPostResult]);
+
   return (
-    <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg">
-      <VStack spacing={4} align="start">
-        <HStack spacing={4}>
-          <Avatar
-            size="xl"
-            name={username}
-            src="https://via.placeholder.com/150"
-          />
-          <Box>
-            <Heading as="h2" size="lg">
-              {nickname}
-            </Heading>
-            <Text fontSize="sm" color="gray.500">
-              {username}
-              {atHostname}
-            </Text>
-          </Box>
-        </HStack>
-        <HStack spacing={4}>
-          <Button
-            colorScheme="blue"
-            display={showFollowButton ? "inherit" : "none"}
-            onClick={onFollowClick}
-            disabled={isFollowProessing}
-          >
-            {followText}
-          </Button>
-          <Box>
-            <Text>{bioText}</Text>
-          </Box>
-        </HStack>
-      </VStack>
-      <VStack spacing={4} mt={5} align="start">
-        {posts.map((post, index) => (
-          <PostView key={index} {...post} />
-        ))}
-      </VStack>
-    </Box>
+    <>
+      <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg">
+        <VStack spacing={4} align="start">
+          <HStack spacing={4}>
+            <Avatar
+              size="xl"
+              name={username}
+              src="https://via.placeholder.com/150"
+            />
+            <Box>
+              <Heading as="h2" size="lg">
+                {nickname}
+              </Heading>
+              <Text fontSize="sm" color="gray.500">
+                {username}
+                {atHostname}
+              </Text>
+            </Box>
+          </HStack>
+          <HStack spacing={4}>
+            <Button
+              colorScheme="blue"
+              display={showFollowButton ? "inherit" : "none"}
+              onClick={onFollowClick}
+              disabled={isFollowProessing}
+            >
+              {followText}
+            </Button>
+            <Box>
+              <Text>{bioText}</Text>
+            </Box>
+          </HStack>
+        </VStack>
+        <VStack spacing={4} mt={5} align="start">
+          {posts.map((post, index) => (
+            <PostView key={index} {...post} />
+          ))}
+        </VStack>
+      </Box>
+      {userPostElement}
+    </>
   );
 }
 
