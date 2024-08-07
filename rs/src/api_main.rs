@@ -1317,8 +1317,6 @@ async fn get_user_outbox(
 struct GetUserPostsQuery {
     limit: Option<i64>,
     before_date: Option<chrono::DateTime<chrono::Utc>>,
-    #[serde(default)]
-    page: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
