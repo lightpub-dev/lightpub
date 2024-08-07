@@ -12,6 +12,8 @@ interface UserResponse {
   host: string | null;
   nickname: string;
   bio: string;
+  is_following_you?: boolean;
+  is_followed_by_you?: boolean;
 }
 
 export default function ProfilePage() {
@@ -22,7 +24,10 @@ export default function ProfilePage() {
   const authorization = useSelector(selectAuthorization);
   const { data, error, isLoading } = useSWR(
     [authorization, `/user/${id}`],
-    authedFetcher<UserResponse>
+    authedFetcher<UserResponse>,
+    {
+      refreshInterval: 5000,
+    }
   );
 
   if (error) {
@@ -40,6 +45,8 @@ export default function ProfilePage() {
         hostname={data.host ?? undefined}
         nickname={data.nickname}
         posts={[]}
+        is_followed_by_you={data.is_followed_by_you}
+        is_following_you={data.is_following_you}
       />
     </MainPage>
   );
