@@ -1740,7 +1740,8 @@ impl UserPostService for DBUserPostService {
                 p.poster_id=?
                 OR (? AND p.privacy = 'public')
                 OR (p.privacy IN ('public', 'unlisted', 'follower') AND EXISTS(SELECT 1 FROM user_follows WHERE followee_id=p.poster_id AND follower_id=?))
-                OR (p.privacy = 'private' AND EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))
+                OR (EXISTS(SELECT 1 FROM post_mentions WHERE post_id=p.id AND target_user_id=?))
+                OR (EXISTS(SELECT 1 FROM posts p2 WHERE p2.poster_id=? AND p2.id=p.reply_to_id))
               )
               AND (NOT ? OR p.created_at <= ?)
               AND deleted_at IS NULL
@@ -1753,6 +1754,7 @@ impl UserPostService for DBUserPostService {
             user_id_str,
             user_id_str,
             options.include_all_public,
+            user_id_str,
             user_id_str,
             user_id_str,
             before_date_valid,
@@ -1814,7 +1816,7 @@ impl UserPostService for DBUserPostService {
                     Some(self.id_getter.get_post_id(&p))
                 }
             };
-            let reply_to_uri = match p.repost_of_id {
+            let reply_to_uri = match p.reply_to_id {
                 None => None,
                 Some(reply_to_id) => {
                     let p = self

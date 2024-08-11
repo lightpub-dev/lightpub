@@ -2,15 +2,19 @@ import { faker } from "@faker-js/faker";
 import { followUser, loginUser, post, registerUser } from "./api";
 import { RegisterRequest } from "./models";
 
-const UserCount = 1;
-const FollowCount = 0;
+const UserCount = 10;
+const FollowCount = 3;
 const PostsPerUser = 50;
 
 function fakeUser(): RegisterRequest {
   return {
-    username: faker.internet.userName(),
+    username: faker.internet
+      .userName()
+      .replace(".", "")
+      .replace("_", "")
+      .substring(0, 16),
     nickname: faker.person.firstName(),
-    password: faker.internet.password(),
+    password: faker.internet.password() + "Ab1!",
   };
 }
 
