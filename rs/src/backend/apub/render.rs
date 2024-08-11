@@ -381,7 +381,7 @@ impl ApubRendererService {
 
         let person = PersonBuilder::default()
             .id(user_id)
-            .name(name)
+            .name(Some(name))
             .inbox(inbox)
             .outbox(outbox)
             .following(following.into())

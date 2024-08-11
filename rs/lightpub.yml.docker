@@ -26,4 +26,4 @@ dev:
   ssl_verify: false
 upload_dir: ./uploads
 federation:
-  enabled: false
+  enabled: true

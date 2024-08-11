@@ -142,7 +142,7 @@ CREATE TABLE `remote_user_details` (
 );
 
 CREATE TABLE `user_keys` (
-    `id` CHAR(32) NOT NULL PRIMARY KEY,
+    `id` VARCHAR(512) NOT NULL PRIMARY KEY,
     `owner_id` CHAR(32) NOT NULL,
     `public_key` TEXT NOT NULL,
     `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),

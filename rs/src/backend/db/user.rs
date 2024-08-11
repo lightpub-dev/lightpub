@@ -318,7 +318,10 @@ async fn find_user_by_url(
     let parsed_url = url.parse::<reqwest::Url>().unwrap();
     let host = parsed_url.host_str().unwrap().to_string();
 
-    let actor = req.fetch_user(parsed_url.as_str()).await.unwrap();
+    let actor = req
+        .fetch_user(parsed_url.as_str())
+        .await
+        .map_err(|e| e.convert())?;
     let actor = match actor {
         Actor::Person(a) => a,
         Actor::Application(a) => a,
@@ -361,7 +364,7 @@ async fn find_user_by_url(
         id: user_id,
         username: username.to_string(),
         host: Some(host),
-        nickname: nickname.to_string(),
+        nickname: nickname.unwrap_or("".to_string()),
         bio: bio,
         uri: uri.into(),
         shared_inbox,

@@ -606,7 +606,7 @@ pub mod apub {
     #[serde(rename_all = "camelCase")]
     pub struct Person {
         pub id: String,
-        pub name: String,
+        pub name: Option<String>,
         pub inbox: String,
         pub outbox: String,
         pub shared_inbox: Option<String>,
