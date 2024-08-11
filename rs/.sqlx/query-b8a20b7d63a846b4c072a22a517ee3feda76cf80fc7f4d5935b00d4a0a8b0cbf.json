@@ -1,17 +1,27 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n                SELECT u.id AS `id: Simple`, u.uri AS `uri`\n                FROM post_mentions m\n                INNER JOIN users u ON m.target_user_id=u.id\n                WHERE m.post_id=?\n                ",
   "describe": {
     "columns": [
       {
-        "name": "id: Simple",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "uri",
         "ordinal": 1,
-        "type_info": "Text"
+        "name": "uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       }
     ],
     "parameters": {

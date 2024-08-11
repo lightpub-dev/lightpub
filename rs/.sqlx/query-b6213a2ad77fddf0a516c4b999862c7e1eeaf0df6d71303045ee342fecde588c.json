@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE QueuedTask SET started_at = CURRENT_TIMESTAMP(6) WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "b6213a2ad77fddf0a516c4b999862c7e1eeaf0df6d71303045ee342fecde588c"
+}

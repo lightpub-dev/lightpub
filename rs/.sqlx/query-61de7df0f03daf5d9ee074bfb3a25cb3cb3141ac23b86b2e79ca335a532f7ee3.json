@@ -1,12 +1,17 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n                    SELECT id AS `id: Simple` FROM post_favorites WHERE user_id=? AND post_id=? AND is_bookmark=?\n                    ",
   "describe": {
     "columns": [
       {
-        "name": "id: Simple",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       }
     ],
     "parameters": {

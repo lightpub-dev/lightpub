@@ -1,5 +1,5 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n                INSERT INTO user_follow_requests (id, incoming, follower_id, followee_id) VALUES (?, FALSE, ?, ?)\n                ",
   "describe": {
     "columns": [],

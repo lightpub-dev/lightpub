@@ -1,32 +1,57 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "SELECT user_id AS `user_id!: Simple`, following, followers, liked, fetched_at AS `fetched_at: chrono::NaiveDateTime` FROM remote_users WHERE user_id = ?",
   "describe": {
     "columns": [
       {
-        "name": "user_id!: Simple",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "user_id!: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "following",
         "ordinal": 1,
-        "type_info": "Text"
+        "name": "following",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "followers",
         "ordinal": 2,
-        "type_info": "Text"
+        "name": "followers",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "liked",
         "ordinal": 3,
-        "type_info": "Text"
+        "name": "liked",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "fetched_at: chrono::NaiveDateTime",
         "ordinal": 4,
-        "type_info": "Text"
+        "name": "fetched_at: chrono::NaiveDateTime",
+        "type_info": {
+          "type": "Datetime",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 26
+        }
       }
     ],
     "parameters": {

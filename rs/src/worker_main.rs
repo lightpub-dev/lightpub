@@ -4,7 +4,7 @@ use clap::Parser;
 use lightpub::backend::apub::ApubReqwester;
 use lightpub::config::Config;
 use lightpub::worker::ApubDirector;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::MySqlPool;
 use std::{io::Read, path::PathBuf};
 use tracing::info;
 
@@ -35,10 +35,9 @@ async fn main() {
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let conn_str = format!("sqlite:{}", config.database.path);
+    let conn_str = format!("mysql://{}", config.database.path);
     info!("Connecting to database: {}", &conn_str);
-    let pool = SqlitePoolOptions::new()
-        .connect(&conn_str)
+    let pool = MySqlPool::connect(&conn_str)
         .await
         .expect("connect to database");
     tracing::info!("Connected to database");

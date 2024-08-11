@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Constructor;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 
 use crate::backend::{LocalUserFinderService, UploadService};
@@ -9,7 +9,7 @@ use crate::model::UserSpecifier;
 
 #[derive(Constructor)]
 pub struct DBUploadService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     finder: holder!(LocalUserFinderService),
 }
 

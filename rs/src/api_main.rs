@@ -52,7 +52,7 @@ use lightpub::utils::key::VerifyError;
 use lightpub::utils::key::{verify_signature, KeyFetcher};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::MySqlPool;
 use std::borrow::BorrowMut;
 use std::path::PathBuf;
 use std::{
@@ -1840,7 +1840,10 @@ async fn truncate_database(app: web::Data<AppState>) -> impl Responder {
         "remote_users",
     ];
     for table_name in table_names {
-        match sqlx::query("DELETE FROM users").execute(app.pool()).await {
+        match sqlx::query(&format!("DELETE FROM {}", table_name))
+            .execute(app.pool())
+            .await
+        {
             Ok(_) => {
                 info!("Truncated table: {}", table_name);
             }
@@ -1879,9 +1882,8 @@ async fn main() -> std::io::Result<()> {
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let conn_str = format!("sqlite:{}", config.database.path);
-    let pool = SqlitePoolOptions::new()
-        .connect(&conn_str)
+    let conn_str = format!("mysql://{}", config.database.path);
+    let pool = MySqlPool::connect(&conn_str)
         .await
         .expect("connect to database");
     tracing::info!("Connected to database");

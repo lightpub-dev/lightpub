@@ -1,12 +1,17 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "SELECT private_key FROM users WHERE id = ?",
   "describe": {
     "columns": [
       {
-        "name": "private_key",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "private_key",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "char_set": 224,
+          "max_size": 262140
+        }
       }
     ],
     "parameters": {

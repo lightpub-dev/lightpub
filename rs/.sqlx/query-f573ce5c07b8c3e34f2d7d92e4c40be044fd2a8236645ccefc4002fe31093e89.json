@@ -1,5 +1,5 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "UPDATE posts SET deleted_at=CURRENT_TIMESTAMP WHERE id=? OR (repost_of_id=? AND content IS NULL AND deleted_at IS NULL)",
   "describe": {
     "columns": [],

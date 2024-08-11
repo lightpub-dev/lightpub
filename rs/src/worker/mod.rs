@@ -1,6 +1,6 @@
 use reqwest::{Method, Request, RequestBuilder};
 use rsa::RsaPrivateKey;
-use sqlx::{Pool, Sqlite};
+use sqlx::{MySql, Pool};
 use tracing::{debug, info, warn};
 
 use crate::backend::{
@@ -14,7 +14,7 @@ use crate::model::{
 use crate::utils::key::{attach_signature, SignKeyBuilder};
 
 pub struct ApubWorker {
-    pool: Pool<Sqlite>,
+    pool: Pool<MySql>,
     client: ApubReqwester,
 }
 
@@ -62,7 +62,7 @@ fn map_error<T>(e: reqwest::Error) -> ServiceError<T> {
 }
 
 impl ApubWorker {
-    pub fn new(pool: Pool<Sqlite>, client: ApubReqwester) -> Self {
+    pub fn new(pool: Pool<MySql>, client: ApubReqwester) -> Self {
         Self { pool, client }
     }
 
@@ -84,7 +84,7 @@ impl ApubWorker {
             if let Some(task) = task {
                 debug!("id={} task started", task.id);
                 sqlx::query!(
-                    "UPDATE QueuedTask SET started_at = (DATETIME('now')) WHERE id = ?",
+                    "UPDATE QueuedTask SET started_at = CURRENT_TIMESTAMP(6) WHERE id = ?",
                     task.id
                 )
                 .execute(&mut *tx)
@@ -191,7 +191,7 @@ impl ApubWorker {
 }
 
 pub struct ApubDirector<F> {
-    pool: Pool<Sqlite>,
+    pool: Pool<MySql>,
     client_maker: F,
 }
 
@@ -199,7 +199,7 @@ impl<F> ApubDirector<F>
 where
     F: Fn() -> ApubReqwester,
 {
-    pub fn new(pool: Pool<Sqlite>, client_maker: F) -> Self {
+    pub fn new(pool: Pool<MySql>, client_maker: F) -> Self {
         Self { pool, client_maker }
     }
 

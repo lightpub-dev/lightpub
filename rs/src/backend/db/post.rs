@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_more::Constructor;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tracing::warn;
 use uuid::{fmt::Simple, Uuid};
 
@@ -35,7 +35,7 @@ use crate::utils::{
 
 #[derive(Constructor)]
 pub struct DBPostCreateService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     finder: holder!(AllUserFinderService),
     renderer: ApubRendererService,
     req: holder!(ApubRequestService),
@@ -797,7 +797,7 @@ impl PostCreateService for DBPostCreateService {
                 let post_id_str = post_id.to_string();
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON CONFLICT DO NOTHING
+                    INSERT INTO post_favorites (id, user_id, post_id, is_bookmark) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE id=id
                     "#,
                     id_str,
                     user_id_str,
@@ -927,7 +927,7 @@ impl PostCreateService for DBPostCreateService {
                 let post_id_str = post_id.to_string();
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING
+                    INSERT INTO post_reactions (id, user_id, post_id, reaction_str, custom_reaction_id) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id
                     "#,
                     id_str,
                     user_id_str,
@@ -1187,7 +1187,7 @@ impl HasRemoteUri for LocalPoster {
 
 #[derive(Constructor)]
 pub struct DBUserPostService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     finder: holder!(AllUserFinderService),
     id_getter: IDGetterService,
 }
@@ -1284,10 +1284,10 @@ impl UserPostService for DBUserPostService {
                 (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.reply_to_id=p.id) AS `count_replies!: i64`,
                 (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL) AS `count_reposts!: i64`,
                 (SELECT COUNT(*) FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NOT NULL) AS `count_quotes!: i64`,
-                IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,
-                IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,
-                IIF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,
-                IIF(? IS NULL, NULL, (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1)) AS `reaction_str_by_you?: String`
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM posts p2 WHERE p2.deleted_at IS NULL AND p2.repost_of_id=p.id AND p2.content IS NULL AND p2.poster_id=? LIMIT 1)) AS `reposted_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND NOT pf.is_bookmark LIMIT 1)) AS `favorited_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT COUNT(*)>0 FROM post_favorites pf WHERE pf.post_id=p.id AND pf.user_id=? AND pf.is_bookmark LIMIT 1)) AS `bookmarked_by_you: bool`,
+                IF(? IS NULL, NULL, (SELECT reaction_str FROM post_reactions pr WHERE pr.post_id=p.id AND pr.user_id=? LIMIT 1)) AS `reaction_str_by_you?: String`
             FROM posts p
             INNER JOIN users u ON p.poster_id = u.id
             WHERE p.id = ?

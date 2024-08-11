@@ -1,5 +1,5 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "DELETE FROM QueuedTask WHERE id = ?",
   "describe": {
     "columns": [],

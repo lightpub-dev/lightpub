@@ -1,12 +1,17 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n            SELECT id FROM user_follows WHERE follower_id=? AND followee_id=? LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
-        "name": "id",
         "ordinal": 0,
-        "type_info": "Int64"
+        "name": "id",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "char_set": 63,
+          "max_size": 20
+        }
       }
     ],
     "parameters": {

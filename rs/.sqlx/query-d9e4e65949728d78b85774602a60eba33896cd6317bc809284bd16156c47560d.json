@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE following = ?, followers = ?, liked = ?, fetched_at = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "d9e4e65949728d78b85774602a60eba33896cd6317bc809284bd16156c47560d"
+}

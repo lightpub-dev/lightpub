@@ -1,0 +1,18 @@
+version: "3"
+services:
+  db:
+    image: mariadb:latest
+    container_name: lightpub-dev-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lightpub_dev
+      MYSQL_USER: lightpub
+      MYSQL_PASSWORD: lightpub
+    volumes:
+      - dev_db_data:/var/lib/mysql
+    ports:
+      - 127.0.0.1:3306:3306
+volumes:
+  dev_db_data:
+    driver: local

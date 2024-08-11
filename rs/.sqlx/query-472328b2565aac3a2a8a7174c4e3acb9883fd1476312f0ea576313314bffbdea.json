@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n        INSERT INTO user_keys (id, owner_id, public_key) VALUES (?,?,?) ON DUPLICATE KEY UPDATE owner_id=?, public_key=?, updated_at=CURRENT_TIMESTAMP(6)\n    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "472328b2565aac3a2a8a7174c4e3acb9883fd1476312f0ea576313314bffbdea"
+}

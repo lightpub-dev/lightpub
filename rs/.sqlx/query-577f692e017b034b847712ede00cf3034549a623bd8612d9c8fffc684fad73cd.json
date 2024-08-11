@@ -1,32 +1,57 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n                SELECT p.id AS `id: Simple`, p.uri AS `uri`, p.poster_id AS `poster_id!: Simple`, u.uri AS `poster_uri`, p.privacy\n                FROM posts AS p\n                INNER JOIN users AS u ON p.poster_id=u.id\n                WHERE p.id=?\n                ",
   "describe": {
     "columns": [
       {
-        "name": "id: Simple",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "uri",
         "ordinal": 1,
-        "type_info": "Text"
+        "name": "uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "poster_id!: Simple",
         "ordinal": 2,
-        "type_info": "Text"
+        "name": "poster_id!: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "MULTIPLE_KEY",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "poster_uri",
         "ordinal": 3,
-        "type_info": "Text"
+        "name": "poster_uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "privacy",
         "ordinal": 4,
-        "type_info": "Text"
+        "name": "privacy",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | ENUM | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 36
+        }
       }
     ],
     "parameters": {

@@ -1,62 +1,117 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "SELECT id AS `id!: Simple`, username, host, nickname, bio, uri, shared_inbox, inbox, outbox, public_key, created_at AS `created_at: chrono::NaiveDateTime` FROM users WHERE username = ? AND host IS NULL",
   "describe": {
     "columns": [
       {
-        "name": "id!: Simple",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "id!: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "username",
         "ordinal": 1,
-        "type_info": "Text"
+        "name": "username",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 256
+        }
       },
       {
-        "name": "host",
         "ordinal": 2,
-        "type_info": "Text"
+        "name": "host",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 512
+        }
       },
       {
-        "name": "nickname",
         "ordinal": 3,
-        "type_info": "Text"
+        "name": "nickname",
+        "type_info": {
+          "type": "VarString",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 1020
+        }
       },
       {
-        "name": "bio",
         "ordinal": 4,
-        "type_info": "Text"
+        "name": "bio",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB",
+          "char_set": 224,
+          "max_size": 262140
+        }
       },
       {
-        "name": "uri",
         "ordinal": 5,
-        "type_info": "Text"
+        "name": "uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "shared_inbox",
         "ordinal": 6,
-        "type_info": "Text"
+        "name": "shared_inbox",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "inbox",
         "ordinal": 7,
-        "type_info": "Text"
+        "name": "inbox",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "outbox",
         "ordinal": 8,
-        "type_info": "Text"
+        "name": "outbox",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "public_key",
         "ordinal": 9,
-        "type_info": "Text"
+        "name": "public_key",
+        "type_info": {
+          "type": "Blob",
+          "flags": "BLOB",
+          "char_set": 224,
+          "max_size": 262140
+        }
       },
       {
-        "name": "created_at: chrono::NaiveDateTime",
         "ordinal": 10,
-        "type_info": "Text"
+        "name": "created_at: chrono::NaiveDateTime",
+        "type_info": {
+          "type": "Datetime",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 26
+        }
       }
     ],
     "parameters": {

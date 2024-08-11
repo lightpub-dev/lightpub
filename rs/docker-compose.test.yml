@@ -49,10 +49,31 @@ services:
       retries: 3
       start_period: 60s
       start_interval: 2s
+    depends_on:
+      lightpub_db:
+        condition: service_healthy
     volumes:
       - ./lightpub.yml.test:/lightpub/lightpub.yml.sample
-      - ./refinery.docker.toml:/lightpub/refinery.toml
     init: true # necessary for shutting down gracefully
+
+  lightpub_db:
+    image: mariadb:latest
+    container_name: lightpub-test-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lightpub_test
+      MYSQL_USER: lightpub
+      MYSQL_PASSWORD: lightpub
+    networks:
+      - lightpub_test
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
 
   test-runner:
     build: ./tests

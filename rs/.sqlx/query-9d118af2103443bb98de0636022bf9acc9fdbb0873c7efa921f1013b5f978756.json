@@ -1,22 +1,37 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n            SELECT id, owner_id AS `owner_id: Simple`, public_key\n            FROM user_keys\n            WHERE id = ?\n            ",
   "describe": {
     "columns": [
       {
-        "name": "id",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "id",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "owner_id: Simple",
         "ordinal": 1,
-        "type_info": "Text"
+        "name": "owner_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "public_key",
         "ordinal": 2,
-        "type_info": "Text"
+        "name": "public_key",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 262140
+        }
       }
     ],
     "parameters": {
