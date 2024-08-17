@@ -34,6 +34,6 @@ export const selectToken = (state: RootState) => state.auth.token;
 export const selectUsername = (state: RootState) => state.auth.username;
 export const selectIsLoggedIn = (state: RootState) => state.auth.token !== null;
 export const selectAuthorization = (state: RootState) =>
-  `Bearer ${state.auth.token}`;
+  state.auth.token === null ? null : `Bearer ${state.auth.token}`;
 
 export default authSlice.reducer;

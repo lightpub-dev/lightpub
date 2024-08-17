@@ -5,16 +5,7 @@ import { useSelector } from "react-redux";
 import { selectAuthorization } from "../../stores/authSlice";
 import { authedFetcher } from "../../hooks";
 import { useParams } from "react-router-dom";
-
-interface UserResponse {
-  id: string;
-  username: string;
-  host: string | null;
-  nickname: string;
-  bio: string;
-  is_following_you?: boolean;
-  is_followed_by_you?: boolean;
-}
+import { UserResponse } from "../../models/user";
 
 export default function ProfilePage() {
   const { userId: id } = useParams<{

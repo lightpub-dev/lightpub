@@ -1,4 +1,4 @@
-import { ReactNode, useCallback } from "react";
+import { ReactNode, useCallback, useMemo } from "react";
 import {
   IconButton,
   Avatar,
@@ -38,6 +38,10 @@ import { ReactText } from "react";
 import { RiTimeLine } from "react-icons/ri";
 
 import logo from "../../assets/lightpub.svg";
+import { authedFetcher, useAppSelector } from "../../hooks";
+import { selectAuthorization, selectUsername } from "../../stores/authSlice";
+import useSWR from "swr";
+import { UserResponse } from "../../models/user";
 
 type LinkItemId = "new-post" | "home" | "trending" | "settings";
 
@@ -182,6 +186,34 @@ interface MobileProps extends FlexProps {
 }
 
 const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
+  const authorization = useAppSelector(selectAuthorization);
+  const username = useAppSelector(selectUsername);
+  const { data, error, isLoading } = useSWR(
+    username === null || authorization === null
+      ? null
+      : [authorization, `/user/@${username}`],
+    authedFetcher<UserResponse>,
+    {
+      refreshInterval: 30000,
+    }
+  );
+
+  const userProfile = useMemo(() => {
+    if (error) {
+      console.error("my profile fetch error");
+      console.error(error);
+      return null;
+    }
+    if (isLoading || !data) {
+      return null;
+    }
+
+    return {
+      username: data.username,
+      nickname: data.nickname,
+    };
+  }, [data, error, isLoading]);
+
   return (
     <Flex
       ml={{ base: 0, md: 60 }}
@@ -236,10 +268,18 @@ const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
                 spacing="1px"
                 ml="2"
               >
-                <Text fontSize="sm">das@脱原発再エネ推進本部</Text>
-                <Text fontSize="xs" color="gray.600">
-                  @das08
-                </Text>
+                {userProfile ? (
+                  <>
+                    <Text fontSize="sm">{userProfile.nickname}</Text>
+                    <Text fontSize="xs" color="gray.600">
+                      @{userProfile.username}
+                    </Text>
+                  </>
+                ) : (
+                  <Text fontSize="xs" color="gray.600">
+                    未ログイン
+                  </Text>
+                )}
               </VStack>
               <Box display={{ base: "none", md: "flex" }}>
                 <FiChevronDown />
