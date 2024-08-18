@@ -36,6 +36,7 @@ import EmojiBadge from "./EmojiBadge";
 
 export default function PostView({
   id,
+  displayedPostId,
   reposter,
   replyTo,
   nickname,
@@ -48,6 +49,7 @@ export default function PostView({
   reactions,
 }: {
   id: string;
+  displayedPostId: string;
   reposter?: {
     nickname: string;
     username: string;
@@ -113,7 +115,7 @@ export default function PostView({
         "/post",
         {
           privacy: "public",
-          repost_of_id: id,
+          repost_of_id: displayedPostId,
         },
         {
           headers: {
@@ -125,7 +127,7 @@ export default function PostView({
       console.warn(ex.response);
       alert("リポスト失敗");
     }
-  }, [authorization, id]);
+  }, [authorization, displayedPostId]);
 
   // favorite
   const favoritePost = useCallback(async () => {
@@ -134,13 +136,13 @@ export default function PostView({
     }
     try {
       if (!isFavoritedByMe) {
-        await axios.put(`/post/${id}/favorite`, null, {
+        await axios.put(`/post/${displayedPostId}/favorite`, null, {
           headers: {
             authorization,
           },
         });
       } else {
-        await axios.delete(`/post/${id}/favorite`, {
+        await axios.delete(`/post/${displayedPostId}/favorite`, {
           headers: {
             authorization,
           },
@@ -150,7 +152,7 @@ export default function PostView({
       console.warn(ex.response);
       alert("お気に入り失敗");
     }
-  }, [authorization, id, isFavoritedByMe]);
+  }, [authorization, displayedPostId, isFavoritedByMe]);
 
   // bookmark
   const bookmarkPost = useCallback(async () => {
@@ -159,13 +161,13 @@ export default function PostView({
     }
     try {
       if (!isBookmarkedByMe) {
-        await axios.put(`/post/${id}/bookmark`, null, {
+        await axios.put(`/post/${displayedPostId}/bookmark`, null, {
           headers: {
             authorization,
           },
         });
       } else {
-        await axios.delete(`/post/${id}/bookmark`, {
+        await axios.delete(`/post/${displayedPostId}/bookmark`, {
           headers: {
             authorization,
           },
@@ -175,7 +177,7 @@ export default function PostView({
       console.warn(ex.response);
       alert("ブックマーク失敗");
     }
-  }, [authorization, id, isBookmarkedByMe]);
+  }, [authorization, displayedPostId, isBookmarkedByMe]);
   const bookmarkToggleText = useMemo(() => {
     if (!isBookmarkedByMe) {
       return "ブックマークに追加";
@@ -224,14 +226,14 @@ export default function PostView({
   const onReplyClick = useCallback(() => {
     if (!createPostContext) return;
     createPostContext.showCreatePost({
-      reply_to_id: id,
+      reply_to_id: displayedPostId,
     });
-  }, [createPostContext, id]);
+  }, [createPostContext, displayedPostId]);
 
   // detail view
   const detailViewUrl = useMemo(() => {
-    return `post/${id}`;
-  }, [id]);
+    return `post/${displayedPostId}`;
+  }, [displayedPostId]);
   const jumpToDetailView = useCallback(() => {
     navigate(detailViewUrl);
   }, [detailViewUrl]);
@@ -246,7 +248,7 @@ export default function PostView({
       // console.log(emoji);
       try {
         await axios.post(
-          `/post/${id}/reaction`,
+          `/post/${displayedPostId}/reaction`,
           {
             reaction: emoji.emoji,
             add: true,
@@ -263,7 +265,7 @@ export default function PostView({
         window.alert("リアクションに失敗しました");
       }
     },
-    []
+    [displayedPostId, authorization]
   );
 
   return (
