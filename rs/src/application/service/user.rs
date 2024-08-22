@@ -67,11 +67,14 @@ impl UserSecurityApplicationService {
                 panic!("user not found");
             }
             Some(user) => {
+                // user found
+
                 if !user.validate_password(plain_passwd) {
                     // throw error
                     panic!("invalid password");
                 }
 
+                // password is correct
                 let token = self.auth_token_factory.create();
                 self.auth_token_repository.create(&token).await?;
                 Ok(AuthTokenData::new(token.token().to_string()))
