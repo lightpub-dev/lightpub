@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use uuid::Uuid;
 
+use super::URI;
+
 type URL = String;
 
 #[derive(Debug, Clone, PartialEq)]

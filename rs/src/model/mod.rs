@@ -1,3 +1,4 @@
+pub mod follow;
 pub mod pagination;
 pub mod post;
 pub mod queue;
@@ -16,60 +17,6 @@ use thiserror::Error;
 use uuid::fmt::Simple;
 
 use self::api_response::{PostAuthor, PostMentionedUser};
-#[derive(Debug)]
-pub struct User {
-    pub id: uuid::fmt::Simple,
-    pub username: String,
-    pub host: Option<String>,
-    // pub bpasswd: Option<String>, // intentionally omitted to prevent accidental password leaks
-    pub nickname: String,
-    pub bio: String,
-    pub uri: Option<String>,
-    pub shared_inbox: Option<String>,
-    pub inbox: Option<String>,
-    pub outbox: Option<String>,
-    // pub private_key: Option<String>, // intentionally omitted to prevent accidental private key leaks
-    pub public_key: Option<String>,
-    pub created_at: chrono::NaiveDateTime,
-}
-
-impl User {
-    pub fn as_specifier(&self) -> UserSpecifier {
-        UserSpecifier::from_id(self.id)
-    }
-}
-
-impl HasRemoteUri for User {
-    fn get_local_id(&self) -> String {
-        self.id.to_string()
-    }
-
-    fn get_remote_uri(&self) -> Option<String> {
-        self.uri.clone()
-    }
-}
-
-impl HasRemoteUri for &User {
-    fn get_local_id(&self) -> String {
-        self.id.to_string()
-    }
-
-    fn get_remote_uri(&self) -> Option<String> {
-        self.uri.clone()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize)]
-pub enum PostPrivacy {
-    #[serde(rename = "public")]
-    Public,
-    #[serde(rename = "unlisted")]
-    Unlisted,
-    #[serde(rename = "follower")]
-    Followers,
-    #[serde(rename = "private")]
-    Private,
-}
 
 #[derive(Error, Debug)]
 pub enum PostPrivacyConversionError {

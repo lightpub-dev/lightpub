@@ -1,37 +1,7 @@
 pub mod state;
 
 pub fn validate_username(username: &str) -> bool {
-    // username must
-    // - be at least 3 characters long, and at most 16 characters long
-    // - contain only alphanumeric characters + '-' + '_'
-    // - not start with '-' or '_'
-    // - not contain consecutive '-' or '_'
-
-    if username.len() < 3 || username.len() > 16 {
-        return false;
-    }
-
-    for ch in username.chars() {
-        if !ch.is_ascii_alphanumeric() && ch != '-' && ch != '_' {
-            return false;
-        }
-    }
-
-    if username.starts_with('-') || username.starts_with('_') {
-        return false;
-    }
-
-    let mut prev = ' ';
-    for ch in username.chars() {
-        if ch == '-' || ch == '_' {
-            if prev == '-' || prev == '_' {
-                return false;
-            }
-        }
-        prev = ch;
-    }
-
-    true
+    todo!()
 }
 
 pub fn validate_password(password: &str) -> bool {
