@@ -1,3 +1,4 @@
+#![feature(async_closure)]
 pub mod api;
 pub mod application;
 pub mod backend;

@@ -9,18 +9,17 @@ use crate::{
         },
     },
     holder,
-    repository::interface::{auth::AuthTokenRepository, user::UserRepository},
+    repository::interface::uow::UnitOfWork,
 };
 
 use super::id::IDGenerationService;
 
 pub struct UserApplicationService {
-    user_repository: holder!(UserRepository),
+    uow: holder!(UnitOfWork),
 }
 
 pub struct UserSecurityApplicationService {
-    user_repository: holder!(UserRepository),
-    auth_token_repository: holder!(AuthTokenRepository),
+    uow: holder!(UnitOfWork),
     auth_token_factory: holder!(AuthTokenFactory),
 }
 
@@ -43,7 +42,13 @@ impl UserApplicationService {
             panic!("failed to set passwd");
         }
 
-        self.user_repository.create(&new_user).await?;
+        self.uow
+            .repository_manager()
+            .user_repository()
+            .create(&new_user)
+            .await?;
+
+        self.uow.commit().await?;
 
         Ok(())
     }
@@ -57,13 +62,16 @@ impl UserSecurityApplicationService {
     ) -> Result<AuthTokenData, anyhow::Error> {
         let username = Username::from_str(username).unwrap();
         let user = self
-            .user_repository
+            .uow
+            .repository_manager()
+            .user_repository()
             .find_by_username_and_host(&username, None)
             .await?;
 
         match user {
             None => {
                 // throw error
+                self.uow.rollback().await?;
                 panic!("user not found");
             }
             Some(user) => {
@@ -71,12 +79,18 @@ impl UserSecurityApplicationService {
 
                 if !user.validate_password(plain_passwd) {
                     // throw error
+                    self.uow.rollback().await?;
                     panic!("invalid password");
                 }
 
                 // password is correct
                 let token = self.auth_token_factory.create();
-                self.auth_token_repository.create(&token).await?;
+                self.uow
+                    .repository_manager()
+                    .auth_token_repository()
+                    .create(&token)
+                    .await?;
+                self.uow.commit().await?;
                 Ok(AuthTokenData::new(token.token().to_string()))
             }
         }
