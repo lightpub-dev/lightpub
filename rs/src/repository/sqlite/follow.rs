@@ -17,14 +17,18 @@ impl<'a> FollowRepository for SqliteRepository<'a> {
         &mut self,
         follow: &mut UserFollow,
     ) -> Result<(), RepositoryError> {
+        let follower_id = follow.follower().to_db();
+        let followee_id = follow.followee().to_db();
+        let follow_on = follow.follow_on();
         let result = sqlx::query!(
             r#"INSERT INTO user_follows(follower_id,followee_id,created_at) VALUES (?,?,?)"#,
-            follow.follower().to_db(),
-            follow.followee().to_db(),
-            follow.follow_on()
+            follower_id,
+            followee_id,
+            follow_on,
         )
         .execute(self)
-        .await?;
+        .await
+        .unwrap();
 
         follow.set_id(FollowId::from_int(result.last_insert_rowid()));
 
@@ -33,9 +37,10 @@ impl<'a> FollowRepository for SqliteRepository<'a> {
 
     async fn delete_if_exists(&mut self, follow: &UserFollow) -> Result<(), RepositoryError> {
         if let Some(id) = follow.id() {
-            sqlx::query!(r#"DELETE FROM user_follows WHERE id=?"#, follow.id())
+            sqlx::query!(r#"DELETE FROM user_follows WHERE id=?"#, id)
                 .execute(self)
-                .await?;
+                .await
+                .unwrap();
 
             Ok(())
         } else {

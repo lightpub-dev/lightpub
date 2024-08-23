@@ -29,7 +29,7 @@ impl UserApplicationService {
         username: &str,
         nickname: &str,
         passwd: &str,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<UserId, anyhow::Error> {
         let mut new_user = User::new(
             UserId::from_uuid(IDGenerationService::generate_id()),
             Username::from_str(username).unwrap(),
@@ -50,7 +50,7 @@ impl UserApplicationService {
 
         self.uow.commit().await?;
 
-        Ok(())
+        Ok(new_user.id())
     }
 }
 

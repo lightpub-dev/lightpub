@@ -146,6 +146,10 @@ impl User {
         }
     }
 
+    pub fn id(&self) -> UserId {
+        self.id
+    }
+
     pub fn set_password(&mut self, plain_passwd: &str) -> bool {
         // hash the password
         let bpasswd = bcrypt::hash(plain_passwd, bcrypt::DEFAULT_COST).ok();

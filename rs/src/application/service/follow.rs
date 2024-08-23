@@ -18,12 +18,12 @@ impl FollowApplicationService {
         followee_id: UserId,
     ) -> Result<(), anyhow::Error> {
         let mut follow_factory = DefaultUserFollowFactory::new();
-        let follow = follow_factory.create(follower_id, followee_id);
+        let mut follow = follow_factory.create(follower_id, followee_id);
 
         self.uow
             .repository_manager()
             .follow_repository()
-            .follow(&follow)
+            .create_if_not_exists(&mut follow)
             .await?;
 
         self.uow.commit().await?;
@@ -48,7 +48,7 @@ impl FollowApplicationService {
             self.uow
                 .repository_manager()
                 .follow_repository()
-                .unfollow(&follow)
+                .delete_if_exists(&follow)
                 .await?;
         }
 

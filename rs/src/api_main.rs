@@ -1,4 +1,5 @@
-use lightpub::api::{validate_password, validate_username};
+use lightpub::api::model::{LoginRequest, RegisterRequest, RegisterResponse};
+use lightpub::api::{validate_password, validate_username, AppState};
 use lightpub::backend::db::new_db_user_post_service;
 use lightpub::model::apub::context::ContextAttachable;
 use lightpub::model::apub::{
@@ -16,7 +17,6 @@ use actix_web::{
     Responder,
 };
 use clap::Parser;
-use lightpub::api::state::AppState;
 use lightpub::backend::apub::render::RenderedNoteObject;
 use lightpub::backend::db::{new_all_user_finder_service, new_db_key_fetcher_service};
 use lightpub::backend::db::{new_db_file_upload_service, new_db_user_profile_service};
@@ -276,75 +276,29 @@ fn ise<T: Into<ErrorResponse> + Debug, S>(error: T) -> Result<S, ErrorResponse> 
     Err(error.into())
 }
 
-#[derive(Debug, Deserialize)]
-struct RegisterBody {
-    pub username: String,
-    pub nickname: String,
-    pub password: String,
-}
-
-impl Into<UserCreateRequest> for RegisterBody {
-    fn into(self) -> UserCreateRequest {
-        UserCreateRequestBuilder::default()
-            .username(self.username)
-            .password(self.password)
-            .nickname(self.nickname)
-            .build()
-            .unwrap()
-    }
-}
-
-#[derive(Debug, Serialize)]
-struct RegisterResponse {
-    user_id: Simple,
-}
-
 #[post("/register")]
 async fn register(
-    body: web::Json<RegisterBody>,
+    body: web::Json<RegisterRequest>,
     data: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
-    if !data.config().instance.open_registration {
-        return Err(ErrorResponse::new_status(403, "registration is closed"));
-    }
+    // TODO: open registration check
+    // if !data.config().instance.open_registration {
+    //     return Err(ErrorResponse::new_status(403, "registration is closed"));
+    // }
 
-    if !validate_username(&body.username) {
-        return Err(ErrorResponse::new_status(400, "invalid username"));
-    }
-    if !validate_password(&body.password) {
-        return Err(ErrorResponse::new_status(400, "invalid password"));
-    }
+    let mut user_service = data.user_service();
 
-    let mut us = new_user_service(data.pool().clone());
-    let req = us.create_user(&body.0.into()).await;
-    match req {
-        Ok(req) => Ok(HttpResponse::Ok().json(RegisterResponse {
-            user_id: *req.user_id(),
+    let user = user_service
+        .create_user(&body.username, &body.nickname, &body.password)
+        .await;
+
+    match user {
+        Ok(user_id) => Ok(HttpResponse::Ok().json(RegisterResponse {
+            user_id: user_id.id().simple(),
         })),
-        Err(e) => match e {
-            ServiceError::SpecificError(e) => match e {
-                UserCreateError::UsernameConflict => {
-                    Err(ErrorResponse::new_status(400, "username exists"))
-                }
-            },
-            _ => ise(e),
-        },
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct LoginBody {
-    username: String,
-    password: String,
-}
-
-impl Into<UserLoginRequest> for LoginBody {
-    fn into(self) -> UserLoginRequest {
-        UserLoginRequestBuilder::default()
-            .username(self.username)
-            .password(self.password)
-            .build()
-            .unwrap()
+        Err(e) => {
+            panic!("Failed to create user: {:?}", e);
+        }
     }
 }
 
@@ -355,21 +309,22 @@ struct LoginResponse {
 
 #[post("/login")]
 async fn login(
-    body: web::Json<LoginBody>,
+    body: web::Json<LoginRequest>,
     data: web::Data<AppState>,
 ) -> Result<impl Responder, ErrorResponse> {
-    let mut us = new_user_service(data.pool().clone());
-    let req = us.login_user(&body.0.into()).await;
-    match req {
-        Ok(req) => Ok(HttpResponse::Ok().json(LoginResponse {
-            token: req.user_token().to_string(),
+    let mut user_security_service = data.user_security_service();
+
+    let result = user_security_service
+        .login(&body.username, &body.password)
+        .await;
+
+    match result {
+        Ok(token) => Ok(HttpResponse::Ok().json(LoginResponse {
+            token: token.token().to_string(),
         })),
-        Err(e) => match e {
-            ServiceError::SpecificError(e) => match e {
-                UserLoginError::AuthFailed => Err(ErrorResponse::new_status(401, "auth failed")),
-            },
-            _ => ise(e),
-        },
+        Err(e) => {
+            panic!("Failed to login: {:?}", e);
+        }
     }
 }
 
