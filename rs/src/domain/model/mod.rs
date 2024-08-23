@@ -35,4 +35,8 @@ impl URI {
     pub fn from_str(uri: String) -> Option<Self> {
         Some(Self(uri))
     }
+
+    pub fn to_str(&self) -> &str {
+        &self.0
+    }
 }

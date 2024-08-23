@@ -1,6 +1,7 @@
 use sqlx::{Decode, Encode, Type};
 
 pub mod follow;
+pub mod post;
 pub mod user;
 
 #[derive(Debug)]

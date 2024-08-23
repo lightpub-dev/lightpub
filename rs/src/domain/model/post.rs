@@ -42,6 +42,10 @@ impl PostContent {
     pub fn from_string(content: impl Into<String>) -> Self {
         Self(content.into())
     }
+
+    pub fn to_str(&self) -> &str {
+        &self.0
+    }
 }
 
 pub struct PostCommon {
@@ -96,18 +100,71 @@ pub enum Post {
 }
 
 impl Post {
-    pub fn id(&self) -> &PostId {
+    fn common(&self) -> &PostCommon {
         match self {
-            Self::Normal(p) => &p.common.id,
-            Self::Repost(p) => &p.common.id,
+            Self::Normal(p) => &p.common,
+            Self::Repost(p) => &p.common,
         }
+    }
+
+    pub fn id(&self) -> PostId {
+        self.common().id
+    }
+
+    pub fn author_id(&self) -> UserId {
+        self.common().author
+    }
+
+    pub fn uri(&self) -> Option<&URI> {
+        self.common().uri.as_ref()
+    }
+
+    pub fn privacy(&self) -> PostPrivacy {
+        self.common().privacy
+    }
+
+    pub fn content(&self) -> Option<&PostContent> {
+        match self {
+            Self::Normal(p) => Some(&p.content),
+            Self::Repost(_) => None,
+        }
+    }
+
+    pub fn reply_to(&self) -> Option<&PostReplyInfo> {
+        match self {
+            Self::Normal(p) => p.reply_to.as_ref(),
+            Self::Repost(_) => None,
+        }
+    }
+
+    pub fn repost_of(&self) -> Option<&PostRepostInfo> {
+        match self {
+            Self::Normal(_) => None,
+            Self::Repost(p) => Some(&p.repost_of),
+        }
+    }
+
+    pub fn created_at(&self) -> &DateTime {
+        &self.common().created_at
     }
 }
 
 impl PartialEq for Post {
     fn eq(&self, other: &Self) -> bool {
-        *self.id() == *other.id()
+        self.id() == other.id()
     }
 }
 
 impl Eq for Post {}
+
+impl PostReplyInfo {
+    pub fn id(&self) -> PostId {
+        self.reply_to_id
+    }
+}
+
+impl PostRepostInfo {
+    pub fn id(&self) -> PostId {
+        self.reply_of_id
+    }
+}
