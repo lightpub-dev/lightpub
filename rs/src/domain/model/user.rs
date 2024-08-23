@@ -3,7 +3,7 @@ use uuid::Uuid;
 use super::{DateTime, URI};
 
 // UserId value object
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct UserId(Uuid);
 
 impl UserId {
@@ -13,6 +13,10 @@ impl UserId {
 
     pub fn from_str(uuid: &str) -> Option<Self> {
         Uuid::parse_str(uuid).map(Self).ok()
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.0
     }
 }
 

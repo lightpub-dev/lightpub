@@ -3,7 +3,8 @@ pub mod follow;
 pub mod post;
 pub mod user;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, sqlx::Type)]
+#[sqlx(transparent)]
 pub struct DateTime(chrono::DateTime<chrono::Utc>);
 
 impl DateTime {
@@ -27,7 +28,7 @@ impl DateTime {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, sqlx::Type)]
 pub struct URI(String);
 
 impl URI {

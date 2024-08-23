@@ -1,8 +1,25 @@
 use serde::Serialize;
-
-use crate::model::post::PostId;
+use uuid::Uuid;
 
 use super::{user::UserId, DateTime, URI};
+
+// PostId value object
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct PostId(Uuid);
+
+impl PostId {
+    pub fn from_uuid(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+
+    pub fn from_str(uuid: &str) -> Option<Self> {
+        Uuid::parse_str(uuid).map(Self).ok()
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.0
+    }
+}
 
 // PostPrivacy value object
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize)]
