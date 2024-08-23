@@ -30,4 +30,30 @@ impl FollowApplicationService {
 
         Ok(())
     }
+
+    pub async fn unfollow(
+        &mut self,
+        follower_id: UserId,
+        followee_id: UserId,
+    ) -> Result<(), anyhow::Error> {
+        let follow = self
+            .uow
+            .repository_manager()
+            .follow_repository()
+            .find_by_user_id(&follower_id, &followee_id)
+            .await?;
+
+        // if follow is not found, do nothing
+        if let Some(follow) = follow {
+            self.uow
+                .repository_manager()
+                .follow_repository()
+                .unfollow(&follow)
+                .await?;
+        }
+
+        self.uow.commit().await?;
+
+        Ok(())
+    }
 }
