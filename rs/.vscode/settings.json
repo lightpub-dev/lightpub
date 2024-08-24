@@ -6,5 +6,6 @@
     "[typescript]": {
         "editor.tabSize": 4
     },
-    "jest.enable": false
+    "jest.enable": false,
+    "makefile.configureOnOpen": false
 }
