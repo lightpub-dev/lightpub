@@ -1,4 +1,4 @@
-use dto::{AuthTokenData, UserIdData};
+use dto::{AuthTokenData, UserData, UserIdData};
 
 use crate::{
     domain::{
@@ -51,6 +51,35 @@ impl UserApplicationService {
         self.uow.commit().await?;
 
         Ok(UserIdData::from_user_id(new_user.id()))
+    }
+
+    pub async fn get_user_by_id(
+        &mut self,
+        user_id: &str,
+    ) -> Result<Option<UserData>, anyhow::Error> {
+        todo!()
+    }
+
+    pub async fn get_user_id_by_username_and_host(
+        &mut self,
+        username: &str,
+        host: Option<&str>,
+    ) -> Result<Option<UserIdData>, anyhow::Error> {
+        let mut user_repository = self.uow.repository_manager().user_repository();
+        let username = Username::from_str(username).unwrap();
+        let id = user_repository
+            .find_by_username_and_host(&username, host)
+            .await
+            .map(|user| user.map(|user| UserIdData::from_user_id(user.id())))?;
+
+        self.uow.commit().await?;
+
+        Ok(id)
+    }
+
+    pub async fn id_exists(&mut self, user_id: &str) -> Result<bool, anyhow::Error> {
+        let user = self.get_user_by_id(user_id).await?;
+        Ok(user.is_some())
     }
 }
 
@@ -126,4 +155,7 @@ mod dto {
             self.0
         }
     }
+
+    #[derive(Debug, Clone)]
+    pub struct UserData {}
 }

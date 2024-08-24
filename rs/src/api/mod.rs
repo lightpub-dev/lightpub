@@ -1,10 +1,16 @@
+use std::fmt::Display;
+
+use serde::Serialize;
+use serde_json::json;
+
 use crate::application::service::{
+    follow::FollowApplicationService,
     post::PostCreateApplicationService,
     user::{UserApplicationService, UserSecurityApplicationService},
 };
 
 pub mod model {
-    use uuid::Uuid;
+    use serde::Deserialize;
 
     macro_rules! Request {
         ($name:ident, $($field:ident $type:ty),*) => {
@@ -58,6 +64,79 @@ pub mod model {
     Response!(PostCreateResponse,
         post_id String
     );
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum UserSpecifier {
+        ID(String),
+        Username(String, Option<String>),
+    }
+
+    impl std::fmt::Display for UserSpecifier {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                UserSpecifier::ID(id) => write!(f, "{}", id),
+                UserSpecifier::Username(username, hostname) => {
+                    if let Some(hostname) = hostname {
+                        write!(f, "@{}@{}", username, hostname)
+                    } else {
+                        write!(f, "@{}", username)
+                    }
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum UserSpecifierParseError {
+        InvalidFormat,
+    }
+
+    impl UserSpecifier {
+        pub fn parse(s: &str) -> Result<Self, UserSpecifierParseError> {
+            if s.starts_with("@") {
+                let parts: Vec<&str> = s[1..].split("@").collect();
+                if parts.len() == 1 {
+                    // no hostname
+                    return Ok(UserSpecifier::Username(parts[0].to_string(), None));
+                }
+                if parts.len() == 2 {
+                    return Ok(UserSpecifier::Username(
+                        parts[0].to_string(),
+                        Some(parts[1].to_string()),
+                    ));
+                }
+                return Err(UserSpecifierParseError::InvalidFormat);
+            }
+
+            return Ok(UserSpecifier::ID(s.to_string()));
+        }
+    }
+
+    impl<'de> Deserialize<'de> for UserSpecifier {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_str(UserSpecifierVisitor {})
+        }
+    }
+
+    struct UserSpecifierVisitor {}
+
+    impl<'de> serde::de::Visitor<'de> for UserSpecifierVisitor {
+        type Value = UserSpecifier;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a user specifier")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<UserSpecifier, E>
+        where
+            E: serde::de::Error,
+        {
+            UserSpecifier::parse(value).map_err(|e| E::custom(format!("{:?}", e)))
+        }
+    }
 }
 
 pub struct AppState {}
@@ -73,5 +152,71 @@ impl AppState {
 
     pub fn post_create_service(&self) -> PostCreateApplicationService {
         todo!()
+    }
+
+    pub fn follow_service(&self) -> FollowApplicationService {
+        todo!()
+    }
+}
+
+pub trait HasStatusCode: Display + std::fmt::Debug + Send + Sync {
+    fn status_code(&self) -> i32;
+    fn message(&self) -> String;
+}
+
+#[derive(Debug, Serialize)]
+pub struct ErrorResponse {
+    message: String,
+    status: i32,
+}
+
+impl From<anyhow::Error> for ErrorResponse {
+    fn from(value: anyhow::Error) -> Self {
+        // check if value implements HasStatusCode
+        if let Some(status_code) = value.downcast_ref::<Box<dyn HasStatusCode>>() {
+            return ErrorResponse::new(status_code.status_code(), status_code.message());
+        }
+
+        // default is 500
+        ErrorResponse::new(500, "internal server error".to_string())
+    }
+}
+
+impl ErrorResponse {
+    pub fn new(status: i32, message: impl Into<String>) -> Self {
+        let msg = message.into();
+        tracing::debug!("new error: {} {}", status, &msg);
+        Self {
+            message: msg.clone(),
+            status,
+        }
+    }
+
+    pub fn into_result<T>(self) -> Result<T, ErrorResponse> {
+        Err(self)
+    }
+}
+
+impl actix_web::error::ResponseError for ErrorResponse {
+    fn status_code(&self) -> reqwest::StatusCode {
+        reqwest::StatusCode::from_u16(self.status as u16).unwrap()
+    }
+
+    fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
+        actix_web::HttpResponse::build(self.status_code())
+            .json(json!({
+                "message": self.message
+            }))
+            .into()
+    }
+}
+
+impl Display for ErrorResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            json!({ "message": self.message, "status": self.status })
+        )
     }
 }

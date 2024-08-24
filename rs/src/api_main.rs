@@ -1,7 +1,8 @@
 use lightpub::api::model::{
     LoginRequest, PostCreateRequest, PostCreateResponse, RegisterRequest, RegisterResponse,
+    UserSpecifier,
 };
-use lightpub::api::{validate_password, validate_username, AppState};
+use lightpub::api::{validate_password, validate_username, AppState, ErrorResponse};
 use lightpub::application::service::post::{
     NormalPostCreateCommand, QuoteCreateCommand, ReplyPostCreateCommand, RepostCreateCommand,
 };
@@ -227,61 +228,6 @@ fn new_id_getter_service(config: Config) -> IDGetterService {
     IDGetterService::new(config)
 }
 
-#[derive(Debug, Serialize)]
-struct ErrorResponse {
-    message: String,
-    status: i32,
-}
-
-impl ErrorResponse {
-    pub fn new_status(status: i32, message: impl Into<String>) -> Self {
-        let msg = message.into();
-        tracing::debug!("new error: {} {}", status, &msg);
-        Self {
-            message: msg.clone(),
-            status,
-        }
-    }
-}
-
-impl<T> Into<Result<T, ErrorResponse>> for ErrorResponse {
-    fn into(self) -> Result<T, ErrorResponse> {
-        Err(self)
-    }
-}
-
-impl<T: Debug> From<ServiceError<T>> for ErrorResponse {
-    fn from(value: ServiceError<T>) -> Self {
-        match value {
-            ServiceError::SpecificError(e) => {
-                error!("Specific error not handled: {:?}", &e);
-                ErrorResponse::new_status(500, "internal server error")
-            }
-            ServiceError::MiscError(e) => {
-                error!("Misc error: {:?}", &e);
-                ErrorResponse::new_status(e.status_code(), e.message())
-            }
-        }
-    }
-}
-
-impl Display for ErrorResponse {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl actix_web::ResponseError for ErrorResponse {
-    fn status_code(&self) -> actix_web::http::StatusCode {
-        actix_web::http::StatusCode::from_u16(self.status as u16).unwrap()
-    }
-}
-
-fn ise<T: Into<ErrorResponse> + Debug, S>(error: T) -> Result<S, ErrorResponse> {
-    error!("Internal server error: {:?}", &error);
-    Err(error.into())
-}
-
 #[post("/register")]
 async fn register(
     body: web::Json<RegisterRequest>,
@@ -340,7 +286,7 @@ fn post_privacy_from_str(s: &str) -> Result<PostPrivacy, ErrorResponse> {
         "unlisted" => Ok(PostPrivacy::Unlisted),
         "followers" => Ok(PostPrivacy::Followers),
         "private" => Ok(PostPrivacy::Private),
-        _ => Err(ErrorResponse::new_status(400, "invalid privacy")),
+        _ => Err(ErrorResponse::new(400, "invalid privacy")),
     }
 }
 
@@ -400,7 +346,7 @@ async fn post_post(
             .await
             .unwrap(),
         _ => {
-            return Err(ErrorResponse::new_status(
+            return Err(ErrorResponse::new(
                 400,
                 "repost_of_id and reply_to_id cannot be set at the same time",
             ))
@@ -425,11 +371,29 @@ async fn user_create_follow(
 ) -> Result<impl Responder, ErrorResponse> {
     let user = auth.must_auth()?;
 
-    let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
+    let mut user_service = data.user_service();
+    let mut follow_service = data.follow_service();
+
+    let followee_id = match &path.user_spec {
+        UserSpecifier::ID(id) => {
+            if !user_service.id_exists(&id).await? {
+                return Err(ErrorResponse::new(404, "user not found"));
+            }
+            id.to_string()
+        }
+        UserSpecifier::Username(username, host) => {
+            match user_service
+                .get_user_id_by_username_and_host(&username, host.as_ref().map(|s| s.as_str()))
+                .await?
+            {
+                None => return Err(ErrorResponse::new(404, "user not found")),
+                Some(id) => id.user_id().to_string(),
+            }
+        }
+    };
 
     follow_service
-        .follow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
+        .follow(&user.id().to_string(), &followee_id)
         .await?;
 
     Ok(HttpResponse::Ok().finish())
@@ -443,11 +407,29 @@ async fn user_delete_follow(
 ) -> Result<impl Responder, ErrorResponse> {
     let user = auth.must_auth()?;
 
-    let pool = data.pool().clone();
-    let mut follow_service = new_follow_service(pool.clone(), data.config().clone());
+    let mut user_service = data.user_service();
+    let mut follow_service = data.follow_service();
+
+    let followee_id = match &path.user_spec {
+        UserSpecifier::ID(id) => {
+            if !user_service.id_exists(&id).await? {
+                return Err(ErrorResponse::new(404, "user not found"));
+            }
+            id.to_string()
+        }
+        UserSpecifier::Username(username, host) => {
+            match user_service
+                .get_user_id_by_username_and_host(&username, host.as_ref().map(|s| s.as_str()))
+                .await?
+            {
+                None => return Err(ErrorResponse::new(404, "user not found")),
+                Some(id) => id.user_id().to_string(),
+            }
+        }
+    };
 
     follow_service
-        .unfollow_user(&UserSpecifier::from_id(user.id), &path.user_spec)
+        .unfollow(&user.id().to_string(), &followee_id)
         .await?;
 
     Ok(HttpResponse::Ok().finish())

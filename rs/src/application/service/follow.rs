@@ -4,7 +4,7 @@ use crate::{
         model::user::UserId,
     },
     holder,
-    repository::interface::{uow::UnitOfWork, user::UserRepository},
+    repository::interface::uow::UnitOfWork,
 };
 
 pub struct FollowApplicationService {
@@ -14,9 +14,12 @@ pub struct FollowApplicationService {
 impl FollowApplicationService {
     pub async fn follow(
         &mut self,
-        follower_id: UserId,
-        followee_id: UserId,
+        follower_id: &str,
+        followee_id: &str,
     ) -> Result<(), anyhow::Error> {
+        let follower_id = UserId::from_str(follower_id).unwrap();
+        let followee_id = UserId::from_str(followee_id).unwrap();
+
         let mut follow_factory = DefaultUserFollowFactory::new();
         let mut follow = follow_factory.create(follower_id, followee_id);
 
@@ -33,9 +36,12 @@ impl FollowApplicationService {
 
     pub async fn unfollow(
         &mut self,
-        follower_id: UserId,
-        followee_id: UserId,
+        follower_id: &str,
+        followee_id: &str,
     ) -> Result<(), anyhow::Error> {
+        let follower_id = UserId::from_str(follower_id).unwrap();
+        let followee_id = UserId::from_str(followee_id).unwrap();
+
         let follow = self
             .uow
             .repository_manager()
