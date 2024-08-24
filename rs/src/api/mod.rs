@@ -139,6 +139,7 @@ pub mod model {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct AppState {}
 
 impl AppState {
@@ -155,6 +156,10 @@ impl AppState {
     }
 
     pub fn follow_service(&self) -> FollowApplicationService {
+        todo!()
+    }
+
+    pub fn new() -> Self {
         todo!()
     }
 }
