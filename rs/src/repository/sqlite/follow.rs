@@ -26,7 +26,7 @@ impl<'a> FollowRepository for SqliteRepository<'a> {
             followee_id,
             follow_on,
         )
-        .execute(self)
+        .execute(&mut self.conn)
         .await
         .unwrap();
 
@@ -38,7 +38,7 @@ impl<'a> FollowRepository for SqliteRepository<'a> {
     async fn delete_if_exists(&mut self, follow: &UserFollow) -> Result<(), RepositoryError> {
         if let Some(id) = follow.id() {
             sqlx::query!(r#"DELETE FROM user_follows WHERE id=?"#, id)
-                .execute(self)
+                .execute(&mut self.conn)
                 .await
                 .unwrap();
 
@@ -56,7 +56,7 @@ impl<'a> FollowRepository for SqliteRepository<'a> {
         let follower_uuid = follower_id.to_db();
         let followee_uuid = followee_id.to_db();
         let result = sqlx::query!(r#"SELECT id AS `id: FollowId`,follower_id AS `follower_id: SqliteUuid`,followee_id AS `followee_id: SqliteUuid`,created_at AS `created_at: DateTime` FROM user_follows WHERE follower_id=? AND followee_id=?"#, follower_uuid, followee_uuid)
-            .fetch_optional(self)
+            .fetch_optional(&mut self.conn)
             .await
             .unwrap();
 

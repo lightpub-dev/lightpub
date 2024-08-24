@@ -1,4 +1,8 @@
+use std::fmt::Debug;
+
 use sqlx::{Decode, Encode, Type};
+
+use crate::{domain::factory::post::PostFactory, holder};
 
 pub mod follow;
 pub mod post;
@@ -10,18 +14,26 @@ pub enum Connection<'a> {
     Tx(sqlx::Transaction<'a, sqlx::Sqlite>),
 }
 
-#[derive(Debug)]
 pub struct SqliteRepository<'a> {
     conn: Connection<'a>,
+    post_factory: holder!(PostFactory),
 }
 
 impl<'a> SqliteRepository<'a> {
-    pub fn new(conn: Connection<'a>) -> Self {
-        Self { conn }
+    pub fn new(conn: Connection<'a>, post_factory: holder!(PostFactory)) -> Self {
+        Self { conn, post_factory }
     }
 }
 
-impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut SqliteRepository<'_> {
+impl Debug for SqliteRepository<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqliteRepository")
+            .field("conn", &self.conn)
+            .finish()
+    }
+}
+
+impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut Connection<'_> {
     type Database = sqlx::Sqlite;
 
     fn fetch_many<'e, 'q: 'e, E: 'q>(
@@ -41,7 +53,7 @@ impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut SqliteRepository<'_> {
         'c: 'e,
         E: sqlx::Execute<'q, Self::Database>,
     {
-        match &mut self.conn {
+        match self {
             Connection::Conn(conn) => conn.fetch_many(query),
             Connection::Tx(tx) => tx.fetch_many(query),
         }
@@ -58,7 +70,7 @@ impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut SqliteRepository<'_> {
         'c: 'e,
         E: sqlx::Execute<'q, Self::Database>,
     {
-        match &mut self.conn {
+        match self {
             Connection::Conn(conn) => conn.fetch_optional(query),
             Connection::Tx(tx) => tx.fetch_optional(query),
         }
@@ -75,7 +87,7 @@ impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut SqliteRepository<'_> {
     where
         'c: 'e,
     {
-        match &mut self.conn {
+        match self {
             Connection::Conn(conn) => conn.prepare_with(sql, parameters),
             Connection::Tx(tx) => tx.prepare_with(sql, parameters),
         }
@@ -88,7 +100,7 @@ impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut SqliteRepository<'_> {
     where
         'c: 'e,
     {
-        match &mut self.conn {
+        match self {
             Connection::Conn(conn) => conn.describe(sql),
             Connection::Tx(tx) => tx.describe(sql),
         }

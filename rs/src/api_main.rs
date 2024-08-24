@@ -1,6 +1,13 @@
-use lightpub::api::model::{LoginRequest, RegisterRequest, RegisterResponse};
+use lightpub::api::model::{
+    LoginRequest, PostCreateRequest, PostCreateResponse, RegisterRequest, RegisterResponse,
+};
 use lightpub::api::{validate_password, validate_username, AppState};
+use lightpub::application::service::post::{
+    NormalPostCreateCommand, QuoteCreateCommand, ReplyPostCreateCommand, RepostCreateCommand,
+};
 use lightpub::backend::db::new_db_user_post_service;
+use lightpub::domain::model::post::PostPrivacy;
+use lightpub::domain::model::user::User;
 use lightpub::model::apub::context::ContextAttachable;
 use lightpub::model::apub::{
     AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
@@ -23,9 +30,8 @@ use lightpub::backend::db::{new_db_file_upload_service, new_db_user_profile_serv
 use lightpub::backend::{
     apub::{new_apub_renderer_service, new_apub_reqester_service},
     db::{new_follow_service, new_post_create_service},
-    FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequest,
-    PostCreateRequestNormalBuilder, PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder,
-    PostCreateRequestRepostBuilder,
+    FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequestNormalBuilder,
+    PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder,
 };
 use lightpub::backend::{
     db::{new_auth_service, new_local_user_finder_service},
@@ -46,7 +52,7 @@ use lightpub::model::pagination::{
     PaginatableWrapper, PaginatedResponse,
 };
 use lightpub::model::reaction::ReactionError;
-use lightpub::model::{PostPrivacy, User};
+use lightpub::model::PostPrivacy;
 use lightpub::utils::generate_uuid;
 use lightpub::utils::key::VerifyError;
 use lightpub::utils::key::{verify_signature, KeyFetcher};
@@ -294,7 +300,7 @@ async fn register(
 
     match user {
         Ok(user_id) => Ok(HttpResponse::Ok().json(RegisterResponse {
-            user_id: user_id.id().simple(),
+            user_id: user_id.user_id().to_string(),
         })),
         Err(e) => {
             panic!("Failed to create user: {:?}", e);
@@ -328,78 +334,71 @@ async fn login(
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct PostRequest {
-    pub content: Option<String>,
-    pub privacy: PostPrivacy,
-    pub reply_to_id: Option<Uuid>,
-    pub repost_of_id: Option<Uuid>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PostCreateResponse {
-    pub post_id: Simple,
+fn post_privacy_from_str(s: &str) -> Result<PostPrivacy, ErrorResponse> {
+    match s {
+        "public" => Ok(PostPrivacy::Public),
+        "unlisted" => Ok(PostPrivacy::Unlisted),
+        "followers" => Ok(PostPrivacy::Followers),
+        "private" => Ok(PostPrivacy::Private),
+        _ => Err(ErrorResponse::new_status(400, "invalid privacy")),
+    }
 }
 
 #[post("/post")]
 async fn post_post(
-    body: web::Json<PostRequest>,
+    body: web::Json<PostCreateRequest>,
     data: web::Data<AppState>,
     auth: AuthUser,
 ) -> Result<impl Responder, ErrorResponse> {
     let user = auth.must_auth()?;
 
-    let pool = data.pool().clone();
-    let mut post_service = new_post_create_service(pool.clone(), data.config().clone());
+    let mut post_create_service = data.post_create_service();
 
-    let post = match (body.repost_of_id, body.reply_to_id) {
-        (None, None) => PostCreateRequest::Normal(
-            PostCreateRequestNormalBuilder::default()
-                .poster(user.id.into())
-                .content(
-                    body.content
-                        .clone()
-                        .ok_or(ErrorResponse::new_status(400, "content is null"))?,
-                )
-                .privacy(body.privacy)
-                .build()
-                .unwrap(),
-        ),
+    let author_id = user.id().to_string();
+    let post = match (&body.repost_of_id, &body.reply_to_id) {
+        (None, None) => post_create_service
+            .create_post(&NormalPostCreateCommand {
+                author_id: &author_id,
+                content: body.content.as_ref().unwrap(),
+                privacy: post_privacy_from_str(&body.privacy)?,
+                created_at: chrono::Utc::now(),
+            })
+            .await
+            .unwrap(),
         (Some(repost_of_id), None) => {
             if let Some(content) = body.content.clone() {
-                PostCreateRequest::Quote(
-                    PostCreateRequestQuoteBuilder::default()
-                        .poster(user.id.into())
-                        .content(content)
-                        .privacy(body.privacy)
-                        .repost_of(repost_of_id.into())
-                        .build()
-                        .unwrap(),
-                )
+                post_create_service
+                    .create_quote(&QuoteCreateCommand {
+                        author_id: &author_id,
+                        content: &content,
+                        privacy: post_privacy_from_str(&body.privacy)?,
+                        quote_of: &repost_of_id,
+                        created_at: chrono::Utc::now(),
+                    })
+                    .await
+                    .unwrap()
             } else {
-                PostCreateRequest::Repost(
-                    PostCreateRequestRepostBuilder::default()
-                        .poster(user.id.into())
-                        .privacy(body.privacy)
-                        .repost_of(repost_of_id.into())
-                        .build()
-                        .unwrap(),
-                )
+                post_create_service
+                    .create_repost(&RepostCreateCommand {
+                        author_id: &author_id,
+                        privacy: post_privacy_from_str(&body.privacy)?,
+                        repost_of: &repost_of_id,
+                        created_at: chrono::Utc::now(),
+                    })
+                    .await
+                    .unwrap()
             }
         }
-        (None, Some(reply_to_id)) => PostCreateRequest::Reply(
-            PostCreateRequestReplyBuilder::default()
-                .poster(user.id.into())
-                .content(
-                    body.content
-                        .clone()
-                        .ok_or_else(|| ErrorResponse::new_status(400, "content is null"))?,
-                )
-                .privacy(body.privacy)
-                .reply_to(reply_to_id.into())
-                .build()
-                .unwrap(),
-        ),
+        (None, Some(reply_to_id)) => post_create_service
+            .create_reply(&ReplyPostCreateCommand {
+                author_id: &author_id,
+                content: body.content.as_ref().unwrap(),
+                privacy: post_privacy_from_str(&body.privacy)?,
+                reply_to: &reply_to_id,
+                created_at: chrono::Utc::now(),
+            })
+            .await
+            .unwrap(),
         _ => {
             return Err(ErrorResponse::new_status(
                 400,
@@ -408,22 +407,9 @@ async fn post_post(
         }
     };
 
-    let req = post_service.create_post(&post).await.map_err(|e| {
-        use PostCreateError::*;
-        match &e {
-            ServiceError::SpecificError(s) => match s {
-                RepostOfNotFound => ErrorResponse::new_status(404, "repost_of_id not found"),
-                ReplyToNotFound => ErrorResponse::new_status(404, "reply_to not found"),
-                DisallowedPrivacyForRepost => {
-                    ErrorResponse::new_status(400, "only public or unlisted repost can be made")
-                }
-                _ => e.into(),
-            },
-            _ => e.into(),
-        }
-    })?;
-
-    Ok(HttpResponse::Ok().json(PostCreateResponse { post_id: req }))
+    Ok(HttpResponse::Ok().json(PostCreateResponse {
+        post_id: post.id().to_string(),
+    }))
 }
 
 #[derive(Debug, Deserialize)]

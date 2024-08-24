@@ -1,7 +1,10 @@
-use crate::application::service::user::{UserApplicationService, UserSecurityApplicationService};
+use crate::application::service::{
+    post::PostCreateApplicationService,
+    user::{UserApplicationService, UserSecurityApplicationService},
+};
 
 pub mod model {
-    use uuid::fmt::Simple;
+    use uuid::Uuid;
 
     macro_rules! Request {
         ($name:ident, $($field:ident $type:ty),*) => {
@@ -32,7 +35,7 @@ pub mod model {
         password String
     );
     Response!(RegisterResponse,
-        user_id Simple
+        user_id String
     );
 
     // User login
@@ -42,6 +45,18 @@ pub mod model {
     );
     Response!(LoginResponse,
         token String
+    );
+
+    // Post create
+    Request!(PostCreateRequest,
+        content Option<String>,
+        privacy String,
+        reply_to_id Option<String>,
+        repost_of_id Option<String>
+    );
+
+    Response!(PostCreateResponse,
+        post_id String
     );
 }
 
@@ -53,6 +68,10 @@ impl AppState {
     }
 
     pub fn user_security_service(&self) -> UserSecurityApplicationService {
+        todo!()
+    }
+
+    pub fn post_create_service(&self) -> PostCreateApplicationService {
         todo!()
     }
 }

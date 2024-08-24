@@ -1,4 +1,4 @@
-use dto::AuthTokenData;
+use dto::{AuthTokenData, UserIdData};
 
 use crate::{
     domain::{
@@ -29,7 +29,7 @@ impl UserApplicationService {
         username: &str,
         nickname: &str,
         passwd: &str,
-    ) -> Result<UserId, anyhow::Error> {
+    ) -> Result<UserIdData, anyhow::Error> {
         let mut new_user = User::new(
             UserId::from_uuid(IDGenerationService::generate_id()),
             Username::from_str(username).unwrap(),
@@ -50,7 +50,7 @@ impl UserApplicationService {
 
         self.uow.commit().await?;
 
-        Ok(new_user.id())
+        Ok(UserIdData::from_user_id(new_user.id()))
     }
 }
 
@@ -98,6 +98,8 @@ impl UserSecurityApplicationService {
 }
 
 mod dto {
+    use crate::domain::model::user::UserId;
+
     pub struct AuthTokenData {
         token: String,
     }
@@ -109,6 +111,19 @@ mod dto {
 
         pub fn token(&self) -> &str {
             &self.token
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct UserIdData(UserId);
+
+    impl UserIdData {
+        pub fn from_user_id(user_id: UserId) -> Self {
+            Self(user_id)
+        }
+
+        pub fn user_id(&self) -> UserId {
+            self.0
         }
     }
 }

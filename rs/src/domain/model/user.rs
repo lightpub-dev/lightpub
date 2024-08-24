@@ -18,6 +18,10 @@ impl UserId {
     pub fn id(&self) -> Uuid {
         self.0
     }
+
+    pub fn to_string(&self) -> String {
+        self.0.simple().to_string()
+    }
 }
 
 // Username value object
