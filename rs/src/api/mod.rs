@@ -1,7 +1,9 @@
 use std::fmt::Display;
 
-use serde::Serialize;
+use derive_getters::Getters;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sqlx::SqlitePool;
 
 use crate::application::service::{
     follow::FollowApplicationService,
@@ -148,11 +150,12 @@ pub mod model {
 #[derive(Debug, Clone)]
 pub struct AppState {
     config: AppConfig,
+    pool: SqlitePool,
 }
 
 impl AppState {
     pub fn user_service(&self) -> UserApplicationService {
-        todo!()
+        UserApplicationService::new()
     }
 
     pub fn user_security_service(&self) -> UserSecurityApplicationService {
@@ -167,34 +170,36 @@ impl AppState {
         todo!()
     }
 
-    pub fn new() -> Self {
-        todo!()
+    pub fn new(config: AppConfig, pool: SqlitePool) -> Self {
+        Self { config, pool }
     }
 
     pub fn config(&self) -> &AppConfig {
         &self.config
     }
+
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Getters, Deserialize, Serialize)]
 pub struct AppConfig {
-    pub database: DatabaseConfig,
-    pub base_url: String,
+    database: DatabaseConfig,
+    base_url: String,
+    dev: bool,
+    upload_dir: String,
 }
 
 impl AppConfig {
-    pub fn base_url(&self) -> &str {
-        &self.base_url
-    }
-
     pub fn hostname(&self) -> &str {
         todo!()
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Getters, Deserialize, Serialize)]
 pub struct DatabaseConfig {
-    pub url: String,
+    url: String,
 }
 
 pub trait HasStatusCode: Display + std::fmt::Debug + Send + Sync {

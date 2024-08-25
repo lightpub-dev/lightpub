@@ -1,4 +1,5 @@
 use derive_builder::Builder;
+use derive_more::Constructor;
 use dto::{AuthTokenData, UserData, UserIdData};
 
 use crate::{
@@ -16,10 +17,12 @@ use crate::{
 
 use super::id::IDGenerationService;
 
+#[derive(Constructor)]
 pub struct UserApplicationService {
     uow: holder!(UnitOfWork),
 }
 
+#[derive(Constructor)]
 pub struct UserSecurityApplicationService {
     uow: holder!(UnitOfWork),
     auth_token_factory: holder!(AuthTokenFactory),

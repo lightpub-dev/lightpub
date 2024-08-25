@@ -81,39 +81,40 @@ impl FromRequest for AuthUser {
             let data = web::Data::<AppState>::extract(&req).await.unwrap();
 
             // try with http-signature auth
-            let mut key_fetcher =
-                new_db_key_fetcher_service(data.pool().clone(), data.config().clone());
-            let sig_result = verify_signature(
-                HeaderMapWrapper::from_actix(req.headers()),
-                Method::from_actix(req.method()),
-                req.path(),
-                key_fetcher.borrow_mut() as &mut (dyn KeyFetcher + Send + Sync),
-            )
-            .await;
-            match sig_result {
-                Ok(u) => {
-                    let mut user_finder =
-                        new_all_user_finder_service(data.pool().clone(), data.config().clone());
-                    let user = user_finder.find_user_by_specifier(&u).await?;
-                    return Ok(AuthUser::from_user(user));
-                }
-                Err(e) => {
-                    use VerifyError::*;
-                    match e {
-                        SignatureNotFound => {
-                            // try with bearer token, continue
-                        }
-                        SignatureInvalid | SignatureNotMatch | KeyNotFound | InsufficientHeader => {
-                            return Err(ErrorResponse::new_status(401, "unauthorized"))
-                        }
-                        Other(_) => {
-                            error!("Other error: {:?}", e);
-                            return Err(ErrorResponse::new_status(500, "internal server error"));
-                        }
-                    }
-                }
-            }
+            // let mut key_fetcher =
+            //     new_db_key_fetcher_service(data.pool().clone(), data.config().clone());
+            // let sig_result = verify_signature(
+            //     HeaderMapWrapper::from_actix(req.headers()),
+            //     Method::from_actix(req.method()),
+            //     req.path(),
+            //     key_fetcher.borrow_mut() as &mut (dyn KeyFetcher + Send + Sync),
+            // )
+            // .await;
+            // match sig_result {
+            //     Ok(u) => {
+            //         let mut user_finder =
+            //             new_all_user_finder_service(data.pool().clone(), data.config().clone());
+            //         let user = user_finder.find_user_by_specifier(&u).await?;
+            //         return Ok(AuthUser::from_user(user));
+            //     }
+            //     Err(e) => {
+            //         use VerifyError::*;
+            //         match e {
+            //             SignatureNotFound => {
+            //                 // try with bearer token, continue
+            //             }
+            //             SignatureInvalid | SignatureNotMatch | KeyNotFound | InsufficientHeader => {
+            //                 return Err(ErrorResponse::new_status(401, "unauthorized"))
+            //             }
+            //             Other(_) => {
+            //                 error!("Other error: {:?}", e);
+            //                 return Err(ErrorResponse::new_status(500, "internal server error"));
+            //             }
+            //         }
+            //     }
+            // }
 
+            // Bearer token auth
             let authorization = match req.headers().get("Authorization") {
                 Some(a) => a,
                 None => return Ok(AuthUser::unauthed()),
@@ -121,11 +122,11 @@ impl FromRequest for AuthUser {
 
             let header_value = authorization
                 .to_str()
-                .map_err(|_| ErrorResponse::new_status(401, "unauthorized"))?;
+                .map_err(|_| ErrorResponse::new(401, "unauthorized"))?;
             let bearer = if header_value.starts_with("Bearer ") {
                 &header_value[7..]
             } else {
-                return Err(ErrorResponse::new_status(401, "unauthorized").into());
+                return Err(ErrorResponse::new(401, "unauthorized").into());
             };
 
             let data = web::Data::<AppState>::extract(&req).await.unwrap();
@@ -135,16 +136,8 @@ impl FromRequest for AuthUser {
             let authed_user = user_security_service.validate_token(bearer).await?;
 
             match authed_user {
-                Ok(u) => Ok(AuthUser::from_user(u)),
-                Err(e) => match e {
-                    ServiceError::SpecificError(AuthError::TokenNotSet) => {
-                        Err(ErrorResponse::new_status(401, "unauthorized"))
-                    }
-                    e => {
-                        error!("Failed to authenticate user: {:?}", e);
-                        Err(ErrorResponse::new_status(500, "internal server error"))
-                    }
-                },
+                Some(u) => Ok(AuthUser::from_user(u.user_id().to_string())),
+                None => Err(ErrorResponse::new(401, "unauthorized")),
             }
         })
     }
@@ -187,10 +180,6 @@ impl FromRequest for ApubRequested {
         let req = req.clone();
         Box::pin(async move { Ok(ApubRequested::from_req(&req)) })
     }
-}
-
-fn new_id_getter_service(config: Config) -> IDGetterService {
-    IDGetterService::new(config)
 }
 
 #[post("/register")]
@@ -647,10 +636,10 @@ async fn main() -> std::io::Result<()> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
-    let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
+    let config: AppConfig = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let conn_str = format!("sqlite:{}", config.database.path);
+    let conn_str = format!("sqlite:{}", config.database().url());
     let pool = SqlitePoolOptions::new()
         .connect(&conn_str)
         .await
@@ -665,14 +654,14 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("Migrations complete");
 
     // create upload_dir
-    let upload_dir = config.upload_dir.clone();
+    let upload_dir = config.upload_dir().clone();
     web::block(move || {
         std::fs::create_dir_all(upload_dir).expect("failed to create upload_dir");
     })
     .await
     .unwrap();
 
-    let app_state = AppState::new();
+    let app_state = AppState::new(config.clone(), pool);
 
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -702,7 +691,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_user_outbox)
             .service(timeline);
 
-        if config.dev.debug {
+        if *config.dev() {
             app = app.service(truncate_database);
         }
 

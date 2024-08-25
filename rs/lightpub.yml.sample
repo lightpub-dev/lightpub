@@ -1,30 +1,8 @@
+base_url: https://lighpub.tinax.local
 hostname: lightpub.tinax.local
-http_scheme: https
-instance:
-  name: Lightpub dev
-  description: Lightpub development server
-  open_registration: true
-frontend_url: http://localhost:5173/#
-allowed_hosts:
-  - lightpub.tinax.local
-  - localhost
-  - 127.0.0.1
-cors_allowed_origins:
-  - http://localhost:5173
-  - https://lightpub.tinax.local
 database:
-  path: ./db/sample_db.sqlite3
-queue:
-  host: 127.0.0.1
-  port: 5672
-  user: guest
-  password: guest
+  url: ./db/sample_db.sqlite3
 upload_dir: uploads
-background_task_runner:
-  broker_url: redis://localhost:6380/1
-dev:
-  debug: true
-  ssl_verify: false
+dev: true
 federation:
   enabled: true
-

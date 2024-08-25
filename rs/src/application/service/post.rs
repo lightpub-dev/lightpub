@@ -1,3 +1,4 @@
+use derive_more::Constructor;
 use dto::PostIdData;
 
 use crate::{
@@ -13,6 +14,7 @@ use crate::{
     repository::interface::uow::UnitOfWork,
 };
 
+#[derive(Constructor)]
 pub struct PostCreateApplicationService {
     uow: holder!(UnitOfWork),
     post_factory: holder!(PostFactory),

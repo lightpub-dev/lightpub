@@ -1,3 +1,5 @@
+use derive_more::Constructor;
+
 use crate::{
     domain::{
         factory::follow::{DefaultUserFollowFactory, UserFollowFactory},
@@ -7,6 +9,7 @@ use crate::{
     repository::interface::uow::UnitOfWork,
 };
 
+#[derive(Constructor)]
 pub struct FollowApplicationService {
     uow: holder!(UnitOfWork),
 }

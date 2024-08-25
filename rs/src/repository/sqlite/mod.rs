@@ -1,8 +1,12 @@
 use std::fmt::Debug;
 
-use sqlx::{Decode, Encode, Type};
+use async_trait::async_trait;
+use derive_more::Constructor;
+use sqlx::{Decode, Encode, SqliteConnection, SqlitePool, Type};
 
 use crate::{domain::factory::post::PostFactory, holder};
+
+use super::interface::uow::{RepositoryManager, UnitOfWork};
 
 pub mod follow;
 pub mod post;
@@ -173,4 +177,29 @@ impl<'r> Decode<'r, sqlx::Sqlite> for SqliteUuid {
         let uuid = <uuid::fmt::Simple as sqlx::Decode<sqlx::Sqlite>>::decode(value)?;
         Ok(SqliteUuid { uuid: uuid.into() })
     }
+}
+
+#[derive(Debug)]
+pub struct SqliteUow {
+    conn: SqliteConnection,
+    tx: Option<sqlx::Transaction<'static, sqlx::Sqlite>>,
+}
+
+impl SqliteUow {
+    pub fn new(conn: SqlitePool) -> Self {
+        conn.acquire().await
+        Self { conn. }
+    }
+}
+
+#[async_trait]
+impl UnitOfWork for SqliteUow {
+    fn repository_manager(&self) -> holder!(RepositoryManager) {}
+
+    async fn commit(&mut self) -> Result<(), anyhow::Error> {}
+    async fn rollback(&mut self) -> Result<(), anyhow::Error> {}
+}
+
+pub struct SqliteRepositoryManager {
+    conn: Connection<
 }
