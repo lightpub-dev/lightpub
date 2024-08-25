@@ -1,4 +1,7 @@
+use std::fmt::Display;
+
 pub mod auth;
+pub mod ctx;
 pub mod follow;
 pub mod post;
 pub mod user;
@@ -32,11 +35,17 @@ impl DateTime {
 pub struct URI(String);
 
 impl URI {
-    pub fn from_str(uri: String) -> Option<Self> {
-        Some(Self(uri))
+    pub fn from_str(uri: impl Into<String>) -> Option<Self> {
+        Some(Self(uri.into()))
     }
 
     pub fn to_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl Display for URI {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }

@@ -65,6 +65,12 @@ pub mod model {
         post_id String
     );
 
+    // Webfinger
+    #[derive(Debug, Deserialize)]
+    pub struct WebfingerQuery {
+        pub resource: String,
+    }
+
     #[derive(Debug, Clone, PartialEq)]
     pub enum UserSpecifier {
         ID(String),
@@ -140,7 +146,9 @@ pub mod model {
 }
 
 #[derive(Debug, Clone)]
-pub struct AppState {}
+pub struct AppState {
+    config: AppConfig,
+}
 
 impl AppState {
     pub fn user_service(&self) -> UserApplicationService {
@@ -162,6 +170,31 @@ impl AppState {
     pub fn new() -> Self {
         todo!()
     }
+
+    pub fn config(&self) -> &AppConfig {
+        &self.config
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppConfig {
+    pub database: DatabaseConfig,
+    pub base_url: String,
+}
+
+impl AppConfig {
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn hostname(&self) -> &str {
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DatabaseConfig {
+    pub url: String,
 }
 
 pub trait HasStatusCode: Display + std::fmt::Debug + Send + Sync {

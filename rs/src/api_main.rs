@@ -1,21 +1,15 @@
 use lightpub::api::model::{
     LoginRequest, PostCreateRequest, PostCreateResponse, RegisterRequest, RegisterResponse,
-    UserSpecifier,
+    UserSpecifier, WebfingerQuery,
 };
-use lightpub::api::{validate_password, validate_username, AppState, ErrorResponse};
+use lightpub::api::{AppConfig, AppState, ErrorResponse};
 use lightpub::application::service::post::{
     NormalPostCreateCommand, QuoteCreateCommand, ReplyPostCreateCommand, RepostCreateCommand,
 };
-use lightpub::backend::db::new_db_user_post_service;
+use lightpub::application::service::user::GetUserOptionsBuilder;
 use lightpub::domain::model::post::PostPrivacy;
 use lightpub::domain::model::user::User;
-use lightpub::model::apub::context::ContextAttachable;
-use lightpub::model::apub::{
-    AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
-    UndoableActivity, PUBLIC,
-};
-use lightpub::model::reaction::Reaction;
-use lightpub::model::{PostSpecifier, UserSpecifier};
+use lightpub::domain::service::user::UserService;
 
 use actix_cors::Cors;
 use actix_multipart::form::MultipartForm;
@@ -25,38 +19,6 @@ use actix_web::{
     Responder,
 };
 use clap::Parser;
-use lightpub::backend::apub::render::RenderedNoteObject;
-use lightpub::backend::db::{new_all_user_finder_service, new_db_key_fetcher_service};
-use lightpub::backend::db::{new_db_file_upload_service, new_db_user_profile_service};
-use lightpub::backend::{
-    apub::{new_apub_renderer_service, new_apub_reqester_service},
-    db::{new_follow_service, new_post_create_service},
-    FollowRequestSpecifier, IncomingFollowRequest, PostCreateError, PostCreateRequestNormalBuilder,
-    PostCreateRequestQuoteBuilder, PostCreateRequestReplyBuilder, PostCreateRequestRepostBuilder,
-};
-use lightpub::backend::{
-    db::{new_auth_service, new_local_user_finder_service},
-    id::IDGetterService,
-    AuthError, LocalUserFindError, ServiceError, UserCreateRequest, UserCreateRequestBuilder,
-    UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
-};
-use lightpub::backend::{
-    FetchFollowListOptions, FetchUserPostsOptions, PostInteractionAction, TimelineOptions,
-    UserCreateError, UserFindError, UserProfileUpdate,
-};
-use lightpub::backend::{PostDeleteError, PostFetchError};
-use lightpub::config::Config;
-use lightpub::model::apub::LikeActivity;
-use lightpub::model::http::{HeaderMapWrapper, Method};
-use lightpub::model::pagination::{
-    CollectionPageResponse, CollectionPageType, CollectionResponse, CollectionType,
-    PaginatableWrapper, PaginatedResponse,
-};
-use lightpub::model::reaction::ReactionError;
-use lightpub::model::PostPrivacy;
-use lightpub::utils::generate_uuid;
-use lightpub::utils::key::VerifyError;
-use lightpub::utils::key::{verify_signature, KeyFetcher};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -71,17 +33,20 @@ use std::{
 use tracing::{debug, error, info, warn};
 use uuid::{fmt::Simple, Uuid};
 
-use lightpub::backend::db::new_user_service;
+#[allow(unreachable_code)]
+fn api_todo() -> HandlerResponse<impl Responder> {
+    todo!() as HandlerResponse<String>
+}
 
 #[derive(Debug)]
 struct AuthUser {
-    authed_user: Option<User>,
+    authed_user: Option<String>, // user_id
 }
 
 impl AuthUser {
-    pub fn from_user(user: User) -> Self {
+    pub fn from_user(user: impl Into<String>) -> Self {
         Self {
-            authed_user: Some(user),
+            authed_user: Some(user.into()),
         }
     }
 
@@ -89,15 +54,15 @@ impl AuthUser {
         Self { authed_user: None }
     }
 
-    pub fn must_auth(&self) -> Result<&User, ErrorResponse> {
+    pub fn must_auth(&self) -> Result<&str, ErrorResponse> {
         match &self.authed_user {
             Some(u) => Ok(&u),
-            None => Err(ErrorResponse::new_status(401, "unauthorized")),
+            None => Err(ErrorResponse::new(401, "unauthorized")),
         }
     }
 
-    pub fn may_auth(&self) -> Result<&Option<User>, ErrorResponse> {
-        Ok(&self.authed_user)
+    pub fn may_auth(&self) -> Result<Option<&str>, ErrorResponse> {
+        Ok(self.authed_user.as_ref().map(|s| s.as_str()))
     }
 }
 
@@ -165,9 +130,9 @@ impl FromRequest for AuthUser {
 
             let data = web::Data::<AppState>::extract(&req).await.unwrap();
 
-            let mut auth_service = new_auth_service(data.pool().clone());
+            let mut user_security_service = data.user_security_service();
 
-            let authed_user = auth_service.authenticate_user(bearer).await;
+            let authed_user = user_security_service.validate_token(bearer).await?;
 
             match authed_user {
                 Ok(u) => Ok(AuthUser::from_user(u)),
@@ -300,7 +265,7 @@ async fn post_post(
 
     let mut post_create_service = data.post_create_service();
 
-    let author_id = user.id().to_string();
+    let author_id = user;
     let post = match (&body.repost_of_id, &body.reply_to_id) {
         (None, None) => post_create_service
             .create_post(&NormalPostCreateCommand {
@@ -392,9 +357,7 @@ async fn user_create_follow(
         }
     };
 
-    follow_service
-        .follow(&user.id().to_string(), &followee_id)
-        .await?;
+    follow_service.follow(user, &followee_id).await?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -428,9 +391,7 @@ async fn user_delete_follow(
         }
     };
 
-    follow_service
-        .unfollow(&user.id().to_string(), &followee_id)
-        .await?;
+    follow_service.unfollow(user, &followee_id).await?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -453,7 +414,7 @@ async fn node_info_2_1(app: web::Data<AppState>) -> impl Responder {
         .body(node_info.to_string())
 }
 
-fn gen_node_info(node_info_version: &str, config: &Config) -> serde_json::Value {
+fn gen_node_info(node_info_version: &str, config: &AppConfig) -> serde_json::Value {
     json!({
         "version": node_info_version,
         "software": {
@@ -471,17 +432,17 @@ fn gen_node_info(node_info_version: &str, config: &Config) -> serde_json::Value 
                 // "total": get_total_users(),
             // }
         },
-        "metadata": {
-            "nodeName": config.instance.name,
-            "nodeDescription": config.instance.description,
-        },
+        // "metadata": {
+        //     "nodeName": config.instance.name,
+        //     "nodeDescription": config.instance.description,
+        // },
     })
 }
 
 #[get("/.well-known/nodeinfo")]
 async fn well_known_node_info(app: web::Data<AppState>) -> impl Responder {
-    let link_2_0 = format!("{}/nodeinfo/2.0", app.base_url());
-    let link_2_1 = format!("{}/nodeinfo/2.1", app.base_url());
+    let link_2_0 = format!("{}/nodeinfo/2.0", app.config().base_url());
+    let link_2_1 = format!("{}/nodeinfo/2.1", app.config().base_url());
     let body = json!({
         "links": [
             {
@@ -500,11 +461,6 @@ async fn well_known_node_info(app: web::Data<AppState>) -> impl Responder {
         .body(body.to_string())
 }
 
-#[derive(Debug, Deserialize)]
-struct WebfingerQuery {
-    resource: String,
-}
-
 #[get("/.well-known/webfinger")]
 async fn webfinger(
     query: web::Query<WebfingerQuery>,
@@ -519,32 +475,40 @@ async fn webfinger(
         return Ok(HttpResponse::BadRequest().body("Invalid resource"));
     }
 
+    let mut user_service = app.user_service();
+
     let acct_id = parts[1];
-    let user_spec = if !acct_id.contains("@") {
+    let user_id = if !acct_id.contains("@") {
         // contains username only
-        UserSpecifier::from_username(acct_id.to_string(), None)
+        user_service
+            .get_user_id_by_username_and_host(acct_id, None)
+            .await?
     } else {
         let parts: Vec<&str> = acct_id.split("@").collect();
         if parts.len() != 2 {
             return Ok(HttpResponse::BadRequest().body("Invalid resource"));
         }
-        if parts[1] != app.config().hostname {
+        if parts[1] != app.config().hostname() {
             return Ok(HttpResponse::NotFound().body("user not found"));
         }
-        UserSpecifier::from_username(parts[0].to_string(), None)
+        user_service
+            .get_user_id_by_username_and_host(parts[0], None)
+            .await?
     };
-    let mut user_finder = new_local_user_finder_service(app.pool().clone());
-    let user = user_finder
-        .find_user_by_specifier(&user_spec)
-        .await
-        .map_err(|e| match e {
-            ServiceError::SpecificError(LocalUserFindError::NotLocalUser) => {
-                ErrorResponse::new_status(404, "user not found")
-            }
-            _ => e.into(),
-        })?;
 
-    let base_url = app.base_url();
+    let user = match user_id {
+        Some(id) => user_service
+            .get_user_by_id(
+                &id.user_id().to_string(),
+                &GetUserOptionsBuilder::default()
+                    .fill_uris(true) // set uri field event if the user is local
+                    .build()
+                    .unwrap(),
+            )
+            .await?
+            .unwrap(), // user should exist
+        None => return Ok(HttpResponse::NotFound().body("user not found")),
+    };
 
     Ok(HttpResponse::Ok().content_type("application/json").body(
         json!({
@@ -553,7 +517,7 @@ async fn webfinger(
                 {
                     "rel": "self",
                     "type": "application/activity+json",
-                    "href": format!("{}/user/{}", base_url, user.id.to_string())
+                    "href": format!("{}/user/{}", app.config().base_url(), user.uri().unwrap())
                 }
             ]
         })
@@ -563,7 +527,7 @@ async fn webfinger(
 
 #[get("/.well-known/host-meta")]
 async fn host_meta(app: web::Data<AppState>) -> HandlerResponse<impl Responder> {
-    let base_url = app.base_url();
+    let base_url = app.config().base_url();
     let xml = r#"
     <?xml version="1.0" encoding="UTF-8"?>
     <XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">
@@ -584,309 +548,7 @@ async fn user_inbox(
     auth: AuthUser,
     body: web::Json<serde_json::Value>,
 ) -> HandlerResponse<impl Responder> {
-    debug!("user_inbox: {:?}", params);
-    debug!("{:?}", body);
-
-    let authed_user = auth.must_auth()?;
-    let id_getter = new_id_getter_service(app.config().clone());
-    let authed_user_uri = id_getter.get_user_id(authed_user);
-
-    // deserialize into ActivityPub activity
-    let activity = lightpub::model::apub::Activity::deserialize(&body.0).map_err(|e| {
-        warn!("Failed to deserialize activity: {:?}", e);
-        ErrorResponse::new_status(400, "invalid activity")
-    })?;
-
-    let authfail = || {
-        Err(ErrorResponse::new_status(
-            401,
-            "actor does not match key owner",
-        ))
-    };
-
-    debug!("parsed activity {:#?}", activity);
-
-    use lightpub::model::apub::Activity::*;
-    match activity {
-        Accept(a) => {
-            let actor_id = a.actor;
-            if authed_user_uri != actor_id {
-                return authfail();
-            }
-            let req_spec = match a.object {
-                lightpub::model::apub::IdOrObject::Id(id) => todo!("fetch object by id: {}", id),
-                lightpub::model::apub::IdOrObject::Object(obj) => match obj {
-                    AcceptableActivity::Follow(obj) => {
-                        let object_actor_id = obj.actor;
-                        let object_object_id = obj.object.get_id();
-                        if actor_id != object_object_id {
-                            return Err(ErrorResponse::new_status(
-                                400,
-                                "actor and object id mismatch",
-                            ));
-                        }
-                        FollowRequestSpecifier::ActorPair(
-                            UserSpecifier::URL(object_actor_id),
-                            UserSpecifier::URL(object_object_id.to_string()),
-                        )
-                    }
-                },
-            };
-
-            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
-            info!("accepting follow request of {:#?}", req_spec);
-            let result = follow_service.follow_request_accepted(&req_spec).await?;
-            info!(
-                "follow request accepted: FollowRequestID: {} -> {}",
-                result.follower_id.simple(),
-                result.followee_id.simple()
-            );
-        }
-        Follow(follow) => {
-            let follow_id = follow
-                .id
-                .ok_or_else(|| ErrorResponse::new_status(400, "follow id is not set"))?;
-            let actor_id = follow.actor;
-            let object_id = follow.object.get_id().to_string();
-
-            if authed_user_uri != actor_id {
-                return authfail();
-            }
-
-            debug!("accepting follow request of {} -> {}", actor_id, object_id);
-            let mut follow_service = new_follow_service(app.pool().clone(), app.config().clone());
-            follow_service
-                .incoming_follow_request(&IncomingFollowRequest::ActorPair(
-                    follow_id,
-                    UserSpecifier::URL(actor_id),
-                    UserSpecifier::URL(object_id),
-                ))
-                .await?;
-        }
-        Create(create) => {
-            let actor_id = create.actor;
-
-            if authed_user_uri != actor_id {
-                return authfail();
-            }
-
-            // get object
-            let object = {
-                match create.object {
-                    IdOrObject::Id(id) => {
-                        // request object using id
-                        let mut reqester_service =
-                            new_apub_reqester_service(app.pool().clone(), app.config());
-                        if let CreatableObject::Note(object_note) =
-                            reqester_service.fetch_post(&id).await?
-                        {
-                            Some(object_note)
-                        } else {
-                            warn!("object not found");
-                            return Err(ErrorResponse::new_status(404, "object not found"));
-                        }
-                    }
-                    IdOrObject::Object(CreatableObject::Note(note)) => Some(note),
-                    IdOrObject::Object(CreatableObject::Tombstone(_)) => {
-                        warn!("tombstone object is not allowed");
-                        return Err(ErrorResponse::new_status(400, "invalid activity"));
-                    }
-                }
-            }
-            .ok_or_else(|| {
-                warn!("create object_id not found");
-                ErrorResponse::new_status(400, "invalid activity")
-            })?;
-
-            let object_attributed_to = &object.attributed_to;
-            if object_attributed_to != actor_id.as_str() {
-                return Err(ErrorResponse::new_status(
-                    400,
-                    "object's attribute_to does not match actor",
-                ));
-            }
-
-            let post_request = &object.try_into().unwrap();
-
-            let mut post_service =
-                new_post_create_service(app.pool().clone(), app.config().clone());
-            let result = post_service.create_post(post_request).await;
-            match result {
-                Ok(post_id) => {
-                    info!("post created: {}", post_id);
-                }
-                Err(ServiceError::SpecificError(PostCreateError::AlreadyExists)) => {
-                    info!("post already exists, skip");
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        }
-        Announce(announce) => {
-            let actor_id = announce.actor;
-
-            if authed_user_uri != actor_id {
-                return authfail();
-            }
-
-            let repost_id = announce.id;
-            let object_id = announce.object.get_id();
-            let published_at = announce.published.to_utc();
-
-            let (to, cc) = {
-                let mut to = announce.to;
-                let mut cc = announce.cc;
-                let bto = announce.bto.unwrap_or_default();
-                let bcc = announce.bcc.unwrap_or_default();
-                to.extend(bto);
-                cc.extend(bcc);
-                (to, cc)
-            };
-            let privacy = {
-                if to.contains(&PUBLIC.to_string()) {
-                    PostPrivacy::Public
-                } else if cc.contains(&PUBLIC.to_string()) {
-                    PostPrivacy::Unlisted
-                } else {
-                    warn!("rejected: Announce object's privacy must be public or unlisted.");
-                    return Err(ErrorResponse::new_status(400, "invalid activity"));
-                }
-            };
-
-            let repost = PostCreateRequest::Repost(
-                PostCreateRequestRepostBuilder::default()
-                    .poster(UserSpecifier::from_url(actor_id))
-                    .uri(repost_id)
-                    .privacy(privacy)
-                    .created_at(published_at)
-                    .repost_of(PostSpecifier::from_uri(object_id))
-                    .build()
-                    .unwrap(),
-            );
-
-            let mut post_service =
-                new_post_create_service(app.pool().clone(), app.config().clone());
-            let result = post_service.create_post(&repost).await;
-            match result {
-                Ok(post_id) => {
-                    info!("repost created: {}", post_id);
-                }
-                Err(e) => match e {
-                    ServiceError::SpecificError(PostCreateError::AlreadyExists) => {
-                        info!("repost already exists, skip");
-                    }
-                    _ => {
-                        return Err(e.into());
-                    }
-                },
-            }
-        }
-        Reject(reject) => {
-            let actor_id = reject.actor;
-
-            if authed_user_uri != actor_id {
-                return authfail();
-            }
-
-            match reject.object {
-                RejectableActivity::Follow(f) => {
-                    let follower_id = f.actor;
-                    let followee_id = f.object.get_id();
-
-                    if followee_id != actor_id {
-                        return authfail();
-                    }
-                    let mut follow_service =
-                        new_follow_service(app.pool().clone(), app.config().clone());
-                    follow_service
-                        .unfollow_user(
-                            &UserSpecifier::from_url(follower_id),
-                            &UserSpecifier::from_url(followee_id),
-                        )
-                        .await?;
-                }
-            }
-        }
-        Undo(undo) => {
-            let actor_id = undo.actor;
-
-            if authed_user_uri != actor_id {
-                return authfail();
-            }
-
-            match undo.object {
-                UndoableActivity::Follow(f) => {
-                    let follower_id = f.actor;
-                    let followee_id = f.object.get_id();
-
-                    if follower_id != actor_id {
-                        return authfail();
-                    }
-                    let mut follow_service =
-                        new_follow_service(app.pool().clone(), app.config().clone());
-                    follow_service
-                        .unfollow_user(
-                            &UserSpecifier::from_url(follower_id),
-                            &UserSpecifier::from_url(followee_id),
-                        )
-                        .await?;
-                }
-                UndoableActivity::Like(like) => {
-                    let actor_id = &like.actor;
-
-                    if actor_id != authed_user_uri.as_str() {
-                        return authfail();
-                    }
-
-                    do_like_helper(app, like, false).await?;
-                }
-            }
-        }
-        Delete(del) => {
-            let actor_id = del.actor;
-
-            if authed_user_uri != actor_id {
-                return authfail();
-            }
-
-            let note_id = del.object.get_id();
-            let mut post_service =
-                new_post_create_service(app.pool().clone(), app.config().clone());
-            post_service
-                .delete_post(
-                    &PostSpecifier::from_uri(note_id),
-                    &Some(authed_user.as_specifier()),
-                )
-                .await
-                .map_err(|e| match e.downcast_ref::<PostDeleteError>() {
-                    Some(PostDeleteError::PostNotFound) => {
-                        return ErrorResponse::new_status(404, "post not found");
-                    }
-                    Some(PostDeleteError::Unauthorized) => {
-                        return ErrorResponse::new_status(
-                            403,
-                            "only the author can delete the post",
-                        );
-                    }
-                    None => {
-                        error!("Failed to delete post: {:?}", e);
-                        return ErrorResponse::new_status(500, "internal server error");
-                    }
-                })?;
-        }
-        Like(like) => {
-            let actor_id = &like.actor;
-
-            if authed_user_uri.as_str() != actor_id {
-                return authfail();
-            }
-
-            do_like_helper(app, like, true).await?;
-        }
-    }
-
-    Ok(HttpResponse::Ok().finish())
+    api_todo()
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -903,90 +565,12 @@ async fn get_user_outbox(
     auth: AuthUser,
     query: web::Query<OutboxQuery>,
 ) -> HandlerResponse<impl Responder> {
-    if !query.page {
-        return Ok(HttpResponse::Ok().json(CollectionResponse::from_first(
-            CollectionType::OrderedCollection,
-            {
-                let base_url = app.config().base_url();
-                let new_query = OutboxQuery {
-                    before_date: None,
-                    page: true,
-                };
-                format!(
-                    "{}/user/{}/outbox?{}",
-                    base_url,
-                    path.user_spec,
-                    serde_urlencoded::to_string(new_query).unwrap()
-                )
-            },
-            None,
-        )));
-    }
-
-    let user_spec = &path.user_spec;
-    let viewer = &auth.may_auth()?.as_ref().map(|u| u.id.into());
-
-    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
-
-    let limit = 20;
-    let options = FetchUserPostsOptions::new(limit + 1, query.before_date, true);
-    let posts: Vec<_> = post_service
-        .fetch_user_posts(user_spec, viewer, &options)
-        .await
-        .map_err(|e| {
-            error!("Failed to fetch user posts: {:?}", e);
-            ErrorResponse::new_status(500, "internal server error")
-        })?
-        .into_iter()
-        .filter(|p| {
-            p.content().is_some() // filter out reposts
-        })
-        .collect();
-
-    let renderer_service = new_apub_renderer_service(app.config().clone());
-    let mut rendered_posts = Vec::with_capacity(posts.len());
-    for p in posts {
-        let rendered = renderer_service.render_post(&p).map_err(|e| {
-            error!("Failed to render post: {:?}", e);
-            ErrorResponse::new_status(500, "internal server error")
-        })?;
-        rendered_posts.push(PaginatableWrapper::new(
-            match rendered.note().clone() {
-                RenderedNoteObject::Create(c) => c,
-                RenderedNoteObject::Announce(_) => {
-                    // We can assume that reposts are not in `posts`
-                    unreachable!("Announce object should not be in outbox")
-                }
-            },
-            p.created_at().clone(),
-        ));
-    }
-
-    let paginated =
-        PaginatedResponse::from_result(rendered_posts, limit.try_into().unwrap(), |last| {
-            let base_url = app.config().base_url();
-            let mut new_query = (*query).clone();
-            new_query.before_date = Some(*last);
-
-            format!(
-                "{}/user/{}/outbox?{}",
-                base_url,
-                user_spec,
-                serde_urlencoded::to_string(new_query).unwrap()
-            )
-        });
-    let paginated = CollectionPageResponse::from_paginated_response(
-        CollectionPageType::OrderedCollectionPage,
-        paginated,
-        format!("{}/user/{}/outbox", app.config().base_url(), path.user_spec),
-        None,
-    );
-    Ok(HttpResponse::Ok().json(paginated.with_context()))
+    api_todo()
 }
 
 #[post("/user/{user_spec}/outbox")]
 async fn post_user_outbox(app: web::Data<AppState>) -> HandlerResponse<impl Responder> {
-    todo!()
+    api_todo()
 }
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
@@ -1003,34 +587,7 @@ async fn timeline(
     auth: AuthUser,
     query: web::Query<TimelineQuery>,
 ) -> HandlerResponse<impl Responder> {
-    let authed_user = auth.must_auth()?;
-
-    let mut post_service = new_db_user_post_service(app.pool().clone(), app.config().clone());
-
-    let limit = query
-        .limit
-        .map(|li| if 0 < li && li <= 100 { li } else { 20 })
-        .unwrap_or(20);
-    let options = TimelineOptions::new(limit + 1, query.before_date, query.public);
-    let posts = post_service
-        .fetch_timeline(&authed_user.id.into(), &options)
-        .await
-        .map_err(|e| {
-            error!("Failed to fetch user timeline: {:?}", e);
-            ErrorResponse::new_status(500, "internal server error")
-        })?;
-    let paginated = PaginatedResponse::from_result(posts, limit.try_into().unwrap(), |last| {
-        let base_url = app.config().base_url();
-        let mut new_query = (*query).clone();
-        new_query.before_date = Some(*last);
-
-        format!(
-            "{}/timeline?{}",
-            base_url,
-            serde_urlencoded::to_string(new_query).unwrap()
-        )
-    });
-    Ok(HttpResponse::Ok().json(paginated))
+    api_todo()
 }
 
 #[post("/debug/truncate")]

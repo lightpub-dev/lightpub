@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use dto::{AuthTokenData, UserData, UserIdData};
 
 use crate::{
@@ -7,6 +8,7 @@ use crate::{
             user::{Nickname, User, UserId, Username},
             DateTime,
         },
+        service::user::UserService,
     },
     holder,
     repository::interface::uow::UnitOfWork,
@@ -56,6 +58,7 @@ impl UserApplicationService {
     pub async fn get_user_by_id(
         &mut self,
         user_id: &str,
+        get_user_options: &GetUserOptions,
     ) -> Result<Option<UserData>, anyhow::Error> {
         todo!()
     }
@@ -78,8 +81,21 @@ impl UserApplicationService {
     }
 
     pub async fn id_exists(&mut self, user_id: &str) -> Result<bool, anyhow::Error> {
-        let user = self.get_user_by_id(user_id).await?;
+        let user = self
+            .get_user_by_id(user_id, &GetUserOptions::default())
+            .await?;
         Ok(user.is_some())
+    }
+}
+
+#[derive(Builder)]
+pub struct GetUserOptions {
+    fill_uris: bool,
+}
+
+impl Default for GetUserOptions {
+    fn default() -> Self {
+        Self { fill_uris: false }
     }
 }
 
@@ -113,15 +129,32 @@ impl UserSecurityApplicationService {
                 }
 
                 // password is correct
-                let token = self.auth_token_factory.create();
+                let token = self.auth_token_factory.create(user.id());
                 self.uow
                     .repository_manager()
                     .auth_token_repository()
-                    .create(&token)
+                    .create(&token, user.id())
                     .await?;
                 self.uow.commit().await?;
                 Ok(AuthTokenData::new(token.token().to_string()))
             }
+        }
+    }
+
+    pub async fn validate_token(
+        &mut self,
+        token: &str,
+    ) -> Result<Option<UserIdData>, anyhow::Error> {
+        let token = self
+            .uow
+            .repository_manager()
+            .auth_token_repository()
+            .find_by_token(token)
+            .await?;
+
+        match token {
+            None => Ok(None),
+            Some(token) => Ok(Some(UserIdData::from_user_id(token.user_id()))),
         }
     }
 }
@@ -158,4 +191,38 @@ mod dto {
 
     #[derive(Debug, Clone)]
     pub struct UserData {}
+
+    impl UserData {
+        pub fn set_inbox(&mut self, inbox: impl Into<String>) {
+            todo!()
+        }
+
+        pub fn set_outbox(&mut self, outbox: impl Into<String>) {
+            todo!()
+        }
+
+        pub fn set_shared_inbox(&mut self, shared_inbox: impl Into<String>) {
+            todo!()
+        }
+
+        pub fn set_uri(&mut self, uri: impl Into<String>) {
+            todo!()
+        }
+
+        pub fn inbox(&self) -> Option<&str> {
+            todo!()
+        }
+
+        pub fn outbox(&self) -> Option<&str> {
+            todo!()
+        }
+
+        pub fn shared_inbox(&self) -> Option<&str> {
+            todo!()
+        }
+
+        pub fn uri(&self) -> Option<&str> {
+            todo!()
+        }
+    }
 }

@@ -172,4 +172,20 @@ impl User {
             false
         }
     }
+
+    pub fn uri(&self) -> Option<&URI> {
+        self.uri.as_ref()
+    }
+
+    pub fn inbox(&self) -> Option<&URI> {
+        self.inbox.as_ref()
+    }
+
+    pub fn shared_inbox(&self) -> Option<&URI> {
+        self.shared_inbox.as_ref()
+    }
+
+    pub fn outbox(&self) -> Option<&URI> {
+        self.outbox.as_ref()
+    }
 }

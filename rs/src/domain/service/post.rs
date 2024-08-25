@@ -1,4 +1,8 @@
-use crate::{domain::model::post::PostId, holder, repository::interface::post::PostRepository};
+use crate::{
+    domain::model::{ctx::AppContext, post::PostId},
+    holder,
+    repository::interface::post::PostRepository,
+};
 
 pub struct PostService {
     post_repository: holder!(PostRepository),
