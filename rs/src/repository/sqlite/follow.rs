@@ -12,7 +12,7 @@ use crate::{
 use super::{IsUuid, SqliteRepository, SqliteUuid};
 
 #[async_trait]
-impl<'a> FollowRepository for SqliteRepository<'a> {
+impl<'c, 'tx> FollowRepository for SqliteRepository<'c, 'tx> {
     async fn create_if_not_exists(
         &mut self,
         follow: &mut UserFollow,

@@ -155,7 +155,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn user_service(&self) -> UserApplicationService {
-        UserApplicationService::new()
+        // UserApplicationService::new()
+        todo!()
     }
 
     pub fn user_security_service(&self) -> UserSecurityApplicationService {

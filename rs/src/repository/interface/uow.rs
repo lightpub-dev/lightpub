@@ -15,7 +15,7 @@ pub trait RepositoryManager {
 
 #[async_trait]
 pub trait UnitOfWork {
-    fn repository_manager(&self) -> holder!(RepositoryManager);
+    async fn repository_manager(&mut self) -> Result<holder!(RepositoryManager), anyhow::Error>;
     async fn commit(&mut self) -> Result<(), anyhow::Error>;
     async fn rollback(&mut self) -> Result<(), anyhow::Error>;
 }
