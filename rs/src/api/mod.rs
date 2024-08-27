@@ -5,10 +5,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::SqlitePool;
 
-use crate::application::service::{
-    follow::FollowApplicationService,
-    post::PostCreateApplicationService,
-    user::{UserApplicationService, UserSecurityApplicationService},
+use crate::{
+    application::service::{
+        follow::FollowApplicationService,
+        post::PostCreateApplicationService,
+        user::{UserApplicationService, UserSecurityApplicationService},
+    },
+    holder,
+    repository::{interface::uow::UnitOfWork, sqlite::SqliteUow},
+    Holder,
 };
 
 pub mod model {
@@ -154,9 +159,12 @@ pub struct AppState {
 }
 
 impl AppState {
+    fn uow(&self) -> holder!(UnitOfWork) {
+        Holder::new(SqliteUow::from_pool(self.pool.clone()))
+    }
+
     pub fn user_service(&self) -> UserApplicationService {
-        // UserApplicationService::new()
-        todo!()
+        UserApplicationService::new()
     }
 
     pub fn user_security_service(&self) -> UserSecurityApplicationService {

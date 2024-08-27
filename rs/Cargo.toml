@@ -8,9 +8,9 @@ edition = "2021"
 name = "lightpub_api"
 path = "src/api_main.rs"
 
-[[bin]]
-name = "lightpub_worker"
-path = "src/worker_main.rs"
+#[[bin]]
+#name = "lightpub_worker"
+#path = "src/worker_main.rs"
 
 [dependencies]
 actix-cors = "0.7.0"

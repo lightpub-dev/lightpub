@@ -114,13 +114,19 @@ impl PostCreateApplicationService {
     }
 
     async fn store_post(&mut self, post: &Post) -> Result<PostIdData, anyhow::Error> {
-        let mut post_repository = self.uow.repository_manager().post_repository();
+        let result = {
+            let mut repo = self.uow.repository_manager().await?;
+            let mut post_repository = repo.post_repository();
 
-        post_repository
-            .create(post)
-            .await
-            .map(PostIdData::from_post_id)
-            .map_err(|e| e.into())
+            post_repository
+                .create(post)
+                .await
+                .map(PostIdData::from_post_id)
+                .map_err(|e| e.into())
+        };
+
+        self.uow.commit().await?;
+        result
     }
 }
 

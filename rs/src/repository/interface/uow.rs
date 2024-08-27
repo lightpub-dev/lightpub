@@ -6,16 +6,20 @@ use super::{
     auth::AuthTokenRepository, follow::FollowRepository, post::PostRepository, user::UserRepository,
 };
 
+#[async_trait]
 pub trait RepositoryManager {
-    fn user_repository(&self) -> holder!(UserRepository);
-    fn auth_token_repository(&self) -> holder!(AuthTokenRepository);
-    fn follow_repository(&self) -> holder!(FollowRepository);
-    fn post_repository(&self) -> holder!(PostRepository);
+    fn user_repository<'a>(&'a mut self) -> Box<dyn UserRepository + 'a>;
+    fn auth_token_repository<'a>(&'a mut self) -> Box<dyn AuthTokenRepository + 'a>;
+    fn follow_repository<'a>(&'a mut self) -> Box<dyn FollowRepository + 'a>;
+    fn post_repository<'a>(&'a mut self) -> Box<dyn PostRepository + 'a>;
+
+    async fn commit(self) -> Result<(), anyhow::Error>;
+    async fn rollback(self) -> Result<(), anyhow::Error>;
 }
 
 #[async_trait]
 pub trait UnitOfWork {
-    async fn repository_manager(&mut self) -> Result<holder!(RepositoryManager), anyhow::Error>;
-    async fn commit(&mut self) -> Result<(), anyhow::Error>;
-    async fn rollback(&mut self) -> Result<(), anyhow::Error>;
+    async fn repository_manager(
+        &mut self,
+    ) -> Result<Box<dyn RepositoryManager + '_>, anyhow::Error>;
 }

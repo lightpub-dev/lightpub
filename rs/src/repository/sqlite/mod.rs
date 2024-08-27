@@ -1,11 +1,8 @@
-use std::{cell::RefCell, fmt::Debug, sync::Arc};
-use tokio::sync::Mutex;
-
 use async_trait::async_trait;
-use derive_more::Constructor;
-use sqlx::{pool::PoolConnection, Decode, Encode, SqliteConnection, SqlitePool, Type};
+use sqlx::{Decode, Encode, SqlitePool, Type};
+use std::fmt::Debug;
 
-use crate::{domain::factory::post::PostFactory, holder, Holder};
+use crate::{domain::factory::post::PostFactory, holder};
 
 use super::interface::{
     auth::AuthTokenRepository,
@@ -15,28 +12,32 @@ use super::interface::{
     user::UserRepository,
 };
 
+pub mod auth;
 pub mod follow;
 pub mod post;
 pub mod user;
 
 #[derive(Debug)]
-pub enum Connection {
-    Conn(sqlx::SqliteConnection),
-    Tx(Arc<Mutex<TransactionManager>>),
+pub enum Connection<'a> {
+    Conn(sqlx::SqlitePool),
+    Tx(&'a mut sqlx::Transaction<'static, sqlx::Sqlite>),
 }
 
-pub struct SqliteRepository {
-    conn: Connection,
+pub struct SqliteRepository<'a> {
+    conn: Connection<'a>,
     post_factory: holder!(PostFactory),
 }
 
-impl SqliteRepository {
-    pub fn new(conn: Connection, post_factory: holder!(PostFactory)) -> Self {
+impl<'a> SqliteRepository<'a> {
+    pub fn new<'b>(conn: Connection<'b>, post_factory: holder!(PostFactory)) -> Self
+    where
+        'b: 'a,
+    {
         Self { conn, post_factory }
     }
 }
 
-impl Debug for SqliteRepository {
+impl Debug for SqliteRepository<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SqliteRepository")
             .field("conn", &self.conn)
@@ -44,7 +45,7 @@ impl Debug for SqliteRepository {
     }
 }
 
-impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut Connection {
+impl<'c, 'r: 'c, 'a> sqlx::Executor<'c> for &'r mut Connection<'a> {
     type Database = sqlx::Sqlite;
 
     fn fetch_many<'e, 'q: 'e, E: 'q>(
@@ -66,10 +67,7 @@ impl<'c, 'r: 'c> sqlx::Executor<'c> for &'r mut Connection {
     {
         match self {
             Connection::Conn(conn) => conn.fetch_many(query),
-            Connection::Tx(tx) => {
-                let mut tx = tx.lock().await;
-                tx.fetch_many(query)
-            }
+            Connection::Tx(tx) => (&mut *tx).fetch_many(query),
         }
     }
 
@@ -192,104 +190,69 @@ impl<'r> Decode<'r, sqlx::Sqlite> for SqliteUuid {
 #[derive(Debug)]
 pub struct SqliteUow {
     pool: Box<SqlitePool>,
-    tx: Option<Arc<Mutex<sqlx::Transaction<'static, sqlx::Sqlite>>>>,
 }
 
 impl SqliteUow {
-    pub async fn from_pool(conn: SqlitePool) -> Result<Self, anyhow::Error> {
+    pub fn from_pool(conn: SqlitePool) -> Result<Self, anyhow::Error> {
         let conn = Box::new(conn);
-        Ok(Self {
-            pool: conn,
-            tx: None,
-        })
-    }
-}
-
-pub struct TransactionManager {
-    tx: Option<sqlx::Transaction<'static, sqlx::Sqlite>>,
-}
-
-impl TransactionManager {
-    pub async fn commit(&mut self) -> Result<(), sqlx::Error> {
-        match self.tx.take() {
-            None => panic!("no transaction to commit"),
-            Some(t) => t.commit().await,
-        }
-    }
-
-    pub async fn rollback(&mut self) -> Result<(), sqlx::Error> {
-        match self.tx.take() {
-            None => panic!("no transaction to rollback"),
-            Some(t) => t.rollback().await,
-        }
-    }
-
-    pub fn tx(&self) -> &sqlx::Transaction<'static, sqlx::Sqlite> {
-        self.tx.as_ref().expect("no transaction")
-    }
-
-    pub fn new(tx: sqlx::Transaction<'static, sqlx::Sqlite>) -> Self {
-        Self { tx: Some(tx) }
+        Ok(Self { pool: conn })
     }
 }
 
 #[async_trait]
 impl UnitOfWork for SqliteUow {
-    async fn repository_manager(&mut self) -> Result<holder!(RepositoryManager), anyhow::Error> {
+    async fn repository_manager(
+        &mut self,
+    ) -> Result<Box<dyn RepositoryManager + '_>, anyhow::Error> {
         let tx = self.pool.begin().await?;
-        self.tx = Some(Arc::new(Mutex::new(tx)));
-    }
 
-    async fn commit(&mut self) -> Result<(), anyhow::Error> {
-        // consume current transaction
-        if let Some(tx) = self.tx.take() {
-            let mut txg = tx.lock().await;
-            let txo = txg.as_mut();
-        }
-
-        Ok(())
-    }
-    async fn rollback(&mut self) -> Result<(), anyhow::Error> {
-        // consume current transaction
-        if let Some(tx) = self.tx.lock().unwrap().take() {
-            tx.rollback().await?;
-        }
-
-        Ok(())
+        let repo = SqliteRepositoryManager::new(tx);
+        Ok(Box::new(repo))
     }
 }
 
-pub struct SqliteRepositoryManager<'c, 'a> {
-    conn: &'c mut sqlx::Transaction<'a, sqlx::Sqlite>,
+pub struct SqliteRepositoryManager {
+    tx: sqlx::Transaction<'static, sqlx::Sqlite>,
 }
 
-impl RepositoryManager for SqliteRepositoryManager<'_, '_> {
-    fn user_repository(&self) -> holder!(UserRepository) {
-        todo!()
-    }
-
-    fn auth_token_repository(&self) -> holder!(AuthTokenRepository) {
-        todo!()
-    }
-
-    fn follow_repository(&self) -> holder!(FollowRepository) {
+#[async_trait]
+impl RepositoryManager for SqliteRepositoryManager {
+    fn user_repository(&mut self) -> Box<dyn UserRepository + '_> {
         self.make_repository()
     }
 
-    fn post_repository(&self) -> holder!(PostRepository) {
+    fn auth_token_repository(&mut self) -> Box<dyn AuthTokenRepository + '_> {
         self.make_repository()
+    }
+
+    fn follow_repository(&mut self) -> Box<dyn FollowRepository + '_> {
+        self.make_repository()
+    }
+
+    fn post_repository(&mut self) -> Box<dyn PostRepository + '_> {
+        self.make_repository()
+    }
+
+    async fn commit(self) -> Result<(), anyhow::Error> {
+        // consume current transaction
+        self.tx.commit().await?;
+
+        Ok(())
+    }
+    async fn rollback(self) -> Result<(), anyhow::Error> {
+        // consume current transaction
+        self.tx.rollback().await?;
+
+        Ok(())
     }
 }
 
-impl<'a, 'c> SqliteRepositoryManager<'a, 'c>
-where
-    'c: 'a,
-{
-    pub fn new(conn: &'a mut sqlx::Transaction<'c, sqlx::Sqlite>) -> Self {
-        Self { conn }
+impl SqliteRepositoryManager {
+    pub fn new(conn: sqlx::Transaction<'static, sqlx::Sqlite>) -> Self {
+        Self { tx: conn }
     }
 
-    fn make_repository(&self) -> Holder<SqliteRepository> {
-        Holder::new(SqliteRepository::new(Connection::Tx(self.conn), todo!()))
+    fn make_repository(&mut self) -> Box<SqliteRepository> {
+        Box::new(SqliteRepository::new(Connection::Tx(&mut self.tx), todo!()))
     }
 }

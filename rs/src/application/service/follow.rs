@@ -26,11 +26,13 @@ impl FollowApplicationService {
         let mut follow_factory = DefaultUserFollowFactory::new();
         let mut follow = follow_factory.create(follower_id, followee_id);
 
-        self.uow
-            .repository_manager()
-            .follow_repository()
-            .create_if_not_exists(&mut follow)
-            .await?;
+        {
+            let mut repo = self.uow.repository_manager().await?;
+
+            repo.follow_repository()
+                .create_if_not_exists(&mut follow)
+                .await?;
+        }
 
         self.uow.commit().await?;
 
@@ -45,20 +47,17 @@ impl FollowApplicationService {
         let follower_id = UserId::from_str(follower_id).unwrap();
         let followee_id = UserId::from_str(followee_id).unwrap();
 
-        let follow = self
-            .uow
-            .repository_manager()
-            .follow_repository()
-            .find_by_user_id(&follower_id, &followee_id)
-            .await?;
-
-        // if follow is not found, do nothing
-        if let Some(follow) = follow {
-            self.uow
-                .repository_manager()
+        {
+            let mut repo = self.uow.repository_manager().await?;
+            let follow = repo
                 .follow_repository()
-                .delete_if_exists(&follow)
+                .find_by_user_id(&follower_id, &followee_id)
                 .await?;
+
+            // if follow is not found, do nothing
+            if let Some(follow) = follow {
+                repo.follow_repository().delete_if_exists(&follow).await?;
+            }
         }
 
         self.uow.commit().await?;

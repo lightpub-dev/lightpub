@@ -1,6 +1,7 @@
 use derive_builder::Builder;
 use derive_more::Constructor;
 use dto::{AuthTokenData, UserData, UserIdData};
+use thiserror::Error;
 
 use crate::{
     domain::{
@@ -47,11 +48,10 @@ impl UserApplicationService {
             panic!("failed to set passwd");
         }
 
-        self.uow
-            .repository_manager()
-            .user_repository()
-            .create(&new_user)
-            .await?;
+        {
+            let mut repo = self.uow.repository_manager().await?;
+            repo.user_repository().create(&new_user).await?;
+        }
 
         self.uow.commit().await?;
 
@@ -71,12 +71,16 @@ impl UserApplicationService {
         username: &str,
         host: Option<&str>,
     ) -> Result<Option<UserIdData>, anyhow::Error> {
-        let mut user_repository = self.uow.repository_manager().user_repository();
-        let username = Username::from_str(username).unwrap();
-        let id = user_repository
-            .find_by_username_and_host(&username, host)
-            .await
-            .map(|user| user.map(|user| UserIdData::from_user_id(user.id())))?;
+        let id = {
+            let mut repo = self.uow.repository_manager().await?;
+            let username = Username::from_str(username).unwrap();
+            let id = repo
+                .user_repository()
+                .find_by_username_and_host(&username, host)
+                .await
+                .map(|user| user.map(|user| UserIdData::from_user_id(user.id())))?;
+            id
+        };
 
         self.uow.commit().await?;
 
@@ -102,6 +106,14 @@ impl Default for GetUserOptions {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum LoginError {
+    #[error("User not found")]
+    UserNotFound,
+    #[error("Invalid password")]
+    InvalidPassword,
+}
+
 impl UserSecurityApplicationService {
     pub async fn login(
         &mut self,
@@ -109,38 +121,41 @@ impl UserSecurityApplicationService {
         plain_passwd: &str,
     ) -> Result<AuthTokenData, anyhow::Error> {
         let username = Username::from_str(username).unwrap();
-        let user = self
-            .uow
-            .repository_manager()
-            .user_repository()
-            .find_by_username_and_host(&username, None)
-            .await?;
 
-        match user {
-            None => {
-                // throw error
-                self.uow.rollback().await?;
-                panic!("user not found");
-            }
-            Some(user) => {
-                // user found
+        let token = {
+            let mut repo = self.uow.repository_manager().await?;
+            let user = repo
+                .user_repository()
+                .find_by_username_and_host(&username, None)
+                .await?;
 
-                if !user.validate_password(plain_passwd) {
+            match user {
+                None => {
                     // throw error
-                    self.uow.rollback().await?;
-                    panic!("invalid password");
+                    Err(LoginError::UserNotFound)
                 }
+                Some(user) => {
+                    // user found
 
-                // password is correct
-                let token = self.auth_token_factory.create(user.id());
-                self.uow
-                    .repository_manager()
-                    .auth_token_repository()
-                    .create(&token, user.id())
-                    .await?;
-                self.uow.commit().await?;
-                Ok(AuthTokenData::new(token.token().to_string()))
+                    if !user.validate_password(plain_passwd) {
+                        // throw error
+                        Err(LoginError::InvalidPassword)
+                    } else {
+                        // password is correct
+                        let token = self.auth_token_factory.create(user.id());
+                        repo.auth_token_repository()
+                            .create(&token, user.id())
+                            .await?;
+                        Ok(token.token().to_string())
+                    }
+                }
             }
+        };
+        self.uow.commit().await?;
+
+        match token {
+            Err(e) => Err(e.into()),
+            Ok(token) => Ok(AuthTokenData::new(token)),
         }
     }
 
@@ -148,12 +163,13 @@ impl UserSecurityApplicationService {
         &mut self,
         token: &str,
     ) -> Result<Option<UserIdData>, anyhow::Error> {
-        let token = self
-            .uow
-            .repository_manager()
-            .auth_token_repository()
-            .find_by_token(token)
-            .await?;
+        let token = {
+            let mut repo = self.uow.repository_manager().await?;
+            let token = repo.auth_token_repository().find_by_token(token).await?;
+            token
+        };
+
+        self.uow.commit().await?;
 
         match token {
             None => Ok(None),
