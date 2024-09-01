@@ -1,0 +1,6 @@
+@lightpub_HostAddress = http://localhost:5211
+
+GET {{lightpub_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
