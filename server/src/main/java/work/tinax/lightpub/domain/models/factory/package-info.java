@@ -1,0 +1,1 @@
+package work.tinax.lightpub.domain.models.factory;

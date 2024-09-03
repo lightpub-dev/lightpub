@@ -1,0 +1,1 @@
+package work.tinax.lightpub.db.models;

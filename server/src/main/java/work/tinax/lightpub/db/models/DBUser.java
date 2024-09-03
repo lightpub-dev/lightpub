@@ -22,7 +22,7 @@ public class DBUser {
 	@NotNull
 	private String nickname;
 	private String bio;
-	
+
 	@NotNull
 	private String url;
 	@NotNull
@@ -35,7 +35,7 @@ public class DBUser {
 	private String followings;
 	@NotNull
 	private String followers;
-	
+
 	private String privateKey;
 	private String publicKey;
 	@NotNull

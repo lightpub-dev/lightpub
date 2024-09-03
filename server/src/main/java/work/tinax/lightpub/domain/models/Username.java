@@ -1,5 +1,7 @@
 package work.tinax.lightpub.domain.models;
 
+import org.eclipse.jdt.annotation.Nullable;
+
 public class Username {
 	private String username;
 
@@ -39,5 +41,18 @@ public class Username {
 		}
 
 		this.username = username;
+	}
+
+	@Override
+	public boolean equals(@Nullable Object o) {
+		if (o instanceof Username u) {
+			return username.equals(u.username);
+		}
+		return false;
+	}
+
+	@Override
+	public int hashCode() {
+		return username.hashCode();
 	}
 }

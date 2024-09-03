@@ -1,5 +1,7 @@
 package work.tinax.lightpub.domain.models;
 
+import org.eclipse.jdt.annotation.Nullable;
+
 public class URL {
 	private String url;
 
@@ -17,5 +19,18 @@ public class URL {
 
 	public String getUrl() {
 		return url;
+	}
+
+	@Override
+	public boolean equals(@Nullable Object o) {
+		if (o instanceof URL u) {
+			return url.equals(u.url);
+		}
+		return false;
+	}
+
+	@Override
+	public int hashCode() {
+		return url.hashCode();
 	}
 }
