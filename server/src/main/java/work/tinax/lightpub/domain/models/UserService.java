@@ -1,7 +1,10 @@
 package work.tinax.lightpub.domain.models;
 
+import java.util.Optional;
+
 import org.eclipse.jdt.annotation.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
@@ -45,5 +48,15 @@ public class UserService {
 		d.setCreatedAt(u.getCreatedAt());
 
 		return d;
+	}
+
+	public boolean validatePassword(User u, String passwd) {
+		return u.getBpasswd().map(p -> {
+			return BCrypt.checkpw(passwd, p);
+		}).orElse(false);
+	}
+
+	public User fromDBUser(DBUser d) {
+		return new User(UserId.parse(d.getUserId()), new Username(d.getUsername()), Optional.ofNullable(d.getHostname()), Optional.ofNullable(d.getBpasswd()), d.getNickname(), d.getBio(), Optional.ofNullable(d.getUrl()), Optional.ofNullable(d.getInbox()), Optional.ofNullable(d.getSharedInbox()), Optional.ofNullable(d.getOutbox()), Optional.ofNullable(d.getFollowings()),Optional.ofNullable(d.getFollowers()),  Optional.ofNullable(d.getPrivateKey()), Optional.ofNullable(d.getPublicKey()), d.getCreatedAt())
 	}
 }

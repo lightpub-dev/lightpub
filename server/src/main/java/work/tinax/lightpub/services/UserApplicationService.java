@@ -1,6 +1,7 @@
 package work.tinax.lightpub.services;
 
 import java.util.Objects;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -38,5 +39,20 @@ public class UserApplicationService {
 		userRepository.save(dbUser);
 
 		return new UserRegisterResult(Objects.requireNonNull(newUser.getId().getId().toString().replace("-", "")));
+	}
+
+	public Optional<UserLoginResult> login(String username, String password) {
+		var user = userRepository.findByUsernameAndHostname(username, null);
+		if (user == null) {
+			return Optional.empty();
+		}
+
+		if (user.getBpasswd() == null) {
+			return Optional.empty();
+		}
+
+		if (!userService.validatePassword(user, password)) {
+			return Optional.empty();
+		}
 	}
 }

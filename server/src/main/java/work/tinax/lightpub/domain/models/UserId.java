@@ -15,6 +15,10 @@ public class UserId {
 		this.id = id;
 	}
 
+	public static UserId parse(String s) {
+		return new UserId(UUID.fromString(s));
+	}
+
 	@Override
 	public boolean equals(@Nullable Object o) {
 		if (o instanceof UserId u) {
