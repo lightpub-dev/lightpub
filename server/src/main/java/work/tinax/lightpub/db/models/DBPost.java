@@ -39,8 +39,10 @@ public class DBPost {
 	private int quoteCount;
 
 	// reply post
+	@ManyToOne(fetch = FetchType.LAZY)
 	private DBPost replyTo;
 
 	// repost or quote post
+	@ManyToOne(fetch = FetchType.LAZY)
 	private DBPost repostOf;
 }

@@ -1,19 +1,19 @@
 package work.tinax.lightpub.domain.models;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import org.eclipse.jdt.annotation.Nullable;
 
 public sealed class Post permits NormalPost, Repost {
 	private PostId id;
-	@Nullable
-	private URL url;
+	private Optional<URL> url;
 	private UserId author;
 	private PostPrivacy privacy;
 	private LocalDateTime createdAt;
 	private LocalDateTime deletedAt;
 
-	public Post(PostId id, URL url, UserId author, PostPrivacy privacy, LocalDateTime createdAt,
+	public Post(PostId id, Optional<URL> url, UserId author, PostPrivacy privacy, LocalDateTime createdAt,
 			LocalDateTime deletedAt) {
 		this.id = id;
 		this.url = url;
@@ -56,11 +56,11 @@ public sealed class Post permits NormalPost, Repost {
 	}
 
 	@Nullable
-	public URL getUrl() {
+	public Optional<URL> getUrl() {
 		return url;
 	}
 
-	public void setUrl(@Nullable URL url) {
+	public void setUrl(Optional<URL> url) {
 		this.url = url;
 	}
 

@@ -48,6 +48,7 @@ dependencies {
 	implementation 'com.github.f4b6a3:uuid-creator:6.0.0'
 	
 	implementation "at.favre.lib:bcrypt:0.10.2"
+	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	
 	// null checker
 	implementation group: 'org.eclipse.jdt', name: 'org.eclipse.jdt.annotation', version: '2.3.0'

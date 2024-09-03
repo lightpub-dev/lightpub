@@ -34,7 +34,8 @@ public class UserApplicationService {
 			throw new RuntimeException("user duplicated");
 		}
 
-		userRepository.save(new DBUser());
+		var dbUser = userService.toDBUser(newUser);
+		userRepository.save(dbUser);
 
 		return new UserRegisterResult(Objects.requireNonNull(newUser.getId().getId().toString().replace("-", "")));
 	}

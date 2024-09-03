@@ -2,18 +2,19 @@ package work.tinax.lightpub.domain.models;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public final class NormalPost extends Post {
 
 	private PostContent content;
 	private List<UserId> mentionedUsers;
 	private PostCounter counter;
-	private PostId replyTo;
-	private PostId quoteOf;
+	private Optional<PostId> replyTo;
+	private Optional<PostId> quoteOf;
 
-	public NormalPost(PostId id, URL url, UserId author, PostPrivacy privacy, LocalDateTime createdAt,
+	public NormalPost(PostId id, Optional<URL> url, UserId author, PostPrivacy privacy, LocalDateTime createdAt,
 			LocalDateTime deletedAt, PostContent content, List<UserId> mentionedUsers, PostCounter counter,
-			PostId replyTo, PostId quoteOf) {
+			Optional<PostId> replyTo, Optional<PostId> quoteOf) {
 		super(id, url, author, privacy, createdAt, deletedAt);
 
 		if (replyTo != null && quoteOf != null) {
@@ -27,19 +28,19 @@ public final class NormalPost extends Post {
 		this.quoteOf = quoteOf;
 	}
 
-	public PostId getQuoteOf() {
+	public Optional<PostId> getQuoteOf() {
 		return quoteOf;
 	}
 
-	public void setQuoteOf(PostId quoteOf) {
+	public void setQuoteOf(Optional<PostId> quoteOf) {
 		this.quoteOf = quoteOf;
 	}
 
-	public PostId getReplyTo() {
+	public Optional<PostId> getReplyTo() {
 		return replyTo;
 	}
 
-	public void setReplyTo(PostId replyTo) {
+	public void setReplyTo(Optional<PostId> replyTo) {
 		this.replyTo = replyTo;
 	}
 
