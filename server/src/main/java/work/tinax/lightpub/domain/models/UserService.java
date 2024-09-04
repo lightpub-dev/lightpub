@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import jakarta.transaction.Transactional;
 import work.tinax.lightpub.db.models.DBUser;
 import work.tinax.lightpub.db.repositories.UserRepository;
+import work.tinax.lightpub.utils.UuidUtils;
 
 @Service
 public class UserService {
@@ -31,7 +32,7 @@ public class UserService {
 	public DBUser toDBUser(User u) {
 		var d = new DBUser();
 
-		d.setUserId(u.getId().getId().toString().replace("-", ""));
+		d.setUserId(UuidUtils.trim(u.getId().getId()));
 		d.setUsername(u.getUsername().getUsername());
 		d.setHostname(u.getHostname().orElse(null));
 		d.setBpasswd(u.getBpasswd().orElse(null));
@@ -57,6 +58,12 @@ public class UserService {
 	}
 
 	public User fromDBUser(DBUser d) {
-		return new User(UserId.parse(d.getUserId()), new Username(d.getUsername()), Optional.ofNullable(d.getHostname()), Optional.ofNullable(d.getBpasswd()), d.getNickname(), d.getBio(), Optional.ofNullable(d.getUrl()), Optional.ofNullable(d.getInbox()), Optional.ofNullable(d.getSharedInbox()), Optional.ofNullable(d.getOutbox()), Optional.ofNullable(d.getFollowings()),Optional.ofNullable(d.getFollowers()),  Optional.ofNullable(d.getPrivateKey()), Optional.ofNullable(d.getPublicKey()), d.getCreatedAt())
+		return new User(UserId.parse(d.getUserId()), new Username(d.getUsername()),
+				Optional.ofNullable(d.getHostname()), Optional.ofNullable(d.getBpasswd()),
+				new Nickname(d.getNickname()), d.getBio(), Optional.ofNullable(URL.parse(d.getUrl())),
+				Optional.ofNullable(URL.parse(d.getInbox())), Optional.ofNullable(URL.parse(d.getSharedInbox())),
+				Optional.ofNullable(URL.parse(d.getOutbox())), Optional.ofNullable(URL.parse(d.getFollowings())),
+				Optional.ofNullable(URL.parse(d.getFollowers())), Optional.ofNullable(d.getPrivateKey()),
+				Optional.ofNullable(d.getPublicKey()), d.getCreatedAt());
 	}
 }

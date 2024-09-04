@@ -5,7 +5,7 @@ import org.eclipse.jdt.annotation.Nullable;
 public class URL {
 	private String url;
 
-	public URL(String url) {
+	private URL(String url) {
 		if (url.length() > 512) {
 			throw new IllegalArgumentException("url is too long");
 		}
@@ -15,6 +15,12 @@ public class URL {
 		}
 
 		this.url = url;
+	}
+
+	public static URL parse(@Nullable String s) {
+		if (s == null)
+			return null;
+		return new URL(s);
 	}
 
 	public String getUrl() {

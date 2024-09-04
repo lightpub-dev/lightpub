@@ -4,6 +4,8 @@ import java.util.UUID;
 
 import org.eclipse.jdt.annotation.Nullable;
 
+import work.tinax.lightpub.utils.UuidUtils;
+
 public class UserId {
 	private UUID id;
 
@@ -16,7 +18,7 @@ public class UserId {
 	}
 
 	public static UserId parse(String s) {
-		return new UserId(UUID.fromString(s));
+		return new UserId(UuidUtils.fromTrimmed(s));
 	}
 
 	@Override

@@ -15,6 +15,12 @@ record UserRegisterResponse(String userId) {
 record UserRegisterRequest(String username, String nickname, String password) {
 }
 
+record UserLoginRequest(String username, String password) {
+}
+
+record UserLoginResponse(String token) {
+}
+
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -25,11 +31,6 @@ public class AuthController {
 		this.userApplicationService = userApplicationService;
 	}
 
-	@GetMapping("/hello")
-	public String hello() {
-		return "aiueo";
-	}
-
 	@PostMapping("/register")
 	public UserRegisterResponse register(@RequestBody UserRegisterRequest req) {
 		var result = userApplicationService.register(req.username(), req.password(), req.nickname());
@@ -37,8 +38,11 @@ public class AuthController {
 	}
 
 	@PostMapping("/login")
-	public UserRegisterResponse login(@RequestBody UserRegisterRequest req) {
-		var result = userApplicationService.register(req.username(), req.password(), req.nickname());
-		return new UserRegisterResponse(result.userId());
+	public UserLoginResponse login(@RequestBody UserLoginRequest req) {
+		var result = userApplicationService.login(req.username(), req.password());
+		if (result.isEmpty()) {
+			throw new LoginFailException();
+		}
+		return new UserLoginResponse(result.get().token());
 	}
 }
