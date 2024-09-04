@@ -34,9 +34,9 @@ public class DBPost {
 
 	// normal post
 	private String content;
-	private int replyCount;
-	private int repostCount;
-	private int quoteCount;
+	private Integer replyCount;
+	private Integer repostCount;
+	private Integer quoteCount;
 
 	// reply post
 	@ManyToOne(fetch = FetchType.LAZY)
