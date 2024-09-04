@@ -10,9 +10,12 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -110,11 +113,11 @@ public class AuthApplicationService {
         var algorithm = getAlgorithm();
         // sign the userId
         try {
-            var issueTime = LocalDateTime.now();
+            var issueTime = ZonedDateTime.now().toEpochSecond();
             String token = JWT.create()
                     .withIssuer("lightpub")
                     .withClaim("sub", userId)
-                    .withClaim("iat", issueTime.toEpochSecond(ZoneOffset.UTC))
+                    .withClaim("iat", issueTime)
                     .sign(algorithm);
             return token;
         } catch (JWTCreationException exception) {
@@ -123,23 +126,27 @@ public class AuthApplicationService {
         }
     }
 
-    public static record JWTContent(String userId, LocalDateTime issuedAt) {
-    }
+    private Log log = LogFactory.getLog(AuthApplicationService.class);
 
     public Optional<JWTContent> verifyToken(String token) {
+        // log.info("receved token: " + token);
         var algorithm = getAlgorithm();
         DecodedJWT decodedJWT;
         try {
             JWTVerifier verifier = JWT.require(algorithm)
                     // specify any specific claim validations
-                    .withIssuer("auth0")
+                    .withIssuer("lightpub")
+                    .withClaimPresence("sub")
+                    .withClaimPresence("iat")
                     // reusable verifier instance
                     .build();
 
             decodedJWT = verifier.verify(token);
         } catch (JWTVerificationException exception) {
             // Invalid signature/claims
-            throw new RuntimeException("failed to verify JWT", exception);
+            // throw new RuntimeException("failed to verify JWT", exception);
+            exception.printStackTrace();
+            return Optional.empty();
         }
 
         if (decodedJWT == null) {

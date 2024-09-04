@@ -15,6 +15,10 @@ record ErrorResponse(String message) {
 public class ErrorController {
     @ExceptionHandler(LightpubException.class)
     public ErrorResponse handleLightpubException(LightpubException e, HttpServletResponse response) {
+        if (e.getStatus() == 500) {
+            e.printStackTrace();
+        }
+
         response.setStatus(e.getStatus());
         return new ErrorResponse(e.getText());
     }

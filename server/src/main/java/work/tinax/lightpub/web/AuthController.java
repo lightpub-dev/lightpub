@@ -1,6 +1,9 @@
 package work.tinax.lightpub.web;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,6 +24,9 @@ record UserLoginRequest(String username, String password) {
 record UserLoginResponse(String token) {
 }
 
+record MeResponse(String userId) {
+}
+
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -29,6 +35,14 @@ public class AuthController {
 	@Autowired
 	public AuthController(UserApplicationService userApplicationService) {
 		this.userApplicationService = userApplicationService;
+	}
+
+	private Log log = LogFactory.getLog(AuthController.class);
+
+	@GetMapping("/me")
+	public MeResponse hello() {
+		var auth = SecurityContextHolder.getContext().getAuthentication();
+		return new MeResponse(auth.getName());
 	}
 
 	@PostMapping("/register")
