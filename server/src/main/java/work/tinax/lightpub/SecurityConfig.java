@@ -21,6 +21,7 @@ public class SecurityConfig {
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		http.csrf((csrf) -> csrf.disable()).authorizeHttpRequests(authorize -> authorize
 				.requestMatchers("/auth/login", "/auth/register").permitAll()
+				.requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
 				.anyRequest().authenticated())
 				.addFilterBefore(jwtFilter, AuthorizationFilter.class);
 		return http.build();
