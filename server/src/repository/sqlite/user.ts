@@ -3,12 +3,14 @@ import { db } from "../../db";
 import { ObjectID } from "../../domain/model/object_id";
 import { Nickname, User, Username } from "../../domain/model/user";
 import { users } from "../../sqlite_schema";
-import { IUserRepository } from "../user";
+import { type IUserRepository } from "../user";
 import { Clock } from "../../utils/clock";
+import { injectable } from "tsyringe";
 
+@injectable()
 export class UserSqliteRepository implements IUserRepository {
   async save(user: User): Promise<void> {
-    db.insert(users).values({
+    await db.insert(users).values({
       id: user.id.id,
       username: user.username.value,
       hostname: user.hostname,

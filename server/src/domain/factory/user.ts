@@ -1,7 +1,8 @@
-import { Service } from "typedi";
 import { Nickname, User, Username } from "../model/user";
-import { IIDGenerator } from "./object_id";
+import { type IIDGenerator } from "./object_id";
 import { clockNow, now } from "../../utils/clock";
+import { inject, injectable } from "tsyringe";
+import { ID_GENERATOR } from "../../registry_key";
 
 export interface IUserFactory {
   create: (
@@ -11,9 +12,9 @@ export interface IUserFactory {
   ) => Promise<User>;
 }
 
-@Service()
+@injectable()
 export class DefaultUserFactory implements IUserFactory {
-  constructor(private idGenerator: IIDGenerator) {}
+  constructor(@inject(ID_GENERATOR) private idGenerator: IIDGenerator) {}
 
   async create(
     username: string,

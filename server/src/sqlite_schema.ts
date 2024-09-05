@@ -37,6 +37,11 @@ export const users = sqliteTable("users", {
   deletedAt: integer("deletedAt"),
 });
 
+export const secrets = sqliteTable("secrets", {
+  key: text("key").notNull().primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const posts = sqliteTable("posts", {
   id: text("id").notNull().primaryKey(),
   url: text("url", {

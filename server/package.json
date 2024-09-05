@@ -1,17 +1,26 @@
 {
   "name": "js",
   "scripts": {
-    "dev": "bun run --hot src/index.ts"
+    "dev": "bun run --hot src/index.ts",
+    "tsc": "tsc",
+    "makemigrations": "drizzle-kit generate --config ./src/drizzle.config.ts",
+    "migrate": "bun src/migrate.ts"
   },
   "dependencies": {
+    "ajv": "^8.17.1",
+    "core-js": "^3.38.1",
     "drizzle-orm": "^0.33.0",
     "hono": "^4.5.11",
+    "jsonwebtoken": "^9.0.2",
+    "node-rsa": "^1.1.1",
     "reflect-metadata": "^0.2.2",
-    "typedi": "^0.10.0",
+    "tsyringe": "^4.8.0",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node-rsa": "^1.1.4",
     "@types/uuid": "^10.0.0",
     "drizzle-kit": "^0.24.2"
   }
