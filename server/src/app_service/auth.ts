@@ -12,6 +12,13 @@ import {
 import { inject, injectable } from "tsyringe";
 import { USER_FACTORY, USER_REPOSITORY } from "../registry_key";
 import { JWTSecretProvider } from "./jwt_secret";
+import { LightpubException } from "../error";
+
+class UserRegisterException extends LightpubException {
+  constructor(status: number, message: string) {
+    super(status, message);
+  }
+}
 
 @injectable()
 export class AuthApplicationService {
@@ -38,7 +45,7 @@ export class AuthApplicationService {
 
     // check for conflicts
     if (!(await this.userService.isUnique(newUser))) {
-      throw new Error("User already exists");
+      throw new UserRegisterException(400, "User already exists");
     }
 
     await this.userRepository.save(newUser);

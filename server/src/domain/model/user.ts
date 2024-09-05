@@ -1,24 +1,33 @@
+import { LightpubException } from "../../error";
 import { Clock } from "../../utils/clock";
 import { ValueObject } from "../../utils/eq";
 import { ObjectID } from "./object_id";
 
+class BadUsernameError extends LightpubException {
+  constructor() {
+    super(400, "Invalid username");
+  }
+}
+
 export class Username implements ValueObject {
   constructor(public value: string) {
     if (value.length < 3 || value.length > 32) {
-      throw new Error("Invalid username");
+      throw new BadUsernameError();
     }
     for (let ch of value) {
       if (!/^[a-zA-Z0-9_\-]+$/.test(ch)) {
-        throw new Error("Invalid username");
+        throw new BadUsernameError();
       }
     }
     if (
       value.includes("--") ||
       value.includes("__") ||
+      value.includes("-_") ||
+      value.includes("_-") ||
       value.startsWith("-") ||
       value.startsWith("_")
     ) {
-      throw new Error("Invalid username");
+      throw new BadUsernameError();
     }
   }
 

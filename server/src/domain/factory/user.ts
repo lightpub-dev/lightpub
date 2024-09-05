@@ -26,7 +26,7 @@ export class DefaultUserFactory implements IUserFactory {
     });
 
     return new User(
-      this.idGenerator.generate(),
+      this.idGenerator.generateRandom(),
       new Username(username),
       null,
       hash,

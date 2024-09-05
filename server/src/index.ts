@@ -10,6 +10,8 @@ import { sql } from "drizzle-orm";
 import { StatusCode } from "hono/utils/http-status";
 import { AuthApplicationService } from "./app_service/auth";
 import { container } from "tsyringe";
+import { posts, secrets, users } from "./sqlite_schema";
+import { LightpubException } from "./error";
 
 registerSqliteServices();
 
@@ -25,6 +27,14 @@ function ise(c: Context, ex: any) {
   console.error(ex);
   return errorResponse(c, 500, "Internal Server Error");
 }
+
+app.onError((err, c) => {
+  console.error(err);
+  if (err instanceof LightpubException) {
+    return errorResponse(c, err.status as StatusCode, err.message);
+  }
+  return ise(c, err);
+});
 
 app.get("/", (c) => {
   return c.text("Hello Hono!");
@@ -51,16 +61,15 @@ app.post("/auth/register", async (c) => {
   }
 
   const authService = container.resolve(AuthApplicationService);
-  try {
-    const result = await authService.register({
-      username: body.username,
-      password: body.password,
-      nickname: body.nickname,
-    });
-    return c.json(result);
-  } catch (ex) {
-    return ise(c, ex);
-  }
+
+  const result = await authService.register({
+    username: body.username,
+    password: body.password,
+    nickname: body.nickname,
+  });
+  return c.json({
+    user_id: result.userId,
+  });
 });
 
 interface LoginRequest {
@@ -82,18 +91,26 @@ app.post("/auth/login", async (c) => {
   }
 
   const authService = container.resolve(AuthApplicationService);
-  try {
-    const result = await authService.login({
-      username: body.username,
-      password: body.password,
-    });
-    if (result === null) {
-      return errorResponse(c, 401, "Unauthorized");
-    }
-    return c.json(result);
-  } catch (ex) {
-    return ise(c, ex);
+
+  const result = await authService.login({
+    username: body.username,
+    password: body.password,
+  });
+  if (result === null) {
+    return errorResponse(c, 401, "Unauthorized");
   }
+  return c.json({
+    token: result.token,
+  });
+});
+
+app.post("/debug/truncate", async (c) => {
+  await db.transaction(async (tx) => {
+    await tx.delete(secrets).execute();
+    await tx.delete(posts).execute();
+    await tx.delete(users).execute();
+  });
+  return c.text("OK");
 });
 
 export default app;

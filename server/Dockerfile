@@ -1,11 +1,18 @@
 FROM oven/bun:latest
 
+RUN apt-get update && apt-get install -y netcat
+
+
 WORKDIR /usr/src/app
 COPY package.json ./
 COPY bun.lockb ./
-COPY src ./src
 
 RUN bun install
 
-CMD ["bun", "run", "./src/index.ts"]
+COPY tsconfig.json ./
+COPY drizzle ./drizzle
+COPY src ./src
+COPY start.sh ./
+
+CMD ["./start.sh"]
 
