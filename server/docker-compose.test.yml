@@ -1,5 +1,4 @@
 version: "3.8" # Use a suitable version for your Docker engine and Compose file features
-
 services:
   nginx:
     restart: unless-stopped
@@ -36,8 +35,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: lightpub-server-test
+    depends_on:
+      lightpub_db:
+        condition: service_healthy
     ports:
       - "3000:3000"
+    environment:
+      - DB_HOST=lightpub_db
+      - DB_PORT=3306
     networks:
       - lightpub_test
     healthcheck:
@@ -48,6 +53,26 @@ services:
       start_period: 60s
       start_interval: 2s
     init: true # necessary for shutting down gracefully
+
+  lightpub_db:
+    image: mariadb:latest
+    container_name: lightpub-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: lightpub
+      MYSQL_USER: lightpub
+      MYSQL_PASSWORD: lightpub
+      MYSQL_DATABASE: lightpub
+    ports:
+      - "127.0.0.1:13306:3306"
+    networks:
+      - lightpub_test
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   test-runner:
     build: ./e2e

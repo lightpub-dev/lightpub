@@ -157,7 +157,7 @@ describe("/auth/register", function () {
     });
 });
 
-describe("/login", function () {
+describe("/auth/login", function () {
     before(async function () {
         this.timeout(30000);
         try {
@@ -181,7 +181,7 @@ describe("/login", function () {
         }
     });
     it("can login with correct credentials", async function () {
-        const response = await axios.post(BASE_URL + "/login", {
+        const response = await axios.post(BASE_URL + "/auth/login", {
             username: "initialuser",
             password: GOOD_PASSWORD,
         });
@@ -190,7 +190,7 @@ describe("/login", function () {
     });
     it("reject login with wrong credentials", async function () {
         const response = await axios.post(
-            BASE_URL + "/login",
+            BASE_URL + "/auth/login",
             {
                 username: "initialuser",
                 password: "wrongpassword",
@@ -205,7 +205,7 @@ describe("/login", function () {
     });
     it("reject login with non-existing user", async function () {
         const response = await axios.post(
-            BASE_URL + "/login",
+            BASE_URL + "/auth/login",
             {
                 username: "nonexistinguser",
                 password: GOOD_PASSWORD,
@@ -816,7 +816,7 @@ describe("/follow", function () {
         });
         it("can get following", async function () {
             const res = await axios.get(
-                "/user/@user1/following",
+                "/user/@user1/followings",
                 authHeader(userToken1)
             );
             expect(res.status).equal(200);
@@ -826,7 +826,7 @@ describe("/follow", function () {
 
             // Testing for user2's followings
             const res2 = await axios.get(
-                "/user/@user2/following",
+                "/user/@user2/followings",
                 authHeader(userToken2)
             );
             expect(res2.status).equal(200);

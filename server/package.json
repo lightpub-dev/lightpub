@@ -4,7 +4,8 @@
     "dev": "bun run --hot src/index.ts",
     "tsc": "tsc",
     "makemigrations": "drizzle-kit generate --config ./src/drizzle.config.ts",
-    "migrate": "bun src/migrate.ts"
+    "migrate": "bun src/migrate.ts",
+    "test": "bun test src/*"
   },
   "dependencies": {
     "ajv": "^8.17.1",
@@ -12,6 +13,7 @@
     "drizzle-orm": "^0.33.0",
     "hono": "^4.5.11",
     "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.0",
     "node-rsa": "^1.1.1",
     "reflect-metadata": "^0.2.2",
     "tsyringe": "^4.8.0",

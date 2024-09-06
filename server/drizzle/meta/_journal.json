@@ -1,12 +1,12 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "mysql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1725523291423,
-      "tag": "0000_mysterious_misty_knight",
+      "version": "5",
+      "when": 1725583000336,
+      "tag": "0000_melodic_layla_miller",
       "breakpoints": true
     }
   ]

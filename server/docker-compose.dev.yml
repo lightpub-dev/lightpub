@@ -1,0 +1,22 @@
+services:
+  lightpub_dev_db:
+    image: mariadb:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: lightpub
+      MYSQL_USER: lightpub
+      MYSQL_PASSWORD: lightpub
+      MYSQL_DATABASE: lightpub
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - lightpub_dev_db_data:/var/lib/mysql
+
+volumes:
+  lightpub_dev_db_data:

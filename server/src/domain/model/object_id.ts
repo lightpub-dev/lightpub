@@ -4,7 +4,7 @@ export class ObjectID implements ValueObject {
   public readonly id: string;
 
   constructor(id: string) {
-    if (id.includes("-")) {
+    if (id.includes("-") || id.length !== 32) {
       throw new Error("Invalid ObjectID");
     }
     this.id = id;

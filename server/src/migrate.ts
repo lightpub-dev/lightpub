@@ -1,10 +1,12 @@
-import { db, connection } from "./db";
-import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { migrate } from "drizzle-orm/mysql2/migrator";
+import { createSingle } from "./db";
 
 (async () => {
+  const { db, connection } = await createSingle();
+
   // This will run migrations on the database, skipping the ones already applied
-  migrate(db, { migrationsFolder: "./drizzle" });
+  await migrate(db, { migrationsFolder: "./drizzle" });
 
   // Don't forget to close the connection, otherwise the script will hang
-  connection.close();
+  await connection.end();
 })();

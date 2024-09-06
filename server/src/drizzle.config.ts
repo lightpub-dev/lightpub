@@ -1,10 +1,14 @@
 import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
-  schema: "./src/sqlite_schema.ts",
+  schema: "./src/mysql_schema.ts",
   out: "./drizzle",
-  dialect: "sqlite", // 'postgresql' | 'mysql' | 'sqlite'
+  dialect: "mysql", // 'postgresql' | 'mysql' | 'sqlite'
   dbCredentials: {
-    url: "./sqlite.db",
+    host: process.env["DB_HOST"] ?? "127.0.0.1",
+    port: Number.parseInt(process.env["DB_PORT"] ?? "3306"),
+    user: process.env["DB_USER"] ?? "lightpub",
+    password: process.env["DB_PASSWORD"] ?? "lightpub",
+    database: process.env["DB_DATABASE"] ?? "lightpub",
   },
 });

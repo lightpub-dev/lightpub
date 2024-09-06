@@ -1,15 +1,16 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { db } from "../../db";
 import { ObjectID } from "../../domain/model/object_id";
 import { Nickname, User, Username } from "../../domain/model/user";
-import { users } from "../../sqlite_schema";
+import { users } from "../../mysql_schema";
 import { type IUserRepository } from "../user";
 import { Clock } from "../../utils/clock";
 import { injectable } from "tsyringe";
+import { createDB } from "../../db";
 
 @injectable()
-export class UserSqliteRepository implements IUserRepository {
+export class UserMysqlRepository implements IUserRepository {
   async save(user: User): Promise<void> {
+    const db = await createDB();
     await db.insert(users).values({
       id: user.id.id,
       username: user.username.value,
@@ -20,12 +21,13 @@ export class UserSqliteRepository implements IUserRepository {
       url: user.url,
       privateKey: user.privateKey,
       publicKey: user.publicKey,
-      createdAt: user.createdAt.asNumber(),
-      deletedAt: user.deletedAt?.asNumber(),
+      createdAt: user.createdAt,
+      deletedAt: user.deletedAt,
     });
   }
 
   async findById(id: ObjectID): Promise<User | null> {
+    const db = await createDB();
     const result = await db.select().from(users).where(eq(users.id, id.id));
 
     if (result.length === 0) {
@@ -43,6 +45,7 @@ export class UserSqliteRepository implements IUserRepository {
     username: string,
     hostname: string | null
   ): Promise<User | null> {
+    const db = await createDB();
     let eqClause = eq(users.username, username);
     if (hostname !== null) {
       eqClause = and(eqClause, eq(users.hostname, hostname))!;
@@ -72,8 +75,8 @@ export class UserSqliteRepository implements IUserRepository {
     url: string | null;
     privateKey: string | null;
     publicKey: string | null;
-    createdAt: number;
-    deletedAt: number | null;
+    createdAt: Date;
+    deletedAt: Date | null;
   }): User {
     return new User(
       new ObjectID(u.id),

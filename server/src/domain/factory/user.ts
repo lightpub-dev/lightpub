@@ -3,6 +3,9 @@ import { type IIDGenerator } from "./object_id";
 import { clockNow, now } from "../../utils/clock";
 import { inject, injectable } from "tsyringe";
 import { ID_GENERATOR } from "../../registry_key";
+import { LightpubException } from "../../error";
+import { UserService } from "../service/user";
+import { ObjectID } from "../model/object_id";
 
 export interface IUserFactory {
   create: (
@@ -12,15 +15,28 @@ export interface IUserFactory {
   ) => Promise<User>;
 }
 
+class BadPasswordException extends LightpubException {
+  constructor() {
+    super(400, "Bad password");
+  }
+}
+
 @injectable()
 export class DefaultUserFactory implements IUserFactory {
-  constructor(@inject(ID_GENERATOR) private idGenerator: IIDGenerator) {}
+  constructor(
+    @inject(ID_GENERATOR) private idGenerator: IIDGenerator,
+    private userService: UserService
+  ) {}
 
   async create(
     username: string,
     password: string,
     nickname: string
   ): Promise<User> {
+    if (!this.userService.isGoodPassword(password)) {
+      throw new BadPasswordException();
+    }
+
     const hash = await Bun.password.hash(password, {
       algorithm: "bcrypt",
     });

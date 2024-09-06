@@ -1,7 +1,7 @@
 {
-  "version": "6",
-  "dialect": "sqlite",
-  "id": "b4f1468e-0ec8-4751-b898-897a752bdca1",
+  "version": "5",
+  "dialect": "mysql",
+  "id": "a8759bfc-3ab0-41a0-9a08-e584c9e9608c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "posts": {
@@ -9,56 +9,56 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "text",
-          "primaryKey": true,
+          "type": "char(32)",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "url": {
           "name": "url",
-          "type": "text(512)",
+          "type": "varchar(512)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "authorId": {
           "name": "authorId",
-          "type": "text",
+          "type": "char(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "privacy": {
           "name": "privacy",
-          "type": "text",
+          "type": "enum('public','unlisted','follower','private')",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "replyToId": {
           "name": "replyToId",
-          "type": "text",
+          "type": "char(32)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "repostOfId": {
           "name": "repostOfId",
-          "type": "text",
+          "type": "char(32)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "createdAt": {
           "name": "createdAt",
-          "type": "integer",
+          "type": "datetime(6)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "deletedAt": {
           "name": "deletedAt",
-          "type": "integer",
+          "type": "datetime(6)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -106,7 +106,14 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "posts_id": {
+          "name": "posts_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
       "uniqueConstraints": {}
     },
     "secrets": {
@@ -114,8 +121,8 @@
       "columns": {
         "key": {
           "name": "key",
-          "type": "text",
-          "primaryKey": true,
+          "type": "varchar(64)",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -129,7 +136,14 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "secrets_key": {
+          "name": "secrets_key",
+          "columns": [
+            "key"
+          ]
+        }
+      },
       "uniqueConstraints": {}
     },
     "userFollows": {
@@ -137,28 +151,28 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
-          "primaryKey": true,
+          "type": "bigint",
+          "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": true
         },
         "followerId": {
           "name": "followerId",
-          "type": "text",
+          "type": "char(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "followeeId": {
           "name": "followeeId",
-          "type": "text",
+          "type": "char(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "followAt": {
           "name": "followAt",
-          "type": "integer",
+          "type": "datetime(6)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -193,86 +207,101 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "compositePrimaryKeys": {
+        "userFollows_id": {
+          "name": "userFollows_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "userFollows_followerId_followeeId_unique": {
+          "name": "userFollows_followerId_followeeId_unique",
+          "columns": [
+            "followerId",
+            "followeeId"
+          ]
+        }
+      }
     },
     "users": {
       "name": "users",
       "columns": {
         "id": {
           "name": "id",
-          "type": "text",
-          "primaryKey": true,
+          "type": "char(32)",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "username": {
           "name": "username",
-          "type": "text(128)",
+          "type": "varchar(64)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "hostname": {
           "name": "hostname",
-          "type": "text(512)",
+          "type": "varchar(128)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "password": {
           "name": "password",
-          "type": "text(256)",
+          "type": "varchar(60)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "nickname": {
           "name": "nickname",
-          "type": "text(128)",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "bio": {
           "name": "bio",
-          "type": "text(2048)",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "''"
+          "default": "('')"
         },
         "url": {
           "name": "url",
-          "type": "text(512)",
+          "type": "varchar(512)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "privateKey": {
           "name": "privateKey",
-          "type": "text(1024)",
+          "type": "varchar(1024)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "publicKey": {
           "name": "publicKey",
-          "type": "text(1024)",
+          "type": "varchar(1024)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "createdAt": {
           "name": "createdAt",
-          "type": "integer",
+          "type": "datetime(6)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "deletedAt": {
           "name": "deletedAt",
-          "type": "integer",
+          "type": "datetime(6)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -280,17 +309,32 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "compositePrimaryKeys": {
+        "users_id": {
+          "name": "users_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "users_username_hostname_unique": {
+          "name": "users_username_hostname_unique",
+          "columns": [
+            "username",
+            "hostname"
+          ]
+        }
+      }
     }
   },
-  "enums": {},
   "_meta": {
     "schemas": {},
     "tables": {},
     "columns": {}
   },
   "internal": {
+    "tables": {},
     "indexes": {}
   }
 }
