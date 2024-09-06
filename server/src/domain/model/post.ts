@@ -11,12 +11,6 @@ export class Post {
     public privacy: "public" | "unlisted" | "follower" | "private",
     public replyToId: string | null,
     public repostOfId: string | null,
-    public counter: {
-      reply: number;
-      repost: number;
-      favorite: number;
-    },
-    public reactions: { name: string; count: number }[],
     public createdAt: Clock,
     public deletedAt: Clock | null
   ) {}
