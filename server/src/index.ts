@@ -298,6 +298,13 @@ app.post("/post", requireAuthMiddleware, async (c) => {
   });
 });
 
+app.delete("/post/:post_id", requireAuthMiddleware, async (c) => {
+  const postId = c.req.param("post_id");
+  const postCreateService = container.resolve(PostCreateApplicationService);
+  await postCreateService.deletePost(postId, c.get(USER_ID));
+  return c.json({ message: "OK" });
+});
+
 if (process.env.NODE_ENV === "development") {
   app.post("/debug/truncate", async (c) => {
     const db = await createDB();

@@ -32,6 +32,23 @@ export class PostMysqlRepository implements PostRepository {
     });
   }
 
+  async update(post: Post): Promise<void> {
+    const db = await createDB();
+    await db
+      .update(posts)
+      .set({
+        url: post.url,
+        authorId: post.authorId.id,
+        content: post.content?.toString(),
+        privacy: post.privacy,
+        replyToId: post.replyToId?.id,
+        repostOfId: post.repostOfId?.id,
+        createdAt: post.createdAt,
+        deletedAt: post.deletedAt,
+      })
+      .where(eq(posts.id, post.id.id));
+  }
+
   private buildPost(result: {
     id: string;
     url: string | null;

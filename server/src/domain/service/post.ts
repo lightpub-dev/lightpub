@@ -120,4 +120,16 @@ export class PostService {
     console.error("unreachable");
     throw new LightpubInternalException();
   }
+
+  async isAllowedToDelete(
+    viewerId: ObjectID,
+    postId: ObjectID
+  ): Promise<boolean> {
+    const post = await this.postRepository.findById(postId);
+    if (post === null) {
+      throw new PostNotFoundException();
+    }
+
+    return viewerId.equals(post.authorId);
+  }
 }

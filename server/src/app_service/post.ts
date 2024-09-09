@@ -6,6 +6,7 @@ import { Post, PostContent } from "../domain/model/post";
 import { ObjectID } from "../domain/model/object_id";
 import { PostService } from "../domain/service/post";
 import { LightpubException } from "../error";
+import { clockNow } from "../utils/clock";
 
 export type CreatePostCmd =
   | (
@@ -111,5 +112,27 @@ export class PostCreateApplicationService {
     return {
       id: post.id.id,
     };
+  }
+
+  async deletePost(postId: string, deleterId: string): Promise<void> {
+    const post = await this.postRepository.findById(new ObjectID(postId));
+    if (post === null) {
+      throw new PostNotFoundError();
+    }
+
+    if (
+      !(await this.postService.isAllowedToDelete(
+        new ObjectID(deleterId),
+        new ObjectID(postId)
+      ))
+    ) {
+      throw new LightpubException(
+        403,
+        "You are not allowed to delete this post"
+      );
+    }
+
+    post.deletedAt = clockNow();
+    await this.postRepository.update(post);
   }
 }
