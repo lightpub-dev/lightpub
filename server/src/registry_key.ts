@@ -6,3 +6,4 @@ export const USER_REPOSITORY = Symbol("UserRepository");
 export const SECRET_REPOSITORY = Symbol("SecretRepository");
 export const FOLLOW_REPOSITORY = Symbol("FollowRepository");
 export const POST_REPOSITORY = Symbol("PostRepository");
+export const REACTION_REPOSITORY = Symbol("ReactionRepository");

@@ -5,6 +5,7 @@ import {
   datetime,
   mysqlEnum,
   mysqlTable,
+  serial,
   text,
   unique,
   varchar,
@@ -119,3 +120,57 @@ export const userFollows = mysqlTable(
     followUnique: unique().on(t.followerId, t.followeeId),
   })
 );
+
+export const postFavorites = mysqlTable("postFavorites", {
+  id: serial("id").primaryKey(),
+  userId: char("userId", {
+    length: 32,
+  })
+    .notNull()
+    .references(() => users.id),
+  postId: char("postId", {
+    length: 32,
+  })
+    .notNull()
+    .references(() => posts.id),
+  favoritedAt: datetime("favoritedAt", {
+    fsp: 6,
+  }).notNull(),
+});
+
+export const postBookmarks = mysqlTable("postBookmarks", {
+  id: serial("id").primaryKey(),
+  userId: char("userId", {
+    length: 32,
+  })
+    .notNull()
+    .references(() => users.id),
+  postId: char("postId", {
+    length: 32,
+  })
+    .notNull()
+    .references(() => posts.id),
+  bookmarkedAt: datetime("bookmarkedAt", {
+    fsp: 6,
+  }).notNull(),
+});
+
+export const postReactions = mysqlTable("postReactions", {
+  id: serial("id").primaryKey(),
+  userId: char("userId", {
+    length: 32,
+  })
+    .notNull()
+    .references(() => users.id),
+  postId: char("postId", {
+    length: 32,
+  })
+    .notNull()
+    .references(() => posts.id),
+  reaction: varchar("reaction", {
+    length: 64,
+  }).notNull(),
+  reactedAt: datetime("reactedAt", {
+    fsp: 6,
+  }).notNull(),
+});

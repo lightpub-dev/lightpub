@@ -1,12 +1,23 @@
 import { inject, injectable } from "tsyringe";
 import { type PostFactory } from "../domain/factory/post";
 import { type PostRepository } from "../repository/post";
-import { POST_FACTORY, POST_REPOSITORY } from "../registry_key";
+import {
+  POST_FACTORY,
+  POST_REPOSITORY,
+  REACTION_REPOSITORY,
+} from "../registry_key";
 import { Post, PostContent } from "../domain/model/post";
 import { ObjectID } from "../domain/model/object_id";
 import { PostService } from "../domain/service/post";
 import { LightpubException } from "../error";
 import { clockNow } from "../utils/clock";
+import { type ReactionRepository } from "../repository/reaction";
+import { PostReactionService } from "../domain/service/reaction";
+import {
+  PostBookmark,
+  PostFavorite,
+  PostReaction,
+} from "../domain/model/reaction";
 
 export type CreatePostCmd =
   | (
@@ -184,5 +195,113 @@ export class PostFetchApplicationService {
       replyToId: post.replyToId?.id ?? null,
       repostOfId: post.repostOfId?.id ?? null,
     };
+  }
+}
+
+class ReactionUserNotFoundException extends LightpubException {
+  constructor() {
+    super(404, "User not found");
+  }
+}
+
+class ReactionPostNotFoundException extends LightpubException {
+  constructor() {
+    super(404, "Post not found");
+  }
+}
+
+@injectable()
+export class PostReactionApplicationService {
+  constructor(
+    @inject(REACTION_REPOSITORY) private reactionRepository: ReactionRepository,
+    private reactionService: PostReactionService
+  ) {}
+
+  async favoritePost(userId: string, postId: string): Promise<void> {
+    const fav = new PostFavorite(
+      new ObjectID(postId),
+      new ObjectID(userId),
+      clockNow()
+    );
+
+    await this.store(fav);
+  }
+
+  async deleteFavorite(userId: string, postId: string): Promise<void> {
+    const fav = await this.reactionRepository.find(
+      "favorite",
+      new ObjectID(userId),
+      new ObjectID(postId)
+    );
+    if (fav === null) return;
+    await this.reactionRepository.delete(fav);
+  }
+
+  async bookmarkPost(userId: string, postId: string): Promise<void> {
+    const bookmark = new PostBookmark(
+      new ObjectID(postId),
+      new ObjectID(userId),
+      clockNow()
+    );
+
+    await this.store(bookmark);
+  }
+
+  async deleteBookmark(userId: string, postId: string): Promise<void> {
+    const book = await this.reactionRepository.find(
+      "bookmark",
+      new ObjectID(userId),
+      new ObjectID(postId)
+    );
+    if (book === null) return;
+    await this.reactionRepository.delete(book);
+  }
+
+  async reactionPost(
+    userId: string,
+    postId: string,
+    emoji: string
+  ): Promise<void> {
+    const reaction = new PostReaction(
+      new ObjectID(postId),
+      new ObjectID(userId),
+      emoji,
+      clockNow()
+    );
+
+    await this.store(reaction);
+  }
+
+  async deleteReaction(
+    userId: string,
+    postId: string,
+    emoji: string
+  ): Promise<void> {
+    const reaction = await this.reactionRepository.find(
+      "reaction",
+      new ObjectID(userId),
+      new ObjectID(postId),
+      emoji
+    );
+    if (reaction === null) return;
+    await this.reactionRepository.delete(reaction);
+  }
+
+  private async store(
+    r: PostFavorite | PostBookmark | PostReaction
+  ): Promise<void> {
+    const valid = await this.reactionService.isValid(r as any);
+    if (!valid.valid) {
+      switch (valid.reason) {
+        case "userNotFound":
+          throw new ReactionUserNotFoundException();
+        case "postNotFound":
+          throw new ReactionPostNotFoundException();
+        default:
+          throw new Error("Unhandled reason");
+      }
+    }
+
+    await this.reactionRepository.save(r);
   }
 }

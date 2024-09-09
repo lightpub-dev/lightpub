@@ -19,6 +19,7 @@ import { PaginatedResponse, parseLimit } from "./utils/pagination";
 import {
   PostCreateApplicationService,
   PostFetchApplicationService,
+  PostReactionApplicationService,
 } from "./app_service/post";
 import { sql } from "drizzle-orm";
 
@@ -328,6 +329,66 @@ app.get("/post/:post_id", optionalAuthMiddleware, async (c) => {
     repost_of_id: post.repostOfId,
     created_at: post.createdAt.toISOString(),
   });
+});
+
+app.put("/post/:post_id/favorite", requireAuthMiddleware, async (c) => {
+  const postId = c.req.param("post_id");
+  const postCreateService = container.resolve(PostReactionApplicationService);
+  await postCreateService.favoritePost(c.get(USER_ID), postId);
+  return c.json({ message: "OK" });
+});
+
+app.delete("/post/:post_id/favorite", requireAuthMiddleware, async (c) => {
+  const postId = c.req.param("post_id");
+  const postCreateService = container.resolve(PostReactionApplicationService);
+  await postCreateService.deleteFavorite(c.get(USER_ID), postId);
+  return c.json({ message: "OK" });
+});
+
+app.put("/post/:post_id/bookmark", requireAuthMiddleware, async (c) => {
+  const postId = c.req.param("post_id");
+  const postCreateService = container.resolve(PostReactionApplicationService);
+  await postCreateService.bookmarkPost(c.get(USER_ID), postId);
+  return c.json({ message: "OK" });
+});
+
+app.delete("/post/:post_id/bookmark", requireAuthMiddleware, async (c) => {
+  const postId = c.req.param("post_id");
+  const postCreateService = container.resolve(PostReactionApplicationService);
+  await postCreateService.deleteBookmark(c.get(USER_ID), postId);
+  return c.json({ message: "OK" });
+});
+
+interface ReactionRequest {
+  reaction: string;
+  add: boolean;
+}
+const reactionRequestValidator = ajv.compile({
+  type: "object",
+  properties: {
+    reaction: { type: "string" },
+    add: { type: "boolean" },
+  },
+  required: ["reaction", "add"],
+} as JSONSchemaType<ReactionRequest>);
+app.post("/post/:post_id/reaction", requireAuthMiddleware, async (c) => {
+  const postId = c.req.param("post_id");
+  const body = await c.req.json();
+  if (!reactionRequestValidator(body)) {
+    return errorResponse(c, 400, "Invalid request");
+  }
+
+  const postCreateService = container.resolve(PostReactionApplicationService);
+  if (body.add) {
+    await postCreateService.reactionPost(c.get(USER_ID), postId, body.reaction);
+  } else {
+    await postCreateService.deleteReaction(
+      c.get(USER_ID),
+      postId,
+      body.reaction
+    );
+  }
+  return c.json({ message: "OK" });
 });
 
 if (process.env.NODE_ENV === "development") {

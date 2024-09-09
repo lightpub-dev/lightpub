@@ -17,7 +17,13 @@ export class SecretMysqlRepository implements ISecretRepository {
   }
   async setSecret(key: string, value: string): Promise<void> {
     const db = await createDB();
-    await db.delete(secrets).where(eq(secrets.key, key));
-    await db.insert(secrets).values({ key, value });
+    await db
+      .insert(secrets)
+      .values({ key, value })
+      .onDuplicateKeyUpdate({
+        set: {
+          value: value,
+        },
+      });
   }
 }

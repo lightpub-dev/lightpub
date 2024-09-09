@@ -9,6 +9,7 @@ import {
   ID_GENERATOR,
   POST_FACTORY,
   POST_REPOSITORY,
+  REACTION_REPOSITORY,
   SECRET_REPOSITORY,
   USER_FACTORY,
   USER_REPOSITORY,
@@ -18,6 +19,7 @@ import { DefaultFollowFactory } from "./domain/factory/follow";
 import { FollowMysqlRepository } from "./repository/mysql/follow";
 import { DefaultPostFactory } from "./domain/factory/post";
 import { PostMysqlRepository } from "./repository/mysql/post";
+import { ReactionMysqlRepository } from "./repository/mysql/reaction";
 
 export function registerMysqlServices() {
   container.register(USER_FACTORY, {
@@ -45,5 +47,8 @@ export function registerMysqlServices() {
   });
   container.register(POST_REPOSITORY, {
     useClass: PostMysqlRepository,
+  });
+  container.register(REACTION_REPOSITORY, {
+    useClass: ReactionMysqlRepository,
   });
 }
