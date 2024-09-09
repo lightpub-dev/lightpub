@@ -568,7 +568,7 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            expect(res.status).equal(400);
         });
         it("cannot make a public repost of my private post", async function () {
             const res = await axios.post(
