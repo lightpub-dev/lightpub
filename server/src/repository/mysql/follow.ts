@@ -102,4 +102,21 @@ export class FollowMysqlRepository implements IFollowRepository {
       );
     });
   }
+
+  async isFollowing(
+    followerId: ObjectID,
+    followeeId: ObjectID
+  ): Promise<boolean> {
+    const db = await createDB();
+    const result = await db
+      .select()
+      .from(userFollows)
+      .where(
+        and(
+          eq(userFollows.followerId, followerId.id),
+          eq(userFollows.followeeId, followeeId.id)
+        )
+      );
+    return result.length > 0;
+  }
 }

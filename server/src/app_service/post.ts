@@ -39,6 +39,12 @@ export class InvalidPostError extends LightpubException {
   }
 }
 
+export class PostNotFoundError extends LightpubException {
+  constructor() {
+    super(404, "Post not found");
+  }
+}
+
 @injectable()
 export class PostCreateApplicationService {
   constructor(
@@ -84,8 +90,20 @@ export class PostCreateApplicationService {
     }
 
     // check validity
-    if (!(await this.postService.isValid(post))) {
-      throw new InvalidPostError();
+    const isValid = await this.postService.isValid(post);
+    if (!isValid.valid) {
+      switch (isValid.reason) {
+        case "invalidPostFields":
+        case "badRepostPrivacy":
+          throw new InvalidPostError();
+        case "replyToIdNotFound":
+        case "replyToIdNotVisible":
+        case "repostOfIdNotFound":
+        case "repostOfIdNotVisible":
+          throw new PostNotFoundError();
+        default:
+          throw new Error("Unhandled reason");
+      }
     }
 
     await this.postRepository.save(post);

@@ -4,3 +4,9 @@ export class LightpubException extends Error {
     this.name = this.constructor.name;
   }
 }
+
+export class LightpubInternalException extends LightpubException {
+  constructor() {
+    super(500, "Internal Server Error");
+  }
+}

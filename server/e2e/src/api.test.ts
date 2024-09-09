@@ -581,7 +581,7 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            expect(res.status).equal(400);
         });
         it("can make an unlisted repost of my public post", async function () {
             const res = await axios.post(

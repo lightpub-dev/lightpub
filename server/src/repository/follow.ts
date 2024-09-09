@@ -11,4 +11,5 @@ export interface IFollowRepository {
   delete(follow: UserFollow): Promise<void>;
   getFollowers(userId: ObjectID, opts: FollowFetchOpts): Promise<UserFollow[]>;
   getFollowings(userId: ObjectID, opts: FollowFetchOpts): Promise<UserFollow[]>;
+  isFollowing(followerId: ObjectID, followeeId: ObjectID): Promise<boolean>;
 }
