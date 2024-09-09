@@ -4,14 +4,17 @@ import { ObjectID } from "../../domain/model/object_id";
 import { Post, PostContent } from "../../domain/model/post";
 import { createDB } from "../../db";
 import { posts } from "../../mysql_schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { Clock } from "../../utils/clock";
 
 @injectable()
 export class PostMysqlRepository implements PostRepository {
   async findById(id: ObjectID): Promise<Post | null> {
     const db = await createDB();
-    const result = await db.select().from(posts).where(eq(posts.id, id.id));
+    const result = await db
+      .select()
+      .from(posts)
+      .where(and(eq(posts.id, id.id), isNull(posts.deletedAt)));
     if (result.length === 0) return null;
     if (result.length > 1) throw new Error("Multiple posts found");
     return this.buildPost(result[0]);

@@ -16,7 +16,10 @@ import { UserApplicationService } from "./app_service/user";
 import { parseUserspec } from "./utils/user";
 import { FollowApplicationService } from "./app_service/follow";
 import { PaginatedResponse, parseLimit } from "./utils/pagination";
-import { PostCreateApplicationService } from "./app_service/post";
+import {
+  PostCreateApplicationService,
+  PostFetchApplicationService,
+} from "./app_service/post";
 import { sql } from "drizzle-orm";
 
 registerMysqlServices();
@@ -303,6 +306,28 @@ app.delete("/post/:post_id", requireAuthMiddleware, async (c) => {
   const postCreateService = container.resolve(PostCreateApplicationService);
   await postCreateService.deletePost(postId, c.get(USER_ID));
   return c.json({ message: "OK" });
+});
+
+app.get("/post/:post_id", optionalAuthMiddleware, async (c) => {
+  const postId = c.req.param("post_id");
+  const postCreateService = container.resolve(PostFetchApplicationService);
+  const post = await postCreateService.fetchPost(postId, c.get(USER_ID));
+  if (post === null) {
+    throw new LightpubException(404, "Post not found");
+  }
+
+  return c.json({
+    id: post.id,
+    url: post.url,
+    author: {
+      id: post.authorId,
+    },
+    content: post.content,
+    privacy: post.privacy,
+    reply_to_id: post.replyToId,
+    repost_of_id: post.repostOfId,
+    created_at: post.createdAt.toISOString(),
+  });
 });
 
 if (process.env.NODE_ENV === "development") {

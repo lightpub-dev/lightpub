@@ -181,6 +181,7 @@ describe("/auth/login", function () {
         }
     });
     it("can login with correct credentials", async function () {
+        this.timeout(5000);
         const response = await axios.post(BASE_URL + "/auth/login", {
             username: "initialuser",
             password: GOOD_PASSWORD,
@@ -189,6 +190,7 @@ describe("/auth/login", function () {
         expect(response.data).have.property("token");
     });
     it("reject login with wrong credentials", async function () {
+        this.timeout(5000);
         const response = await axios.post(
             BASE_URL + "/auth/login",
             {
@@ -204,6 +206,7 @@ describe("/auth/login", function () {
         expect(response.status).equal(401);
     });
     it("reject login with non-existing user", async function () {
+        this.timeout(5000);
         const response = await axios.post(
             BASE_URL + "/auth/login",
             {

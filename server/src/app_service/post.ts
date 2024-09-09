@@ -136,3 +136,53 @@ export class PostCreateApplicationService {
     await this.postRepository.update(post);
   }
 }
+
+export interface PostDto {
+  id: string;
+  url: string | null;
+  authorId: string;
+  createdAt: Date;
+  content: string | null;
+  privacy: "public" | "unlisted" | "follower" | "private";
+  replyToId: string | null;
+  repostOfId: string | null;
+}
+
+@injectable()
+export class PostFetchApplicationService {
+  constructor(
+    @inject(POST_REPOSITORY) private postRepository: PostRepository,
+    private postService: PostService
+  ) {}
+
+  async fetchPost(
+    postId: string,
+    viewerId: string | null
+  ): Promise<PostDto | null> {
+    const post = await this.postRepository.findById(new ObjectID(postId));
+    if (post === null) {
+      return null;
+    }
+
+    // check visibility
+    if (
+      !(await this.postService.isVisibleTo(
+        viewerId !== null ? new ObjectID(viewerId) : null,
+        post.id
+      ))
+    ) {
+      return null;
+    }
+
+    return {
+      id: post.id.id,
+      url: post.url,
+      authorId: post.authorId.id,
+      createdAt: post.createdAt,
+      content: post.content?.toString() ?? null,
+      privacy: post.privacy,
+      replyToId: post.replyToId?.id ?? null,
+      repostOfId: post.repostOfId?.id ?? null,
+    };
+  }
+}

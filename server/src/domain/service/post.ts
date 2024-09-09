@@ -96,7 +96,10 @@ export class PostService {
     };
   }
 
-  async isVisibleTo(viewerId: ObjectID, postId: ObjectID): Promise<boolean> {
+  async isVisibleTo(
+    viewerId: ObjectID | null,
+    postId: ObjectID
+  ): Promise<boolean> {
     const post = await this.postRepository.findById(postId);
     if (post === null) {
       throw new PostNotFoundException();
@@ -104,6 +107,11 @@ export class PostService {
     if (["public", "unlisted"].includes(post.privacy)) {
       // public or unlisted posts are always visible to everyone
       return true;
+    }
+
+    if (viewerId === null) {
+      // non-logged-in users cannot see follower or private posts
+      return false;
     }
 
     if (post.privacy === "follower") {
