@@ -104,6 +104,12 @@ export class PostService {
     if (post === null) {
       throw new PostNotFoundException();
     }
+
+    // author can always see their own posts
+    if (viewerId !== null && post.authorId.equals(viewerId)) {
+      return true;
+    }
+
     if (["public", "unlisted"].includes(post.privacy)) {
       // public or unlisted posts are always visible to everyone
       return true;
@@ -120,8 +126,9 @@ export class PostService {
     }
 
     if (post.privacy === "private") {
-      // private posts are visible only to the author
-      return viewerId.equals(post.authorId);
+      // private posts are visible only to the mentioned user
+      // TODO:
+      return false;
     }
 
     // unreachable
