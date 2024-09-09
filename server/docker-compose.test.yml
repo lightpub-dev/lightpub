@@ -43,6 +43,7 @@ services:
     environment:
       - DB_HOST=lightpub_db
       - DB_PORT=3306
+      - NODE_ENV=development
     networks:
       - lightpub_test
     healthcheck:

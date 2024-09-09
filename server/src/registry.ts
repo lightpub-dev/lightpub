@@ -7,6 +7,8 @@ import {
   FOLLOW_FACTORY,
   FOLLOW_REPOSITORY,
   ID_GENERATOR,
+  POST_FACTORY,
+  POST_REPOSITORY,
   SECRET_REPOSITORY,
   USER_FACTORY,
   USER_REPOSITORY,
@@ -14,6 +16,8 @@ import {
 import { SecretMysqlRepository } from "./repository/mysql/secret";
 import { DefaultFollowFactory } from "./domain/factory/follow";
 import { FollowMysqlRepository } from "./repository/mysql/follow";
+import { DefaultPostFactory } from "./domain/factory/post";
+import { PostMysqlRepository } from "./repository/mysql/post";
 
 export function registerMysqlServices() {
   container.register(USER_FACTORY, {
@@ -21,6 +25,9 @@ export function registerMysqlServices() {
   });
   container.register(FOLLOW_FACTORY, {
     useClass: DefaultFollowFactory,
+  });
+  container.register(POST_FACTORY, {
+    useClass: DefaultPostFactory,
   });
 
   container.register(ID_GENERATOR, {
@@ -35,5 +42,8 @@ export function registerMysqlServices() {
   });
   container.register(FOLLOW_REPOSITORY, {
     useClass: FollowMysqlRepository,
+  });
+  container.register(POST_REPOSITORY, {
+    useClass: PostMysqlRepository,
   });
 }

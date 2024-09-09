@@ -71,6 +71,7 @@ export const posts = mysqlTable("posts", {
   })
     .notNull()
     .references(() => users.id),
+  content: text("content"),
   privacy: mysqlEnum("privacy", [
     "public",
     "unlisted",

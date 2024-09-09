@@ -5,12 +5,12 @@ import { ObjectID } from "./object_id";
 export class Post {
   constructor(
     public id: ObjectID,
-    public url: string,
-    public authorId: string,
+    public url: string | null,
+    public authorId: ObjectID,
     public content: PostContent | null,
     public privacy: "public" | "unlisted" | "follower" | "private",
-    public replyToId: string | null,
-    public repostOfId: string | null,
+    public replyToId: ObjectID | null,
+    public repostOfId: ObjectID | null,
     public createdAt: Clock,
     public deletedAt: Clock | null
   ) {}
@@ -28,5 +28,9 @@ export class PostContent implements ValueObject {
       return this.content === other.content;
     }
     return false;
+  }
+
+  toString(): string {
+    return this.content;
   }
 }

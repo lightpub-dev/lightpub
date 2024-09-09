@@ -1,41 +1,113 @@
+import { inject, injectable } from "tsyringe";
 import { ObjectID } from "../model/object_id";
-import { Post } from "../model/post";
+import { Post, PostContent } from "../model/post";
+import { type IIDGenerator } from "./object_id";
+import { ID_GENERATOR } from "../../registry_key";
+import { clockNow } from "../../utils/clock";
+
+export type PostPrivacy = "public" | "unlisted" | "follower" | "private";
 
 export interface PostFactory {
-  createPost(authorId: ObjectID, content: string): Promise<Post>;
+  createPost(
+    authorId: ObjectID,
+    content: PostContent,
+    privacy: PostPrivacy
+  ): Promise<Post>;
   createReply(
     authorId: ObjectID,
-    content: string,
-    replyToId: ObjectID
+    content: PostContent,
+    replyToId: ObjectID,
+
+    privacy: PostPrivacy
   ): Promise<Post>;
-  createRepost(authorId: ObjectID, repostOfId: ObjectID): Promise<Post>;
+  createRepost(
+    authorId: ObjectID,
+    repostOfId: ObjectID,
+    privacy: PostPrivacy
+  ): Promise<Post>;
   createQuote(
     authorId: ObjectID,
-    content: string,
-    repostOfId: ObjectID
+    content: PostContent,
+    repostOfId: ObjectID,
+    privacy: PostPrivacy
   ): Promise<Post>;
 }
 
+@injectable()
 export class DefaultPostFactory implements PostFactory {
-  createPost(authorId: ObjectID, content: string): Promise<Post> {}
+  constructor(@inject(ID_GENERATOR) private idGen: IIDGenerator) {}
 
-  createReply(
+  async createPost(
     authorId: ObjectID,
-    content: string,
-    replyToId: ObjectID
+    content: PostContent,
+    privacy: PostPrivacy
   ): Promise<Post> {
-    throw new Error("Method not implemented.");
+    return new Post(
+      this.idGen.generate(),
+      null,
+      authorId,
+      content,
+      privacy,
+      null,
+      null,
+      clockNow(),
+      null
+    );
   }
 
-  createRepost(authorId: ObjectID, repostOfId: ObjectID): Promise<Post> {
-    throw new Error("Method not implemented.");
+  async createReply(
+    authorId: ObjectID,
+    content: PostContent,
+    replyToId: ObjectID,
+    privacy: PostPrivacy
+  ): Promise<Post> {
+    return new Post(
+      this.idGen.generate(),
+      null,
+      authorId,
+      content,
+      privacy,
+      replyToId,
+      null,
+      clockNow(),
+      null
+    );
   }
 
-  createQuote(
+  async createRepost(
     authorId: ObjectID,
-    content: string,
-    repostOfId: ObjectID
+    repostOfId: ObjectID,
+    privacy: PostPrivacy
   ): Promise<Post> {
-    throw new Error("Method not implemented.");
+    return new Post(
+      this.idGen.generate(),
+      null,
+      authorId,
+      null,
+      privacy,
+      null,
+      repostOfId,
+      clockNow(),
+      null
+    );
+  }
+
+  async createQuote(
+    authorId: ObjectID,
+    content: PostContent,
+    repostOfId: ObjectID,
+    privacy: PostPrivacy
+  ): Promise<Post> {
+    return new Post(
+      this.idGen.generate(),
+      null,
+      authorId,
+      content,
+      privacy,
+      null,
+      repostOfId,
+      clockNow(),
+      null
+    );
   }
 }

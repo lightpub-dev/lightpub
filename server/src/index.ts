@@ -9,13 +9,15 @@ import Ajv, { JSONSchemaType } from "ajv";
 import { StatusCode } from "hono/utils/http-status";
 import { AuthApplicationService } from "./app_service/auth";
 import { container } from "tsyringe";
-import { posts, secrets, users } from "./mysql_schema";
+import { posts, secrets, userFollows, users } from "./mysql_schema";
 import { LightpubException } from "./error";
 import { createDB } from "./db";
 import { UserApplicationService } from "./app_service/user";
 import { parseUserspec } from "./utils/user";
 import { FollowApplicationService } from "./app_service/follow";
 import { PaginatedResponse, parseLimit } from "./utils/pagination";
+import { PostCreateApplicationService } from "./app_service/post";
+import { sql } from "drizzle-orm";
 
 registerMysqlServices();
 
@@ -218,14 +220,97 @@ app.get("/user/:user_spec/followers", optionalAuthMiddleware, async (c) => {
   );
 });
 
-app.post("/debug/truncate", async (c) => {
-  const db = await createDB();
-  await db.transaction(async (tx) => {
-    await tx.delete(secrets).execute();
-    await tx.delete(posts).execute();
-    await tx.delete(users).execute();
+interface PostCreateRequest {
+  content?: string;
+  privacy: "public" | "unlisted" | "follower" | "private";
+  reply_to_id?: string;
+  repost_of_id?: string;
+}
+const postCreateRequestValidator = ajv.compile({
+  type: "object",
+  properties: {
+    content: { type: "string", nullable: true },
+    privacy: {
+      type: "string",
+      enum: ["public", "unlisted", "follower", "private"],
+    },
+    reply_to_id: { type: "string", nullable: true },
+    repost_of_id: { type: "string", nullable: true },
+  },
+  required: ["privacy"],
+} as JSONSchemaType<PostCreateRequest>);
+app.post("/post", requireAuthMiddleware, async (c) => {
+  const body = await c.req.json();
+  if (!postCreateRequestValidator(body)) {
+    return errorResponse(c, 400, "Invalid request");
+  }
+
+  const postCreateService = container.resolve(PostCreateApplicationService);
+  let result: Awaited<ReturnType<typeof postCreateService.createPost>>;
+  if (body.content === undefined && body.repost_of_id !== undefined) {
+    // repost
+    result = await postCreateService.createPost({
+      authorId: c.get(USER_ID),
+      privacy: body.privacy,
+      repostOfId: body.repost_of_id,
+    });
+  } else if (
+    body.content !== undefined &&
+    body.reply_to_id !== undefined &&
+    body.repost_of_id === undefined
+  ) {
+    // reply
+    result = await postCreateService.createPost({
+      authorId: c.get(USER_ID),
+      content: body.content,
+      privacy: body.privacy,
+      replyToId: body.reply_to_id,
+    });
+  } else if (
+    body.content !== undefined &&
+    body.reply_to_id === undefined &&
+    body.repost_of_id !== undefined
+  ) {
+    // repost
+    result = await postCreateService.createPost({
+      authorId: c.get(USER_ID),
+      content: body.content,
+      privacy: body.privacy,
+      repostOfId: body.repost_of_id,
+    });
+  } else if (
+    body.content !== undefined &&
+    body.reply_to_id === undefined &&
+    body.repost_of_id === undefined
+  ) {
+    // normal post
+    result = await postCreateService.createPost({
+      authorId: c.get(USER_ID),
+      content: body.content,
+      privacy: body.privacy,
+    });
+  } else {
+    throw new LightpubException(400, "Invalid request");
+  }
+
+  return c.json({
+    post_id: result.id,
   });
-  return c.text("OK");
 });
+
+if (process.env.NODE_ENV === "development") {
+  app.post("/debug/truncate", async (c) => {
+    const db = await createDB();
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SET foreign_key_checks = 0`);
+      await tx.delete(secrets).execute();
+      await tx.delete(userFollows).execute();
+      await tx.delete(posts).execute();
+      await tx.delete(users).execute();
+      await tx.execute(sql`SET foreign_key_checks = 1`);
+    });
+    return c.text("OK");
+  });
+}
 
 export default app;
