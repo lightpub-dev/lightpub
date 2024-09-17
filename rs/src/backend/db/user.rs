@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tracing::error;
 use tracing::warn;
 use uuid::fmt::Simple;
@@ -42,22 +42,22 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct DBUserCreateService {
-    pool: SqlitePool,
+    pool: MySqlPool,
 }
 
 impl DBUserCreateService {
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: MySqlPool) -> Self {
         Self { pool }
     }
 }
 
 #[derive(Debug)]
 pub struct DBAuthService {
-    pool: SqlitePool,
+    pool: MySqlPool,
 }
 
 impl DBAuthService {
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: MySqlPool) -> Self {
         Self { pool }
     }
 }
@@ -190,11 +190,11 @@ impl UserAuthService for DBAuthService {
 
 #[derive(Debug)]
 pub struct DBLocalUserFinderService {
-    pool: SqlitePool,
+    pool: MySqlPool,
 }
 
 impl DBLocalUserFinderService {
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: MySqlPool) -> Self {
         Self { pool }
     }
 }
@@ -236,7 +236,7 @@ impl LocalUserFinderService for DBLocalUserFinderService {
 }
 
 pub struct DBAllUserFinderService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     req: holder!(ApubRequestService),
     local: holder!(LocalUserFinderService),
     id_getter: IDGetterService,
@@ -244,7 +244,7 @@ pub struct DBAllUserFinderService {
 
 impl DBAllUserFinderService {
     pub fn new(
-        pool: SqlitePool,
+        pool: MySqlPool,
         req: holder!(ApubRequestService),
         local: holder!(LocalUserFinderService),
         id_getter: IDGetterService,
@@ -291,7 +291,7 @@ fn process_public_key_pem(pem: &str) -> String {
 async fn find_user_by_url(
     url: impl Into<String>,
     req: &mut holder!(ApubRequestService),
-    pool: &SqlitePool,
+    pool: &MySqlPool,
 ) -> Result<User, ServiceError<crate::backend::UserFindError>> {
     let url = url.into();
     // we can assume that the url is a remote-user url
@@ -381,7 +381,7 @@ async fn find_user_by_url(
     let mut tx = pool.begin().await?;
     let user_id_str = user.id.to_string();
     sqlx::query!(
-        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox, bio) VALUES (?,?,?,NULL,?,?,?,?,?,?) ON CONFLICT DO UPDATE SET username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?, bio = ?",
+        "INSERT INTO users (id, username, host, bpasswd, nickname, uri, shared_inbox, inbox, outbox, bio) VALUES (?,?,?,NULL,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE username = ?, host = ?, bpasswd = NULL, nickname = ?, uri = ?, shared_inbox = ?, inbox = ?, outbox = ?, bio = ?",
         user_id_str,
         user.username,
         user.host,
@@ -403,7 +403,7 @@ async fn find_user_by_url(
 
     let user_id_str = ru.user_id.to_string();
     sqlx::query!(
-        "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?) ON CONFLICT DO UPDATE SET following = ?, followers = ?, liked = ?, fetched_at = ?",
+        "INSERT INTO remote_users(user_id, following, followers, liked, fetched_at) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE following = ?, followers = ?, liked = ?, fetched_at = ?",
         user_id_str,
         ru.following,
         ru.followers,
@@ -417,7 +417,7 @@ async fn find_user_by_url(
 
     let user_id_str = user_id.to_string();
     sqlx::query!("
-        INSERT INTO user_keys (id, owner_id, public_key) VALUES (?,?,?) ON CONFLICT DO UPDATE SET owner_id=?, public_key=?, updated_at=DATETIME('now')
+        INSERT INTO user_keys (id, owner_id, public_key) VALUES (?,?,?) ON DUPLICATE KEY UPDATE owner_id=?, public_key=?, updated_at=CURRENT_TIMESTAMP
     ", pubkey_id, user_id_str, pubkey_pem, user_id_str, pubkey_pem).execute(&mut *tx).await?;
 
     tx.commit().await?;
@@ -515,14 +515,14 @@ impl AllUserFinderService for DBAllUserFinderService {
 }
 
 pub struct DBSignerService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     fetch: holder!(LocalUserFinderService),
     id_getter: IDGetterService,
 }
 
 impl DBSignerService {
     pub fn new(
-        pool: SqlitePool,
+        pool: MySqlPool,
         fetch: holder!(LocalUserFinderService),
         id_getter: IDGetterService,
     ) -> Self {
@@ -595,7 +595,7 @@ impl SignerService for DBSignerService {
 
 #[derive(Constructor)]
 pub struct DBUserProfileService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     finder: holder!(LocalUserFinderService),
 }
 

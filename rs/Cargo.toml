@@ -48,7 +48,7 @@ serde_with = "3.7.0"
 serde_yaml = "0.9.34"
 sqlx = { version = "0.7", features = [
     "runtime-tokio",
-    "sqlite",
+    "mysql",
     "chrono",
     "json",
     "uuid",

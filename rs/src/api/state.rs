@@ -1,16 +1,16 @@
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 
 use crate::config::Config;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
-    pool: SqlitePool,
+    pool: MySqlPool,
     config: Config,
     base_url: String,
 }
 
 impl AppState {
-    pub fn new(pool: SqlitePool, config: Config) -> Self {
+    pub fn new(pool: MySqlPool, config: Config) -> Self {
         let base_url = format!("{}://{}", config.http_scheme, config.hostname);
         Self {
             pool,
@@ -19,7 +19,7 @@ impl AppState {
         }
     }
 
-    pub fn pool(&self) -> &SqlitePool {
+    pub fn pool(&self) -> &MySqlPool {
         &self.pool
     }
 

@@ -1,5 +1,5 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "INSERT INTO users (id, username, nickname, bpasswd, private_key, public_key) VALUES(?, ?, ?, ?, ?, ?)",
   "describe": {
     "columns": [],

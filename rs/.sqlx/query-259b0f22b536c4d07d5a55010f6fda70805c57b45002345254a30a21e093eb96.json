@@ -1,27 +1,47 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "SELECT id, current_retry, max_retry, payload FROM QueuedTask WHERE started_at IS NULL ORDER BY id ASC LIMIT 1",
   "describe": {
     "columns": [
       {
-        "name": "id",
         "ordinal": 0,
-        "type_info": "Int64"
+        "name": "id",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "char_set": 63,
+          "max_size": 20
+        }
       },
       {
-        "name": "current_retry",
         "ordinal": 1,
-        "type_info": "Int64"
+        "name": "current_retry",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL",
+          "char_set": 63,
+          "max_size": 11
+        }
       },
       {
-        "name": "max_retry",
         "ordinal": 2,
-        "type_info": "Int64"
+        "name": "max_retry",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | NO_DEFAULT_VALUE",
+          "char_set": 63,
+          "max_size": 11
+        }
       },
       {
-        "name": "payload",
         "ordinal": 3,
-        "type_info": "Text"
+        "name": "payload",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 262140
+        }
       }
     ],
     "parameters": {

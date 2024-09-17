@@ -1,17 +1,27 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
   "describe": {
     "columns": [
       {
-        "name": "id!: Simple",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "id!: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | PRIMARY_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "bpasswd",
         "ordinal": 1,
-        "type_info": "Text"
+        "name": "bpasswd",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 240
+        }
       }
     ],
     "parameters": {

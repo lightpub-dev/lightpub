@@ -1,5 +1,5 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "INSERT INTO QueuedTask(payload, max_retry) VALUES (?, 10)",
   "describe": {
     "columns": [],

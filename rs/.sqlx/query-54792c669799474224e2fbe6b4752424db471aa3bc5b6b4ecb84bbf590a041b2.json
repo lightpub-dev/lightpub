@@ -1,32 +1,57 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n        SELECT r.follower_id AS `follower_id: Simple`, u1.uri AS follower_uri, r.followee_id AS `followee_id: Simple`, u2.uri AS followee_uri, r.uri AS `req_uri!`\n        FROM user_follow_requests AS r\n        INNER JOIN users u1 ON r.follower_id = u1.id\n        INNER JOIN users u2 ON r.followee_id = u2.id\n        WHERE r.id = ? AND r.incoming = 1\n        ",
   "describe": {
     "columns": [
       {
-        "name": "follower_id: Simple",
         "ordinal": 0,
-        "type_info": "Text"
+        "name": "follower_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "follower_uri",
         "ordinal": 1,
-        "type_info": "Text"
+        "name": "follower_uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "followee_id: Simple",
         "ordinal": 2,
-        "type_info": "Text"
+        "name": "followee_id: Simple",
+        "type_info": {
+          "type": "String",
+          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
+          "char_set": 224,
+          "max_size": 128
+        }
       },
       {
-        "name": "followee_uri",
         "ordinal": 3,
-        "type_info": "Text"
+        "name": "followee_uri",
+        "type_info": {
+          "type": "VarString",
+          "flags": "",
+          "char_set": 224,
+          "max_size": 2048
+        }
       },
       {
-        "name": "req_uri!",
         "ordinal": 4,
-        "type_info": "Text"
+        "name": "req_uri!",
+        "type_info": {
+          "type": "VarString",
+          "flags": "UNIQUE_KEY",
+          "char_set": 224,
+          "max_size": 2048
+        }
       }
     ],
     "parameters": {

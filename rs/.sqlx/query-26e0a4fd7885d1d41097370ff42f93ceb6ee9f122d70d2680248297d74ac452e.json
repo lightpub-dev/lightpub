@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "\n                INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)\n                ON DUPLICATE KEY UPDATE id=id\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "26e0a4fd7885d1d41097370ff42f93ceb6ee9f122d70d2680248297d74ac452e"
+}

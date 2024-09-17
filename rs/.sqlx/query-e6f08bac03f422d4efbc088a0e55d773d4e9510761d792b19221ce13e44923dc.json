@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "SET FOREIGN_KEY_CHECKS = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "e6f08bac03f422d4efbc088a0e55d773d4e9510761d792b19221ce13e44923dc"
+}

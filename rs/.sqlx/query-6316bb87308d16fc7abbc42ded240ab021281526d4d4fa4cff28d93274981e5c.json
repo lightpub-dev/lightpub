@@ -1,5 +1,5 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "UPDATE QueuedTask SET current_retry = ?, started_at = NULL WHERE id = ?",
   "describe": {
     "columns": [],

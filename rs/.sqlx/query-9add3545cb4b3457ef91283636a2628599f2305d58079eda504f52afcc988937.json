@@ -1,5 +1,5 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n                DELETE FROM user_follow_requests WHERE id = ?\n                ",
   "describe": {
     "columns": [],

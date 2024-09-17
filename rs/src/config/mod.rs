@@ -70,7 +70,7 @@ fn read_config_yaml() {
             http_scheme: "https".to_string(),
             frontend_url: "http://localhost:5173/#".to_string(),
             database: DatabaseConfig {
-                path: "./sample_db.sqlite3".to_string()
+                path: "lightpub:lightpub@127.0.0.1:3306/lightpub".to_string()
             },
             queue: QueueConfig {
                 host: "127.0.0.1".to_string(),

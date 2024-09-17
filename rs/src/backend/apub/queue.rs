@@ -130,7 +130,7 @@ pub mod transport {
 pub mod worker {}
 
 pub struct QueuedApubRequester {
-    pool: sqlx::Pool<sqlx::Sqlite>,
+    pool: sqlx::Pool<sqlx::MySql>,
     requester: holder!(ApubRequestService),
 }
 
@@ -138,7 +138,7 @@ pub struct QueuedApubRequester {
 pub struct QueuedApubRequesterBuilder {}
 
 impl QueuedApubRequester {
-    pub fn new(pool: sqlx::Pool<sqlx::Sqlite>, requester: holder!(ApubRequestService)) -> Self {
+    pub fn new(pool: sqlx::Pool<sqlx::MySql>, requester: holder!(ApubRequestService)) -> Self {
         Self { pool, requester }
     }
 }

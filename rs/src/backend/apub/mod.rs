@@ -7,7 +7,7 @@ use reqwest::{
     Method, Request, RequestBuilder,
 };
 use serde::Deserialize;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tracing::{debug, info, warn};
 
 use crate::model::{
@@ -60,7 +60,7 @@ impl ApubReqwester {
 }
 
 pub fn new_apub_reqester_service(
-    pool: sqlx::Pool<sqlx::Sqlite>,
+    pool: sqlx::Pool<sqlx::MySql>,
     config: &Config,
 ) -> holder!(ApubRequestService) {
     if config.federation.enabled {
@@ -296,13 +296,13 @@ pub struct WebfingerLinks {
 }
 
 pub struct DBApubFollowService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     id_getter: IDGetterService,
     user_finder: holder!(AllUserFinderService),
 }
 
 pub fn new_apub_follow_service(
-    pool: SqlitePool,
+    pool: MySqlPool,
     id_getter: IDGetterService,
     user_finder: holder!(AllUserFinderService),
 ) -> holder!(ApubFollowService) {

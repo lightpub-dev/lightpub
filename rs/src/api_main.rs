@@ -52,7 +52,7 @@ use lightpub::utils::key::VerifyError;
 use lightpub::utils::key::{verify_signature, KeyFetcher};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::MySqlPool;
 use std::borrow::BorrowMut;
 use std::path::PathBuf;
 use std::{
@@ -1835,12 +1835,19 @@ async fn truncate_database(app: web::Data<AppState>) -> impl Responder {
         "reactions",
         "post_reactions",
         "user_follow_requests",
-        "remote_user_details",
         "user_keys",
         "remote_users",
     ];
     for table_name in table_names {
-        match sqlx::query("DELETE FROM users").execute(app.pool()).await {
+        let mut tx = app.pool().begin().await.unwrap();
+        sqlx::query!("SET FOREIGN_KEY_CHECKS = 0")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        match sqlx::query(&format!("DELETE FROM {}", table_name))
+            .execute(&mut *tx)
+            .await
+        {
             Ok(_) => {
                 info!("Truncated table: {}", table_name);
             }
@@ -1849,6 +1856,10 @@ async fn truncate_database(app: web::Data<AppState>) -> impl Responder {
                 return HttpResponse::InternalServerError().finish();
             }
         }
+        sqlx::query!("SET FOREIGN_KEY_CHECKS = 1")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
     }
 
     HttpResponse::Ok().finish()
@@ -1879,11 +1890,8 @@ async fn main() -> std::io::Result<()> {
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
 
     // connect to db
-    let conn_str = format!("sqlite:{}", config.database.path);
-    let pool = SqlitePoolOptions::new()
-        .connect(&conn_str)
-        .await
-        .expect("connect to database");
+    let conn_str = format!("mysql://{}", config.database.path);
+    let pool = MySqlPool::connect(&conn_str).await.expect("connect to db");
     tracing::info!("Connected to database");
 
     tracing::info!("Running migrations");

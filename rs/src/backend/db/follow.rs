@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use tracing::{debug, warn};
 use uuid::fmt::Simple;
 
@@ -17,7 +17,7 @@ use crate::model::{
 use crate::utils::generate_uuid;
 
 pub struct DBUserFollowService {
-    pool: SqlitePool,
+    pool: MySqlPool,
     finder: holder!(AllUserFinderService),
     pubfollow: holder!(ApubFollowService),
     req: holder!(ApubRequestService),
@@ -27,7 +27,7 @@ pub struct DBUserFollowService {
 
 impl DBUserFollowService {
     pub fn new(
-        pool: SqlitePool,
+        pool: MySqlPool,
         finder: holder!(AllUserFinderService),
         pubfollow: holder!(ApubFollowService),
         req: holder!(ApubRequestService),
@@ -276,7 +276,7 @@ impl UserFollowService for DBUserFollowService {
             sqlx::query!(
                 r#"
             INSERT INTO user_follows (follower_id, followee_id) VALUES(?,?)
-            ON CONFLICT DO NOTHING
+            ON DUPLICATE KEY UPDATE id=id
             "#,
                 follower_id_str,
                 followee_id_str
@@ -387,7 +387,7 @@ impl UserFollowService for DBUserFollowService {
         sqlx::query!(
             r#"
             INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
-            ON CONFLICT DO NOTHING
+            ON DUPLICATE KEY UPDATE id=id
             "#,
             follow_req_follower_id_str,
             follow_req_followee_id_str
@@ -442,7 +442,7 @@ impl UserFollowService for DBUserFollowService {
         let follower_id_str = follower_id.to_string();
         let followee_id_str = followee_id.to_string();
         sqlx::query!(
-            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON CONFLICT DO UPDATE SET id=?, uri=?",
+            "INSERT INTO user_follow_requests (id, uri, incoming, follower_id, followee_id) VALUES (?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE id=?, uri=?",
             follow_req_id_str,
             follow_req_uri,
             follower_id_str,
@@ -498,7 +498,7 @@ impl UserFollowService for DBUserFollowService {
             sqlx::query!(
                 r#"
                 INSERT INTO user_follows (follower_id, followee_id) VALUES (?, ?)
-                ON CONFLICT DO NOTHING
+                ON DUPLICATE KEY UPDATE id=id
                 "#,
                 follower_id_str,
                 followee_id_str

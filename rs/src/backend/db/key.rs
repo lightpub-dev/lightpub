@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use derive_more::Constructor;
 use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
-use sqlx::SqlitePool;
+use sqlx::MySqlPool;
 use uuid::fmt::Simple;
 
 use crate::backend::AllUserFinderService;
@@ -11,7 +11,7 @@ use crate::utils::key::{KeyFetcher, KeyFetcherResult};
 
 #[derive(Constructor)]
 pub struct DBKeyFetcher {
-    pool: SqlitePool,
+    pool: MySqlPool,
     finder: holder!(AllUserFinderService),
 }
 

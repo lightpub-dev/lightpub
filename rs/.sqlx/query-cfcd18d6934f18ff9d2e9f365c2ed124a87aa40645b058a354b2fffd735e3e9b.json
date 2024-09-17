@@ -1,12 +1,17 @@
 {
-  "db_name": "SQLite",
+  "db_name": "MySQL",
   "query": "\n        SELECT COUNT(*) AS count FROM users WHERE username=? AND host IS NULL\n        ",
   "describe": {
     "columns": [
       {
-        "name": "count",
         "ordinal": 0,
-        "type_info": "Int"
+        "name": "count",
+        "type_info": {
+          "type": "LongLong",
+          "flags": "NOT_NULL | BINARY",
+          "char_set": 63,
+          "max_size": 21
+        }
       }
     ],
     "parameters": {
