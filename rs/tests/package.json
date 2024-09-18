@@ -1,15 +1,14 @@
 {
   "name": "tests",
-  "dependencies": {
-    "@types/expect.js": "^0.3.32",
-    "@types/mocha": "^10.0.6",
-    "axios": "^1.6.7",
-    "cross-env": "^7.0.3",
-    "expect.js": "^0.3.1",
-    "mocha": "^10.3.0",
-    "ts-node": "^10.9.2"
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
   },
-  "scripts": {
-    "test": "mocha"
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.7"
   }
 }

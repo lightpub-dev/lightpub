@@ -1838,12 +1838,13 @@ async fn truncate_database(app: web::Data<AppState>) -> impl Responder {
         "user_keys",
         "remote_users",
     ];
+
+    let mut tx = app.pool().begin().await.unwrap();
+    sqlx::query!("SET FOREIGN_KEY_CHECKS = 0")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     for table_name in table_names {
-        let mut tx = app.pool().begin().await.unwrap();
-        sqlx::query!("SET FOREIGN_KEY_CHECKS = 0")
-            .execute(&mut *tx)
-            .await
-            .unwrap();
         match sqlx::query(&format!("DELETE FROM {}", table_name))
             .execute(&mut *tx)
             .await
@@ -1853,14 +1854,18 @@ async fn truncate_database(app: web::Data<AppState>) -> impl Responder {
             }
             Err(e) => {
                 error!("Failed to truncate table {}: {:?}", table_name, e);
+                sqlx::query!("SET FOREIGN_KEY_CHECKS = 1")
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
                 return HttpResponse::InternalServerError().finish();
             }
         }
-        sqlx::query!("SET FOREIGN_KEY_CHECKS = 1")
-            .execute(&mut *tx)
-            .await
-            .unwrap();
     }
+    sqlx::query!("SET FOREIGN_KEY_CHECKS = 1")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
 
     HttpResponse::Ok().finish()
 }

@@ -55,7 +55,7 @@ fn read_config_yaml() {
     use std::io::Read;
 
     // read from lightpub.yml.sample
-    let mut file = std::fs::File::open("../lightpub.yml.sample").unwrap();
+    let mut file = std::fs::File::open("./lightpub.yml.sample").unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");

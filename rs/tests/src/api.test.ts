@@ -1,14 +1,16 @@
-import axios from "axios";
-import expect from "expect.js";
-import mocha from "mocha";
+import axios, { type AxiosResponse } from "axios";
+import { describe, it, expect, beforeAll, beforeEach, test } from "bun:test";
 
 const BASE_URL = "https://lightpub.tinax.local";
 axios.defaults.baseURL = BASE_URL;
+axios.defaults.validateStatus = () => true;
 
 const GOOD_PASSWORD = "1234AbcD!?";
 
 const truncateDB = async () => {
-    await axios.post(BASE_URL + "/debug/truncate");
+    const res = await axios.post(BASE_URL + "/debug/truncate");
+    showExpect(res.status, res).toBe(200);
+    console.log("truncated DB");
 };
 
 const createAndLoginUser = async (
@@ -20,14 +22,14 @@ const createAndLoginUser = async (
         nickname: username,
         password,
     });
-    expect(res.status).equal(200);
+    showExpect(res.status, res).toBe(200);
 
     const token = await axios.post(BASE_URL + "/login", {
         username,
         password,
     });
-    expect(token.status).equal(200);
-    expect(token.data).to.have.property("token");
+    showExpect(token.status, res).toBe(200);
+    showExpect(token.data, res).toHaveProperty("token");
     return token.data.token;
 };
 
@@ -37,61 +39,90 @@ function authHeader(token: string) {
     };
 }
 
-describe("/register", function () {
-    beforeEach(async function () {
+function showResponse(res: any) {
+    let msg = "actual response:\n";
+    msg += "status: " + res.status + "\n";
+    msg += JSON.stringify(res.data, null, 2);
+    return msg;
+}
+
+function showExpect<T>(
+    res: T | undefined | null,
+    actual: AxiosResponse<any, any>
+) {
+    return expect(res, showResponse(actual));
+}
+
+describe("/register", () => {
+    beforeEach(async () => {
         await truncateDB();
     });
-    it("registering a new user", async function () {
-        this.timeout(30000);
-        const response = await axios.post(
-            BASE_URL + "/register",
-            {
-                username: "initialuser",
-                nickname: "initialnick",
-                password: GOOD_PASSWORD,
+    describe("success", () => {
+        it(
+            "registering a new user",
+            async () => {
+                const response = await axios.post(
+                    BASE_URL + "/register",
+                    {
+                        username: "initialuser",
+                        nickname: "initialnick",
+                        password: GOOD_PASSWORD,
+                    },
+                    {
+                        timeout: 30000,
+                    }
+                );
+                showExpect(response.status, response).toBe(200);
+                showExpect(response.data, response).toHaveProperty("user_id");
             },
             {
                 timeout: 30000,
             }
         );
-        expect(response.status).equal(200);
-        expect(response.data).have.property("user_id");
     });
-    it("registering duplicate users", async function () {
-        this.timeout(60000);
-        {
-            const response = await axios.post(
-                BASE_URL + "/register",
+    describe("duplicated user", () => {
+        it(
+            "registering duplicate users",
+            async () => {
                 {
-                    username: "duplicateduser",
-                    nickname: "duplicatednick",
-                    password: GOOD_PASSWORD,
-                },
-                {
-                    timeout: 30000,
+                    const response = await axios.post(
+                        BASE_URL + "/register",
+                        {
+                            username: "duplicateduser",
+                            nickname: "duplicatednick",
+                            password: GOOD_PASSWORD,
+                        },
+                        {
+                            timeout: 30000,
+                        }
+                    );
+                    showExpect(response.status, response).toBe(200);
+                    showExpect(response.data, response).toHaveProperty(
+                        "user_id"
+                    );
                 }
-            );
-            expect(response.status).equal(200);
-            expect(response.data).have.property("user_id");
-        }
-        {
-            const response = await axios.post(
-                BASE_URL + "/register",
                 {
-                    username: "duplicateduser",
-                    nickname: "duplicatednick",
-                    password: GOOD_PASSWORD,
-                },
-                {
-                    timeout: 30000,
-                    validateStatus: () => true,
+                    const response = await axios.post(
+                        BASE_URL + "/register",
+                        {
+                            username: "duplicateduser",
+                            nickname: "duplicatednick",
+                            password: GOOD_PASSWORD,
+                        },
+                        {
+                            timeout: 30000,
+                            validateStatus: () => true,
+                        }
+                    );
+                    showExpect(response.status, response).toBe(400);
                 }
-            );
-            expect(response.status).equal(400);
-        }
+            },
+            {
+                timeout: 60000,
+            }
+        );
     });
-    context("bad usernames", function () {
-        this.timeout(120000);
+    describe("bad usernames", () => {
         async function checkFails(username: string) {
             const response = await axios.post(
                 BASE_URL + "/register",
@@ -105,23 +136,46 @@ describe("/register", function () {
                     validateStatus: () => true,
                 }
             );
-            expect(response.status).equal(400);
+            showExpect(response.status, response).toBe(400);
         }
-        it("contains kanji", async function () {
-            await checkFails("kanji感じ");
-        });
-        it("too short", async function () {
-            await checkFails("ab");
-        });
-        it("too long", async function () {
-            await checkFails("123456789abcdefgh");
-        });
-        it("contains special characters", async function () {
-            await checkFails("special!char@foobar");
-        });
+        it(
+            "contains kanji",
+            async () => {
+                await checkFails("kanji感じ");
+            },
+            {
+                timeout: 30000,
+            }
+        );
+        it(
+            "too short",
+            async () => {
+                await checkFails("ab");
+            },
+            {
+                timeout: 30000,
+            }
+        );
+        it(
+            "too long",
+            async () => {
+                await checkFails("123456789abcdefgh");
+            },
+            {
+                timeout: 30000,
+            }
+        );
+        it(
+            "contains special characters",
+            async () => {
+                await checkFails("special!char@foobar");
+            },
+            {
+                timeout: 30000,
+            }
+        );
     });
-    context("bad passwords", function () {
-        this.timeout(120000);
+    describe("bad passwords", () => {
         async function checkFails(password: string) {
             const response = await axios.post(
                 BASE_URL + "/register",
@@ -135,31 +189,60 @@ describe("/register", function () {
                     validateStatus: () => true,
                 }
             );
-            expect(response.status).equal(400);
+            showExpect(response.status, response).toBe(400);
         }
-        it("too short", async function () {
-            await checkFails("1234Ab!");
-        });
-        it("no uppercase", async function () {
-            await checkFails("1234abcd!?");
-        });
-        it("no lowercase", async function () {
-            await checkFails("1234ABCD!?");
-        });
-        it("no special chars", async function () {
-            await checkFails("1234ABCDEFgh");
-        });
-        it("too long", async function () {
-            await checkFails(
-                "1234ABCDEojt3039a84u5v90u908!h9a8u?Fgu09ta0w85gv0a7h"
-            );
-        });
+        it(
+            "too short",
+            async () => {
+                await checkFails("1234Ab!");
+            },
+            {
+                timeout: 30000,
+            }
+        );
+        it(
+            "no uppercase",
+            async () => {
+                await checkFails("1234abcd!?");
+            },
+            {
+                timeout: 30000,
+            }
+        );
+        it(
+            "no lowercase",
+            async () => {
+                await checkFails("1234ABCD!?");
+            },
+            {
+                timeout: 30000,
+            }
+        );
+        it(
+            "no special chars",
+            async () => {
+                await checkFails("1234ABCDEFgh");
+            },
+            {
+                timeout: 30000,
+            }
+        );
+        it(
+            "too long",
+            async () => {
+                await checkFails(
+                    "1234ABCDEojt3039a84u5v90u908!h9a8u?Fgu09ta0w85gv0a7h"
+                );
+            },
+            {
+                timeout: 30000,
+            }
+        );
     });
 });
 
-describe("/login", function () {
-    before(async function () {
-        this.timeout(30000);
+describe("/login", () => {
+    beforeAll(async () => {
         try {
             await truncateDB();
             const response = await axios.post(
@@ -173,22 +256,22 @@ describe("/login", function () {
                     timeout: 30000,
                 }
             );
-            expect(response.status).equal(200);
-            expect(response.data).have.property("user_id");
+            showExpect(response.status, response).toBe(200);
+            showExpect(response.data, response).toHaveProperty("user_id");
             console.log("registered initial user successfully.");
         } catch (e) {
             console.error(e);
         }
     });
-    it("can login with correct credentials", async function () {
+    it("can login with correct credentials", async () => {
         const response = await axios.post(BASE_URL + "/login", {
             username: "initialuser",
             password: GOOD_PASSWORD,
         });
-        expect(response.status).equal(200);
-        expect(response.data).have.property("token");
+        showExpect(response.status, response).toBe(200);
+        showExpect(response.data, response).toHaveProperty("token");
     });
-    it("reject login with wrong credentials", async function () {
+    it("reject login with wrong credentials", async () => {
         const response = await axios.post(
             BASE_URL + "/login",
             {
@@ -201,9 +284,9 @@ describe("/login", function () {
                 },
             }
         );
-        expect(response.status).equal(401);
+        showExpect(response.status, response).toBe(401);
     });
-    it("reject login with non-existing user", async function () {
+    it("reject login with non-existing user", async () => {
         const response = await axios.post(
             BASE_URL + "/login",
             {
@@ -214,21 +297,20 @@ describe("/login", function () {
                 validateStatus: () => true,
             }
         );
-        expect(response.status).equal(401);
+        showExpect(response.status, response).toBe(401);
     });
 });
 
-describe("/post", function () {
+describe("/post", () => {
     let token: string, token2: string;
-    before(async function () {
-        this.timeout(60000);
+    beforeAll(async () => {
         await truncateDB();
         token = await createAndLoginUser("testuser", GOOD_PASSWORD);
         token2 = await createAndLoginUser("testuser2", GOOD_PASSWORD);
     });
-    describe("normal post", function () {
+    describe("normal post", () => {
         let publicPostId: string | undefined;
-        it("can create a public post", async function () {
+        it("can create a public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -239,11 +321,11 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
             publicPostId = res.data.post_id;
         });
-        it("can create an unlisted post", async function () {
+        it("can create an unlisted post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -254,10 +336,10 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
-        it("can create a follower-only post", async function () {
+        it("can create a follower-only post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -268,10 +350,10 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
-        it("can create a private post", async function () {
+        it("can create a private post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -282,20 +364,20 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
-        it("can delete my post", async function () {
+        it("can delete my post", async () => {
             if (!publicPostId) {
-                this.skip();
+                expect().fail();
             }
 
             const res = await axios.delete(BASE_URL + "/post/" + publicPostId, {
                 ...authHeader(token),
             });
-            expect(res.status).equal(200);
+            showExpect(res.status, res).toBe(200);
         });
-        it("returns 404 when deleting non-existing post", async function () {
+        it("returns 404 when deleting non-existing post", async () => {
             const res = await axios.delete(
                 BASE_URL + "/post/538ec871f81348c79158fecda95325e5",
                 {
@@ -303,16 +385,14 @@ describe("/post", function () {
                     validateStatus: () => true,
                 }
             );
-            expect(res.status).equal(404);
+            showExpect(res.status, res).toBe(404);
         });
     });
-    describe("reply", function () {
+    describe("reply", () => {
         let publicParentId: string,
             followerParentId: string,
             privateParentId: string;
-        this.beforeAll(async function () {
-            this.timeout(30000);
-
+        beforeAll(async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -323,7 +403,7 @@ describe("/post", function () {
                     ...authHeader(token2),
                 }
             );
-            expect(res.status).equal(200);
+            showExpect(res.status, res).toBe(200);
             publicParentId = res.data.post_id;
             const res2 = await axios.post(
                 BASE_URL + "/post",
@@ -335,7 +415,7 @@ describe("/post", function () {
                     ...authHeader(token2),
                 }
             );
-            expect(res2.status).equal(200);
+            showExpect(res2.status, res).toBe(200);
             followerParentId = res2.data.post_id;
             const res3 = await axios.post(
                 BASE_URL + "/post",
@@ -347,10 +427,10 @@ describe("/post", function () {
                     ...authHeader(token2),
                 }
             );
-            expect(res3.status).equal(200);
+            showExpect(res3.status, res).toBe(200);
             privateParentId = res3.data.post_id;
         });
-        it("can make a public reply to a public post", async function () {
+        it("can make a public reply to a public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -360,10 +440,10 @@ describe("/post", function () {
                 },
                 authHeader(token)
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
-        it("cannot make a public reply to a follower-only post (by non-follower)", async function () {
+        it("cannot make a public reply to a follower-only post (by non-follower)", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -378,9 +458,9 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            showExpect(res.status, res).toBe(404);
         });
-        it("cannot make a public reply to a private post", async function () {
+        it("cannot make a public reply to a private post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -395,9 +475,9 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            showExpect(res.status, res).toBe(404);
         });
-        it("can make a private reply to a public post", async function () {
+        it("can make a private reply to a public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -407,20 +487,18 @@ describe("/post", function () {
                 },
                 authHeader(token)
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
     });
-    describe("repost", function () {
+    describe("repost", () => {
         let otherPublicParentId: string,
             otherFollowerParentId: string,
             otherPrivateParentId: string,
             myPublicParentId: string,
             myFollowerParentId: string,
             myPrivateParentId: string;
-        this.beforeAll(async function () {
-            this.timeout(30000);
-
+        beforeAll(async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -431,7 +509,7 @@ describe("/post", function () {
                     ...authHeader(token2),
                 }
             );
-            expect(res.status).equal(200);
+            showExpect(res.status, res).toBe(200);
             otherPublicParentId = res.data.post_id;
             const res2 = await axios.post(
                 BASE_URL + "/post",
@@ -443,7 +521,7 @@ describe("/post", function () {
                     ...authHeader(token2),
                 }
             );
-            expect(res2.status).equal(200);
+            showExpect(res2.status, res).toBe(200);
             otherFollowerParentId = res2.data.post_id;
             const res3 = await axios.post(
                 BASE_URL + "/post",
@@ -455,7 +533,7 @@ describe("/post", function () {
                     ...authHeader(token2),
                 }
             );
-            expect(res3.status).equal(200);
+            showExpect(res3.status, res).toBe(200);
             otherPrivateParentId = res3.data.post_id;
 
             const res4 = await axios.post(
@@ -468,7 +546,7 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res4.status).equal(200);
+            showExpect(res4.status, res).toBe(200);
             myPublicParentId = res4.data.post_id;
             const res5 = await axios.post(
                 BASE_URL + "/post",
@@ -480,7 +558,7 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res5.status).equal(200);
+            showExpect(res5.status, res).toBe(200);
             myFollowerParentId = res5.data.post_id;
             const res6 = await axios.post(
                 BASE_URL + "/post",
@@ -492,10 +570,10 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res6.status).equal(200);
+            showExpect(res6.status, res).toBe(200);
             myPrivateParentId = res6.data.post_id;
         });
-        it("can make a public repost of a public post", async function () {
+        it("can make a public repost of a public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -504,10 +582,10 @@ describe("/post", function () {
                 },
                 authHeader(token)
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
-        it("cannot make a public repost of a follower-only post", async function () {
+        it("cannot make a public repost of a follower-only post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -521,9 +599,9 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            showExpect(res.status, res).toBe(404);
         });
-        it("cannot make a public repost of a private post", async function () {
+        it("cannot make a public repost of a private post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -537,9 +615,9 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            showExpect(res.status, res).toBe(404);
         });
-        it("can make a public repost of my public post", async function () {
+        it("can make a public repost of my public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -548,10 +626,10 @@ describe("/post", function () {
                 },
                 authHeader(token)
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
-        it("cannot make a public repost of my follower-only post", async function () {
+        it("cannot make a public repost of my follower-only post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -565,9 +643,9 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            showExpect(res.status, res).toBe(404);
         });
-        it("cannot make a public repost of my private post", async function () {
+        it("cannot make a public repost of my private post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -581,9 +659,9 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(404);
+            showExpect(res.status, res).toBe(404);
         });
-        it("can make an unlisted repost of my public post", async function () {
+        it("can make an unlisted repost of my public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -592,10 +670,10 @@ describe("/post", function () {
                 },
                 authHeader(token)
             );
-            expect(res.status).equal(200);
-            expect(res.data).have.property("post_id");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("post_id");
         });
-        it("cannot make a follower-only repost of my public post", async function () {
+        it("cannot make a follower-only repost of my public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -609,9 +687,9 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(400);
+            showExpect(res.status, res).toBe(400);
         });
-        it("cannot make a private repost of my public post", async function () {
+        it("cannot make a private repost of my public post", async () => {
             const res = await axios.post(
                 BASE_URL + "/post",
                 {
@@ -625,20 +703,19 @@ describe("/post", function () {
                     ...authHeader(token),
                 }
             );
-            expect(res.status).equal(400);
+            showExpect(res.status, res).toBe(400);
         });
     });
 });
 
-describe("/post/{id}", function () {
+describe("/post/{id}", () => {
     let token: string, tokenOthers: string;
     let public_post_id: string,
         follower_post_id: string,
         private_post_id: string,
         others_follower_post_id: string,
         others_private_post_id: string;
-    before(async function () {
-        this.timeout(60000);
+    beforeAll(async () => {
         await truncateDB();
         token = await createAndLoginUser("testuser", GOOD_PASSWORD);
         tokenOthers = await createAndLoginUser("testuser2", GOOD_PASSWORD);
@@ -653,7 +730,7 @@ describe("/post/{id}", function () {
                 ...authHeader(token),
             }
         );
-        expect(public_res.status).equal(200);
+        showExpect(public_res.status, public_res).toBe(200);
         public_post_id = public_res.data.post_id;
 
         const follower_res = await axios.post(
@@ -664,7 +741,7 @@ describe("/post/{id}", function () {
             },
             authHeader(token)
         );
-        expect(follower_res.status).equal(200);
+        showExpect(follower_res.status, follower_res).toBe(200);
         follower_post_id = follower_res.data.post_id;
 
         const private_res = await axios.post(
@@ -675,7 +752,7 @@ describe("/post/{id}", function () {
             },
             authHeader(token)
         );
-        expect(private_res.status).equal(200);
+        showExpect(private_res.status, private_res).toBe(200);
         private_post_id = private_res.data.post_id;
 
         const others_follower_res = await axios.post(
@@ -686,7 +763,7 @@ describe("/post/{id}", function () {
             },
             authHeader(tokenOthers)
         );
-        expect(others_follower_res.status).equal(200);
+        showExpect(others_follower_res.status, others_follower_res).toBe(200);
         others_follower_post_id = others_follower_res.data.post_id;
 
         const others_private_res = await axios.post(
@@ -697,37 +774,46 @@ describe("/post/{id}", function () {
             },
             authHeader(tokenOthers)
         );
-        expect(others_private_res.status).equal(200);
+        showExpect(others_private_res.status, others_private_res).toBe(200);
         others_private_post_id = others_private_res.data.post_id;
     });
-    it("can get a public post", async function () {
+    it("can get a public post", async () => {
         const res = await axios.get(BASE_URL + "/post/" + public_post_id, {
             ...authHeader(token),
+            validateStatus(status) {
+                return true;
+            },
         });
-        expect(res.status).equal(200);
-        expect(res.data).have.property("id");
-        expect(res.data.id).equal(public_post_id);
-        expect(res.data.content).equal("public sample");
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("id");
+        showExpect(res.data.id, res).toBe(public_post_id);
+        showExpect(res.data.content, res).toBe("public sample");
     });
-    it("can get my follower post", async function () {
+    it("can get my follower post", async () => {
         const res = await axios.get(BASE_URL + "/post/" + follower_post_id, {
             ...authHeader(token),
+            validateStatus(status) {
+                return true;
+            },
         });
-        expect(res.status).equal(200);
-        expect(res.data).have.property("id");
-        expect(res.data.id).equal(follower_post_id);
-        expect(res.data.content).equal("follower sample");
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("id");
+        showExpect(res.data.id, res).toBe(follower_post_id);
+        showExpect(res.data.content, res).toBe("follower sample");
     });
-    it("can get my private post", async function () {
+    it("can get my private post", async () => {
         const res = await axios.get(BASE_URL + "/post/" + private_post_id, {
             ...authHeader(token),
+            validateStatus(status) {
+                return true;
+            },
         });
-        expect(res.status).equal(200);
-        expect(res.data).have.property("id");
-        expect(res.data.id).equal(private_post_id);
-        expect(res.data.content).equal("private sample");
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("id");
+        showExpect(res.data.id, res).toBe(private_post_id);
+        showExpect(res.data.content, res).toBe("private sample");
     });
-    it("cannot get others follower post (by non-follower)", async function () {
+    it("cannot get others follower post (by non-follower)", async () => {
         const res = await axios.get(
             BASE_URL + "/post/" + others_follower_post_id,
             {
@@ -737,9 +823,9 @@ describe("/post/{id}", function () {
                 ...authHeader(token),
             }
         );
-        expect(res.status).equal(404);
+        showExpect(res.status, res).toBe(404);
     });
-    it("cannot get others private post", async function () {
+    it("cannot get others private post", async () => {
         const res = await axios.get(
             BASE_URL + "/post/" + others_private_post_id,
             {
@@ -749,37 +835,36 @@ describe("/post/{id}", function () {
                 ...authHeader(token),
             }
         );
-        expect(res.status).equal(404);
+        showExpect(res.status, res).toBe(404);
     });
 });
 
-describe("/follow", function () {
+describe.only("/follow", () => {
     let userToken1: string, userToken2: string;
-    before(async function () {
-        this.timeout(60000);
+    beforeAll(async () => {
         await truncateDB();
         userToken1 = await createAndLoginUser("user1", GOOD_PASSWORD);
         userToken2 = await createAndLoginUser("user2", GOOD_PASSWORD);
-    });
-    describe("follow and unfollow", function () {
-        it("can follow a user", async function () {
+    }, 60000);
+    describe("follow and unfollow", () => {
+        it("can follow a user", async () => {
             const res = await axios.put(
                 "/user/@user2/follow",
                 {},
                 authHeader(userToken1)
             );
-            expect(res.status).equal(200);
+            showExpect(res.status, res).toBe(200);
         });
-        it("can unfollow a user", async function () {
+        it("can unfollow a user", async () => {
             const res = await axios.delete(
                 "/user/@user2/follow",
                 authHeader(userToken1)
             );
-            expect(res.status).equal(200);
+            showExpect(res.status, res).toBe(200);
         });
     });
-    describe("follow list", function () {
-        before(async function () {
+    describe("follow list", () => {
+        beforeAll(async () => {
             // user1 follows user2
             // but user2 does not follow user1
             const res = await axios.put(
@@ -787,62 +872,67 @@ describe("/follow", function () {
                 {},
                 authHeader(userToken1)
             );
-            expect(res.status).equal(200);
+            showExpect(res.status, res).toBe(200);
 
             // user2 unfollows user1
             const res2 = await axios.delete(
                 "/user/@user1/follow",
                 authHeader(userToken2)
             );
-            expect(res2.status).equal(200);
+            showExpect(res2.status, res).toBe(200);
         });
-        it("can get followers", async function () {
+        it("can get followers", async () => {
             const res = await axios.get(
                 "/user/@user2/followers",
                 authHeader(userToken2)
             );
-            expect(res.status).equal(200);
-            expect(res.data).to.have.property("result");
-            expect(res.data.result).to.have.length(1);
-            expect(res.data.result[0]).to.have.property("username", "user1");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("result");
+            showExpect(res.data.result, res).toHaveLength(1);
+            showExpect(res.data.result[0], res).toHaveProperty(
+                "username",
+                "user1"
+            );
 
             const res2 = await axios.get(
                 "/user/@user1/followers",
                 authHeader(userToken1)
             );
-            expect(res2.status).equal(200);
-            expect(res2.data).to.have.property("result");
-            expect(res2.data.result).to.have.length(0);
+            showExpect(res2.status, res).toBe(200);
+            showExpect(res2.data, res).toHaveProperty("result");
+            showExpect(res2.data.result, res).toHaveLength(0);
         });
-        it("can get following", async function () {
+        it("can get following", async () => {
             const res = await axios.get(
                 "/user/@user1/following",
                 authHeader(userToken1)
             );
-            expect(res.status).equal(200);
-            expect(res.data).to.have.property("result");
-            expect(res.data.result).to.have.length(1);
-            expect(res.data.result[0]).to.have.property("username", "user2");
+            showExpect(res.status, res).toBe(200);
+            showExpect(res.data, res).toHaveProperty("result");
+            showExpect(res.data.result, res).toHaveLength(1);
+            showExpect(res.data.result[0], res).toHaveProperty(
+                "username",
+                "user2"
+            );
 
             // Testing for user2's followings
             const res2 = await axios.get(
                 "/user/@user2/following",
                 authHeader(userToken2)
             );
-            expect(res2.status).equal(200);
-            expect(res2.data).to.have.property("result");
-            expect(res2.data.result).to.have.length(0);
+            showExpect(res2.status, res).toBe(200);
+            showExpect(res2.data, res).toHaveProperty("result");
+            showExpect(res2.data.result, res).toHaveLength(0);
         });
     });
 });
 
-describe("user posts", function () {
+describe("user posts", () => {
     let userToken1: string,
         userToken2: string,
         userToken3: string,
         userToken4: string;
-    before(async function () {
-        this.timeout(60000);
+    beforeAll(async () => {
         await truncateDB();
         [userToken1, userToken2, userToken3, userToken4] = await Promise.all([
             createAndLoginUser("user1", GOOD_PASSWORD),
@@ -857,7 +947,7 @@ describe("user posts", function () {
             {},
             authHeader(userToken3)
         );
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
 
         const publicPost = await axios.post(
             "/post",
@@ -867,7 +957,7 @@ describe("user posts", function () {
             },
             authHeader(userToken1)
         );
-        expect(publicPost.status).equal(200);
+        showExpect(publicPost.status, publicPost).toBe(200);
 
         const unlistedPost = await axios.post(
             "/post",
@@ -877,7 +967,7 @@ describe("user posts", function () {
             },
             authHeader(userToken1)
         );
-        expect(unlistedPost.status).equal(200);
+        showExpect(unlistedPost.status, unlistedPost).toBe(200);
 
         const followerOnlyPost = await axios.post(
             "/post",
@@ -887,7 +977,7 @@ describe("user posts", function () {
             },
             authHeader(userToken1)
         );
-        expect(followerOnlyPost.status).equal(200);
+        showExpect(followerOnlyPost.status, followerOnlyPost).toBe(200);
 
         const privatePost = await axios.post(
             "/post",
@@ -897,71 +987,100 @@ describe("user posts", function () {
             },
             authHeader(userToken1)
         );
-        expect(privatePost.status).equal(200);
-    });
-    it("poster can see their own posts", async function () {
+        showExpect(privatePost.status, privatePost).toBe(200);
+    }, 60000);
+    it("poster can see their own posts", async () => {
         const res = await axios.get(
             "/user/@user1/posts",
             authHeader(userToken1)
         );
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(4);
-        expect(res.data.result[3]).have.property("content", "public content");
-        expect(res.data.result[2]).have.property("content", "unlisted content");
-        expect(res.data.result[1]).have.property("content", "follower content");
-        expect(res.data.result[0]).have.property(
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(4);
+        showExpect(res.data.result[3], res).toHaveProperty(
+            "content",
+            "public content"
+        );
+        showExpect(res.data.result[2], res).toHaveProperty(
+            "content",
+            "unlisted content"
+        );
+        showExpect(res.data.result[1], res).toHaveProperty(
+            "content",
+            "follower content"
+        );
+        showExpect(res.data.result[0], res).toHaveProperty(
             "content",
             "private content @user4"
         );
     });
-    it("non-poster can see public and unlisted posts", async function () {
+    it("non-poster can see public and unlisted posts", async () => {
         const res = await axios.get(
             "/user/@user1/posts",
             authHeader(userToken2)
         );
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(2);
-        expect(res.data.result[1]).have.property("content", "public content");
-        expect(res.data.result[0]).have.property("content", "unlisted content");
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(2);
+        showExpect(res.data.result[1], res).toHaveProperty(
+            "content",
+            "public content"
+        );
+        showExpect(res.data.result[0], res).toHaveProperty(
+            "content",
+            "unlisted content"
+        );
     });
-    it("follower can see follower post", async function () {
+    it("follower can see follower post", async () => {
         const res = await axios.get(
             "/user/@user1/posts",
             authHeader(userToken3)
         );
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(3);
-        expect(res.data.result[2]).have.property("content", "public content");
-        expect(res.data.result[1]).have.property("content", "unlisted content");
-        expect(res.data.result[0]).have.property("content", "follower content");
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(3);
+        showExpect(res.data.result[2], res).toHaveProperty(
+            "content",
+            "public content"
+        );
+        showExpect(res.data.result[1], res).toHaveProperty(
+            "content",
+            "unlisted content"
+        );
+        showExpect(res.data.result[0], res).toHaveProperty(
+            "content",
+            "follower content"
+        );
     });
-    it("mentioned user can see private post", async function () {
+    it("mentioned user can see private post", async () => {
         const res = await axios.get(
             "/user/@user1/posts",
             authHeader(userToken4)
         );
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(3);
-        expect(res.data.result[2]).have.property("content", "public content");
-        expect(res.data.result[1]).have.property("content", "unlisted content");
-        expect(res.data.result[0]).have.property(
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(3);
+        showExpect(res.data.result[2], res).toHaveProperty(
+            "content",
+            "public content"
+        );
+        showExpect(res.data.result[1], res).toHaveProperty(
+            "content",
+            "unlisted content"
+        );
+        showExpect(res.data.result[0], res).toHaveProperty(
             "content",
             "private content @user4"
         );
     });
 });
 
-describe("timeline", function () {
+describe("timeline", () => {
     let userToken1: string,
         userToken2: string,
         userToken3: string,
         userToken4: string;
-    before(async function () {
-        this.timeout(60000);
+    beforeAll(async () => {
         await truncateDB();
         [userToken1, userToken2, userToken3, userToken4] = await Promise.all([
             createAndLoginUser("user1", GOOD_PASSWORD),
@@ -976,7 +1095,7 @@ describe("timeline", function () {
             {},
             authHeader(userToken3)
         );
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
 
         const publicPost = await axios.post(
             "/post",
@@ -986,7 +1105,7 @@ describe("timeline", function () {
             },
             authHeader(userToken1)
         );
-        expect(publicPost.status).equal(200);
+        showExpect(publicPost.status, res).toBe(200);
 
         const unlistedPost = await axios.post(
             "/post",
@@ -996,7 +1115,7 @@ describe("timeline", function () {
             },
             authHeader(userToken1)
         );
-        expect(unlistedPost.status).equal(200);
+        showExpect(unlistedPost.status, res).toBe(200);
 
         const followerOnlyPost = await axios.post(
             "/post",
@@ -1006,7 +1125,7 @@ describe("timeline", function () {
             },
             authHeader(userToken1)
         );
-        expect(followerOnlyPost.status).equal(200);
+        showExpect(followerOnlyPost.status, res).toBe(200);
 
         const privatePost = await axios.post(
             "/post",
@@ -1016,54 +1135,71 @@ describe("timeline", function () {
             },
             authHeader(userToken1)
         );
-        expect(privatePost.status).equal(200);
-    });
-    it("poster can see their own posts", async function () {
+        showExpect(privatePost.status, res).toBe(200);
+    }, 60000);
+    it("poster can see their own posts", async () => {
         const res = await axios.get("/timeline", authHeader(userToken1));
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(4);
-        expect(res.data.result[3]).have.property("content", "public content");
-        expect(res.data.result[2]).have.property("content", "unlisted content");
-        expect(res.data.result[1]).have.property("content", "follower content");
-        expect(res.data.result[0]).have.property(
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(4);
+        showExpect(res.data.result[3], res).toHaveProperty(
+            "content",
+            "public content"
+        );
+        showExpect(res.data.result[2], res).toHaveProperty(
+            "content",
+            "unlisted content"
+        );
+        showExpect(res.data.result[1], res).toHaveProperty(
+            "content",
+            "follower content"
+        );
+        showExpect(res.data.result[0], res).toHaveProperty(
             "content",
             "private content @user4"
         );
     });
-    it("non-follower see nothing", async function () {
+    it("non-follower see nothing", async () => {
         const res = await axios.get("/timeline", authHeader(userToken2));
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(0);
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(0);
     });
-    it("follower can see follower post", async function () {
+    it("follower can see follower post", async () => {
         const res = await axios.get("/timeline", authHeader(userToken3));
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(3);
-        expect(res.data.result[2]).have.property("content", "public content");
-        expect(res.data.result[1]).have.property("content", "unlisted content");
-        expect(res.data.result[0]).have.property("content", "follower content");
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(3);
+        showExpect(res.data.result[2], res).toHaveProperty(
+            "content",
+            "public content"
+        );
+        showExpect(res.data.result[1], res).toHaveProperty(
+            "content",
+            "unlisted content"
+        );
+        showExpect(res.data.result[0], res).toHaveProperty(
+            "content",
+            "follower content"
+        );
     });
-    it("mentioned user can see private post", async function () {
+    it("mentioned user can see private post", async () => {
         const res = await axios.get("/timeline", authHeader(userToken4));
-        expect(res.status).equal(200);
-        expect(res.data).to.have.property("result");
-        expect(res.data.result).to.have.length(1);
-        expect(res.data.result[0]).have.property(
+        showExpect(res.status, res).toBe(200);
+        showExpect(res.data, res).toHaveProperty("result");
+        showExpect(res.data.result, res).toHaveLength(1);
+        showExpect(res.data.result[0], res).toHaveProperty(
             "content",
             "private content @user4"
         );
     });
 });
 
-describe("favorite and bookmark", function () {
+describe("favorite and bookmark", () => {
     let userToken1: string;
     let userToken2: string;
     let postId: string;
-    before(async function () {
-        this.timeout(60000);
+    beforeAll(async () => {
         await truncateDB();
         userToken1 = await createAndLoginUser("admin", GOOD_PASSWORD);
         userToken2 = await createAndLoginUser("user2", GOOD_PASSWORD);
@@ -1076,13 +1212,13 @@ describe("favorite and bookmark", function () {
             },
             authHeader(userToken1)
         );
-        expect(publicPost.status).equal(200);
+        showExpect(publicPost.status, publicPost).toBe(200);
         postId = publicPost.data.post_id;
-    });
+    }, 60000);
     let favoriteSuccess = false;
     let bookmarkSuccess = false;
     let reactionSuccess = false;
-    it("can favorite a public post", async function () {
+    it("can favorite a public post", async () => {
         const res = await axios.put(
             "/post/" + postId + "/favorite",
             {},
@@ -1090,10 +1226,10 @@ describe("favorite and bookmark", function () {
                 ...authHeader(userToken2),
             }
         );
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
         favoriteSuccess = true;
     });
-    it("can bookmark a public post", async function () {
+    it("can bookmark a public post", async () => {
         const res = await axios.put(
             "/post/" + postId + "/bookmark",
             {},
@@ -1101,10 +1237,10 @@ describe("favorite and bookmark", function () {
                 ...authHeader(userToken2),
             }
         );
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
         bookmarkSuccess = true;
     });
-    it("can create a reaction", async function () {
+    it("can create a reaction", async () => {
         const res = await axios.post(
             "/post/" + postId + "/reaction",
             {
@@ -1115,30 +1251,30 @@ describe("favorite and bookmark", function () {
                 ...authHeader(userToken2),
             }
         );
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
         reactionSuccess = true;
     });
-    it("can delete a favorite", async function () {
+    it("can delete a favorite", async () => {
         if (!favoriteSuccess) {
-            this.skip();
+            expect().fail();
         }
         const res = await axios.delete("/post/" + postId + "/favorite", {
             ...authHeader(userToken2),
         });
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
     });
-    it("can delete a bookmark", async function () {
+    it("can delete a bookmark", async () => {
         if (!bookmarkSuccess) {
-            this.skip();
+            expect().fail();
         }
         const res = await axios.delete("/post/" + postId + "/bookmark", {
             ...authHeader(userToken2),
         });
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
     });
-    it("can delete a reaction", async function () {
+    it("can delete a reaction", async () => {
         if (!reactionSuccess) {
-            this.skip();
+            expect().fail();
         }
         const res = await axios.post(
             "/post/" + postId + "/reaction",
@@ -1150,6 +1286,6 @@ describe("favorite and bookmark", function () {
                 ...authHeader(userToken2),
             }
         );
-        expect(res.status).equal(200);
+        showExpect(res.status, res).toBe(200);
     });
 });

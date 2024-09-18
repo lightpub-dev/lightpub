@@ -1,11 +1,9 @@
-FROM node:18
+FROM oven/bun:latest
 
-RUN apt-get update -qq && apt-get install -y -qq mariadb-client
+COPY package.json ./
+COPY bun.lockb ./
+COPY src ./
 
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install
+RUN bun install
 
-COPY . .
-
-CMD ["npm", "run", "test"]
+CMD ["bun", "test"]
