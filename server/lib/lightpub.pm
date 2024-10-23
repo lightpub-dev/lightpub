@@ -1,4 +1,5 @@
 package lightpub;
+use Dotenv -load;
 use Mojo::Base 'Mojolicious', -signatures;
 
 # This method will run once at server start
