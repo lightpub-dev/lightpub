@@ -1,4 +1,4 @@
-package CloudDiary::DB::Conn;
+package lightpub::DB::Conn;
 
 use DBIx::Connector;
 

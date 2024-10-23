@@ -3,6 +3,8 @@ use Mojo::Base -strict;
 use Test::More;
 use Test::Mojo;
 
+use lightpub::Service::Account;
+
 my $sample_user = {
   username => 'admin',
   password => '1234Abcd!',
