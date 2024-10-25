@@ -458,3 +458,39 @@ async fn post_delete_non_existent_post() {
     let resp = call_service(&app, req).await;
     assert_eq!(resp.status(), 404);
 }
+
+#[derive(Debug)]
+struct PostReplySetup {
+    token: String,
+    public_post_id: String,
+    follower_post_id: String,
+    private_post_id: String,
+}
+
+async fn post_reply_setup(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+) -> Result<PostReplySetup, anyhow::Error> {
+    register_user(&app, "testuser", "testuser", GOOD_PASSWORD).await;
+    let login_resp = login_user(&app, "testuser", GOOD_PASSWORD).await.unwrap();
+
+    let public_post_id = {
+        let req = TestRequest::default()
+            .uri("/post")
+            .method(Method::POST)
+            .attach_token(&login_resp.token)
+            .set_json(json!({
+                "content": "public parent post",
+                "privacy": "public"
+            }))
+            .to_request();
+        let resp = call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+        let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
+        body.post_id
+    };
+
+    todo!()
+}
+
+#[actix_web::test]
+async fn post_reply_to_public() {}
