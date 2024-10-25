@@ -471,26 +471,117 @@ async fn post_reply_setup(
     app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
 ) -> Result<PostReplySetup, anyhow::Error> {
     register_user(&app, "testuser", "testuser", GOOD_PASSWORD).await;
+    register_user(&app, "testuser2", "testuser2", GOOD_PASSWORD).await;
     let login_resp = login_user(&app, "testuser", GOOD_PASSWORD).await.unwrap();
+    let login_resp2 = login_user(&app, "testuser2", GOOD_PASSWORD).await.unwrap();
 
-    let public_post_id = {
-        let req = TestRequest::default()
-            .uri("/post")
-            .method(Method::POST)
-            .attach_token(&login_resp.token)
-            .set_json(json!({
-                "content": "public parent post",
-                "privacy": "public"
-            }))
-            .to_request();
-        let resp = call_service(&app, req).await;
-        assert_eq!(resp.status(), 200);
-        let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
-        body.post_id
+    let get_post_id = {
+        let login_resp_token = &login_resp2.token;
+        let app_ref = &app;
+        move |content: &str, privacy: &str| {
+            let req_body = json!({
+                "content": content,
+                "privacy": privacy
+            });
+            async move {
+                let req = TestRequest::default()
+                    .uri("/post")
+                    .method(Method::POST)
+                    .attach_token(login_resp_token)
+                    .set_json(req_body)
+                    .to_request();
+                let resp = call_service(app_ref, req).await;
+                assert_eq!(resp.status(), 200);
+                let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
+                body.post_id.clone()
+            }
+        }
     };
 
-    todo!()
+    let public_post_id = get_post_id("public parent post", "public").await;
+    let follower_post_id = get_post_id("follower parent post", "follower").await;
+    let private_post_id = get_post_id("private parent post", "private").await;
+
+    Ok(PostReplySetup {
+        token: login_resp.token,
+        public_post_id,
+        follower_post_id,
+        private_post_id,
+    })
 }
 
 #[actix_web::test]
-async fn post_reply_to_public() {}
+async fn post_reply_to_public() {
+    let app = init_app().await;
+    let setup = post_reply_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "content": "reply to public",
+            "privacy": "public",
+            "reply_to_id": &setup.public_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200)
+}
+
+#[actix_web::test]
+async fn post_reply_to_follower_public_by_non_follower() {
+    let app = init_app().await;
+    let setup = post_reply_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "content": "reply to follower-only",
+            "privacy": "public",
+            "reply_to_id": &setup.follower_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404)
+}
+
+#[actix_web::test]
+async fn post_reply_to_private_public() {
+    let app = init_app().await;
+    let setup = post_reply_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "content": "reply to private",
+            "privacy": "public",
+            "reply_to_id": &setup.private_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404)
+}
+
+#[actix_web::test]
+async fn post_reply_to_public_private() {
+    let app = init_app().await;
+    let setup = post_reply_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "content": "reply to private",
+            "privacy": "private",
+            "reply_to_id": &setup.public_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200)
+}
