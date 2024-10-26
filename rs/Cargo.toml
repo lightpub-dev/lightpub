@@ -62,3 +62,6 @@ urlencoding = "2.1.3"
 uuid = { version = "1.7.0", features = ["v4", "v7", "serde", "fast-rng"] }
 valico = "2"
 time = "0.3.36"
+testcontainers = "0.23.1"
+tempfile = "3.13.0"
+actix-http = "3.9.0"

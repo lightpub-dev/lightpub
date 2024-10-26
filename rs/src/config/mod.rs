@@ -55,7 +55,7 @@ fn read_config_yaml() {
     use std::io::Read;
 
     // read from lightpub.yml.sample
-    let mut file = std::fs::File::open("../lightpub.yml.sample").unwrap();
+    let mut file = std::fs::File::open("./lightpub.yml.sample").unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
@@ -70,7 +70,7 @@ fn read_config_yaml() {
             http_scheme: "https".to_string(),
             frontend_url: "http://localhost:5173/#".to_string(),
             database: DatabaseConfig {
-                path: "./sample_db.sqlite3".to_string()
+                path: "./db/sample_db.sqlite3".to_string()
             },
             queue: QueueConfig {
                 host: "127.0.0.1".to_string(),
