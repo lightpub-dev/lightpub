@@ -49,7 +49,8 @@ async fn setup_server() -> App<
     // let temp_db = temp_dir.path().join("temp_db.sqlite3");
     // let temp_db_file = File::create(&temp_db).await.expect("create temp db");
     // drop(temp_db_file);
-    config.database.path = ":memory:".to_string();
+    let random_str = uuid::Uuid::new_v4().to_string();
+    config.database.path = format!("file:{}?mode=memory&cache=shared", random_str);
 
     // connect to db
     let conn_str = format!("sqlite:{}", config.database.path);
@@ -586,6 +587,7 @@ async fn post_reply_to_public_private() {
     assert_eq!(resp.status(), 200)
 }
 
+#[derive(Debug, Clone)]
 struct PostRepostSetup {
     token: String,
     other_public_post_id: String,
@@ -605,18 +607,18 @@ async fn post_repost_setup(
     let login_resp2 = login_user(&app, "testuser2", GOOD_PASSWORD).await.unwrap();
 
     let get_post_id = {
-        let login_resp_token = &login_resp2.token;
         let app_ref = &app;
-        move |content: &str, privacy: &str| {
+        move |token: &str, content: &str, privacy: &str| {
             let req_body = json!({
                 "content": content,
                 "privacy": privacy
             });
+            let token = token.to_string();
             async move {
                 let req = TestRequest::default()
                     .uri("/post")
                     .method(Method::POST)
-                    .attach_token(login_resp_token)
+                    .attach_token(&token)
                     .set_json(req_body)
                     .to_request();
                 let resp = call_service(app_ref, req).await;
@@ -627,14 +629,876 @@ async fn post_repost_setup(
         }
     };
 
-    let public_post_id = get_post_id("public parent post", "public").await;
-    let follower_post_id = get_post_id("follower parent post", "follower").await;
-    let private_post_id = get_post_id("private parent post", "private").await;
+    let my_public_post_id = get_post_id(&login_resp.token, "public parent post", "public").await;
+    let my_follower_post_id =
+        get_post_id(&login_resp.token, "follower parent post", "follower").await;
+    let my_private_post_id = get_post_id(&login_resp.token, "private parent post", "private").await;
 
-    Ok(PostReplySetup {
+    let other_public_post_id =
+        get_post_id(&login_resp2.token, "public parent post", "public").await;
+    let other_follower_post_id =
+        get_post_id(&login_resp2.token, "follower parent post", "follower").await;
+    let other_private_post_id =
+        get_post_id(&login_resp2.token, "private parent post", "private").await;
+
+    Ok(PostRepostSetup {
         token: login_resp.token,
-        public_post_id,
-        follower_post_id,
-        private_post_id,
+        my_public_post_id,
+        my_follower_post_id,
+        my_private_post_id,
+        other_public_post_id,
+        other_follower_post_id,
+        other_private_post_id,
     })
+}
+
+#[actix_web::test]
+async fn post_repost_of_public_public() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "public",
+            "repost_of_id": &setup.other_public_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn post_repost_of_follower_public() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "public",
+            "repost_of_id": &setup.other_follower_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn post_repost_of_private_public() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "public",
+            "repost_of_id": &setup.other_private_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn post_repost_of_my_public_public() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "public",
+            "repost_of_id": &setup.my_public_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn post_repost_of_my_follower_public() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "public",
+            "repost_of_id": &setup.my_follower_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn post_repost_of_my_private_public() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "public",
+            "repost_of_id": &setup.my_private_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn post_repost_of_my_public_unlisted() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "unlisted",
+            "repost_of_id": &setup.my_public_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn post_repost_of_my_public_follower() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "follower",
+            "repost_of_id": &setup.my_public_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+}
+
+#[actix_web::test]
+async fn post_repost_of_my_public_private() {
+    let app = init_app().await;
+    let setup = post_repost_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .set_json(json!({
+            "privacy": "private",
+            "repost_of_id": &setup.my_public_post_id
+        }))
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+}
+
+struct PostViewSetup {
+    token: String,
+    other_follower_post_id: String,
+    other_private_post_id: String,
+    my_public_post_id: String,
+    my_follower_post_id: String,
+    my_private_post_id: String,
+}
+
+async fn post_view_setup(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+) -> Result<PostViewSetup, anyhow::Error> {
+    register_user(&app, "testuser", "testuser", GOOD_PASSWORD).await;
+    register_user(&app, "testuser2", "testuser2", GOOD_PASSWORD).await;
+    let login_resp = login_user(&app, "testuser", GOOD_PASSWORD).await.unwrap();
+    let login_resp2 = login_user(&app, "testuser2", GOOD_PASSWORD).await.unwrap();
+
+    let get_post_id = {
+        let app_ref = &app;
+        move |token: &str, content: &str, privacy: &str| {
+            let req_body = json!({
+                "content": content,
+                "privacy": privacy
+            });
+            let token = token.to_string();
+            async move {
+                let req = TestRequest::default()
+                    .uri("/post")
+                    .method(Method::POST)
+                    .attach_token(&token)
+                    .set_json(req_body)
+                    .to_request();
+                let resp = call_service(app_ref, req).await;
+                assert_eq!(resp.status(), 200);
+                let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
+                body.post_id.clone()
+            }
+        }
+    };
+
+    let my_public_post_id = get_post_id(&login_resp.token, "public post", "public").await;
+    let my_follower_post_id = get_post_id(&login_resp.token, "follower post", "follower").await;
+    let my_private_post_id = get_post_id(&login_resp.token, "private post", "private").await;
+
+    // let other_public_post_id =
+    // get_post_id(&login_resp2.token, "public parent post", "public").await;
+    let other_follower_post_id =
+        get_post_id(&login_resp2.token, "other's follower post", "follower").await;
+    let other_private_post_id =
+        get_post_id(&login_resp2.token, "other's private post", "private").await;
+
+    Ok(PostViewSetup {
+        token: login_resp.token,
+        my_public_post_id,
+        my_follower_post_id,
+        my_private_post_id,
+        other_follower_post_id,
+        other_private_post_id,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct PostViewResponse {
+    id: String,
+    content: String,
+}
+
+#[actix_web::test]
+async fn post_view_public() {
+    let app = init_app().await;
+    let setup = post_view_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}", setup.my_public_post_id))
+        .method(Method::GET)
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: PostViewResponse = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.id, setup.my_public_post_id);
+    assert_eq!(body.content, "public post");
+}
+
+#[actix_web::test]
+async fn post_view_follower() {
+    let app = init_app().await;
+    let setup = post_view_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}", setup.my_follower_post_id))
+        .method(Method::GET)
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: PostViewResponse = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.id, setup.my_follower_post_id);
+    assert_eq!(body.content, "follower post");
+}
+
+#[actix_web::test]
+async fn post_view_private() {
+    let app = init_app().await;
+    let setup = post_view_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}", setup.my_private_post_id))
+        .method(Method::GET)
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: PostViewResponse = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.id, setup.my_private_post_id);
+    assert_eq!(body.content, "private post");
+}
+
+#[actix_web::test]
+async fn post_view_others_follower() {
+    let app = init_app().await;
+    let setup = post_view_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}", setup.other_follower_post_id))
+        .method(Method::GET)
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn post_view_others_private() {
+    let app = init_app().await;
+    let setup = post_view_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}", setup.other_private_post_id))
+        .method(Method::GET)
+        .attach_token(&setup.token)
+        .to_request();
+
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+struct FollowSetup {
+    token1: String,
+    token2: String,
+}
+
+async fn setup_follow(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+) -> FollowSetup {
+    register_user(&app, "user1", "testuser", GOOD_PASSWORD).await;
+    register_user(&app, "user2", "testuser2", GOOD_PASSWORD).await;
+    let login_resp = login_user(&app, "user1", GOOD_PASSWORD).await.unwrap();
+    let login_resp2 = login_user(&app, "user2", GOOD_PASSWORD).await.unwrap();
+    FollowSetup {
+        token1: login_resp.token,
+        token2: login_resp2.token,
+    }
+}
+
+async fn follow_or_unfollow(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+    token: &str,
+    user: &str,
+    follow: bool,
+) -> ServiceResponse<impl MessageBody + Debug> {
+    let req = TestRequest::default()
+        .uri(&format!("/user/{}/follow", user))
+        .method(if follow { Method::PUT } else { Method::DELETE })
+        .attach_token(token)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    resp
+}
+
+#[actix_web::test]
+async fn follow_user() {
+    let app = init_app().await;
+    let setup = setup_follow(&app).await;
+
+    let resp = follow_or_unfollow(&app, &setup.token1, "@user2", true).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn unfollow_user() {
+    let app = init_app().await;
+    let setup = setup_follow(&app).await;
+
+    let resp = follow_or_unfollow(&app, &setup.token1, "@user2", true).await;
+    assert_eq!(resp.status(), 200);
+
+    let resp = follow_or_unfollow(&app, &setup.token1, "@user2", false).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[derive(Debug, Deserialize)]
+struct ListResponse<T> {
+    result: Vec<T>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UserResponse {
+    username: String,
+}
+
+#[actix_web::test]
+async fn get_followers() {
+    let app = init_app().await;
+    let setup = setup_follow(&app).await;
+
+    let resp = follow_or_unfollow(&app, &setup.token1, "@user2", true).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = TestRequest::default()
+        .uri("/user/@user2/followers")
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+
+    assert_eq!(resp.status(), 200);
+    let body: ListResponse<UserResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 1);
+    assert_eq!(body.result[0].username, "user1");
+}
+
+#[actix_web::test]
+async fn get_followings() {
+    let app = init_app().await;
+    let setup = setup_follow(&app).await;
+
+    let resp = follow_or_unfollow(&app, &setup.token1, "@user2", true).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = TestRequest::default()
+        .uri("/user/@user1/following")
+        .attach_token(&setup.token1)
+        .to_request();
+    let resp = call_service(&app, req).await;
+
+    assert_eq!(resp.status(), 200);
+    let body: ListResponse<UserResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 1);
+    assert_eq!(body.result[0].username, "user2");
+}
+
+struct PostListSetup {
+    token1: String,
+    token2: String,
+    token3: String,
+    token4: String,
+}
+
+async fn post_list_setup(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+) -> Result<PostListSetup, anyhow::Error> {
+    register_user(&app, "user1", "user1", GOOD_PASSWORD).await;
+    register_user(&app, "user2", "user2", GOOD_PASSWORD).await;
+    register_user(&app, "user3", "user3", GOOD_PASSWORD).await;
+    register_user(&app, "user4", "user4", GOOD_PASSWORD).await;
+    let login_resp = login_user(&app, "user1", GOOD_PASSWORD).await.unwrap();
+    let login_resp2 = login_user(&app, "user2", GOOD_PASSWORD).await.unwrap();
+    let login_resp3 = login_user(&app, "user3", GOOD_PASSWORD).await.unwrap();
+    let login_resp4 = login_user(&app, "user4", GOOD_PASSWORD).await.unwrap();
+
+    let get_post_id = {
+        let app_ref = &app;
+        move |token: &str, content: &str, privacy: &str| {
+            let req_body = json!({
+                "content": content,
+                "privacy": privacy
+            });
+            let token = token.to_string();
+            async move {
+                let req = TestRequest::default()
+                    .uri("/post")
+                    .method(Method::POST)
+                    .attach_token(&token)
+                    .set_json(req_body)
+                    .to_request();
+                let resp = call_service(app_ref, req).await;
+                assert_eq!(resp.status(), 200);
+                let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
+                body.post_id.clone()
+            }
+        }
+    };
+
+    // user3 follows user1
+    let resp = follow_or_unfollow(&app, &login_resp3.token, "@user1", true).await;
+    assert_eq!(resp.status(), 200);
+
+    let _ = get_post_id(&login_resp.token, "public content", "public").await;
+    let _ = get_post_id(&login_resp.token, "unlisted content", "unlisted").await;
+    let _ = get_post_id(&login_resp.token, "follower content", "follower").await;
+    let _ = get_post_id(&login_resp.token, "private content @user4", "private").await;
+
+    Ok(PostListSetup {
+        token1: login_resp.token,
+        token2: login_resp2.token,
+        token3: login_resp3.token,
+        token4: login_resp4.token,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct PostResponse {
+    content: String,
+}
+
+#[actix_web::test]
+async fn post_list_my_posts() {
+    let app = init_app().await;
+    let setup = post_list_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/user/@user1/posts")
+        .attach_token(&setup.token1)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 4);
+    assert_eq!(body.result[0].content, "private content @user4");
+    assert_eq!(body.result[1].content, "follower content");
+    assert_eq!(body.result[2].content, "unlisted content");
+    assert_eq!(body.result[3].content, "public content");
+}
+
+#[actix_web::test]
+async fn post_list_others_posts() {
+    let app = init_app().await;
+    let setup = post_list_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/user/@user1/posts")
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 2);
+    assert_eq!(body.result[0].content, "unlisted content");
+    assert_eq!(body.result[1].content, "public content");
+}
+
+#[actix_web::test]
+async fn post_list_followers_posts() {
+    let app = init_app().await;
+    let setup = post_list_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/user/@user1/posts")
+        .attach_token(&setup.token3)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 3);
+    assert_eq!(body.result[0].content, "follower content");
+    assert_eq!(body.result[1].content, "unlisted content");
+    assert_eq!(body.result[2].content, "public content");
+}
+
+#[actix_web::test]
+async fn post_list_mentioned_posts() {
+    let app = init_app().await;
+    let setup = post_list_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/user/@user1/posts")
+        .attach_token(&setup.token4)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 3);
+    assert_eq!(body.result[0].content, "private content @user4");
+    assert_eq!(body.result[1].content, "unlisted content");
+    assert_eq!(body.result[2].content, "public content");
+}
+
+struct TimelineSetup {
+    token1: String,
+    token2: String,
+    token3: String,
+    token4: String,
+}
+
+async fn timeline_setup(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+) -> Result<TimelineSetup, anyhow::Error> {
+    register_user(&app, "user1", "user1", GOOD_PASSWORD).await;
+    register_user(&app, "user2", "user2", GOOD_PASSWORD).await;
+    register_user(&app, "user3", "user3", GOOD_PASSWORD).await;
+    register_user(&app, "user4", "user4", GOOD_PASSWORD).await;
+    let login_resp = login_user(&app, "user1", GOOD_PASSWORD).await.unwrap();
+    let login_resp2 = login_user(&app, "user2", GOOD_PASSWORD).await.unwrap();
+    let login_resp3 = login_user(&app, "user3", GOOD_PASSWORD).await.unwrap();
+    let login_resp4 = login_user(&app, "user4", GOOD_PASSWORD).await.unwrap();
+
+    let get_post_id = {
+        let app_ref = &app;
+        move |token: &str, content: &str, privacy: &str| {
+            let req_body = json!({
+                "content": content,
+                "privacy": privacy
+            });
+            let token = token.to_string();
+            async move {
+                let req = TestRequest::default()
+                    .uri("/post")
+                    .method(Method::POST)
+                    .attach_token(&token)
+                    .set_json(req_body)
+                    .to_request();
+                let resp = call_service(app_ref, req).await;
+                assert_eq!(resp.status(), 200);
+                let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
+                body.post_id.clone()
+            }
+        }
+    };
+
+    // user3 follows user1
+    let resp = follow_or_unfollow(&app, &login_resp3.token, "@user1", true).await;
+    assert_eq!(resp.status(), 200);
+
+    let _ = get_post_id(&login_resp.token, "public content", "public").await;
+    let _ = get_post_id(&login_resp.token, "unlisted content", "unlisted").await;
+    let _ = get_post_id(&login_resp.token, "follower content", "follower").await;
+    let _ = get_post_id(&login_resp.token, "private content @user4", "private").await;
+
+    Ok(TimelineSetup {
+        token1: login_resp.token,
+        token2: login_resp2.token,
+        token3: login_resp3.token,
+        token4: login_resp4.token,
+    })
+}
+
+#[actix_web::test]
+async fn timeline_my_posts() {
+    let app = init_app().await;
+    let setup = timeline_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/timeline")
+        .attach_token(&setup.token1)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 4);
+    assert_eq!(body.result[0].content, "private content @user4");
+    assert_eq!(body.result[1].content, "follower content");
+    assert_eq!(body.result[2].content, "unlisted content");
+    assert_eq!(body.result[3].content, "public content");
+}
+
+#[actix_web::test]
+async fn timeline_empty() {
+    let app = init_app().await;
+    let setup = timeline_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/timeline")
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 0);
+}
+
+#[actix_web::test]
+async fn timeline_follows() {
+    let app = init_app().await;
+    let setup = timeline_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/timeline")
+        .attach_token(&setup.token3)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 3);
+    assert_eq!(body.result[0].content, "follower content");
+    assert_eq!(body.result[1].content, "unlisted content");
+    assert_eq!(body.result[2].content, "public content");
+}
+
+#[actix_web::test]
+async fn timeline_mentioned() {
+    let app = init_app().await;
+    let setup = timeline_setup(&app).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/timeline")
+        .attach_token(&setup.token4)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: ListResponse<PostResponse> = parse_body(resp.into_body()).await.unwrap();
+    assert_eq!(body.result.len(), 1);
+    assert_eq!(body.result[0].content, "private content @user4");
+}
+
+struct ReactionSetup {
+    token1: String,
+    token2: String,
+    public_post_id: String,
+}
+
+async fn reaction_setup(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+) -> ReactionSetup {
+    register_user(&app, "user1", "user1", GOOD_PASSWORD).await;
+    register_user(&app, "user2", "user2", GOOD_PASSWORD).await;
+    let login_resp = login_user(&app, "user1", GOOD_PASSWORD).await.unwrap();
+    let login_resp2 = login_user(&app, "user2", GOOD_PASSWORD).await.unwrap();
+
+    let req = TestRequest::default()
+        .uri("/post")
+        .method(Method::POST)
+        .attach_token(&login_resp.token)
+        .set_json(json!({
+            "content": "public content",
+            "privacy": "public"
+        }))
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
+
+    ReactionSetup {
+        token1: login_resp.token,
+        token2: login_resp2.token,
+        public_post_id: body.post_id,
+    }
+}
+
+#[actix_web::test]
+async fn favorite_public() {
+    let app = init_app().await;
+    let setup = reaction_setup(&app).await;
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/favorite", setup.public_post_id))
+        .method(Method::PUT)
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn bookmark_public() {
+    let app = init_app().await;
+    let setup = reaction_setup(&app).await;
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/bookmark", setup.public_post_id))
+        .method(Method::PUT)
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn reaction_public() {
+    let app = init_app().await;
+    let setup = reaction_setup(&app).await;
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/reaction", setup.public_post_id))
+        .method(Method::POST)
+        .set_json(json!( {
+            "reaction": "🎉",
+            "add": true
+        }))
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn favorite_delete_public() {
+    let app = init_app().await;
+    let setup = reaction_setup(&app).await;
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/favorite", setup.public_post_id))
+        .method(Method::PUT)
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/favorite", setup.public_post_id))
+        .method(Method::DELETE)
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn bookmark_delete_public() {
+    let app = init_app().await;
+    let setup = reaction_setup(&app).await;
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/bookmark", setup.public_post_id))
+        .method(Method::PUT)
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/bookmark", setup.public_post_id))
+        .method(Method::DELETE)
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn reaction_delete_public() {
+    let app = init_app().await;
+    let setup = reaction_setup(&app).await;
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/reaction", setup.public_post_id))
+        .method(Method::POST)
+        .set_json(json!( {
+            "reaction": "🎉",
+            "add": true
+        }))
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let req = TestRequest::default()
+        .uri(&format!("/post/{}/reaction", setup.public_post_id))
+        .method(Method::POST)
+        .set_json(json!( {
+            "reaction": "🎉",
+            "add": false
+        }))
+        .attach_token(&setup.token2)
+        .to_request();
+    let resp = call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
 }
