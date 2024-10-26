@@ -585,3 +585,56 @@ async fn post_reply_to_public_private() {
     let resp = call_service(&app, req).await;
     assert_eq!(resp.status(), 200)
 }
+
+struct PostRepostSetup {
+    token: String,
+    other_public_post_id: String,
+    other_follower_post_id: String,
+    other_private_post_id: String,
+    my_public_post_id: String,
+    my_follower_post_id: String,
+    my_private_post_id: String,
+}
+
+async fn post_repost_setup(
+    app: impl Service<Request, Response = ServiceResponse<impl MessageBody + Debug>, Error = Error>,
+) -> Result<PostRepostSetup, anyhow::Error> {
+    register_user(&app, "testuser", "testuser", GOOD_PASSWORD).await;
+    register_user(&app, "testuser2", "testuser2", GOOD_PASSWORD).await;
+    let login_resp = login_user(&app, "testuser", GOOD_PASSWORD).await.unwrap();
+    let login_resp2 = login_user(&app, "testuser2", GOOD_PASSWORD).await.unwrap();
+
+    let get_post_id = {
+        let login_resp_token = &login_resp2.token;
+        let app_ref = &app;
+        move |content: &str, privacy: &str| {
+            let req_body = json!({
+                "content": content,
+                "privacy": privacy
+            });
+            async move {
+                let req = TestRequest::default()
+                    .uri("/post")
+                    .method(Method::POST)
+                    .attach_token(login_resp_token)
+                    .set_json(req_body)
+                    .to_request();
+                let resp = call_service(app_ref, req).await;
+                assert_eq!(resp.status(), 200);
+                let body: PostCreateResponse = parse_body(resp.into_body()).await.unwrap();
+                body.post_id.clone()
+            }
+        }
+    };
+
+    let public_post_id = get_post_id("public parent post", "public").await;
+    let follower_post_id = get_post_id("follower parent post", "follower").await;
+    let private_post_id = get_post_id("private parent post", "private").await;
+
+    Ok(PostReplySetup {
+        token: login_resp.token,
+        public_post_id,
+        follower_post_id,
+        private_post_id,
+    })
+}
