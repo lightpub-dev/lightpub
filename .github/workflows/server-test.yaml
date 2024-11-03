@@ -21,6 +21,7 @@ jobs:
       - name: Run tests
         run: |
           cd rs
+          rm .env
           cargo test
   misskey_federation_test:
     name: Run Misskey federation tests

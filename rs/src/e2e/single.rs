@@ -1350,6 +1350,7 @@ async fn timeline_mentioned() {
 }
 
 struct ReactionSetup {
+    #[allow(dead_code)]
     token1: String,
     token2: String,
     public_post_id: String,

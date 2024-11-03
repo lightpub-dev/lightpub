@@ -20,7 +20,7 @@ use std::path::PathBuf;
 struct Cli {
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
+    config: PathBuf,
 }
 
 #[actix_web::main]
@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let config = cli.config.unwrap_or("lightpub.yml.sample".into());
+    let config = cli.config.as_path();
 
     let mut file = std::fs::File::open(config).unwrap();
     let mut contents = String::new();
