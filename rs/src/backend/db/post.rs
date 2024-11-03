@@ -1418,6 +1418,7 @@ impl UserPostService for DBUserPostService {
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
                 .mentioned_users(mentioned_users)
+                .reaction_str_by_you(p.reaction_str_by_you)
                 .build()
                 .unwrap())
         } else {
@@ -1688,6 +1689,7 @@ impl UserPostService for DBUserPostService {
                     .favorited_by_you(p.favorited_by_you)
                     .bookmarked_by_you(p.bookmarked_by_you)
                     .mentioned_users(mentioned_users)
+                    .reaction_str_by_you(p.reaction_str_by_you)
                     .build()
                     .unwrap()
             };
@@ -1870,6 +1872,7 @@ impl UserPostService for DBUserPostService {
                 .favorited_by_you(p.favorited_by_you)
                 .bookmarked_by_you(p.bookmarked_by_you)
                 .mentioned_users(mentioned_users)
+                .reaction_str_by_you(p.reaction_str_by_you)
                 .build()
                 .unwrap();
             entries.push(entry);

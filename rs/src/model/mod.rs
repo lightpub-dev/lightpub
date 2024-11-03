@@ -331,6 +331,7 @@ pub mod api_response {
         reposted_by_you: Option<bool>,  // non-null if user is logged in
         favorited_by_you: Option<bool>, // non-null if user is logged in
         bookmarked_by_you: Option<bool>, // non-null if user is logged in
+        reaction_str_by_you: Option<String>, // non-null if user is logged in and has reacted
     }
 
     impl HasRemoteUri for UserPostEntry {
