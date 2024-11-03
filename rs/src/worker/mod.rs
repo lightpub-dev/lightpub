@@ -1,5 +1,4 @@
 use reqwest::{Method, Request, RequestBuilder};
-use rsa::RsaPrivateKey;
 use sqlx::{Pool, Sqlite};
 use tracing::{debug, info, warn};
 
@@ -16,27 +15,6 @@ use crate::utils::key::{attach_signature, SignKeyBuilder};
 pub struct ApubWorker {
     pool: Pool<Sqlite>,
     client: ApubReqwester,
-}
-
-#[derive(Debug)]
-struct SimpleSigner {
-    user_id: String,
-    key_id: String,
-    private_key: RsaPrivateKey,
-}
-
-impl ApubSigner for SimpleSigner {
-    fn get_private_key(&self) -> RsaPrivateKey {
-        self.private_key.clone()
-    }
-
-    fn get_private_key_id(&self) -> String {
-        self.key_id.clone()
-    }
-
-    fn get_user_id(&self) -> String {
-        self.user_id.clone()
-    }
 }
 
 #[derive(Debug)]

@@ -42,23 +42,14 @@ use crate::model::{PostPrivacy, User};
 use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
 use crate::utils::key::{verify_signature, KeyFetcher};
-use actix_cors::Cors;
 use actix_multipart::form::MultipartForm;
-use actix_web::http::header;
-use actix_web::{
-    delete, get, middleware::Logger, post, put, web, App, FromRequest, HttpResponse, HttpServer,
-    Responder,
-};
-use clap::Parser;
+use actix_web::{delete, get, post, put, web, FromRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::sqlite::SqlitePoolOptions;
 use std::borrow::BorrowMut;
-use std::path::PathBuf;
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
-    io::Read,
     pin::Pin,
 };
 use tracing::{debug, error, info, warn};
@@ -654,7 +645,7 @@ pub async fn host_meta(app: web::Data<AppState>) -> HandlerResponse<impl Respond
         .body(xml))
 }
 
-pub async fn do_like_helper(
+async fn do_like_helper(
     app: web::Data<AppState>,
     like: LikeActivity,
     is_add: bool,
