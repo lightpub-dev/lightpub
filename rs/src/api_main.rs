@@ -6,9 +6,10 @@ use lightpub::api::state::AppState;
 use lightpub::api_root::{
     add_post_bookmark, add_post_favorite, delete_post_bookmark, delete_post_favorite,
     delete_single_post, file_upload, get_single_post, get_user_followers, get_user_following,
-    get_user_outbox, get_user_posts, host_meta, login, modify_post_reaction, node_info_2_0,
-    node_info_2_1, post_post, register, timeline, truncate_database, update_my_profile,
-    user_create_follow, user_delete_follow, user_get, user_inbox, webfinger, well_known_node_info,
+    get_user_outbox, get_user_posts, host_meta, login, logout_user, modify_post_reaction,
+    node_info_2_0, node_info_2_1, post_post, register, timeline, truncate_database,
+    update_my_profile, user_create_follow, user_delete_follow, user_get, user_inbox, webfinger,
+    well_known_node_info,
 };
 use lightpub::config::Config;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -80,6 +81,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .service(register)
             .service(login)
+            .service(logout_user)
             .service(post_post)
             .service(user_create_follow)
             .service(user_delete_follow)

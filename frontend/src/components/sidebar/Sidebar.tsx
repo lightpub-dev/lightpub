@@ -42,6 +42,8 @@ import { authedFetcher, useAppSelector } from "../../hooks";
 import { selectAuthorization, selectUsername } from "../../stores/authSlice";
 import useSWR from "swr";
 import { UserResponse } from "../../models/user";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 type LinkItemId = "new-post" | "home" | "trending" | "settings";
 
@@ -214,6 +216,25 @@ const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
     };
   }, [data, error, isLoading]);
 
+  const navigate = useNavigate();
+
+  const onLoginOrLogout = useCallback(() => {
+    if (authorization === null) {
+      navigate("/login");
+    } else {
+      axios
+        .post("/logout")
+        .then(() => {
+          console.log("logout success");
+          navigate("/login");
+        })
+        .catch((e) => {
+          console.error("logout failed");
+          console.error(e);
+        });
+    }
+  }, [navigate]);
+
   return (
     <Flex
       ml={{ base: 0, md: 60 }}
@@ -294,7 +315,9 @@ const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
             <MenuItem>Settings</MenuItem>
             <MenuItem>Billing</MenuItem>
             <MenuDivider />
-            <MenuItem>Sign out</MenuItem>
+            <MenuItem onClick={onLoginOrLogout}>
+              {authorization === null ? "ログイン" : "ログアウト"}
+            </MenuItem>
           </MenuList>
         </Menu>
       </Flex>

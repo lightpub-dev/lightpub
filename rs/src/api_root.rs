@@ -43,7 +43,9 @@ use crate::utils::generate_uuid;
 use crate::utils::key::VerifyError;
 use crate::utils::key::{verify_signature, KeyFetcher};
 use actix_multipart::form::MultipartForm;
+use actix_web::cookie::Cookie;
 use actix_web::{delete, get, post, put, web, FromRequest, HttpResponse, Responder};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::borrow::BorrowMut;
@@ -57,20 +59,27 @@ use uuid::{fmt::Simple, Uuid};
 
 use crate::backend::db::new_user_service;
 
+const LIGHTPUB_TOKEN_COOKIE: &str = "lightpub_token";
+
 #[derive(Debug)]
 struct AuthUser {
     authed_user: Option<User>,
+    token: Option<String>,
 }
 
 impl AuthUser {
-    pub fn from_user(user: User) -> Self {
+    pub fn from_user(user: User, token: Option<String>) -> Self {
         Self {
             authed_user: Some(user),
+            token,
         }
     }
 
     pub fn unauthed() -> Self {
-        Self { authed_user: None }
+        Self {
+            authed_user: None,
+            token: None,
+        }
     }
 
     pub fn must_auth(&self) -> Result<&User, ErrorResponse> {
@@ -114,7 +123,7 @@ impl FromRequest for AuthUser {
                     let mut user_finder =
                         new_all_user_finder_service(data.pool().clone(), data.config().clone());
                     let user = user_finder.find_user_by_specifier(&u).await?;
-                    return Ok(AuthUser::from_user(user));
+                    return Ok(AuthUser::from_user(user, None));
                 }
                 Err(e) => {
                     use VerifyError::*;
@@ -154,7 +163,7 @@ impl FromRequest for AuthUser {
             let authed_user = auth_service.authenticate_user(bearer).await;
 
             match authed_user {
-                Ok(u) => Ok(AuthUser::from_user(u)),
+                Ok(u) => Ok(AuthUser::from_user(u, Some(bearer.to_string()))),
                 Err(e) => match e {
                     ServiceError::SpecificError(AuthError::TokenNotSet) => {
                         Err(ErrorResponse::new_status(401, "unauthorized"))
@@ -352,9 +361,19 @@ pub async fn login(
     let mut us = new_user_service(data.pool().clone());
     let req = us.login_user(&body.0.into()).await;
     match req {
-        Ok(req) => Ok(HttpResponse::Ok().json(LoginResponse {
-            token: req.user_token().to_string(),
-        })),
+        Ok(req) => {
+            let token = req.user_token();
+            Ok(HttpResponse::Ok()
+                .cookie(
+                    Cookie::build(LIGHTPUB_TOKEN_COOKIE, token.to_string())
+                        .http_only(true)
+                        .secure(!data.config().dev.debug)
+                        .finish(),
+                )
+                .json(LoginResponse {
+                    token: token.to_string(),
+                }))
+        }
         Err(e) => match e {
             ServiceError::SpecificError(e) => match e {
                 UserLoginError::AuthFailed => Err(ErrorResponse::new_status(401, "auth failed")),
@@ -362,6 +381,28 @@ pub async fn login(
             _ => ise(e),
         },
     }
+}
+
+#[post("/logout")]
+pub async fn logout_user(
+    data: web::Data<AppState>,
+    auth: AuthUser,
+) -> Result<impl Responder, ErrorResponse> {
+    let _ = auth.must_auth()?;
+    if let Some(token) = auth.token.as_ref() {
+        let mut us = new_user_service(data.pool().clone());
+        us.logout_user(token).await?;
+    }
+
+    let remove_cookie = {
+        let mut cookie = Cookie::build(LIGHTPUB_TOKEN_COOKIE, "").finish();
+        cookie.make_removal();
+        cookie
+    };
+    Ok(HttpResponse::Ok()
+        .status(StatusCode::NO_CONTENT)
+        .cookie(remove_cookie)
+        .finish())
 }
 
 #[derive(Debug, Deserialize)]

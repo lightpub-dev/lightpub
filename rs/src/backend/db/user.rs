@@ -1,3 +1,4 @@
+use crate::backend::UserLogoutError;
 use crate::model::User;
 use async_trait::async_trait;
 use derive_more::Constructor;
@@ -157,6 +158,13 @@ impl UserCreateService for DBUserCreateService {
         } else {
             return Err(ServiceError::SpecificError(UserLoginError::AuthFailed));
         }
+    }
+
+    async fn logout_user(&mut self, token: &str) -> Result<(), ServiceError<UserLogoutError>> {
+        sqlx::query!("DELETE FROM user_tokens WHERE token=?", token)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
 
