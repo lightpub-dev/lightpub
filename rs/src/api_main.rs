@@ -1,7 +1,7 @@
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
+use actix_web_opentelemetry::RequestTracing;
 use clap::Parser;
 use lightpub::api::state::AppState;
 use lightpub::api_root::{
@@ -13,6 +13,7 @@ use lightpub::api_root::{
     well_known_node_info,
 };
 use lightpub::config::Config;
+use opentelemetry::trace::noop::NoopTracerProvider;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
@@ -21,6 +22,7 @@ use opentelemetry_sdk::Resource;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::io::Read;
 use std::path::PathBuf;
+use tracing::info;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -32,36 +34,47 @@ struct Cli {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    global::set_text_map_propagator(TraceContextPropagator::new());
-    let tracer_provider = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-        .with_trace_config(
-            trace::Config::default()
-                .with_sampler(Sampler::AlwaysOn)
-                .with_id_generator(RandomIdGenerator::default())
-                .with_resource(Resource::new(vec![KeyValue::new(
-                    "service.name",
-                    "lightpub",
-                )])),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("opentelemetry pipeline");
-    global::set_tracer_provider(tracer_provider);
-
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_test_writer()
-        .init();
-
     let cli = Cli::parse();
-    let config = cli.config.as_path();
+    let config = cli.config;
 
     let mut file = std::fs::File::open(config).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Unable to read file");
     let config: Config = serde_yaml::from_str(&contents).expect("Unable to deserialize YAML");
+
+    if let Some(otlp) = &config.otlp {
+        global::set_text_map_propagator(TraceContextPropagator::new());
+        let tracer_provider = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .tonic()
+                    .with_endpoint(otlp),
+            )
+            .with_trace_config(
+                trace::Config::default()
+                    .with_sampler(Sampler::AlwaysOn)
+                    .with_id_generator(RandomIdGenerator::default())
+                    .with_resource(Resource::new(vec![KeyValue::new(
+                        "service.name",
+                        "lightpub",
+                    )])),
+            )
+            // .install_simple()
+            .install_batch(opentelemetry_sdk::runtime::TokioCurrentThread)
+            .expect("opentelemetry pipeline");
+        global::set_tracer_provider(tracer_provider);
+    } else {
+        global::set_text_map_propagator(TraceContextPropagator::new());
+        let tracer_provider = NoopTracerProvider::new();
+        global::set_tracer_provider(tracer_provider);
+    }
+
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_test_writer()
+        .init();
 
     // connect to db
     let conn_str = format!("sqlite:{}", config.database.path);
@@ -102,7 +115,6 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(app_state.clone()))
             .wrap(cors)
             .wrap(RequestTracing::new())
-            .wrap(RequestMetrics::default())
             .wrap(Logger::default())
             .service(register)
             .service(login)
@@ -142,6 +154,7 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await?;
 
+    info!("Shutting down the tracer provider");
     global::shutdown_tracer_provider();
 
     Ok(())

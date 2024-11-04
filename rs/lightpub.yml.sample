@@ -5,6 +5,7 @@ instance:
   description: Lightpub development server
   open_registration: true
 frontend_url: http://localhost:5173/#
+otlp: null
 allowed_hosts:
   - lightpub.tinax.local
   - localhost
