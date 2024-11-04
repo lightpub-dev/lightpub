@@ -1,6 +1,7 @@
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web_opentelemetry::{RequestMetrics, RequestTracing};
 use clap::Parser;
 use lightpub::api::state::AppState;
 use lightpub::api_root::{
@@ -12,6 +13,11 @@ use lightpub::api_root::{
     well_known_node_info,
 };
 use lightpub::config::Config;
+use opentelemetry::{global, KeyValue};
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::{self, RandomIdGenerator, Sampler};
+use opentelemetry_sdk::Resource;
 use sqlx::sqlite::SqlitePoolOptions;
 use std::io::Read;
 use std::path::PathBuf;
@@ -26,6 +32,23 @@ struct Cli {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    global::set_text_map_propagator(TraceContextPropagator::new());
+    let tracer_provider = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+        .with_trace_config(
+            trace::Config::default()
+                .with_sampler(Sampler::AlwaysOn)
+                .with_id_generator(RandomIdGenerator::default())
+                .with_resource(Resource::new(vec![KeyValue::new(
+                    "service.name",
+                    "lightpub",
+                )])),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+        .expect("opentelemetry pipeline");
+    global::set_tracer_provider(tracer_provider);
+
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_test_writer()
@@ -78,6 +101,8 @@ async fn main() -> std::io::Result<()> {
         let mut app = App::new()
             .app_data(web::Data::new(app_state.clone()))
             .wrap(cors)
+            .wrap(RequestTracing::new())
+            .wrap(RequestMetrics::default())
             .wrap(Logger::default())
             .service(register)
             .service(login)
@@ -115,5 +140,9 @@ async fn main() -> std::io::Result<()> {
     })
     .bind(("0.0.0.0", 8000))?
     .run()
-    .await
+    .await?;
+
+    global::shutdown_tracer_provider();
+
+    Ok(())
 }
