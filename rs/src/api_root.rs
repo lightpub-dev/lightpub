@@ -48,7 +48,7 @@ use actix_web::{delete, get, post, put, web, FromRequest, HttpResponse, Responde
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::borrow::BorrowMut;
+use std::borrow::{BorrowMut, Cow};
 use std::{
     fmt::{Debug, Display, Formatter},
     future::Future,
@@ -142,25 +142,38 @@ impl FromRequest for AuthUser {
                 }
             }
 
-            let authorization = match req.headers().get("Authorization") {
-                Some(a) => a,
-                None => return Ok(AuthUser::unauthed()),
-            };
+            let authorization = req.headers().get("Authorization");
 
-            let header_value = authorization
-                .to_str()
-                .map_err(|_| ErrorResponse::new_status(401, "unauthorized"))?;
-            let token = if header_value.starts_with("Bearer ") {
-                &header_value[7..]
-            } else {
-                return Err(ErrorResponse::new_status(401, "unauthorized").into());
+            let auth_header_token = {
+                if let Some(header_value) = authorization {
+                    let header_value = header_value
+                        .to_str()
+                        .map_err(|_| ErrorResponse::new_status(401, "unauthorized"))?;
+                    if header_value.starts_with("Bearer ") {
+                        // Authorization header
+                        Some(Cow::Borrowed(&header_value[7..]))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+            let raw_cookie = req.cookie(LIGHTPUB_TOKEN_COOKIE);
+            let cookie_token = raw_cookie.map(|c| Cow::Owned(c.value().to_string()));
+
+            let token = auth_header_token.or(cookie_token);
+
+            let token = match token {
+                None => return Ok(AuthUser::unauthed()),
+                Some(t) => t,
             };
 
             let data = web::Data::<AppState>::extract(&req).await.unwrap();
 
             let mut auth_service = new_auth_service(data.pool().clone());
 
-            let authed_user = auth_service.authenticate_user(token).await;
+            let authed_user = auth_service.authenticate_user(&token).await;
 
             match authed_user {
                 Ok(u) => Ok(AuthUser::from_user(u, Some(token.to_string()))),
