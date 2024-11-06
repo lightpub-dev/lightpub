@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Constructor;
+use gen_span::gen_span;
 use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
 use sqlx::SqlitePool;
 use uuid::fmt::Simple;
@@ -23,6 +24,7 @@ struct KeyRow {
     public_key: String,
 }
 
+#[gen_span]
 #[async_trait]
 impl KeyFetcher for DBKeyFetcher {
     async fn fetch_pubkey(&mut self, id: &str) -> Result<KeyFetcherResult, anyhow::Error> {

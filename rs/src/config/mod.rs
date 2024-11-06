@@ -12,6 +12,7 @@ pub struct Config {
     pub upload_dir: String,
     pub dev: DevConfig,
     pub federation: FederationConfig,
+    pub otlp: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
@@ -90,7 +91,8 @@ fn read_config_yaml() {
                 debug: true,
                 ssl_verify: false
             },
-            federation: FederationConfig { enabled: true }
+            federation: FederationConfig { enabled: true },
+            otlp: None,
         }
     )
 }

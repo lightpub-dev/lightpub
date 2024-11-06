@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use gen_span::gen_span;
 use sqlx::SqlitePool;
 use tracing::{debug, warn};
 use uuid::fmt::Simple;
@@ -45,6 +46,7 @@ impl DBUserFollowService {
     }
 }
 
+#[gen_span]
 impl DBUserFollowService {
     async fn find_user(
         &mut self,
@@ -84,6 +86,7 @@ impl HasRemoteUri for FollowUser {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl UserFollowService for DBUserFollowService {
     async fn is_following(

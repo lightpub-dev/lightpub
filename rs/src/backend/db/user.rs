@@ -2,6 +2,10 @@ use crate::backend::UserLogoutError;
 use crate::model::User;
 use async_trait::async_trait;
 use derive_more::Constructor;
+use gen_span::gen_span;
+use opentelemetry::global;
+use opentelemetry::trace::Span;
+use opentelemetry::trace::Tracer;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::SqlitePool;
@@ -68,12 +72,16 @@ struct LoginDB {
     bpasswd: Option<String>,
 }
 
+#[gen_span]
 #[async_trait]
 impl UserCreateService for DBUserCreateService {
     async fn create_user(
         &mut self,
         req: &UserCreateRequest,
     ) -> Result<UserCreateResult, ServiceError<UserCreateError>> {
+        let trace = global::tracer("");
+
+        let mut span = trace.start("existence_check");
         let exist = sqlx::query!(
             r#"
         SELECT COUNT(*) AS count FROM users WHERE username=? AND host IS NULL
@@ -87,13 +95,17 @@ impl UserCreateService for DBUserCreateService {
                 UserCreateError::UsernameConflict,
             ));
         }
+        span.end();
 
         let user_id = Uuid::new_v4().simple();
 
         // bcrypt
-        let hashed = bcrypt::hash(req.password.clone(), bcrypt::DEFAULT_COST).unwrap();
+        let hashed = trace.in_span("password_hashing", |_| {
+            bcrypt::hash(req.password.clone(), bcrypt::DEFAULT_COST).unwrap()
+        });
 
         // generate rsa keys
+        let mut span = trace.start("rsa_keygen");
         let (private_key, public_key) = tokio::task::spawn_blocking(|| {
             let private_key = crate::utils::key::generate();
             let public_key = private_key.to_public_key();
@@ -106,7 +118,9 @@ impl UserCreateService for DBUserCreateService {
         })
         .await
         .unwrap();
+        span.end();
 
+        let mut span = trace.start("db_insert");
         sqlx::query!(
             "INSERT INTO users (id, username, nickname, bpasswd, private_key, public_key) VALUES(?, ?, ?, ?, ?, ?)",
             user_id,
@@ -118,6 +132,7 @@ impl UserCreateService for DBUserCreateService {
         )
         .execute(&self.pool)
         .await?;
+        span.end();
 
         // TODO: conflict handlign
 
@@ -128,6 +143,9 @@ impl UserCreateService for DBUserCreateService {
         &mut self,
         req: &UserLoginRequest,
     ) -> Result<UserLoginResult, ServiceError<UserLoginError>> {
+        let tracer = global::tracer("");
+
+        let mut span = tracer.start("db_select");
         let user = sqlx::query_as!(
             LoginDB,
             "SELECT id AS `id!: Simple`, bpasswd FROM users WHERE username = ? AND host IS NULL",
@@ -141,9 +159,13 @@ impl UserCreateService for DBUserCreateService {
         } else {
             return Err(ServiceError::from_se(UserLoginError::AuthFailed));
         };
+        span.end();
 
         if let Some(bpasswd) = user.bpasswd {
+            let mut span = tracer.start("bcrypt_verify");
             if bcrypt::verify(req.password.clone(), &bpasswd).unwrap() {
+                span.end();
+                let mut span = tracer.start("token_gen");
                 let token = generate_uuid_random();
                 sqlx::query!(
                     "INSERT INTO user_tokens (user_id, token) VALUES(?, ?)",
@@ -152,6 +174,7 @@ impl UserCreateService for DBUserCreateService {
                 )
                 .execute(&self.pool)
                 .await?;
+                span.end();
                 return Ok(UserLoginResult { user_token: token });
             }
             return Err(ServiceError::SpecificError(UserLoginError::AuthFailed));
@@ -168,6 +191,7 @@ impl UserCreateService for DBUserCreateService {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl UserAuthService for DBAuthService {
     async fn authenticate_user(
@@ -207,6 +231,7 @@ impl DBLocalUserFinderService {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl LocalUserFinderService for DBLocalUserFinderService {
     async fn find_user_by_specifier(
@@ -296,6 +321,7 @@ fn process_public_key_pem(pem: &str) -> String {
     format!("{}\n", trimmed)
 }
 
+#[gen_span]
 async fn find_user_by_url(
     url: impl Into<String>,
     req: &mut holder!(ApubRequestService),
@@ -433,6 +459,7 @@ async fn find_user_by_url(
     return Ok(user);
 }
 
+#[gen_span]
 #[async_trait]
 impl AllUserFinderService for DBAllUserFinderService {
     async fn find_user_by_specifier(
@@ -563,6 +590,7 @@ impl ApubSigner for DBSigner {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl SignerService for DBSignerService {
     async fn fetch_signer(
@@ -607,6 +635,7 @@ pub struct DBUserProfileService {
     finder: holder!(LocalUserFinderService),
 }
 
+#[gen_span]
 #[async_trait]
 impl UserProfileService for DBUserProfileService {
     async fn update_user_profile(
