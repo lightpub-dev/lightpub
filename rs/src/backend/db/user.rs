@@ -2,6 +2,7 @@ use crate::backend::UserLogoutError;
 use crate::model::User;
 use async_trait::async_trait;
 use derive_more::Constructor;
+use gen_span::gen_span;
 use opentelemetry::global;
 use opentelemetry::trace::Span;
 use opentelemetry::trace::Tracer;
@@ -71,6 +72,7 @@ struct LoginDB {
     bpasswd: Option<String>,
 }
 
+#[gen_span]
 #[async_trait]
 impl UserCreateService for DBUserCreateService {
     async fn create_user(
@@ -189,6 +191,7 @@ impl UserCreateService for DBUserCreateService {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl UserAuthService for DBAuthService {
     async fn authenticate_user(
@@ -228,6 +231,7 @@ impl DBLocalUserFinderService {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl LocalUserFinderService for DBLocalUserFinderService {
     async fn find_user_by_specifier(
@@ -317,6 +321,7 @@ fn process_public_key_pem(pem: &str) -> String {
     format!("{}\n", trimmed)
 }
 
+#[gen_span]
 async fn find_user_by_url(
     url: impl Into<String>,
     req: &mut holder!(ApubRequestService),
@@ -454,6 +459,7 @@ async fn find_user_by_url(
     return Ok(user);
 }
 
+#[gen_span]
 #[async_trait]
 impl AllUserFinderService for DBAllUserFinderService {
     async fn find_user_by_specifier(
@@ -584,6 +590,7 @@ impl ApubSigner for DBSigner {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl SignerService for DBSignerService {
     async fn fetch_signer(
@@ -628,6 +635,7 @@ pub struct DBUserProfileService {
     finder: holder!(LocalUserFinderService),
 }
 
+#[gen_span]
 #[async_trait]
 impl UserProfileService for DBUserProfileService {
     async fn update_user_profile(

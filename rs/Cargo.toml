@@ -63,6 +63,4 @@ opentelemetry-otlp = "0.17.0"
 opentelemetry = "0.24.0"
 opentelemetry_sdk = {version="0.24.0", features=["rt-tokio-current-thread"]}
 actix-web-opentelemetry = { git = "https://github.com/OutThereLabs/actix-web-opentelemetry.git" }
-proc-macro2 = "1.0.89"
-syn = "2.0.87"
-quote = "1.0.37"
+gen_span = { path = "./gen_span" }

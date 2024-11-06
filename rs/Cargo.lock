@@ -1227,6 +1227,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gen_span"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1725,6 +1734,7 @@ dependencies = [
  "derive_more 1.0.0-beta.6",
  "digest",
  "emojis",
+ "gen_span",
  "httpdate",
  "lazy_static",
  "linked-hash-map",
@@ -1732,8 +1742,6 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "pkcs8",
- "proc-macro2",
- "quote",
  "rand",
  "regex",
  "reqwest",
@@ -1745,7 +1753,6 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "sqlx",
- "syn 2.0.87",
  "tempfile",
  "thiserror",
  "time",

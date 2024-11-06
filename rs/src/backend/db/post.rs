@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use derive_more::Constructor;
+use gen_span::gen_span;
 use sqlx::SqlitePool;
 use tracing::warn;
 use uuid::{fmt::Simple, Uuid};
@@ -63,6 +64,7 @@ impl HasRemoteUri for SimplePost {
     }
 }
 
+#[gen_span]
 impl DBPostCreateService {
     async fn visibility_check(
         &mut self,
@@ -664,6 +666,7 @@ impl ApubPostTargetComputable for TargetComputablePost {
     }
 }
 
+#[gen_span]
 impl DBPostCreateService {
     async fn get_target_computable_post(
         &mut self,
@@ -704,6 +707,7 @@ impl DBPostCreateService {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl PostCreateService for DBPostCreateService {
     async fn create_post(
@@ -1028,6 +1032,7 @@ impl PostCreateService for DBPostCreateService {
     }
 }
 
+#[gen_span]
 impl DBPostCreateService {
     async fn find_target_inboxes(
         &mut self,
@@ -1244,6 +1249,7 @@ impl HasRemoteUri for UserPostAsAuthor<'_> {
     }
 }
 
+#[gen_span]
 #[async_trait]
 impl UserPostService for DBUserPostService {
     async fn fetch_single_post(

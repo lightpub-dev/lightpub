@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use derive_more::Constructor;
+use gen_span::gen_span;
 use sqlx::SqlitePool;
 use uuid::fmt::Simple;
 
@@ -13,6 +14,7 @@ pub struct DBUploadService {
     finder: holder!(LocalUserFinderService),
 }
 
+#[gen_span]
 #[async_trait]
 impl UploadService for DBUploadService {
     async fn upload_file(
