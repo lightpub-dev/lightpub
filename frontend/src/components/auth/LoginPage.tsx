@@ -25,10 +25,16 @@ const LoginPage: React.FC = () => {
     // console.log("Login button pressed", { username, password });
     try {
       setError("");
-      const result = await axios.post("/login", {
-        username: username,
-        password: password,
-      });
+      const result = await axios.post(
+        "/login",
+        {
+          username: username,
+          password: password,
+        },
+        {
+          withCredentials: true,
+        }
+      );
       const token = result.data.token as string;
       dispatch(
         loggedIn({

@@ -1,7 +1,7 @@
 import { useSelector } from "react-redux";
 import { selectAuthorization } from "../../stores/authSlice";
 import useSWR from "swr";
-import { authedFetcher } from "../../hooks";
+import { authedFetcher, cookieFetcher } from "../../hooks";
 import { convertReactions, PostResponse } from "../../models/post";
 import { NetworkPostView } from "../post/NetworkPostView";
 
@@ -14,8 +14,8 @@ export default function Timeline() {
   const authorization = useSelector(selectAuthorization);
 
   const { data, error, isLoading } = useSWR(
-    [authorization, "/timeline"],
-    authedFetcher<TimelineResponse>,
+    "/timeline",
+    cookieFetcher<TimelineResponse>,
     {
       refreshInterval: 5000,
     }

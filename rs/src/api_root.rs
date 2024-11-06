@@ -150,7 +150,7 @@ impl FromRequest for AuthUser {
             let header_value = authorization
                 .to_str()
                 .map_err(|_| ErrorResponse::new_status(401, "unauthorized"))?;
-            let bearer = if header_value.starts_with("Bearer ") {
+            let token = if header_value.starts_with("Bearer ") {
                 &header_value[7..]
             } else {
                 return Err(ErrorResponse::new_status(401, "unauthorized").into());
@@ -160,10 +160,10 @@ impl FromRequest for AuthUser {
 
             let mut auth_service = new_auth_service(data.pool().clone());
 
-            let authed_user = auth_service.authenticate_user(bearer).await;
+            let authed_user = auth_service.authenticate_user(token).await;
 
             match authed_user {
-                Ok(u) => Ok(AuthUser::from_user(u, Some(bearer.to_string()))),
+                Ok(u) => Ok(AuthUser::from_user(u, Some(token.to_string()))),
                 Err(e) => match e {
                     ServiceError::SpecificError(AuthError::TokenNotSet) => {
                         Err(ErrorResponse::new_status(401, "unauthorized"))
