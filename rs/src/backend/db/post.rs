@@ -1060,7 +1060,6 @@ impl DBPostCreateService {
         &mut self,
         targets: &Vec<TargetedUser>,
     ) -> Result<Vec<String>, anyhow::Error> {
-        let mut inboxes = vec![];
         let mut inbox_set = HashSet::new();
 
         let mut add_inbox = |inbox: &Option<String>, shared_inbox: &Option<String>| {
@@ -1072,10 +1071,6 @@ impl DBPostCreateService {
                 warn!("no inbox or shared inbox found");
                 return;
             };
-            if inbox_set.contains(added_inbox) {
-                return;
-            }
-            inboxes.push(added_inbox.clone());
             inbox_set.insert(added_inbox.clone());
         };
 
@@ -1105,7 +1100,7 @@ impl DBPostCreateService {
             }
         }
 
-        Ok(inboxes)
+        Ok(inbox_set.into_iter().collect())
     }
 }
 
