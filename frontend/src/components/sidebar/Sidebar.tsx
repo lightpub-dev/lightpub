@@ -1,4 +1,4 @@
-import { ReactNode, useCallback } from "react";
+import { ReactNode, useCallback, useMemo } from "react";
 import {
   IconButton,
   Avatar,
@@ -38,6 +38,12 @@ import { ReactText } from "react";
 import { RiTimeLine } from "react-icons/ri";
 
 import logo from "../../assets/lightpub.svg";
+import { authedFetcher, useAppSelector } from "../../hooks";
+import { selectAuthorization, selectUsername } from "../../stores/authSlice";
+import useSWR from "swr";
+import { UserResponse } from "../../models/user";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 type LinkItemId = "new-post" | "home" | "trending" | "settings";
 
@@ -182,6 +188,53 @@ interface MobileProps extends FlexProps {
 }
 
 const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
+  const authorization = useAppSelector(selectAuthorization);
+  const username = useAppSelector(selectUsername);
+  const { data, error, isLoading } = useSWR(
+    username === null || authorization === null
+      ? null
+      : [authorization, `/user/@${username}`],
+    authedFetcher<UserResponse>,
+    {
+      refreshInterval: 30000,
+    }
+  );
+
+  const userProfile = useMemo(() => {
+    if (error) {
+      console.error("my profile fetch error");
+      console.error(error);
+      return null;
+    }
+    if (isLoading || !data) {
+      return null;
+    }
+
+    return {
+      username: data.username,
+      nickname: data.nickname,
+    };
+  }, [data, error, isLoading]);
+
+  const navigate = useNavigate();
+
+  const onLoginOrLogout = useCallback(() => {
+    if (authorization === null) {
+      navigate("/login");
+    } else {
+      axios
+        .post("/logout")
+        .then(() => {
+          console.log("logout success");
+          navigate("/login");
+        })
+        .catch((e) => {
+          console.error("logout failed");
+          console.error(e);
+        });
+    }
+  }, [navigate]);
+
   return (
     <Flex
       ml={{ base: 0, md: 60 }}
@@ -236,10 +289,18 @@ const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
                 spacing="1px"
                 ml="2"
               >
-                <Text fontSize="sm">das@脱原発再エネ推進本部</Text>
-                <Text fontSize="xs" color="gray.600">
-                  @das08
-                </Text>
+                {userProfile ? (
+                  <>
+                    <Text fontSize="sm">{userProfile.nickname}</Text>
+                    <Text fontSize="xs" color="gray.600">
+                      @{userProfile.username}
+                    </Text>
+                  </>
+                ) : (
+                  <Text fontSize="xs" color="gray.600">
+                    未ログイン
+                  </Text>
+                )}
               </VStack>
               <Box display={{ base: "none", md: "flex" }}>
                 <FiChevronDown />
@@ -254,7 +315,9 @@ const MobileNav = ({ onOpen, ...rest }: MobileProps) => {
             <MenuItem>Settings</MenuItem>
             <MenuItem>Billing</MenuItem>
             <MenuDivider />
-            <MenuItem>Sign out</MenuItem>
+            <MenuItem onClick={onLoginOrLogout}>
+              {authorization === null ? "ログイン" : "ログアウト"}
+            </MenuItem>
           </MenuList>
         </Menu>
       </Flex>

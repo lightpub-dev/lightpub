@@ -131,9 +131,16 @@ pub struct UserLoginResult {
     user_token: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum UserLoginError {
+    #[error("authentication failed")]
     AuthFailed,
+}
+
+#[derive(Debug, Error)]
+pub enum UserLogoutError {
+    #[error("token not found")]
+    TokenNotFound,
 }
 
 #[async_trait]
@@ -147,6 +154,8 @@ pub trait UserCreateService {
         &mut self,
         req: &UserLoginRequest,
     ) -> Result<UserLoginResult, ServiceError<UserLoginError>>;
+
+    async fn logout_user(&mut self, token: &str) -> Result<(), ServiceError<UserLogoutError>>;
 }
 
 #[derive(Debug, Clone, Error)]

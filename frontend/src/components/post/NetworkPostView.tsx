@@ -77,6 +77,7 @@ export function NetworkPostView({
     return (
       <PostView
         id={id}
+        displayedPostId={id}
         nickname={nickname}
         username={username}
         hostname={hostname}
@@ -100,6 +101,7 @@ export function NetworkPostView({
     return (
       <PostView
         id={id}
+        displayedPostId={repostData.id} // リポストされた投稿のID
         reposter={{
           nickname: nickname,
           username: username,
@@ -121,6 +123,7 @@ export function NetworkPostView({
     return (
       <PostView
         id={id}
+        displayedPostId={id}
         replyTo={{
           nickname: replyData.author.nickname,
           username: replyData.author.username,
