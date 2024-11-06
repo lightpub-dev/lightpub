@@ -37,24 +37,24 @@ impl VisitMut for SpanGen {
             stringify!(#fn_name_ident)
         };
 
-        let mut block = i.block.clone();
-        let end_block = quote! {
-            {
-                __otlp_fn_span.end();
-            }
-        };
-        let end_block_stmt = syn::parse2(end_block).expect("failed to parse end_block");
+        let block = i.block.clone();
+        // let end_block = quote! {
+        //     {
+        //         __otlp_fn_span.end();
+        //     }
+        // };
+        // let end_block_stmt = syn::parse2(end_block).expect("failed to parse end_block");
 
-        match block.stmts.len() {
-            0 => {
-                block.stmts.push(end_block_stmt);
-            }
-            _ => {
-                let last_stmt = block.stmts.pop().unwrap();
-                block.stmts.push(end_block_stmt);
-                block.stmts.push(last_stmt);
-            }
-        }
+        // match block.stmts.len() {
+        //     0 => {
+        //         block.stmts.push(end_block_stmt);
+        //     }
+        //     _ => {
+        //         let last_stmt = block.stmts.pop().unwrap();
+        //         block.stmts.push(end_block_stmt);
+        //         block.stmts.push(last_stmt);
+        //     }
+        // }
 
         let new_block = quote! {
             {
@@ -62,7 +62,9 @@ impl VisitMut for SpanGen {
                 use opentelemetry::trace::Tracer;
                 use opentelemetry::trace::TraceContextExt;
                 let __otlp_tracer = opentelemetry::global::tracer("");
-                let mut __otlp_fn_span = __otlp_tracer.start(#fn_name);
+                let __otlp_parent_cx = opentelemetry::Context::current();
+                let __otlp_fn_span = __otlp_tracer.start_with_context(#fn_name, &__otlp_parent_cx);
+                let __otlp_cx = opentelemetry::Context::current_with_span(__otlp_fn_span);
                 #block
             }
         };
@@ -79,25 +81,24 @@ impl VisitMut for SpanGen {
             stringify!(#fn_name_ident)
         };
 
-        let mut block = i.block.clone();
-        let end_block = quote! {
-            {
-                use opentelemetry::trace::Span;
-                __otlp_fn_span.end();
-            }
-        };
-        let end_block_stmt = syn::parse2(end_block).expect("failed to parse end_block");
+        let block = i.block.clone();
+        // let end_block = quote! {
+        //     {
+        //         __otlp_fn_span.end();
+        //     }
+        // };
+        // let end_block_stmt = syn::parse2(end_block).expect("failed to parse end_block");
 
-        match block.stmts.len() {
-            0 => {
-                block.stmts.push(end_block_stmt);
-            }
-            _ => {
-                let last_stmt = block.stmts.pop().unwrap();
-                block.stmts.push(end_block_stmt);
-                block.stmts.push(last_stmt);
-            }
-        }
+        // match block.stmts.len() {
+        //     0 => {
+        //         block.stmts.push(end_block_stmt);
+        //     }
+        //     _ => {
+        //         let last_stmt = block.stmts.pop().unwrap();
+        //         block.stmts.push(end_block_stmt);
+        //         block.stmts.push(last_stmt);
+        //     }
+        // }
 
         let new_block = quote! {
             {
@@ -105,7 +106,9 @@ impl VisitMut for SpanGen {
                 use opentelemetry::trace::Tracer;
                 use opentelemetry::trace::TraceContextExt;
                 let __otlp_tracer = opentelemetry::global::tracer("");
-                let mut __otlp_fn_span = __otlp_tracer.start(#fn_name);
+                let __otlp_parent_cx = opentelemetry::Context::current();
+                let __otlp_fn_span = __otlp_tracer.start_with_context(#fn_name, &__otlp_parent_cx);
+                let __otlp_cx = opentelemetry::Context::current_with_span(__otlp_fn_span);
                 #block
             }
         };
@@ -118,7 +121,10 @@ impl VisitMut for SpanGen {
     fn visit_expr_await_mut(&mut self, i: &mut syn::ExprAwait) {
         let base = i.base.clone();
         let new_base = quote! {
-            opentelemetry::trace::FutureExt::with_current_context(#base)
+            opentelemetry::trace::FutureExt::with_context(
+                #base,
+                __otlp_cx.clone()
+            )
         };
 
         i.base = syn::parse2(new_base).expect("failed to parse");
