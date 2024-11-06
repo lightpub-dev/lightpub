@@ -5,7 +5,6 @@ use derive_more::Constructor;
 use gen_span::gen_span;
 use opentelemetry::global;
 use opentelemetry::trace::Span;
-use opentelemetry::trace::Tracer;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
 use sqlx::SqlitePool;
