@@ -469,6 +469,8 @@ pub enum PostCreateError {
     PostNotFound,
     #[error("specified privacy is not allowed")]
     DisallowedPrivacyForRepost,
+    #[error("cannot interact with a repost")]
+    NestedRepost,
 }
 
 #[async_trait]

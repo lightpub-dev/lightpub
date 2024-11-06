@@ -52,6 +52,7 @@ struct SimplePost {
     uri: Option<String>,
     poster: Simple,
     privacy: PostPrivacy,
+    repost_of_id: Option<Simple>,
 }
 
 impl HasRemoteUri for SimplePost {
@@ -226,7 +227,7 @@ impl DBPostCreateService {
             PostSpecifier::ID(id) => {
                 let id_str = id.simple().to_string();
                 sqlx::query!(
-                "SELECT id AS `id: Simple`, uri AS `uri`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE id=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
+                "SELECT id AS `id: Simple`, uri AS `uri`, poster_id AS `poster!: Simple`, privacy, repost_of_id AS `repost_of_id: Simple` FROM posts WHERE id=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
                 id_str,
                 include_deleted,
             )
@@ -237,6 +238,7 @@ impl DBPostCreateService {
                 uri: p.uri,
                 poster: p.poster,
                 privacy: p.privacy.parse().unwrap(),
+                repost_of_id: p.repost_of_id,
             })
             }
             PostSpecifier::URI(uri) => {
@@ -253,7 +255,7 @@ impl DBPostCreateService {
                 }
 
                 sqlx::query!(
-                    "SELECT id AS `id: Simple`, uri AS `uri`, poster_id AS `poster!: Simple`, privacy FROM posts WHERE uri=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
+                    "SELECT id AS `id: Simple`, uri AS `uri`, poster_id AS `poster!: Simple`, privacy, repost_of_id AS `repost_of_id: Simple` FROM posts WHERE uri=? AND (? OR deleted_at IS NULL) AND poster_id IS NOT NULL",
                     uri,
                     include_deleted,
                 )
@@ -264,6 +266,7 @@ impl DBPostCreateService {
                     uri: p.uri,
                     poster: p.poster,
                     privacy: p.privacy.parse().unwrap(),
+                    repost_of_id: p.repost_of_id,
                 })
             }
         };
@@ -338,6 +341,10 @@ impl DBPostCreateService {
                     }
                 }
 
+                if self.is_repost(&PostSpecifier::from_id(repost_of)).await? {
+                    return Err(ServiceError::from_se(PostCreateError::NestedRepost));
+                }
+
                 Some(repost_of)
             }
         };
@@ -354,6 +361,10 @@ impl DBPostCreateService {
                     .await?
                 {
                     return Err(ServiceError::from_se(PostCreateError::ReplyToNotFound));
+                }
+
+                if self.is_repost(&PostSpecifier::from_id(reply_to)).await? {
+                    return Err(ServiceError::from_se(PostCreateError::NestedRepost));
                 }
 
                 Some(reply_to)
@@ -594,6 +605,17 @@ impl DBPostCreateService {
             }
 
             Ok(post_id)
+        }
+    }
+
+    async fn is_repost(
+        &mut self,
+        post_spec: &PostSpecifier,
+    ) -> Result<bool, ServiceError<PostCreateError>> {
+        let post = self.fetch_post_locally_stored(post_spec, false).await?;
+        match post {
+            None => Err(ServiceError::from_se(PostCreateError::PostNotFound)),
+            Some(post) => Ok(post.repost_of_id.is_some()),
         }
     }
 }
