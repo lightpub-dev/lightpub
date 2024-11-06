@@ -752,6 +752,31 @@ pub trait UserPostService {
     // ) -> Result<(), anyhow::Error>;
 }
 
+#[derive(Debug, Clone, Getters)]
+pub struct TrendingHashtag {
+    trends: Vec<TrendEntry>,
+}
+
+#[derive(Debug, Clone, Getters)]
+pub struct TrendEntry {
+    hashtag: String,
+    count: i64,
+    posts: Vec<IDOnlyEntity>,
+}
+
+#[derive(Debug, Error)]
+#[error("failed to get trending hashtags")]
+pub struct GetTrendError {}
+
+#[async_trait]
+pub trait TrendService {
+    async fn trending_hashtags(
+        &self,
+        top_trend_n: i64,
+        top_posts_n: i64,
+    ) -> Result<TrendingHashtag, ServiceError<GetTrendError>>;
+}
+
 #[async_trait]
 pub trait UploadService {
     async fn upload_file(
@@ -760,4 +785,9 @@ pub trait UploadService {
         file_id: Simple,
         file_ext: &str,
     ) -> Result<(), anyhow::Error>;
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IDOnlyEntity {
+    pub id: Simple,
 }

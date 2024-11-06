@@ -6,11 +6,11 @@ use clap::Parser;
 use lightpub::api::state::AppState;
 use lightpub::api_root::{
     add_post_bookmark, add_post_favorite, delete_post_bookmark, delete_post_favorite,
-    delete_single_post, file_upload, get_single_post, get_user_followers, get_user_following,
-    get_user_outbox, get_user_posts, host_meta, login, logout_user, modify_post_reaction,
-    node_info_2_0, node_info_2_1, post_post, register, timeline, truncate_database,
-    update_my_profile, user_create_follow, user_delete_follow, user_get, user_inbox, webfinger,
-    well_known_node_info,
+    delete_single_post, file_upload, get_single_post, get_trending_hashtag, get_user_followers,
+    get_user_following, get_user_outbox, get_user_posts, host_meta, login, logout_user,
+    modify_post_reaction, node_info_2_0, node_info_2_1, post_post, register, timeline,
+    truncate_database, update_my_profile, user_create_follow, user_delete_follow, user_get,
+    user_inbox, webfinger, well_known_node_info,
 };
 use lightpub::config::Config;
 use opentelemetry::trace::noop::NoopTracerProvider;
@@ -142,7 +142,8 @@ async fn main() -> std::io::Result<()> {
             .service(add_post_bookmark)
             .service(delete_post_favorite)
             .service(delete_post_bookmark)
-            .service(modify_post_reaction);
+            .service(modify_post_reaction)
+            .service(get_trending_hashtag);
 
         if config.dev.debug {
             app = app.service(truncate_database);

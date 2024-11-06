@@ -1,5 +1,5 @@
 use crate::api::{validate_password, validate_username};
-use crate::backend::db::new_db_user_post_service;
+use crate::backend::db::{new_db_trend_service, new_db_user_post_service};
 use crate::model::apub::context::ContextAttachable;
 use crate::model::apub::{
     AcceptableActivity, Actor, CreatableObject, HasId, IdOrObject, RejectableActivity,
@@ -26,8 +26,8 @@ use crate::backend::{
     UserLoginError, UserLoginRequest, UserLoginRequestBuilder,
 };
 use crate::backend::{
-    FetchFollowListOptions, FetchUserPostsOptions, PostInteractionAction, TimelineOptions,
-    UserCreateError, UserFindError, UserProfileUpdate,
+    FetchFollowListOptions, FetchUserPostsOptions, IDOnlyEntity, PostInteractionAction,
+    TimelineOptions, UserCreateError, UserFindError, UserProfileUpdate,
 };
 use crate::backend::{PostDeleteError, PostFetchError};
 use crate::config::Config;
@@ -1864,6 +1864,52 @@ pub async fn modify_post_reaction(
         })?;
 
     Ok(HttpResponse::Ok().finish())
+}
+
+#[derive(Debug, Serialize)]
+struct TrendResponse {
+    trends: Vec<TrendEntryResponse>,
+}
+
+#[derive(Debug, Serialize)]
+struct TrendEntryResponse {
+    hashtag: String,
+    count: i64,
+    posts: Vec<IDOnlyEntity>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GetTrendQuery {
+    trend_limit: Option<i64>,
+    post_limit: Option<i64>,
+}
+
+#[get("/trend")]
+pub async fn get_trending_hashtag(
+    app: web::Data<AppState>,
+    query: web::Query<GetTrendQuery>,
+) -> HandlerResponse<impl Responder> {
+    let top_trend_n = query.trend_limit.unwrap_or(5);
+    let top_posts_n = query.post_limit.unwrap_or(5);
+
+    let trend_service = new_db_trend_service(app.pool().clone());
+    let trends = trend_service
+        .trending_hashtags(top_trend_n, top_posts_n)
+        .await?;
+
+    let response = TrendResponse {
+        trends: trends
+            .trends()
+            .into_iter()
+            .map(|t| TrendEntryResponse {
+                hashtag: t.hashtag().to_string(),
+                count: *t.count(),
+                posts: t.posts().clone(),
+            })
+            .collect(),
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[post("/debug/truncate")]

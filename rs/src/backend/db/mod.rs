@@ -1,6 +1,7 @@
 pub mod follow;
 pub mod key;
 pub mod post;
+pub mod trend;
 pub mod upload;
 pub mod user;
 
@@ -18,8 +19,8 @@ use super::{
         post::PostContentService,
     },
     AllUserFinderService, Holder, LocalUserFinderService, PostCreateService, SignerService,
-    UploadService, UserAuthService, UserCreateService, UserFollowService, UserPostService,
-    UserProfileService,
+    TrendService, UploadService, UserAuthService, UserCreateService, UserFollowService,
+    UserPostService, UserProfileService,
 };
 
 pub fn new_id_getter_service(config: Config) -> IDGetterService {
@@ -120,4 +121,8 @@ pub fn new_db_user_post_service(pool: SqlitePool, config: Config) -> holder!(Use
         new_all_user_finder_service(pool.clone(), config.clone()),
         new_id_getter_service(config),
     ))
+}
+
+pub fn new_db_trend_service(pool: SqlitePool) -> holder!(TrendService) {
+    Box::new(trend::DBTrendService::new(pool.clone()))
 }
