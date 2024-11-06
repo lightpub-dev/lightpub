@@ -11,7 +11,10 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(pool: SqlitePool, config: Config) -> Self {
-        let base_url = format!("{}://{}", config.http_scheme, config.hostname);
+        let base_url = format!(
+            "{}://{}{}",
+            config.http_scheme, config.hostname, config.base_path
+        );
         Self {
             pool,
             config,

@@ -17,3 +17,10 @@ export const authedFetcher = <T>([authorization, url]: [
       },
     })
     .then((r) => r.data);
+
+export const cookieFetcher = <T>(url: string): Promise<T> =>
+  axios
+    .get(url, {
+      withCredentials: true,
+    })
+    .then((r) => r.data);

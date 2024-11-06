@@ -4,6 +4,7 @@ use serde::Deserialize;
 pub struct Config {
     pub hostname: String,
     pub http_scheme: String,
+    pub base_path: String,
     pub frontend_url: String,
     pub database: DatabaseConfig,
     pub queue: QueueConfig,
@@ -69,6 +70,7 @@ fn read_config_yaml() {
         Config {
             hostname: "lightpub.tinax.local".to_string(),
             http_scheme: "https".to_string(),
+            base_path: "".to_string(),
             frontend_url: "http://localhost:5173/#".to_string(),
             database: DatabaseConfig {
                 path: "./db/sample_db.sqlite3".to_string()

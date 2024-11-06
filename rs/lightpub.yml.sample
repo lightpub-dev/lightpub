@@ -1,5 +1,6 @@
 hostname: lightpub.tinax.local
 http_scheme: https
+base_path: "/api"
 instance:
   name: Lightpub dev
   description: Lightpub development server
