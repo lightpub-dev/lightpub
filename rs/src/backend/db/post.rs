@@ -339,6 +339,16 @@ impl DBPostCreateService {
                         }
                         _ => {}
                     }
+
+                    // only 1 repost is allowed for a post
+                    let already_reposted = sqlx::query!(
+                        r#"SELECT EXISTS(SELECT 1 AS `count` FROM posts WHERE repost_of_id=? AND poster_id=?) AS `exists!: bool`"#,
+                        repost_of,
+                        poster.id
+                    ).fetch_one(&mut *tx).await?.exists;
+                    if already_reposted {
+                        return Err(ServiceError::from_se(PostCreateError::AlreadyReposted));
+                    }
                 }
 
                 if self.is_repost(&PostSpecifier::from_id(repost_of)).await? {

@@ -471,6 +471,8 @@ pub enum PostCreateError {
     DisallowedPrivacyForRepost,
     #[error("cannot interact with a repost")]
     NestedRepost,
+    #[error("already reposted")]
+    AlreadyReposted,
 }
 
 #[async_trait]

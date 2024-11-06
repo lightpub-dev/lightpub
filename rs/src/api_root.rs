@@ -507,6 +507,8 @@ pub async fn post_post(
                 DisallowedPrivacyForRepost => {
                     ErrorResponse::new_status(400, "only public or unlisted repost can be made")
                 }
+                NestedRepost => ErrorResponse::new_status(400, "nested repost is not allowed"),
+                AlreadyReposted => ErrorResponse::new_status(400, "already reposted"),
                 _ => e.into(),
             },
             _ => e.into(),
