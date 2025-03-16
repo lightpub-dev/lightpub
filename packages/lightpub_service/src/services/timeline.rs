@@ -80,7 +80,7 @@ async fn get_note_ids_generalized(
     let ids = conn
         .query_all(Statement::from_sql_and_values(
             conn.get_database_backend(),
-            r#"CALL get_note_ids_generalized(?,?,?,?,?,?,?)"#,
+            r#"SELECT get_note_ids_generalized($1,$2,$3,$4,$5,$6,$7) AS note_id"#,
             [
                 viewer_id.map(|a| a.as_db()).into(),
                 include_self.into(),
@@ -88,18 +88,15 @@ async fn get_note_ids_generalized(
                 include_unlisted.into(),
                 limit_reply_to_id.map(|a| a.as_db()).into(),
                 limit.into(),
-                before_date.map(|d| d.naive_utc()).into(),
+                before_date.map(|d| d.fixed_offset()).into(),
             ],
         ))
         .await
         .map_err_unknown()?;
-    println!("{:#?}", ids);
 
     Ok(ids
         .into_iter()
-        // BUG: sqlx does not support try_get by column name when using stored procedures
-        // https://github.com/launchbadge/sqlx/issues/1742
-        .map(|n| NoteID::from_db_trusted(n.try_get_by(0).unwrap()))
+        .map(|n| NoteID::from_db_trusted(n.try_get("", "note_id").unwrap()))
         .collect())
 }
 

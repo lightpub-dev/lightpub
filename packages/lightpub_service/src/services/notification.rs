@@ -82,9 +82,9 @@ pub async fn get_notifications(conn: &Conn, user_id: UserID) -> ServiceResult<Ve
         .map(|f| Notification {
             id: NotificationID::from_db_trusted(f.id),
             user_id: UserID::from_db_trusted(f.user_id),
-            body: serde_json::from_str(&f.body).expect("invalid notification json"),
-            created_at: f.created_at.and_utc(),
-            read_at: f.read_at.map(|t| t.and_utc()),
+            body: serde_json::from_value(f.body).expect("invalid notification json"),
+            created_at: f.created_at.to_utc(),
+            read_at: f.read_at.map(|t| t.to_utc()),
         })
         .collect();
     Ok(notifications)
@@ -95,7 +95,7 @@ pub async fn add_notification(
     user_id: UserID,
     body: &NotificationBody,
 ) -> ServiceResult<()> {
-    let body_json = serde_json::to_string(body).map_err_unknown()?;
+    let body_json = serde_json::to_value(body).map_err_unknown()?;
 
     let model = entity::notification::ActiveModel {
         user_id: Set(user_id.as_db()),
@@ -128,7 +128,7 @@ pub async fn mark_notification_read(
     }
 
     let mut model = model.into_active_model();
-    model.read_at = Set(Some(Utc::now().naive_utc()));
+    model.read_at = Set(Some(Utc::now().fixed_offset()));
 
     model.update(&txn).await.map_err_unknown()?;
 
@@ -143,7 +143,7 @@ pub async fn mark_notification_read_all(conn: &Conn, user_id: UserID) -> Service
     entity::notification::Entity::update_many()
         .filter(entity::notification::Column::UserId.eq(user_id.as_db()))
         .set(entity::notification::ActiveModel {
-            read_at: Set(Some(Utc::now().naive_utc())),
+            read_at: Set(Some(Utc::now().fixed_offset())),
             ..Default::default()
         })
         .exec(&txn)

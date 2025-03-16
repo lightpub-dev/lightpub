@@ -6,26 +6,23 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "note")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false, column_type = "Binary(16)")]
-    pub id: Vec<u8>,
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub id: Uuid,
     pub url: Option<String>,
     pub view_url: Option<String>,
-    #[sea_orm(column_type = "Binary(16)")]
-    pub author_id: Vec<u8>,
+    pub author_id: Uuid,
     #[sea_orm(column_type = "Text", nullable)]
     pub content: Option<String>,
     pub content_type: Option<String>,
-    pub created_at: DateTime,
-    pub inserted_at: DateTime,
-    pub updated_at: Option<DateTime>,
-    pub deleted_at: Option<DateTime>,
+    pub created_at: DateTimeWithTimeZone,
+    pub inserted_at: DateTimeWithTimeZone,
+    pub updated_at: Option<DateTimeWithTimeZone>,
+    pub deleted_at: Option<DateTimeWithTimeZone>,
     pub visibility: Visibility,
-    #[sea_orm(column_type = "Binary(16)", nullable)]
-    pub reply_to_id: Option<Vec<u8>>,
-    #[sea_orm(column_type = "Binary(16)", nullable)]
-    pub renote_of_id: Option<Vec<u8>>,
-    pub sensitive: i8,
-    pub fetched_at: Option<DateTime>,
+    pub reply_to_id: Option<Uuid>,
+    pub renote_of_id: Option<Uuid>,
+    pub sensitive: bool,
+    pub fetched_at: Option<DateTimeWithTimeZone>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

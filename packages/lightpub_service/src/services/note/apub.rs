@@ -46,7 +46,6 @@ use nestify::nest;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
-use tracing::info;
 use tracing::warn;
 use url::Url;
 
@@ -141,13 +140,15 @@ impl Object for NoteWithApubModel {
     async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         let mut tags = vec![];
         for tag in self.apub.hashtags {
-            tags.push(ApubNoteTag::Hashtag {
+            tags.push(ApubNoteTagModel {
+                kind: ApubTagType::Hashtag,
                 href: tag.url,
                 name: Some(tag.name),
             })
         }
         for mention in self.apub.mentions {
-            tags.push(ApubNoteTag::Mention {
+            tags.push(ApubNoteTagModel {
+                kind: ApubTagType::Mention,
                 href: mention.url,
                 name: Some(mention.name),
             })
@@ -267,7 +268,12 @@ nest! {
         pub(crate) sensitive: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         #[serde(rename = "tag")]
-        pub(crate) tags: Option<Vec<ApubNoteTag>>,
+        pub(crate) tags: Option<Vec<pub struct ApubNoteTagModel {
+            #[serde(rename = "type")]
+            pub(crate) kind: ApubTagType,
+            pub(crate) name: Option<String>,
+            pub(crate) href: Url,
+        }>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         pub(crate) attachment: Option<Vec<pub struct ApubNoteAttachment {
             #[serde(rename = "type")]
@@ -276,22 +282,6 @@ nest! {
             pub(crate) media_type: String,
         }>>
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum ApubNoteTag {
-    Hashtag {
-        name: Option<String>,
-        href: Url,
-    },
-    Mention {
-        name: Option<String>,
-        href: Url,
-    },
-    Emoji {
-        // TODO: ignored for now
-    },
 }
 
 impl ApubNoteModel {
@@ -344,22 +334,18 @@ async fn upsert_apub_note(
     let mut mentions = vec![];
     if let Some(tags) = &json.tags {
         for tag in tags {
-            match tag {
-                ApubNoteTag::Mention { href, .. } => {
-                    let user_url = href;
+            match tag.kind {
+                ApubTagType::Mention => {
+                    let user_url = &tag.href;
                     mentions.push(Mention::ByURL(user_url.clone()));
                 }
-                ApubNoteTag::Hashtag { name, .. } => {
-                    let hashtag = name;
+                ApubTagType::Hashtag => {
+                    let hashtag = &tag.name;
                     if let Some(hashtag) = hashtag.as_ref() {
                         hashtags.push(hashtag.clone());
                     } else {
                         warn!("empty hashtag");
                     }
-                }
-                ApubNoteTag::Emoji {} => {
-                    // TODO: handle emoji tag
-                    info!("ignoring emoji tag");
                 }
             }
         }

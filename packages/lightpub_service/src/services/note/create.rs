@@ -413,13 +413,13 @@ fn set_note_active_model(
         model.view_url = Set(view_url.map(|s| s.to_string()));
     }
     if let UpsertOperation::Set(s) = sensitive {
-        model.sensitive = Set(s as i8);
+        model.sensitive = Set(s);
     }
 
     if is_update {
-        model.updated_at = Set(Some(created_or_updated_at.naive_utc()));
+        model.updated_at = Set(Some(created_or_updated_at.fixed_offset()));
     } else {
-        model.created_at = Set(created_or_updated_at.naive_utc());
+        model.created_at = Set(created_or_updated_at.fixed_offset());
     }
 }
 

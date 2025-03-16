@@ -14,7 +14,7 @@ services:
       lightpub_nats:
         condition: service_started
     environment:
-      DATABASE_URL: mysql://lightpub:lightpub@lightpub_db:3306/lightpub
+      DATABASE_URL: postgresql://postgres:postgres@lightpub_db:5432/lightpub
       REDIS_URL: redis://lightpub_kv:6379
       NATS_URL: nats://lightpub_nats:4222
       SESSION_KEY: BIXIR1GPwQJBjvIZ8rSeVVdt09IPfdeGfdFncS9tN0RjF9ziMckmgPUjS5uBOf47
@@ -43,24 +43,22 @@ services:
     init: true
 
   lightpub_db:
-    image: mariadb:latest
+    image: postgres:16
     restart: unless-stopped
     ports:
-      - 127.0.0.1:3306:3306
+      - 127.0.0.1:5432:5432
     environment:
-      - MARIADB_DATABASE=lightpub
-      - MARIADB_USER=lightpub
-      - MARIADB_PASSWORD=lightpub
-      - MARIADB_ROOT_PASSWORD=lightpub
+      POSTGRES_DB: lightpub
+      POSTGRES_PASSWORD: postgres
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      start_period: 10s
-      interval: 10s
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
+      interval: 5s
       timeout: 5s
       retries: 3
+      start_period: 10s
     volumes:
-      - mariadb_data:/var/lib/mysql
-    command: mariadbd --collation-server utf8mb4_general_ci --performance-schema
+      - postgres_data:/var/lib/postgresql/data
+    command: postgres -c shared_preload_libraries='pg_stat_statements'
 
   lightpub_kv:
     image: valkey/valkey:latest
@@ -79,8 +77,8 @@ services:
 
 volumes:
   nats_data:
-  mariadb_data:
-    name: lightpub_mariadb_data
+  postgres_data:
+    name: lightpub_postgres_data
   lightpub_data:
     name: lightpub_data
   lightpub_tmp:

@@ -101,7 +101,7 @@ pub async fn register_user(
         bio: Set("".into()),
         private_key: Set(Some(key_pair.private_key)),
         public_key: Set(Some(key_pair.public_key)),
-        created_at: Set(Some(Utc::now().naive_utc())),
+        created_at: Set(Some(Utc::now().fixed_offset())),
         ..Default::default()
     };
     match user.insert(conn.db()).await {
@@ -200,7 +200,7 @@ pub async fn logout_all(conn: &Conn, user_id: UserID) -> ServiceResult<()> {
 
     if let Some(user) = user {
         let mut user = user.into_active_model();
-        user.auth_expired_at = Set(Some(Utc::now().naive_utc()));
+        user.auth_expired_at = Set(Some(Utc::now().fixed_offset()));
         user.update(&txn).await.map_err_unknown()?;
     }
 
@@ -223,7 +223,7 @@ pub async fn check_user_login_expiration(
     );
 
     if let Some(expired_at) = user.auth_expired_at {
-        if expired_at < logged_in_at.naive_utc() {
+        if expired_at < logged_in_at.to_utc() {
             Ok(Some(true))
         } else {
             Ok(Some(false))
