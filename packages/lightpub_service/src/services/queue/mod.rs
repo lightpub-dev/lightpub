@@ -188,7 +188,7 @@ impl ApubQConsumer {
             SendActivityTask::prepare(&job.activity, &job.actor, vec![job.inbox.clone()], data)
                 .await
                 .map_err_unknown()?;
-        assert!(tasks.len() == 1);
+        assert!(tasks.len() <= 1, "tasks.len() = {}", tasks.len());
         for task in tasks {
             task.sign_and_send(data).await.map_err_unknown()?;
         }
