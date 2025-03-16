@@ -1,0 +1,49 @@
+services:
+  lightpub_app:
+    container_name: lightpub_app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TYPE: debug
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@lightpub_db:5432/lightpub
+      REDIS_URL: redis://lightpub_kv:6379
+      SESSION_KEY: BIXIR1GPwQJBjvIZ8rSeVVdt09IPfdeGfdFncS9tN0RjF9ziMckmgPUjS5uBOf47
+      RUST_LOG: debug,html5ever=warn,handlebars=warn,sqlx=warn,hyper_util=info
+      JWT_PUBLIC_KEY_FILE: data/jwtpub.pem
+      JWT_SECRET_KEY_FILE: data/jwt.pem
+      TMP_DIR: /app/tmp
+      UPLOAD_DIR: /app/uploads
+      REGISTRATION_OPEN: true
+      LP_BASE_URL: https://lp.tinax.local
+      DEV_MODE: true
+    profiles:
+      - lightpub
+    networks:
+      - internal_network
+      - external_network
+
+  lightpub_db:
+    container_name: lightpub_db
+    profiles:
+      - lightpub
+    networks:
+      - internal_network
+      - external_network
+
+  lightpub_kv:
+    container_name: lightpub_kv
+    profiles:
+      - lightpub
+    networks:
+      - internal_network
+      - external_network
+
+  lightpub_nats:
+    container_name: lightpub_nats
+    profiles:
+      - lightpub
+    networks:
+      - internal_network
+      - external_network

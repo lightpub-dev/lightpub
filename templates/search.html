@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lightpub</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/css/note.css" />
+    <link rel="stylesheet" href="/static/css/user.css" />
+    {{> parts/global}}
+  </head>
+
+  <body>
+    {{> parts/navbar}}
+    <div class="layout-root">
+      <aside></aside>
+      <main class="container mt-4">
+        <div class="card">
+          <div class="card-body">
+            <h4 class="card-title">検索</h4>
+            <form>
+              <div class="mb-3">
+                <div class="form-check form-check-inline">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="searchType"
+                    id="userSearch"
+                    value="user"
+                    checked
+                  />
+                  <label class="form-check-label" for="userSearch"
+                    >ユーザー</label
+                  >
+                </div>
+                <div class="form-check form-check-inline">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="searchType"
+                    id="noteSearch"
+                    value="note"
+                  />
+                  <label class="form-check-label" for="noteSearch"
+                    >ノート</label
+                  >
+                </div>
+              </div>
+
+              <div class="input-group mb-3">
+                <input
+                  type="text"
+                  class="form-control"
+                  placeholder="Search..."
+                  id="searchInput"
+                  hx-get="/search"
+                  hx-trigger="keyup changed delay:500ms"
+                  hx-target="#searchResults"
+                  hx-params="searchType,q,suggest"
+                  hx-vals='{"suggest": true}'
+                  hx-include="input"
+                  hx-indicator="#indicator"
+                  name="q"
+                  autocomplete="off"
+                />
+                <button
+                  class="btn btn-primary"
+                  hx-get="/search"
+                  hx-trigger="click"
+                  hx-target="#searchResults"
+                  hx-params="searchType,q"
+                  hx-include="input"
+                  hx-indicator="#indicator"
+                >
+                  <i class="fas fa-search"></i>検索
+                  <img
+                    id="indicator"
+                    class="htmx-indicator"
+                    src="/static/svgloader/svg-loaders/grid.svg"
+                    style="height: 1em"
+                  />
+                </button>
+              </div>
+            </form>
+
+            <!-- Search results -->
+            <ul class="search-result-list">
+              <div id="searchResults"></div>
+            </ul>
+          </div>
+        </div>
+      </main>
+      <aside></aside>
+    </div>
+  </body>
+</html>

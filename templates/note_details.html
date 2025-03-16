@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+  <head prefix="og: https://ogp.me/ns#">
+    <title>Lightpub</title>
+    <link rel="stylesheet" href="/static/css/note.css" />
+    {{> parts/global }}
+    <meta property="og:url" content="{{og.url}}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="{{note.author.nickname}} の投稿" />
+    <meta property="og:description" content="{{note.content.content}}" />
+    <meta property="og:site_name" content="Lightpub" />
+    <meta
+      property="og:image"
+      content="{{og.baseUrl}}/user/{{note.author.id}}/avatar"
+    />
+  </head>
+  <body>
+    {{> parts/navbar }}
+    <div class="layout-root" x-data>
+      <div class="layout-left-sidebar">
+        {{#if authed}} {{> parts/create_note title='ノート作成' authed=authed}}
+        {{/if}}
+      </div>
+      <main>
+        <div class="timeline layout-content">
+          <div>
+            <h2>ノート</h2>
+            {{> parts/note note=note authed=authed}}
+          </div>
+          {{#if note.replyToId}}
+          <aside>
+            <div class="reply-to-note">
+              <h2>返信先</h2>
+              <div
+                hx-get="/note/{{note.replyToId}}"
+                hx-trigger="revealed"
+                hx-swap="outerHTML"
+              ></div>
+            </div>
+          </aside>
+          {{/if}}
+
+          <aside>
+            <div class="replying-post-list">
+              <h2>このノートへの返信</h2>
+              <div
+                hx-get="/note/{{note.id}}/replies"
+                hx-trigger="revealed"
+                hx-swap="outerHTML"
+              >
+                ありません
+              </div>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

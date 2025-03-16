@@ -1,0 +1,7 @@
+/target
+/data
+/uploads
+/loader
+/test_instances
+/.env
+/client

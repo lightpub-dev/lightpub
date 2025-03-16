@@ -1,0 +1,10 @@
+<ul class="trend-list">
+  {{#each data}}
+  <a style="text-decoration: none" href="{{this.url}}">
+    <li class="trend-item">
+      <p class="trend-hashtag">{{this.hashtag}}</p>
+      <p class="trend-count">{{this.count}}</p>
+    </li>
+  </a>
+  {{/each}}
+</ul>
