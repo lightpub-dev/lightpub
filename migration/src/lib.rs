@@ -27,7 +27,6 @@ mod m20250220_110034_timeline_query;
 mod m20250221_041103_timeline_fix;
 mod m20250225_173949_blocking;
 mod m20250310_160527_apub_error_report;
-mod m20250316_060953_timeline_procedure;
 
 pub struct Migrator;
 
@@ -61,7 +60,6 @@ impl MigratorTrait for Migrator {
             Box::new(m20250221_041103_timeline_fix::Migration),
             Box::new(m20250225_173949_blocking::Migration),
             Box::new(m20250310_160527_apub_error_report::Migration),
-            Box::new(m20250316_060953_timeline_procedure::Migration),
         ]
     }
 }

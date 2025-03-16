@@ -221,8 +221,8 @@ pub async fn create_renote(
         author_id: Set(user_id.as_db()),
         content: Set(None),
         content_type: Set(None),
-        created_at: Set(now_time.naive_utc()),
-        inserted_at: Set(now_time.naive_utc()),
+        created_at: Set(now_time.fixed_offset()),
+        inserted_at: Set(now_time.fixed_offset()),
         visibility: Set(visibility.as_db()),
         renote_of_id: Set(Some(target_note_id.as_db())),
         ..Default::default()
@@ -258,7 +258,7 @@ pub async fn create_renote(
             ObjectId::from(user.apub.url.clone()),
             to.into_iter().map(|u| ObjectId::from(u)).collect(),
             cc.into_iter().map(|u| ObjectId::from(u)).collect(),
-            new_note.created_at.and_utc(),
+            new_note.created_at.to_utc(),
         );
         qconn.queue_activity(announce, user, inboxes).await?;
     }
@@ -869,7 +869,7 @@ pub async fn get_renoted_users(
         .map(|(r, n)| {
             (
                 UserID::from_db_trusted(n.unwrap().id),
-                r.created_at.clone().and_utc(),
+                r.created_at.clone().to_utc(),
             )
         })
         .collect();
@@ -910,7 +910,7 @@ pub async fn get_liked_users(
         .map(|(like, n)| {
             (
                 UserID::from_db_trusted(n.unwrap().id),
-                like.created_at.clone().and_utc(),
+                like.created_at.clone().to_utc(),
             )
         })
         .collect();

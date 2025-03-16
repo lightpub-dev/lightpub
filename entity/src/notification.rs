@@ -7,12 +7,10 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    #[sea_orm(column_type = "Binary(16)")]
-    pub user_id: Vec<u8>,
-    #[sea_orm(column_type = "custom(\"LONGTEXT\")")]
-    pub body: String,
-    pub created_at: DateTime,
-    pub read_at: Option<DateTime>,
+    pub user_id: Uuid,
+    pub body: Json,
+    pub created_at: DateTimeWithTimeZone,
+    pub read_at: Option<DateTimeWithTimeZone>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -21,7 +19,7 @@ pub enum Relation {
         belongs_to = "super::user::Entity",
         from = "Column::UserId",
         to = "super::user::Column::Id",
-        on_update = "Restrict",
+        on_update = "NoAction",
         on_delete = "Cascade"
     )]
     User,

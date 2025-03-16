@@ -6,8 +6,8 @@ use once_cell::sync::Lazy;
 use sea_orm::ConnectOptions;
 use testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner};
 use testcontainers_modules::{
-    mariadb::Mariadb,
     nats::{Nats, NatsServerCmd},
+    postgres::Postgres,
     redis::Redis,
 };
 use url::{Host, Url};
@@ -22,7 +22,7 @@ use crate::{
 
 pub struct TestState {
     #[allow(dead_code)]
-    db: ContainerAsync<Mariadb>,
+    db: ContainerAsync<Postgres>,
     #[allow(dead_code)]
     kv: ContainerAsync<Redis>,
     #[allow(dead_code)]
@@ -30,14 +30,14 @@ pub struct TestState {
     pub app: ServiceState,
 }
 
-async fn test_with_mariadb() -> (ContainerAsync<Mariadb>, Host, u16) {
-    let container = Mariadb::default()
-        .with_tag("lts")
+async fn test_with_mariadb() -> (ContainerAsync<Postgres>, Host, u16) {
+    let container = Postgres::default()
+        .with_tag("16")
         .start()
         .await
-        .expect("Failed to start Mariadb container");
+        .expect("Failed to start Postgres container");
     let ip = container.get_host().await.unwrap();
-    let port = container.get_host_port_ipv4(3306).await.unwrap();
+    let port = container.get_host_port_ipv4(5432).await.unwrap();
     (container, ip, port)
 }
 
@@ -64,12 +64,15 @@ async fn test_with_nats() -> (ContainerAsync<Nats>, Host, u16) {
 }
 
 pub async fn test_setup() -> TestState {
+
     let ((db, conn), (kv, kv_conn), (nats, nats_conn)) = tokio::join!(
         async {
             let (db, db_ip, db_port) = test_with_mariadb().await;
-            let mut conn_opts =
-                ConnectOptions::new(format!("mysql://{}:{}/{}", db_ip, db_port, "test"));
-            conn_opts.max_connections(30);
+     let mut conn_opts = ConnectOptions::new(format!(
+        "postgresql://postgres:postgres@{}:{}/{}",
+        db_ip, db_port, "postgres"
+    ));
+           conn_opts.max_connections(30);
             let conn = Conn::create(conn_opts).await;
             (db, conn)
         },

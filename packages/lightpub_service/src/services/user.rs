@@ -442,10 +442,10 @@ pub async fn get_apubuser_by_id(
         },
         private_key: user.private_key.clone(),
         public_key,
-        is_bot: user.is_bot != 0,
-        auto_follow_accept: user.auto_follow_accept != 0,
-        fetched_at: user.fetched_at.map(|d| d.and_utc()),
-        created_at: user.created_at.map(|d| d.and_utc()),
+        is_bot: user.is_bot,
+        auto_follow_accept: user.auto_follow_accept,
+        fetched_at: user.fetched_at.map(|d| d.to_utc()),
+        created_at: user.created_at.map(|d| d.to_utc()),
     };
 
     Ok(Some(UserWithApubModel { basic, apub }))

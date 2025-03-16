@@ -106,7 +106,7 @@ pub async fn follow_user(
     let model = entity::user_follow::ActiveModel {
         follower_id: Set(follower.id().as_db()),
         followed_id: Set(followee.id().as_db()),
-        pending: Set(true as i8),
+        pending: Set(true),
         ..Default::default()
     };
     let insert_result = model.insert(&tx).await;
@@ -151,7 +151,7 @@ pub async fn follow_user(
             .one(&tx2)
             .await
             .map_err_unknown()?;
-        if followee_details.is_some_and(|f| f.auto_follow_accept != 0) {
+        if followee_details.is_some_and(|f| f.auto_follow_accept) {
             accept_pending_follow_tx(&tx2, rconn, qconn, follower_id, followee_id, base_url)
                 .await?;
             // add notification (followed)
@@ -323,7 +323,7 @@ pub async fn accept_pending_follow_tx(
     let follow_url = follow.url.clone();
 
     let mut follow = follow.into_active_model();
-    follow.pending = Set(false as i8);
+    follow.pending = Set(false);
     follow.save(tx).await.map_err_unknown()?;
 
     // if follower is remote and followee is local, send Accept
@@ -462,7 +462,7 @@ pub async fn is_following(
 
     match follow {
         Some(f) => {
-            if f.pending != 0 {
+            if f.pending {
                 Ok(FollowState::Pending)
             } else {
                 Ok(FollowState::Yes)

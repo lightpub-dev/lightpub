@@ -1,9 +1,6 @@
-use sea_orm_migration::prelude::*;
+use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::{
-    common::{current_timestamp_6, datetime_6, datetime_6_null},
-    m20220101_000001_create_table::User,
-};
+use crate::m20220101_000001_create_table::User;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -16,7 +13,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 TableAlterStatement::new()
                     .table(User::Table)
-                    .modify_column(datetime_6_null(User::CreatedAt))
+                    .modify_column(timestamp_with_time_zone_null(User::CreatedAt))
                     .to_owned(),
             )
             .await?;
@@ -30,7 +27,10 @@ impl MigrationTrait for Migration {
             .alter_table(
                 TableAlterStatement::new()
                     .table(User::Table)
-                    .modify_column(datetime_6(User::CreatedAt).default(current_timestamp_6()))
+                    .modify_column(
+                        timestamp_with_time_zone(User::CreatedAt)
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;

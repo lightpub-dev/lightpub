@@ -7,13 +7,13 @@ use thiserror::Error;
 use url::Url;
 
 use crate::services::{
-    MapToUnknown, ServiceError, ServiceResult,
-    apub::{AnnounceActivity, DeleteActivity, UndoActivity},
-    db::Conn,
-    id::{Identifier, NoteID, UserID},
-    queue::QConn,
-    user::get_apubuser_by_id,
-};
+        MapToUnknown, ServiceError, ServiceResult,
+        apub::{AnnounceActivity, DeleteActivity, UndoActivity},
+        db::Conn,
+        id::{Identifier, NoteID, UserID},
+        queue::QConn,
+        user::get_apubuser_by_id,
+    };
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::QueryFilter;
@@ -79,7 +79,7 @@ pub async fn delete_note_by_id_(
     } else {
         // normal note
         let mut active = note.into_active_model();
-        active.deleted_at = Set(Some(Utc::now().naive_utc()));
+        active.deleted_at = Set(Some(Utc::now().fixed_offset()));
         active.update(&txn).await.map_err_unknown()?
     };
 
@@ -96,7 +96,7 @@ pub async fn delete_note_by_id_(
             let delete = DeleteActivity::from_note(
                 ObjectId::from(note_apub.apub.url.clone()),
                 ObjectId::from(viewer_apub.apub.url.clone()),
-                note.deleted_at.unwrap().and_utc(),
+                note.deleted_at.unwrap().to_utc(),
             );
 
             let CalculateToAndCcResult {
@@ -155,7 +155,7 @@ pub async fn delete_renote_by_id(
     // activitypub send
     let renote_author = get_apubuser_by_id(
         &txn,
-        UserID::from_db_trusted(renote_model.author_id.clone()),
+        UserID::from_db_trusted(renote_model.author_id),
         base_url,
     )
     .await?
@@ -184,7 +184,7 @@ pub async fn delete_renote_by_id(
             ObjectId::from(renote_author.apub.url.clone()),
             to.into_iter().map(|u| ObjectId::from(u)).collect(),
             cc.into_iter().map(|u| ObjectId::from(u)).collect(),
-            renote_model.created_at.and_utc(),
+            renote_model.created_at.to_utc(),
         );
         let undo = UndoActivity::new(renote_author.apub.url.clone(), announce);
         qconn.queue_activity(undo, renote_author, inboxes).await?;

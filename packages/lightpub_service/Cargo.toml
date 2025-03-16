@@ -81,7 +81,7 @@ tokio-util = { workspace = true }
 serial_test = "*"
 testcontainers = "0.23.2"
 testcontainers-modules = { version = "0.11.6", features = [
-    "mariadb",
+    "postgres",
     "redis",
     "nats",
 ] }

@@ -120,9 +120,9 @@ async fn set_user_active_model_from_apub(
     model.url = Set(Some(user_url.to_string()));
     model.view_url = Set(user.url.clone().map(|u| u.to_string()));
     model.bio = Set(bio);
-    model.created_at = Set(user.published.map(|d| d.naive_utc()));
-    model.auto_follow_accept = Set(auto_follow_accept as i8);
-    model.is_bot = Set(user.kind.is_bot() as i8);
+    model.created_at = Set(user.published.map(|d| d.fixed_offset()));
+    model.auto_follow_accept = Set(auto_follow_accept);
+    model.is_bot = Set(user.kind.is_bot());
     model.shared_inbox = Set(user
         .endpoints
         .as_ref()
@@ -131,7 +131,7 @@ async fn set_user_active_model_from_apub(
         .map(|u| u.to_string()));
     model.inbox = Set(Some(user.inbox.to_string()));
     model.outbox = Set(Some(user.outbox.to_string()));
-    model.fetched_at = Set(Some(fetched_at.naive_utc()));
+    model.fetched_at = Set(Some(fetched_at.fixed_offset()));
 
     let pubkey = &user.public_key;
     pubkey_model.key_id = Set(pubkey.id.clone());
