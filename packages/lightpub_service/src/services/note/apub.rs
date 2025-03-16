@@ -282,14 +282,11 @@ nest! {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum ApubNoteTag {
-    Hashtag {
-        name: Option<String>,
-        href: Url,
-    },
-    Mention {
-        name: Option<String>,
-        href: Url,
-    },
+    #[serde(rename = "Hashtag")]
+    Hashtag { name: Option<String>, href: Url },
+    #[serde(rename = "Mention")]
+    Mention { name: Option<String>, href: Url },
+    #[serde(rename = "Emoji")]
     Emoji {
         // TODO: ignored for now
     },

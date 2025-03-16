@@ -180,7 +180,7 @@ pub async fn apub_auth(
     data: &Data<MyFederationData>,
 ) -> ServiceResult<Option<UserWithApubModel>> {
     let actor = signing_actor::<UserWithApubModel>(req, Some(body), data).await;
-    debug!("actor: {:?}", actor);
+    debug!("federation auth actor: {:?}", actor);
     let actor = match actor {
         Ok(a) => Some(a),
         Err(FederationServiceError::FederationError(e)) => {

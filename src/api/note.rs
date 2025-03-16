@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::api::auth::middleware_auth_jwt_optional;
 use crate::api::auth::middleware_auth_jwt_required;
+use activitypub_federation::protocol::context::WithContext;
 use activitypub_federation::traits::Object;
 use actix_multipart::form::{tempfile::TempFile, text::Text as MpText, MultipartForm};
 use actix_web::middleware::from_fn;
@@ -289,7 +290,9 @@ async fn get_apub_note(
 
     match note {
         None => Ok(HttpResponse::NotFound().finish()),
-        Some(note) => Ok(render_apub(note.into_json(&data).await?)),
+        Some(note) => Ok(render_apub(WithContext::new_default(
+            note.into_json(&data).await?,
+        ))),
     }
 }
 

@@ -32,6 +32,13 @@ services:
       - internal_network
       - external_network
 
+  lightpub_mathjax:
+    profiles:
+      - lightpub
+    networks:
+      - internal_network
+      - external_network
+
   lightpub_kv:
     container_name: lightpub_kv
     profiles:
