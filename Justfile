@@ -20,13 +20,13 @@ dev: dev-up generate-jwt-if-not-exists
     just dev-app
 
 dev-down:
-    docker compose -f docker-compose.dev.yml down db kv nats
+    docker compose -f docker-compose.dev.yml down lightpub_db lightpub_kv lightpub_nats
 
 dev-down-volume:
-    docker compose -f docker-compose.dev.yml down db kv nats -v
+    docker compose -f docker-compose.dev.yml down lightpub_db lightpub_kv lightpub_nats -v
 
 dev-up:
-    docker compose -f docker-compose.dev.yml up db kv nats -d
+    docker compose -f docker-compose.dev.yml up lightpub_db lightpub_kv lightpub_nats -d
 
 dev-app: generate-jwt-if-not-exists
     env REGISTRATION_OPEN=true DEV_MODE=true RUST_LOG=debug JWT_PUBLIC_KEY_FILE=data/jwtpub.pem JWT_SECRET_KEY_FILE=data/jwt.pem cargo run
