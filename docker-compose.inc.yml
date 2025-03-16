@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         BUILD_TYPE: release
-    image: ghcr.io/tinaxd/lightpub_rs:latest
+    image: ghcr.io/lightpub-dev/lightpub:latest
     depends_on:
       lightpub_db:
         condition: service_healthy

@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libgexiv2-dev \
     clang \
     lld \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a new empty project for caching dependencies
@@ -30,9 +31,11 @@ COPY src ./src
 
 # Build the application with cache
 COPY build.sh .
+RUN dos2unix build.sh
+RUN chmod +x build.sh
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/src/app/app/target \
-    ./build.sh ${BUILD_TYPE}
+    bash ./build.sh ${BUILD_TYPE}
 
 RUN --mount=type=cache,target=/usr/src/app/app/target cp target/${BUILD_TYPE}/lightpub_rs /usr/src/app/lightpub_rs
 
