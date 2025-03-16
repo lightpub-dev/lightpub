@@ -44,8 +44,13 @@ services:
 
   lightpub_mathjax:
     image: ghcr.io/lightpub-dev/lightpub/mathjax:latest
+    build:
+      context: ./subsystems/mathjax
     environment:
       NATS_URL: nats://lightpub_nats:4222
+    depends_on:
+      lightpub_nats:
+        condition: service_started
     init: true
     restart: unless-stopped
 

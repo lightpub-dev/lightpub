@@ -16,16 +16,15 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use derive_more::Constructor;
 use pulldown_cmark::{Parser, html};
 
-use async_trait::async_trait;
+use serde::Deserialize;
+use serde_json::json;
 
-use crate::utils::sanitize::CleanString;
+use crate::{ServiceResult, services::queue::QConn, utils::sanitize::CleanString};
 
-#[async_trait]
-pub trait NoteRenderer {
-    async fn render_note(&self, content: &str) -> CleanString;
-}
+const MATHJAX_RENDERER_SUBJECT: &str = "lightpub.mathjax.render";
 
 pub struct PlainNoteRenderer {}
 
@@ -33,12 +32,9 @@ impl PlainNoteRenderer {
     pub fn new() -> Self {
         Self {}
     }
-}
 
-#[async_trait]
-impl NoteRenderer for PlainNoteRenderer {
-    async fn render_note(&self, content: &str) -> CleanString {
-        CleanString::clean_text(content)
+    pub async fn render_note(&self, content: &str) -> ServiceResult<CleanString> {
+        Ok(CleanString::clean_text(content))
     }
 }
 
@@ -48,17 +44,14 @@ impl MdNoteRenderer {
     pub fn new() -> Self {
         Self {}
     }
-}
 
-#[async_trait]
-impl NoteRenderer for MdNoteRenderer {
-    async fn render_note(&self, content: &str) -> CleanString {
+    pub async fn render_note(&self, content: &str) -> ServiceResult<CleanString> {
         let parser = Parser::new(content);
 
         let mut html_buf = String::new();
         html::push_html(&mut html_buf, parser);
 
-        CleanString::clean(&html_buf)
+        Ok(CleanString::clean(&html_buf))
     }
 }
 
@@ -68,11 +61,30 @@ impl HtmlNoteRenderer {
     pub fn new() -> Self {
         Self {}
     }
+
+    pub async fn render_note(&self, content: &str) -> ServiceResult<CleanString> {
+        Ok(CleanString::clean(content))
+    }
 }
 
-#[async_trait]
-impl NoteRenderer for HtmlNoteRenderer {
-    async fn render_note(&self, content: &str) -> CleanString {
-        CleanString::clean(content)
+#[derive(Debug, Constructor)]
+pub struct LatexNoteRenderer {}
+
+impl LatexNoteRenderer {
+    pub async fn render_note(&self, content: &str, qconn: &QConn) -> ServiceResult<CleanString> {
+        let content: MathJaxResponse = qconn
+            .request(
+                MATHJAX_RENDERER_SUBJECT,
+                &json!({
+                    "content": content
+                }),
+            )
+            .await?;
+        Ok(CleanString::already_cleaned_dangerous(content.result))
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MathJaxResponse {
+    result: String,
 }

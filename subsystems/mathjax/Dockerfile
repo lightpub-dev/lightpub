@@ -7,7 +7,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --production
 
 # Copy application code
-COPY src .
+COPY src ./src
 
 # Set environment variables
 ENV NODE_ENV=production

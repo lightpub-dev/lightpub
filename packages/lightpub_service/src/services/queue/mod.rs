@@ -9,9 +9,12 @@ use async_nats::{
     jetstream::{self, Message, stream},
 };
 use delay::APUB_DELIVERY_DELAY_TIMES;
+use expected_error::StatusCode;
+use expected_error_derive::ExpectedError;
 use futures_util::StreamExt;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use thiserror::Error;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
@@ -39,6 +42,19 @@ pub struct QConn {
 const APUB_STREAM_NAME: &str = "APUB";
 const APUB_DELIVERY_SUBJECT: &str = "apub.delivery";
 const APUB_DELIVERY_CONSUMER: &str = "apub-delivery-processor";
+
+#[derive(Debug, Clone, Error, ExpectedError)]
+pub enum NatsError {
+    #[ee(status(StatusCode::INTERNAL_SERVER_ERROR))]
+    #[error("request timed out")]
+    Timeout,
+    #[ee(status(StatusCode::INTERNAL_SERVER_ERROR))]
+    #[error("no request backend available")]
+    NoRequestBackend,
+    #[ee(status(StatusCode::INTERNAL_SERVER_ERROR))]
+    #[error("Internal Server Error")]
+    DeserializationFailed,
+}
 
 impl QConn {
     pub async fn connect(addr: impl Into<String>) -> ServiceResult<Self> {
@@ -75,6 +91,32 @@ impl QConn {
             .await?
             .enqueue(activity, actor, inboxes)
             .await
+    }
+
+    pub async fn request<S: Serialize, R: DeserializeOwned>(
+        &self,
+        subject: impl Into<String>,
+        req: &S,
+    ) -> ServiceResult<R> {
+        let payload = serde_json::to_vec(req).map_err_unknown()?;
+        let payload = tokio_util::bytes::Bytes::from_owner(payload);
+        let response = match self.client.request(subject.into(), payload).await {
+            Ok(response) => response,
+            Err(e) => match e.kind() {
+                async_nats::RequestErrorKind::TimedOut => {
+                    return Err(ServiceError::known(NatsError::Timeout));
+                }
+                async_nats::RequestErrorKind::NoResponders => {
+                    return Err(ServiceError::known(NatsError::NoRequestBackend));
+                }
+                _ => return Err(ServiceError::unknown(e)),
+            },
+        };
+        let response = serde_json::from_slice(&response.payload).map_err(|e| {
+            error!("Failed to deserialize response: {:#?}", e);
+            ServiceError::known(NatsError::DeserializationFailed)
+        })?;
+        Ok(response)
     }
 }
 

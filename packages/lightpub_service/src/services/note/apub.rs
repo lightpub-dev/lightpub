@@ -138,7 +138,7 @@ impl Object for NoteWithApubModel {
         Ok(())
     }
 
-    async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
+    async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         let mut tags = vec![];
         for tag in self.apub.hashtags {
             tags.push(ApubNoteTag::Hashtag {
@@ -170,10 +170,11 @@ impl Object for NoteWithApubModel {
             media_type: note_content.mime_type().to_string(),
         };
 
+        let qconn = data.qconn();
         Ok(ApubNoteModel {
             id: ObjectId::parse(&self.apub.url.to_string()).unwrap(),
             attributed_to: ObjectId::parse(&self.apub.author_url.to_string()).unwrap(),
-            content: note_content.render_to_html().await.into_inner(),
+            content: note_content.render_to_html(qconn).await?.into_inner(),
             kind: NoteType::Note,
             published: self.basic.created_at,
             updated: self.basic.updated_at,

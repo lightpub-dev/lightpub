@@ -202,7 +202,7 @@ pub async fn create_parts_note_from_model(
     let content = match note.content.as_ref() {
         None => None,
         Some(content) => Some(NoteContentData {
-            content: content.render_to_html().await,
+            content: content.render_to_html(st.qconn()).await?,
         }),
     };
 
