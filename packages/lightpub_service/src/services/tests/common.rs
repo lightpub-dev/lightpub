@@ -68,11 +68,10 @@ pub async fn test_setup() -> TestState {
     let ((db, conn), (kv, kv_conn), (nats, nats_conn)) = tokio::join!(
         async {
             let (db, db_ip, db_port) = test_with_mariadb().await;
-    let mut conn_opts = ConnectOptions::new(format!(
+     let mut conn_opts = ConnectOptions::new(format!(
         "postgresql://postgres:postgres@{}:{}/{}",
         db_ip, db_port, "postgres"
     ));
- 
            conn_opts.max_connections(30);
             let conn = Conn::create(conn_opts).await;
             (db, conn)

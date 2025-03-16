@@ -1,10 +1,6 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::{
-    common::{current_timestamp_6, datetime_6},
-    m20220101_000001_create_table::User,
-    m20250202_050205_notes::Note,
-};
+use crate::{m20220101_000001_create_table::User, m20250202_050205_notes::Note};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -22,7 +18,10 @@ impl MigrationTrait for Migration {
                     .col(uuid(NoteLike::NoteId))
                     .col(uuid(NoteLike::UserId))
                     .col(boolean(NoteLike::IsPrivate))
-                    .col(datetime_6(NoteLike::CreatedAt).default(current_timestamp_6()))
+                    .col(
+                        timestamp_with_time_zone(NoteLike::CreatedAt)
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;

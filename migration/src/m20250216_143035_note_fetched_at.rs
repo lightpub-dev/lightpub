@@ -1,6 +1,6 @@
-use sea_orm_migration::prelude::*;
+use sea_orm_migration::{prelude::*, schema::timestamp_with_time_zone_null};
 
-use crate::{common::datetime_6_null, m20250202_050205_notes::Note};
+use crate::m20250202_050205_notes::Note;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -13,7 +13,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 TableAlterStatement::new()
                     .table(Note::Table)
-                    .add_column(datetime_6_null(Note::FetchedAt))
+                    .add_column(timestamp_with_time_zone_null(Note::FetchedAt))
                     .to_owned(),
             )
             .await?;
