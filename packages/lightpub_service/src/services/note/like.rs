@@ -2,13 +2,13 @@ use sea_orm::{Condition, EntityTrait, IntoActiveModel, Set, SqlErr, TryIntoModel
 use url::Url;
 
 use crate::services::{
-        MapToUnknown, ServiceError, ServiceResult,
-        apub::{LikeActivity, LikeableObject, UndoActivity},
-        db::Conn,
-        id::{Identifier, NoteID, UserID},
-        queue::QConn,
-        user::get_apubuser_by_id,
-    };
+    MapToUnknown, ServiceError, ServiceResult,
+    apub::{LikeActivity, LikeableObject, UndoActivity},
+    db::Conn,
+    id::{Identifier, NoteID, UserID},
+    queue::QConn,
+    user::get_apubuser_by_id,
+};
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::QueryFilter;
@@ -42,7 +42,7 @@ pub async fn note_like_add(
     let like = entity::note_like::ActiveModel {
         note_id: Set(note_id.as_db()),
         user_id: Set(user_id.as_db()),
-        is_private: Set(is_private),
+        is_private: Set(is_private as i8),
         ..Default::default()
     };
     let like = match like.save(&tx).await {

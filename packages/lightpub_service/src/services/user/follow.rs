@@ -75,7 +75,7 @@ pub async fn get_user_followers(
         if let Some(f) = follower {
             users.push(UserFollow {
                 user: f,
-                created_at: model.created_at.to_utc(),
+                created_at: model.created_at.and_utc(),
             });
         }
     }
@@ -118,7 +118,7 @@ pub async fn get_user_followings(
         if let Some(f) = follower {
             users.push(UserFollow {
                 user: f,
-                created_at: model.created_at.to_utc(),
+                created_at: model.created_at.and_utc(),
             });
         }
     }

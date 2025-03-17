@@ -86,6 +86,13 @@ impl UserID {
     }
 }
 
+pub fn slice_to_bytes(s: &[u8]) -> [u8; 16] {
+    assert_eq!(s.len(), 16);
+    let mut bytes = [0; 16];
+    bytes.copy_from_slice(s);
+    bytes
+}
+
 impl Identifier for UserID {
     fn as_local_url(&self, base_url: &Url) -> Url {
         base_url
@@ -93,13 +100,13 @@ impl Identifier for UserID {
             .unwrap()
     }
 
-    type DBType = Uuid;
+    type DBType = Vec<u8>;
     fn as_db(&self) -> Self::DBType {
-        Uuid::from_bytes(self.0.to_bytes())
+        self.0.to_bytes().to_vec()
     }
     fn from_db_trusted(db: Self::DBType) -> Self {
         // check fi
-        Self(Ulid::from(db))
+        Self(Ulid::from_bytes(slice_to_bytes(&db)))
     }
 }
 
@@ -125,13 +132,13 @@ impl Identifier for NoteID {
             .unwrap()
     }
 
-    type DBType = Uuid;
-    fn as_db(&self) -> Uuid {
-        Uuid::from_bytes(self.0.to_bytes())
+    type DBType = Vec<u8>;
+    fn as_db(&self) -> Self::DBType {
+        self.0.to_bytes().to_vec()
     }
     fn from_db_trusted(db: Self::DBType) -> Self {
         // check fi
-        Self(Ulid::from(db))
+        Self(Ulid::from_bytes(slice_to_bytes(&db)))
     }
 }
 
@@ -157,13 +164,13 @@ impl Identifier for UploadID {
             .unwrap()
     }
 
-    type DBType = Uuid;
-    fn as_db(&self) -> Uuid {
-        self.0.as_uuid().clone()
+    type DBType = Vec<u8>;
+    fn as_db(&self) -> Self::DBType {
+        self.0.as_uuid().as_bytes().to_vec()
     }
 
     fn from_db_trusted(db: Self::DBType) -> Self {
-        Self(db.simple())
+        Self(Uuid::from_bytes(slice_to_bytes(&db)).simple())
     }
 }
 

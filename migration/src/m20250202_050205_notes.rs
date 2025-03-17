@@ -84,7 +84,16 @@ impl MigrationTrait for Migration {
                     .col(datetime_6(Note::InsertedAt).default(current_timestamp_6()))
                     .col(datetime_6_null(Note::UpdatedAt))
                     .col(datetime_6_null(Note::DeletedAt))
-                    .col(custom(Note::Visibility, Visibility::Enum))
+                    .col(enumeration(
+                        Note::Visibility,
+                        Visibility::Enum,
+                        [
+                            Visibility::Public,
+                            Visibility::Unlisted,
+                            Visibility::Follower,
+                            Visibility::Private,
+                        ],
+                    ))
                     .col(uuid_null(Note::ReplyToId))
                     .col(uuid_null(Note::RenoteOfId))
                     .col(boolean(Note::Sensitive).default(Expr::value(false)))

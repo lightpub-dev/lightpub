@@ -5,8 +5,8 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "upload")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
-    pub id: Uuid,
+    #[sea_orm(primary_key, auto_increment = false, column_type = "Binary(16)")]
+    pub id: Vec<u8>,
     pub filename: Option<String>,
     pub url: Option<String>,
     pub mime_type: String,

@@ -11,7 +11,7 @@ pub struct Model {
     pub activity: String,
     #[sea_orm(column_type = "Text")]
     pub error_msg: String,
-    pub received_at: DateTimeWithTimeZone,
+    pub received_at: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

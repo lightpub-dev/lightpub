@@ -90,10 +90,10 @@ pub async fn update_user_profile(
         user.bio = Set(cleaned);
     }
     if let Some(auto_follow_accept) = update.auto_follow_accept {
-        user.auto_follow_accept = Set(auto_follow_accept);
+        user.auto_follow_accept = Set(auto_follow_accept as i8);
     }
     if let Some(hide_follows) = update.hide_follows {
-        user.hide_follows = Set(hide_follows);
+        user.hide_follows = Set(hide_follows as i8);
     }
     if let Some(avatar_upload_id) = update.avatar_upload_id.as_ref() {
         user.avatar = Set(avatar_upload_id.clone().map(|a| a.as_db()));
@@ -215,8 +215,8 @@ async fn get_user_profile_impl(
         note_count: note_count as u64,
         url: user_all.url,
         view_url: user_all.view_url,
-        auto_follow_accept: user_all.auto_follow_accept,
-        hide_follows: user_all.hide_follows,
+        auto_follow_accept: user_all.auto_follow_accept != 0,
+        hide_follows: user_all.hide_follows != 0,
     }))
 }
 

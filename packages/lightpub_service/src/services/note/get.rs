@@ -166,13 +166,13 @@ async fn get_note_by_spec_impl(
         },
         content,
         visibility,
-        created_at: note.created_at.to_utc(),
-        updated_at: note.updated_at.map(|d| d.to_utc()),
+        created_at: note.created_at.and_utc(),
+        updated_at: note.updated_at.map(|d| d.and_utc()),
         reply_to_id: note.reply_to_id.map(NoteID::from_db_trusted),
         renote_of_id: note.renote_of_id.map(NoteID::from_db_trusted),
-        deleted_at: note.deleted_at.map(|d| d.to_utc()),
+        deleted_at: note.deleted_at.map(|d| d.and_utc()),
         uploads,
-        sensitive: note.sensitive,
+        sensitive: note.sensitive != 0,
     };
     Ok(Some(note_model))
 }
@@ -252,7 +252,7 @@ async fn get_apubdata_by_note_id_with_inboxes(
             let CalculateToAndCcResult { to, cc, inboxes } = calculate_to_and_cc(
                 conn,
                 note_id,
-                UserID::from_db_trusted(note.author_id),
+                UserID::from_db_trusted(note.author_id.clone()),
                 VisibilityModel::from_db(note.visibility.clone()),
                 false,
                 base_url,
@@ -295,7 +295,7 @@ async fn get_apubdata_by_note_id_with_inboxes(
             Ok(Some(ApubDataWithInboxes {
                 data: NoteApubData {
                     url,
-                    fetched_at: note.fetched_at.map(|d| d.to_utc()),
+                    fetched_at: note.fetched_at.map(|d| d.and_utc()),
                     author_url,
                     to,
                     cc,
@@ -433,7 +433,7 @@ async fn fill_note_user_interaction(
         let mut liked = false;
         let mut bookmarked = false;
         for like in likes {
-            if like.is_private {
+            if like.is_private != 0 {
                 bookmarked = true;
             } else {
                 liked = true;
