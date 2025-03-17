@@ -43,6 +43,13 @@ pub mod user;
 pub use expected_error::ExpectedError;
 pub type ServiceResult<T> = Result<T, ServiceError>;
 
+macro_rules! internal_server_error_text {
+    () => {
+        "Internal Server Error"
+    };
+}
+pub const INTERNAL_SERVER_ERROR_TEXT: &str = internal_server_error_text!();
+
 #[derive(Error, Debug)]
 pub enum ServiceError {
     #[error("Known Error: {0}")]
@@ -98,7 +105,7 @@ impl ServiceError {
             ),
             _ => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Cow::Borrowed("Internal Server Error"),
+                Cow::Borrowed(INTERNAL_SERVER_ERROR_TEXT),
             ),
         }
     }

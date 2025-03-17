@@ -35,7 +35,6 @@ use migration::Expr;
 use migration::ExprTrait;
 use migration::Query;
 use nestify::nest;
-use renderer::NoteRenderer;
 use sea_orm::ActiveEnum;
 use sea_orm::ColumnTrait;
 use sea_orm::Condition;
@@ -477,12 +476,16 @@ pub enum NoteContentModel {
 }
 
 impl NoteContentModel {
-    pub async fn render_to_html(&self) -> CleanString {
+    pub async fn render_to_html(&self, qconn: &QConn) -> ServiceResult<CleanString> {
         match self {
             NoteContentModel::Plain(c) => renderer::PlainNoteRenderer::new().render_note(c).await,
             NoteContentModel::Md(c) => renderer::MdNoteRenderer::new().render_note(c).await,
             NoteContentModel::Html(c) => renderer::HtmlNoteRenderer::new().render_note(c).await,
-            _ => todo!("note renderer"),
+            NoteContentModel::Latex(c) => {
+                renderer::LatexNoteRenderer::new()
+                    .render_note(c, qconn)
+                    .await
+            }
         }
     }
 

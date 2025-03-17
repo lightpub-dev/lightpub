@@ -29,6 +29,7 @@ use derive_builder::Builder;
 use handlebars::Handlebars;
 use lightpub_service::services::ServiceError;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 pub mod auth;
 pub mod federation;
@@ -135,16 +136,20 @@ impl FromRequest for RequestType {
         _payload: &mut actix_web::dev::Payload,
     ) -> Self::Future {
         let headers = req.headers();
-        std::future::ready(Ok(judge_request_type(headers)))
+        let request_type = judge_request_type(headers);
+        debug!("Request type: {:?}", request_type);
+        std::future::ready(Ok(request_type))
     }
 }
+
+const JSON_LD_CONTENT_TYPE: &str = "application/ld+json";
 
 pub fn judge_request_type(headers: &HeaderMap) -> RequestType {
     if headers.contains_key("hx-request") {
         RequestType::HTMX
     } else if headers.get("accept").is_some_and(|h| {
         h.to_str()
-            .is_ok_and(|s| s.contains(FEDERATION_CONTENT_TYPE))
+            .is_ok_and(|s| s.contains(FEDERATION_CONTENT_TYPE) || s.contains(JSON_LD_CONTENT_TYPE))
     }) {
         RequestType::APUB
     } else {

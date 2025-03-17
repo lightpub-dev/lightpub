@@ -33,8 +33,9 @@ use lightpub_rs::{
         note::{
             api_create_note, api_create_renote, api_edit_note_view, api_get_note,
             api_get_note_like_users, api_get_note_mentions_users, api_get_note_renote_users,
-            api_note_add_bookmark, api_note_add_like, api_note_delete, api_note_patch,
-            api_note_remove_bookmark, api_note_remove_like,
+            api_note_add_bookmark, api_note_add_like, api_note_delete,
+            api_note_delete_by_renote_target_id, api_note_patch, api_note_remove_bookmark,
+            api_note_remove_like,
         },
         notifications::{
             api_get_notifications, api_read_all_notifications, api_read_notification,
@@ -278,6 +279,7 @@ async fn main() {
                     .service(api_create_note)
                     .service(api_get_note)
                     .service(api_note_delete)
+                    .service(api_note_delete_by_renote_target_id)
                     .service(api_note_patch)
                     .service(api_edit_note_view)
                     .service(api_note_add_like)

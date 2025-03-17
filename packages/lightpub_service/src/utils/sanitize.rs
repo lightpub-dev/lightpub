@@ -31,4 +31,8 @@ impl CleanString {
     pub fn clean_text(s: &str) -> CleanString {
         CleanString(ammonia::clean_text(s))
     }
+
+    pub fn already_cleaned_dangerous(s: impl Into<String>) -> CleanString {
+        CleanString(s.into())
+    }
 }
