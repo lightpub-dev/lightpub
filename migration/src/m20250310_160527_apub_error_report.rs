@@ -1,5 +1,7 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
+use crate::common::{current_timestamp_6, datetime_6};
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -14,7 +16,11 @@ impl MigrationTrait for Migration {
                     .col(pk_auto(ApubErrorReport::Id))
                     .col(text(ApubErrorReport::Activity).not_null())
                     .col(text(ApubErrorReport::ErrorMsg).not_null())
-                    .col(timestamp_with_time_zone(ApubErrorReport::ReceivedAt).not_null())
+                    .col(
+                        datetime_6(ApubErrorReport::ReceivedAt)
+                            .not_null()
+                            .default(current_timestamp_6()),
+                    )
                     .to_owned(),
             )
             .await

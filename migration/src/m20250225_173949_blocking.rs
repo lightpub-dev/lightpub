@@ -1,6 +1,9 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::m20220101_000001_create_table::User;
+use crate::{
+    common::{current_timestamp_6, datetime_6},
+    m20220101_000001_create_table::User,
+};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -16,10 +19,7 @@ impl MigrationTrait for Migration {
                     .col(pk_auto(UserBlock::Id))
                     .col(uuid(UserBlock::BlockerId))
                     .col(uuid(UserBlock::BlockedId))
-                    .col(
-                        timestamp_with_time_zone(UserBlock::BlockedAt)
-                            .default(Expr::current_timestamp()),
-                    )
+                    .col(datetime_6(UserBlock::BlockedAt).default(current_timestamp_6()))
                     .to_owned(),
             )
             .await?;

@@ -1,6 +1,6 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::common::URL_LENGTH;
+use crate::common::{current_timestamp_6, datetime_6, URL_LENGTH};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -30,10 +30,7 @@ impl MigrationTrait for Migration {
                     .col(uuid(UserFollow::FollowedId).not_null())
                     .col(boolean(UserFollow::Pending).not_null())
                     .col(string_len_null(UserFollow::Url, URL_LENGTH))
-                    .col(
-                        timestamp_with_time_zone(UserFollow::CreatedAt)
-                            .default(Expr::current_timestamp()),
-                    )
+                    .col(datetime_6(UserFollow::CreatedAt).default(current_timestamp_6()))
                     .to_owned(),
             )
             .await?;
