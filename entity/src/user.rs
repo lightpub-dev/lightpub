@@ -5,15 +5,16 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "user")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
-    pub id: Uuid,
+    #[sea_orm(primary_key, auto_increment = false, column_type = "Binary(16)")]
+    pub id: Vec<u8>,
     pub username: String,
     pub domain: String,
     pub password: Option<String>,
     pub nickname: String,
     #[sea_orm(column_type = "Text")]
     pub bio: String,
-    pub avatar: Option<Uuid>,
+    #[sea_orm(column_type = "Binary(16)", nullable)]
+    pub avatar: Option<Vec<u8>>,
     #[sea_orm(unique)]
     pub url: Option<String>,
     pub inbox: Option<String>,
@@ -23,16 +24,16 @@ pub struct Model {
     pub private_key: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub public_key: Option<String>,
-    pub created_at: Option<DateTimeWithTimeZone>,
-    pub fetched_at: Option<DateTimeWithTimeZone>,
+    pub created_at: Option<DateTime>,
+    pub fetched_at: Option<DateTime>,
     pub view_url: Option<String>,
     pub following: Option<String>,
     pub followers: Option<String>,
-    pub auto_follow_accept: bool,
-    pub auth_expired_at: Option<DateTimeWithTimeZone>,
-    pub is_bot: bool,
-    pub is_admin: bool,
-    pub hide_follows: bool,
+    pub auto_follow_accept: i8,
+    pub auth_expired_at: Option<DateTime>,
+    pub is_bot: i8,
+    pub is_admin: i8,
+    pub hide_follows: i8,
     pub preferred_inbox: Option<String>,
 }
 

@@ -4,7 +4,7 @@ use sea_orm_migration::{
     sea_orm::DbBackend,
 };
 
-use crate::common::URL_LENGTH;
+use crate::common::{current_timestamp_6, datetime_6, datetime_6_null, URL_LENGTH};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -80,14 +80,20 @@ impl MigrationTrait for Migration {
                     .col(uuid(Note::AuthorId).not_null())
                     .col(text_null(Note::Content))
                     .col(string_len_null(Note::ContentType, 32))
-                    .col(timestamp_with_time_zone(Note::CreatedAt))
-                    .col(
-                        timestamp_with_time_zone(Note::InsertedAt)
-                            .default(Expr::current_timestamp()),
-                    )
-                    .col(timestamp_with_time_zone_null(Note::UpdatedAt))
-                    .col(timestamp_with_time_zone_null(Note::DeletedAt))
-                    .col(custom(Note::Visibility, Visibility::Enum))
+                    .col(datetime_6(Note::CreatedAt))
+                    .col(datetime_6(Note::InsertedAt).default(current_timestamp_6()))
+                    .col(datetime_6_null(Note::UpdatedAt))
+                    .col(datetime_6_null(Note::DeletedAt))
+                    .col(enumeration(
+                        Note::Visibility,
+                        Visibility::Enum,
+                        [
+                            Visibility::Public,
+                            Visibility::Unlisted,
+                            Visibility::Follower,
+                            Visibility::Private,
+                        ],
+                    ))
                     .col(uuid_null(Note::ReplyToId))
                     .col(uuid_null(Note::RenoteOfId))
                     .col(boolean(Note::Sensitive).default(Expr::value(false)))

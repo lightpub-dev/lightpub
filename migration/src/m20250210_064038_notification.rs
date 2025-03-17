@@ -1,5 +1,7 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
+use crate::common::{current_timestamp_6, datetime_6, datetime_6_null};
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -15,11 +17,11 @@ impl MigrationTrait for Migration {
                     .col(uuid(Notification::UserId).not_null())
                     .col(json(Notification::Body).not_null())
                     .col(
-                        timestamp_with_time_zone(Notification::CreatedAt)
+                        datetime_6(Notification::CreatedAt)
                             .not_null()
-                            .default(Expr::current_timestamp()),
+                            .default(current_timestamp_6()),
                     )
-                    .col(timestamp_with_time_zone_null(Notification::ReadAt))
+                    .col(datetime_6_null(Notification::ReadAt))
                     .to_owned(),
             )
             .await

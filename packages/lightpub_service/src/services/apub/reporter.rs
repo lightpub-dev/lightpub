@@ -12,7 +12,7 @@ pub async fn report_apub_error(
     let model = entity::apub_error_report::ActiveModel {
         activity: Set(payload.into()),
         error_msg: Set(error_msg.into()),
-        received_at: Set(Utc::now().fixed_offset()),
+        received_at: Set(Utc::now().naive_utc()),
         ..Default::default()
     };
     model.save(tx).await.map_err_unknown()?;

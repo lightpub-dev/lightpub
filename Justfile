@@ -1,5 +1,5 @@
 generate-entity:
-    sea-orm-cli generate entity -u postgresql://postgres:postgres@localhost:5432/lightpub --lib -o entity/src
+    sea-orm-cli generate entity -u mysql://root:lightpub@127.0.0.1:3306/lightpub --lib -o entity/src
 
 generate-migration name:
     sea-orm-cli migrate generate {{name}}

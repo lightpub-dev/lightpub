@@ -1,6 +1,6 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::common::URL_LENGTH;
+use crate::common::{current_timestamp_6, datetime_6, datetime_6_null, URL_LENGTH};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -53,16 +53,13 @@ impl MigrationTrait for Migration {
                     .col(string_len_null(User::Outbox, URL_LENGTH))
                     .col(text_null(User::PrivateKey))
                     .col(text_null(User::PublicKey))
-                    .col(
-                        timestamp_with_time_zone(User::CreatedAt)
-                            .default(Expr::current_timestamp()),
-                    )
-                    .col(timestamp_with_time_zone_null(User::FetchedAt))
+                    .col(datetime_6(User::CreatedAt).default(current_timestamp_6()))
+                    .col(datetime_6_null(User::FetchedAt))
                     .col(string_len_null(User::ViewUrl, URL_LENGTH))
                     .col(string_len_null(User::Following, URL_LENGTH))
                     .col(string_len_null(User::Followers, URL_LENGTH))
                     .col(boolean(User::AutoFollowAccept).default(Expr::value(true)))
-                    .col(timestamp_with_time_zone_null(User::AuthExpiredAt))
+                    .col(datetime_6_null(User::AuthExpiredAt))
                     .col(boolean(User::IsBot).default(Expr::value(false)))
                     .col(boolean(User::IsAdmin).default(Expr::value(false)))
                     .col(boolean(User::HideFollows).default(Expr::value(false)))
