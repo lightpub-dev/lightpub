@@ -99,6 +99,7 @@ pub use cache::invalidate_note_basic_cache;
 pub use count::count_local_notes;
 pub use create::{
     NoteUpload, PostCreateOptions, PostCreateOptionsBuilder, PostCreateOptionsBuilderError,
+    rebuild_note_fulltext_index,
 };
 pub use delete::{delete_note_by_id, delete_note_by_id_, delete_renote_by_id};
 pub use get::{

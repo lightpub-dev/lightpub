@@ -29,6 +29,7 @@ use actix_web::{
 use lightpub_rs::{
     api::{
         self,
+        admin::admin_api_rebuild_note_fulltext,
         auth::{api_change_password, api_login_user, api_logout_user, api_register_user},
         note::{
             api_create_note, api_create_renote, api_edit_note_view, api_get_note,
@@ -178,6 +179,10 @@ async fn main() {
     // typesense
     let typesense_url = std::env::var("TYPESENSE_URL");
     let ft_client = match typesense_url {
+        Ok(url) if url.trim().is_empty() => {
+            info!("TYPESENSE_URL is empty, fulltext search will be disabled");
+            None
+        }
         Ok(url) => {
             let client = reqwest_middleware::ClientBuilder::new(reqwest::Client::default()).build();
             let typesense_api_key =
@@ -277,6 +282,10 @@ async fn main() {
         .unwrap();
     let state = AppState::new(state, handlebars, config);
 
+    lightpub_service::services::init_service(state.service_state())
+        .await
+        .expect("failed to initialize lightpub services");
+
     // Run apub worker
     let worker = ApubWorker::new(nats_conn.clone());
     let worker_cancel = CancellationToken::new();
@@ -298,6 +307,7 @@ async fn main() {
 
         App::new()
             .service(web::redirect("/", "/client/timeline"))
+            .service(admin_api_rebuild_note_fulltext)
             .service(
                 web::scope("/auth")
                     .service(api_register_user)

@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use nestify::nest;
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -8,7 +9,7 @@ use crate::{
     services::{MapToUnknown, id::NoteID},
 };
 
-use super::{FTClient, FulltextID};
+use super::{FTClient, FTDateTime, FulltextID};
 
 const NOTE_COLLECTION_NAME: &str = "notes";
 const NOTE_QUERY_FIELD: &str = "content";
@@ -17,7 +18,7 @@ const NOTE_QUERY_FIELD: &str = "content";
 pub struct FTNoteData {
     pub id: FulltextID<NoteID>,
     pub content: String,
-    pub created_at: DateTime<Utc>,
+    pub created_at: FTDateTime,
 }
 
 impl FTNoteData {
@@ -25,7 +26,7 @@ impl FTNoteData {
         Self {
             id: FulltextID(id),
             content,
-            created_at,
+            created_at: created_at.into(),
         }
     }
 }
@@ -39,14 +40,20 @@ pub async fn setup_note_collection(client: &FTClient) -> ServiceResult<()> {
         ],
     });
 
-    client
+    let response = client
         .client()
         .post(client.make_url("/collections"))
         .headers(client.make_headers())
         .body(payload.to_string())
         .send()
         .await
-        .map_err_unknown()?;
+        .map_err_unknown()?
+        .error_for_status();
+    match response {
+        Ok(_) => {}
+        Err(e) if e.status().is_some_and(|s| s == StatusCode::CONFLICT) => {}
+        Err(e) => return Err(e).map_err_unknown(),
+    }
     Ok(())
 }
 
@@ -62,6 +69,8 @@ pub async fn push_note_index(client: &FTClient, note: &FTNoteData) -> ServiceRes
         .body(payload)
         .send()
         .await
+        .map_err_unknown()?
+        .error_for_status()
         .map_err_unknown()?;
 
     Ok(())
@@ -87,6 +96,8 @@ where
         .body(payload)
         .send()
         .await
+        .map_err_unknown()?
+        .error_for_status()
         .map_err_unknown()?;
 
     Ok(())
@@ -101,6 +112,8 @@ pub async fn truncate_note_index(client: &FTClient) -> ServiceResult<()> {
         .headers(client.make_headers())
         .send()
         .await
+        .map_err_unknown()?
+        .error_for_status()
         .map_err_unknown()?;
     Ok(())
 }
@@ -141,6 +154,7 @@ pub async fn ft_search_note_by_content(
         .send()
         .await
         .map_err_unknown()?;
+    let response = response.error_for_status().map_err_unknown()?;
     let response = response
         .json::<NoteSearchResponse>()
         .await

@@ -522,3 +522,17 @@ pub async fn get_total_users_count(tx: &MaybeTxConn) -> ServiceResult<u64> {
 
     Ok(count)
 }
+
+pub async fn is_admin(tx: &MaybeTxConn, user_id: UserID) -> ServiceResult<bool> {
+    let user = entity::user::Entity::find_by_id(user_id.as_db())
+        .one(tx)
+        .await
+        .map_err_unknown()?;
+
+    let user = match user {
+        Some(user) => user,
+        None => return Ok(false),
+    };
+
+    Ok(user.is_admin != 0)
+}

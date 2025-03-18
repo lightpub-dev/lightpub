@@ -66,6 +66,10 @@ pub struct NodeInfo {
 }
 
 impl AppState {
+    pub fn service_state(&self) -> &ServiceState {
+        &self.service
+    }
+
     pub fn dev_mode(&self) -> bool {
         self.service.dev_mode()
     }

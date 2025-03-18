@@ -23,7 +23,7 @@ use crate::{
         db::{Conn, MaybeTxConn},
         fulltext::{
             FTClient,
-            note::{FTNoteData, push_note_index},
+            note::{FTNoteData, push_note_index, push_note_index_bulk, truncate_note_index},
         },
         id::{Identifier, NoteID, UploadID, UserID},
         kv::KVObject,
@@ -617,5 +617,36 @@ pub fn validate_note_content(content: &str) -> ServiceResult<()> {
     if content.len() > 50000 {
         return create_error_simple(StatusCode::BAD_REQUEST, "note content too long");
     }
+    Ok(())
+}
+
+pub async fn rebuild_note_fulltext_index(
+    conn: &MaybeTxConn,
+    ft: &FTClient,
+    after_date: Option<DateTime<Utc>>,
+) -> ServiceResult<()> {
+    let notes = entity::note::Entity::find()
+        .filter(
+            Condition::all()
+                .add(entity::note::Column::DeletedAt.is_null())
+                .add(entity::note::Column::Content.is_not_null())
+                .add_option(after_date.map(|d| entity::note::Column::CreatedAt.gte(d.naive_utc()))),
+        )
+        .all(conn)
+        .await
+        .map_err_unknown()?;
+
+    let mut ft_notes = Vec::new();
+    for note in notes {
+        let content = note.content.unwrap();
+        let created_at = note.created_at.and_utc();
+        let note_id = NoteID::from_db_trusted(note.id);
+        let ft_note = FTNoteData::new(note_id, content, created_at);
+        ft_notes.push(ft_note);
+    }
+
+    truncate_note_index(ft).await?;
+    push_note_index_bulk(ft, ft_notes.iter()).await?;
+
     Ok(())
 }

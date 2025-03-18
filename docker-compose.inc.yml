@@ -17,6 +17,8 @@ services:
       DATABASE_URL: mysql://lightpub:lightpub@lightpub_db:3306/lightpub
       REDIS_URL: redis://lightpub_kv:6379
       NATS_URL: nats://lightpub_nats:4222
+      TYPESENSE_URL: http://lightpub_typesense:8108
+      TYPESENSE_API_KEY: xyz
       SESSION_KEY: BIXIR1GPwQJBjvIZ8rSeVVdt09IPfdeGfdFncS9tN0RjF9ziMckmgPUjS5uBOf47
       RUST_LOG: info,sqlx=warn
       JWT_PUBLIC_KEY_FILE: data/jwtpub.pem
@@ -91,7 +93,7 @@ services:
 
   # For fulltext search
   lightpub_typesense:
-    image: typesense/typesense:28.0
+    image: typesense/typesense:29.0.rc5
     restart: on-failure
     ports:
       - "127.0.0.1:8108:8108"

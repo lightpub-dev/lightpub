@@ -31,6 +31,7 @@ use lightpub_service::services::ServiceError;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
+pub mod admin;
 pub mod auth;
 pub mod federation;
 pub mod note;

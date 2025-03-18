@@ -1,4 +1,4 @@
-use derive_more::Constructor;
+use derive_more::{Constructor, From};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -125,6 +125,37 @@ impl FullTextIdentifier for NoteID {
 impl FullTextIdentifier for UserID {
     fn kind() -> &'static str {
         "user"
+    }
+}
+
+#[derive(Debug, Clone, From)]
+pub struct FTDateTime(pub chrono::DateTime<chrono::Utc>);
+
+impl FTDateTime {
+    pub fn into_inner(self) -> chrono::DateTime<chrono::Utc> {
+        self.0
+    }
+}
+
+impl Serialize for FTDateTime {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let unix = self.0.timestamp();
+        serializer.serialize_i64(unix)
+    }
+}
+
+impl<'de> Deserialize<'de> for FTDateTime {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let unix = i64::deserialize(deserializer)?;
+        let dt = chrono::DateTime::from_timestamp(unix, 0)
+            .ok_or(serde::de::Error::custom("invalid timestamp"))?;
+        Ok(FTDateTime(dt))
     }
 }
 
