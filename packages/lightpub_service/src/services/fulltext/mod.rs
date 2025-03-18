@@ -47,6 +47,16 @@ impl FTClient {
 #[derive(Debug, Clone, Copy)]
 pub struct FulltextID<T: FullTextIdentifier>(T);
 
+impl<T: FullTextIdentifier> FulltextID<T> {
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+
+    pub fn inner(&self) -> &T {
+        &self.0
+    }
+}
+
 impl<T> Serialize for FulltextID<T>
 where
     T: FullTextIdentifier,
