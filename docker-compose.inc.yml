@@ -89,6 +89,16 @@ services:
     command: -js -sd /data
     restart: unless-stopped
 
+  # For fulltext search
+  lightpub_typesense:
+    image: typesense/typesense:28.0
+    restart: on-failure
+    ports:
+      - "127.0.0.1:8108:8108"
+    volumes:
+      - lightpub_typesense_data:/data
+    command: "--data-dir /data --api-key=xyz --enable-cors"
+
 volumes:
   nats_data:
   mariadb_data:
@@ -99,3 +109,4 @@ volumes:
     name: lightpub_tmp
   lightpub_uploads:
     name: lightpub_uploads
+  lightpub_typesense_data:

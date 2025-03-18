@@ -1,6 +1,5 @@
 services:
   lightpub_app:
-    container_name: lightpub_app
     build:
       context: .
       dockerfile: Dockerfile
@@ -25,7 +24,6 @@ services:
       - external_network
 
   lightpub_db:
-    container_name: lightpub_db
     profiles:
       - lightpub
     networks:
@@ -40,7 +38,6 @@ services:
       - external_network
 
   lightpub_kv:
-    container_name: lightpub_kv
     profiles:
       - lightpub
     networks:
@@ -48,7 +45,13 @@ services:
       - external_network
 
   lightpub_nats:
-    container_name: lightpub_nats
+    profiles:
+      - lightpub
+    networks:
+      - internal_network
+      - external_network
+
+  lightpub_typesense:
     profiles:
       - lightpub
     networks:
