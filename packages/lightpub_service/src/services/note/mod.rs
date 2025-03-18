@@ -60,6 +60,7 @@ use crate::utils::sanitize::CleanString;
 use super::apub::AnnounceActivity;
 use super::create_error_simple;
 use super::db::MaybeTxConn;
+use super::fulltext::FTClient;
 use super::kv::KVObject;
 use super::notification::NotificationBody;
 use super::notification::add_notification;
@@ -271,6 +272,7 @@ pub async fn create_note(
     conn: &Conn,
     rconn: &KVObject,
     qconn: &QConn,
+    ft: Option<&FTClient>,
     author_id: UserID,
     content: &str,
     content_type: ContentType,
@@ -284,6 +286,7 @@ pub async fn create_note(
         conn,
         rconn,
         qconn,
+        ft,
         None,
         author_id,
         content,
@@ -301,6 +304,7 @@ pub async fn edit_note(
     conn: &Conn,
     rconn: &KVObject,
     qconn: &QConn,
+    ft: Option<&FTClient>,
     editor_id: UserID,
     note_id: NoteID,
     content: &str,
@@ -315,6 +319,7 @@ pub async fn edit_note(
         conn,
         rconn,
         qconn,
+        ft,
         Some(ExistingNote::ByID(note_id)),
         editor_id,
         content,

@@ -32,6 +32,7 @@ pub async fn create_note_for_test(
         conn,
         &rconn,
         qconn,
+        app.ft(),
         author_id,
         content,
         content_type,

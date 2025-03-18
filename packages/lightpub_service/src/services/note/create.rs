@@ -21,6 +21,10 @@ use crate::{
         apub::{CreateActivity, UpdateActivity},
         create_error_simple,
         db::{Conn, MaybeTxConn},
+        fulltext::{
+            FTClient,
+            note::{FTNoteData, push_note_index},
+        },
         id::{Identifier, NoteID, UploadID, UserID},
         kv::KVObject,
         notification::{NotificationBody, add_notification},
@@ -30,7 +34,7 @@ use crate::{
             is_blocking_or_blocked,
         },
     },
-    utils::sanitize::CleanString,
+    utils::{logging::report_error, sanitize::CleanString},
 };
 
 use super::{
@@ -43,6 +47,7 @@ pub async fn upsert_note(
     conn: &Conn,
     rconn: &KVObject,
     qconn: &QConn,
+    ft: Option<&FTClient>,
     updated_note_id: Option<ExistingNote>,
     author_id: UserID,
     content: &str,
@@ -213,7 +218,7 @@ pub async fn upsert_note(
         &mut model,
         note_id,
         author_id,
-        content,
+        content.clone(),
         content_type,
         visibility,
         reply_to_id,
@@ -353,6 +358,14 @@ pub async fn upsert_note(
             debug!("apub note create: {activity:?}");
             qconn.queue_activity(activity, author_obj, inboxes).await?;
         }
+    }
+
+    // fulltext index update
+    if let Some(ft) = ft {
+        let _ = report_error(
+            push_note_index(ft, &FTNoteData::new(note_id, content, now_time)).await,
+            "failed to add note to fulltext index",
+        );
     }
 
     Ok(note_id)

@@ -28,6 +28,7 @@ pub mod apub;
 pub mod auth;
 pub mod db;
 pub mod follow;
+pub mod fulltext;
 pub mod id;
 pub mod kv;
 pub mod note;
@@ -41,6 +42,8 @@ pub mod upload;
 pub mod user;
 
 pub use expected_error::ExpectedError;
+
+use crate::ServiceState;
 pub type ServiceResult<T> = Result<T, ServiceError>;
 
 macro_rules! internal_server_error_text {
@@ -49,6 +52,14 @@ macro_rules! internal_server_error_text {
     };
 }
 pub const INTERNAL_SERVER_ERROR_TEXT: &str = internal_server_error_text!();
+
+pub async fn init_service(st: &ServiceState) -> ServiceResult<()> {
+    if let Some(ft) = st.ft() {
+        fulltext::init(ft).await?;
+    }
+
+    Ok(())
+}
 
 #[derive(Error, Debug)]
 pub enum ServiceError {

@@ -71,6 +71,7 @@ use lightpub_rs::{
 use lightpub_service::{
     services::{
         db::{Conn, RedisConn},
+        fulltext::FTClient,
         queue::{ApubWorker, QConn},
     },
     ServiceState, ServiceStateBase,
@@ -80,6 +81,8 @@ use sea_orm::ConnectOptions;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use url::Url;
+
+const TYPESENSE_DEFAULT_LOCALE: &str = "ja";
 
 fn get_tmp_dirs() -> TmpDirConfig {
     let mut cfg = TmpDirConfig::default();
@@ -172,6 +175,33 @@ async fn main() {
         .await
         .expect("migration failed");
 
+    // typesense
+    let typesense_url = std::env::var("TYPESENSE_URL");
+    let ft_client = match typesense_url {
+        Ok(url) => {
+            let client = reqwest_middleware::ClientBuilder::new(reqwest::Client::default()).build();
+            let typesense_api_key =
+                std::env::var("TYPESENSE_API_KEY").expect("TYPESENSE_API_KEY is set");
+            let typesense_locale = std::env::var("TYPESENSE_LOCALE")
+                .unwrap_or_else(|_| TYPESENSE_DEFAULT_LOCALE.to_string());
+            info!(
+                "Fulltext search enabled, using Typesense at {}, locale={}",
+                url, typesense_locale
+            );
+
+            Some(FTClient::new(
+                client,
+                typesense_api_key,
+                typesense_locale,
+                url.parse().expect("TYPESENSE_URL should be a valid URL"),
+            ))
+        }
+        Err(_) => {
+            info!("TYPESENSE_URL is not set, fulltext search will be disabled");
+            None
+        }
+    };
+
     // templates
     let handlebars = create_handlebars(dev_mode);
 
@@ -218,6 +248,7 @@ async fn main() {
         dev_mode,
         base_url.clone(),
         client,
+        ft_client,
     );
 
     // activitypub federation config
