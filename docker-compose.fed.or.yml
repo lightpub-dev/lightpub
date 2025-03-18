@@ -7,7 +7,7 @@ services:
       args:
         BUILD_TYPE: debug
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@lightpub_db:5432/lightpub
+      DATABASE_URL: mysql://lightpub:lightpub@lightpub_db:3306/lightpub
       REDIS_URL: redis://lightpub_kv:6379
       SESSION_KEY: BIXIR1GPwQJBjvIZ8rSeVVdt09IPfdeGfdFncS9tN0RjF9ziMckmgPUjS5uBOf47
       RUST_LOG: debug,html5ever=warn,handlebars=warn,sqlx=warn,hyper_util=info
