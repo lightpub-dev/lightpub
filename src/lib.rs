@@ -27,6 +27,7 @@ use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheO
 use lightpub_service::{
     services::{
         db::{Conn, MaybeTxConn},
+        fulltext::FTClient,
         kv::KVObject,
         queue::QConn,
     },
@@ -65,6 +66,10 @@ pub struct NodeInfo {
 }
 
 impl AppState {
+    pub fn service_state(&self) -> &ServiceState {
+        &self.service
+    }
+
     pub fn dev_mode(&self) -> bool {
         self.service.dev_mode()
     }
@@ -103,6 +108,10 @@ impl AppState {
 
     pub fn qconn(&self) -> &QConn {
         self.service.qconn()
+    }
+
+    pub fn ft(&self) -> Option<&FTClient> {
+        self.service.ft()
     }
 
     pub fn request_data(&self) -> Data<MyFederationData> {

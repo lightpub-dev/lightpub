@@ -29,6 +29,7 @@ use actix_web::{
 use lightpub_rs::{
     api::{
         self,
+        admin::admin_api_rebuild_note_fulltext,
         auth::{api_change_password, api_login_user, api_logout_user, api_register_user},
         note::{
             api_create_note, api_create_renote, api_edit_note_view, api_get_note,
@@ -71,6 +72,7 @@ use lightpub_rs::{
 use lightpub_service::{
     services::{
         db::{Conn, RedisConn},
+        fulltext::FTClient,
         queue::{ApubWorker, QConn},
     },
     ServiceState, ServiceStateBase,
@@ -80,6 +82,8 @@ use sea_orm::ConnectOptions;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use url::Url;
+
+const TYPESENSE_DEFAULT_LOCALE: &str = "ja";
 
 fn get_tmp_dirs() -> TmpDirConfig {
     let mut cfg = TmpDirConfig::default();
@@ -172,6 +176,37 @@ async fn main() {
         .await
         .expect("migration failed");
 
+    // typesense
+    let typesense_url = std::env::var("TYPESENSE_URL");
+    let ft_client = match typesense_url {
+        Ok(url) if url.trim().is_empty() => {
+            info!("TYPESENSE_URL is empty, fulltext search will be disabled");
+            None
+        }
+        Ok(url) => {
+            let client = reqwest_middleware::ClientBuilder::new(reqwest::Client::default()).build();
+            let typesense_api_key =
+                std::env::var("TYPESENSE_API_KEY").expect("TYPESENSE_API_KEY is set");
+            let typesense_locale = std::env::var("TYPESENSE_LOCALE")
+                .unwrap_or_else(|_| TYPESENSE_DEFAULT_LOCALE.to_string());
+            info!(
+                "Fulltext search enabled, using Typesense at {}, locale={}",
+                url, typesense_locale
+            );
+
+            Some(FTClient::new(
+                client,
+                typesense_api_key,
+                typesense_locale,
+                url.parse().expect("TYPESENSE_URL should be a valid URL"),
+            ))
+        }
+        Err(_) => {
+            info!("TYPESENSE_URL is not set, fulltext search will be disabled");
+            None
+        }
+    };
+
     // templates
     let handlebars = create_handlebars(dev_mode);
 
@@ -218,6 +253,7 @@ async fn main() {
         dev_mode,
         base_url.clone(),
         client,
+        ft_client,
     );
 
     // activitypub federation config
@@ -246,6 +282,10 @@ async fn main() {
         .unwrap();
     let state = AppState::new(state, handlebars, config);
 
+    lightpub_service::services::init_service(state.service_state())
+        .await
+        .expect("failed to initialize lightpub services");
+
     // Run apub worker
     let worker = ApubWorker::new(nats_conn.clone());
     let worker_cancel = CancellationToken::new();
@@ -267,6 +307,7 @@ async fn main() {
 
         App::new()
             .service(web::redirect("/", "/client/timeline"))
+            .service(admin_api_rebuild_note_fulltext)
             .service(
                 web::scope("/auth")
                     .service(api_register_user)

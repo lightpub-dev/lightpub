@@ -20,7 +20,7 @@ use std::{borrow::Cow, fmt::Debug};
 
 use activitypub_federation::config::FederationConfig;
 use derive_more::Constructor;
-use services::{db::MaybeTxConn, kv::KVObject, queue::QConn};
+use services::{db::MaybeTxConn, fulltext::FTClient, kv::KVObject, queue::QConn};
 use url::Url;
 
 pub mod services;
@@ -81,6 +81,10 @@ impl ServiceState {
     pub fn proxy_client(&self) -> &reqwest_middleware::ClientWithMiddleware {
         self.base.proxy_client()
     }
+
+    pub fn ft(&self) -> Option<&FTClient> {
+        self.base.ft()
+    }
 }
 
 #[derive(Clone, Constructor)]
@@ -92,6 +96,7 @@ pub struct ServiceStateBase {
     dev_mode: bool,
     base_url: Url,
     proxy_client: reqwest_middleware::ClientWithMiddleware,
+    ft: Option<FTClient>,
 }
 
 impl std::fmt::Debug for ServiceStateBase {
@@ -136,5 +141,9 @@ impl ServiceStateBase {
 
     pub fn proxy_client(&self) -> &reqwest_middleware::ClientWithMiddleware {
         &self.proxy_client
+    }
+
+    pub fn ft(&self) -> Option<&FTClient> {
+        self.ft.as_ref()
     }
 }

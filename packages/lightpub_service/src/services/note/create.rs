@@ -21,6 +21,10 @@ use crate::{
         apub::{CreateActivity, UpdateActivity},
         create_error_simple,
         db::{Conn, MaybeTxConn},
+        fulltext::{
+            FTClient,
+            note::{FTNoteData, push_note_index, push_note_index_bulk, truncate_note_index},
+        },
         id::{Identifier, NoteID, UploadID, UserID},
         kv::KVObject,
         notification::{NotificationBody, add_notification},
@@ -30,7 +34,7 @@ use crate::{
             is_blocking_or_blocked,
         },
     },
-    utils::sanitize::CleanString,
+    utils::{logging::report_error, sanitize::CleanString},
 };
 
 use super::{
@@ -43,6 +47,7 @@ pub async fn upsert_note(
     conn: &Conn,
     rconn: &KVObject,
     qconn: &QConn,
+    ft: Option<&FTClient>,
     updated_note_id: Option<ExistingNote>,
     author_id: UserID,
     content: &str,
@@ -213,7 +218,7 @@ pub async fn upsert_note(
         &mut model,
         note_id,
         author_id,
-        content,
+        content.clone(),
         content_type,
         visibility,
         reply_to_id,
@@ -353,6 +358,14 @@ pub async fn upsert_note(
             debug!("apub note create: {activity:?}");
             qconn.queue_activity(activity, author_obj, inboxes).await?;
         }
+    }
+
+    // fulltext index update
+    if let Some(ft) = ft {
+        let _ = report_error(
+            push_note_index(ft, &FTNoteData::new(note_id, content, now_time)).await,
+            "failed to add note to fulltext index",
+        );
     }
 
     Ok(note_id)
@@ -604,5 +617,36 @@ pub fn validate_note_content(content: &str) -> ServiceResult<()> {
     if content.len() > 50000 {
         return create_error_simple(StatusCode::BAD_REQUEST, "note content too long");
     }
+    Ok(())
+}
+
+pub async fn rebuild_note_fulltext_index(
+    conn: &MaybeTxConn,
+    ft: &FTClient,
+    after_date: Option<DateTime<Utc>>,
+) -> ServiceResult<()> {
+    let notes = entity::note::Entity::find()
+        .filter(
+            Condition::all()
+                .add(entity::note::Column::DeletedAt.is_null())
+                .add(entity::note::Column::Content.is_not_null())
+                .add_option(after_date.map(|d| entity::note::Column::CreatedAt.gte(d.naive_utc()))),
+        )
+        .all(conn)
+        .await
+        .map_err_unknown()?;
+
+    let mut ft_notes = Vec::new();
+    for note in notes {
+        let content = note.content.unwrap();
+        let created_at = note.created_at.and_utc();
+        let note_id = NoteID::from_db_trusted(note.id);
+        let ft_note = FTNoteData::new(note_id, content, created_at);
+        ft_notes.push(ft_note);
+    }
+
+    truncate_note_index(ft).await?;
+    push_note_index_bulk(ft, ft_notes.iter()).await?;
+
     Ok(())
 }
