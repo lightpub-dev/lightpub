@@ -7,6 +7,7 @@ pub use super::note_mention::Entity as NoteMention;
 pub use super::note_tag::Entity as NoteTag;
 pub use super::note_upload::Entity as NoteUpload;
 pub use super::notification::Entity as Notification;
+pub use super::push_notification::Entity as PushNotification;
 pub use super::remote_public_key::Entity as RemotePublicKey;
 pub use super::tag::Entity as Tag;
 pub use super::upload::Entity as Upload;

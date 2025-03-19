@@ -9,6 +9,7 @@ pub mod note_mention;
 pub mod note_tag;
 pub mod note_upload;
 pub mod notification;
+pub mod push_notification;
 pub mod remote_public_key;
 pub mod sea_orm_active_enums;
 pub mod tag;
