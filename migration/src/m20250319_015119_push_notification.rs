@@ -1,6 +1,6 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::common::{datetime_6, URL_LENGTH};
+use crate::common::{current_timestamp_6, datetime_6, URL_LENGTH};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -17,7 +17,7 @@ impl MigrationTrait for Migration {
                     .col(string_len(PushNotification::Endpoint, URL_LENGTH))
                     .col(text(PushNotification::P256dh))
                     .col(text(PushNotification::Auth))
-                    .col(datetime_6(PushNotification::CreatedAt))
+                    .col(datetime_6(PushNotification::CreatedAt).default(current_timestamp_6()))
                     .to_owned(),
             )
             .await?;
