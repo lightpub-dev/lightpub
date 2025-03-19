@@ -11,6 +11,7 @@ use sea_orm::Set;
 use sea_orm::SqlErr;
 use sea_orm::prelude::*;
 use serde::Serialize;
+use std::time::Duration;
 use thiserror::Error;
 use url::Url;
 use web_push::IsahcWebPushClient;
@@ -24,6 +25,7 @@ use web_push::WebPushMessageBuilder;
 use crate::services::INTERNAL_SERVER_ERROR_TEXT;
 use crate::services::MapToUnknown;
 use crate::services::ServiceError;
+use crate::services::kv::KVObject;
 use crate::{
     ServiceResult,
     services::{
@@ -60,6 +62,40 @@ pub async fn register_push_subscription(
 pub(crate) struct UserWPSubscription {
     pub subscription_id: i32,
     pub subscription: SubscriptionInfo,
+}
+
+pub const FRONTEND_UNREAD_NOTIFICATION_POLLING_INTERVAL: Duration = Duration::from_secs(30);
+const ACTIVE_DURATION_TTL_MARGIN: Duration = Duration::from_secs(10);
+pub async fn update_user_active_time(
+    rconn: &KVObject,
+    user_id: UserID,
+    active_duration: Duration,
+) -> ServiceResult<()> {
+    let key = format!("user_last_active:{user_id}");
+    let now = chrono::Utc::now();
+    let ttl = active_duration + ACTIVE_DURATION_TTL_MARGIN;
+    rconn.set_ttl(&key, &now, ttl).await?;
+    Ok(())
+}
+
+pub async fn is_user_active(rconn: &KVObject, user_id: UserID) -> ServiceResult<bool> {
+    let key = format!("user_last_active:{user_id}");
+    let last_active: Option<chrono::DateTime<chrono::Utc>> = rconn.get(&key).await?;
+    let now = chrono::Utc::now();
+    let is_active = match last_active {
+        Some(last_active) => {
+            let elapsed = now - last_active;
+            match elapsed.to_std() {
+                Ok(elapsed) => {
+                    elapsed
+                        < FRONTEND_UNREAD_NOTIFICATION_POLLING_INTERVAL + ACTIVE_DURATION_TTL_MARGIN
+                }
+                Err(_) => false,
+            }
+        }
+        None => false,
+    };
+    Ok(is_active)
 }
 
 pub(crate) async fn get_subscriptions_for_user(

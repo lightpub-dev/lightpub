@@ -10,7 +10,12 @@ pub type KVObject = Arc<dyn KV + Send + Sync>;
 #[async_trait]
 pub trait KV {
     async fn get_raw(&self, key: &str) -> ServiceResult<Option<Vec<u8>>>;
-    async fn set_raw(&self, key: &str, value: &[u8]) -> ServiceResult<()>;
+    async fn set_raw(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Option<std::time::Duration>,
+    ) -> ServiceResult<()>;
     async fn delete_(&self, key: &str) -> ServiceResult<()>;
 }
 
@@ -38,7 +43,18 @@ impl dyn KV + Send + Sync {
     pub async fn set<V: Serialize>(&self, key: impl AsRef<str>, value: &V) -> ServiceResult<()> {
         let key = key.as_ref();
         let value = serde_json::to_vec(value).map_err_unknown()?;
-        self.set_raw(key, &value).await
+        self.set_raw(key, &value, None).await
+    }
+
+    pub async fn set_ttl<V: Serialize>(
+        &self,
+        key: impl AsRef<str>,
+        value: &V,
+        ttl: std::time::Duration,
+    ) -> ServiceResult<()> {
+        let key = key.as_ref();
+        let value = serde_json::to_vec(value).map_err_unknown()?;
+        self.set_raw(key, &value, Some(ttl)).await
     }
 
     pub async fn delete(&self, key: impl AsRef<str>) -> ServiceResult<()> {

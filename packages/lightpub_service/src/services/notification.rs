@@ -35,6 +35,7 @@ use sea_orm::Set;
 use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::debug;
 use tracing::warn;
 use url::Url;
 
@@ -147,21 +148,26 @@ pub async fn add_notification(
 
     // Webpush notification
     if let Some(wp) = wp {
-        if let Some(body) = get_related_notification_data(tx, rconn, base_url, body).await? {
-            let body = PushNotificationBody::new_from_notification_body(base_url, body)?;
-            let subs = push::get_subscriptions_for_user(tx, user_id).await?;
-            for sub in subs {
-                let result = wp.try_send(&sub.subscription, &body).await?;
-                match result {
-                    PushSendResult::Success => {}
-                    PushSendResult::Failed(e) if e.should_disable_endpoint() => {
-                        push::delete_subscription_id(tx, sub.subscription_id).await?;
-                    }
-                    PushSendResult::Failed(e) => {
-                        warn!("Failed to send push notification: {:?}", e);
+        let is_active = push::is_user_active(rconn, user_id).await?;
+        if !is_active {
+            if let Some(body) = get_related_notification_data(tx, rconn, base_url, body).await? {
+                let body = PushNotificationBody::new_from_notification_body(base_url, body)?;
+                let subs = push::get_subscriptions_for_user(tx, user_id).await?;
+                for sub in subs {
+                    let result = wp.try_send(&sub.subscription, &body).await?;
+                    match result {
+                        PushSendResult::Success => {}
+                        PushSendResult::Failed(e) if e.should_disable_endpoint() => {
+                            push::delete_subscription_id(tx, sub.subscription_id).await?;
+                        }
+                        PushSendResult::Failed(e) => {
+                            warn!("Failed to send push notification: {:?}", e);
+                        }
                     }
                 }
             }
+        } else {
+            debug!("User is active, skipping push notification");
         }
     }
 

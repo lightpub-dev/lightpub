@@ -21,7 +21,10 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use chrono::{DateTime, Utc};
 use expected_error::StatusCode;
 use lightpub_service::services::create_error_simple;
-use lightpub_service::services::notification::push::register_push_subscription;
+use lightpub_service::services::notification::push::{
+    register_push_subscription, update_user_active_time,
+    FRONTEND_UNREAD_NOTIFICATION_POLLING_INTERVAL,
+};
 use lightpub_service::services::notification::{
     get_related_notification_data, NotificationBodyData,
 };
@@ -203,6 +206,12 @@ pub async fn api_unread_notification_count(
 ) -> ServiceResult<impl Responder> {
     let user_id = auth.user_id_unwrap();
     let count = count_unread_notifications(st.conn(), user_id).await?;
+    update_user_active_time(
+        &st.rconn(),
+        user_id,
+        FRONTEND_UNREAD_NOTIFICATION_POLLING_INTERVAL,
+    )
+    .await?;
 
     let count_str = if count == 0 {
         "".to_string()
