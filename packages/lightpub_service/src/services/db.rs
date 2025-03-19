@@ -234,9 +234,18 @@ impl KV for RedisConn {
         c.get(key).await.map_err_unknown()
     }
 
-    async fn set_raw(&self, key: &str, value: &[u8]) -> ServiceResult<()> {
+    async fn set_raw(
+        &self,
+        key: &str,
+        value: &[u8],
+        ttl: Option<std::time::Duration>,
+    ) -> ServiceResult<()> {
         let mut c = self.cm.clone();
-        c.set(key, value).await.map_err_unknown()
+        if let Some(ttl) = ttl {
+            c.set_ex(key, value, ttl.as_secs()).await.map_err_unknown()
+        } else {
+            c.set(key, value).await.map_err_unknown()
+        }
     }
 
     async fn delete_(&self, key: &str) -> ServiceResult<()> {
@@ -256,7 +265,12 @@ impl KV for DummyKV {
         Ok(None)
     }
 
-    async fn set_raw(&self, _: &str, _: &[u8]) -> ServiceResult<()> {
+    async fn set_raw(
+        &self,
+        _: &str,
+        _: &[u8],
+        _: Option<std::time::Duration>,
+    ) -> ServiceResult<()> {
         Ok(())
     }
 
