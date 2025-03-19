@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{borrow::Cow, path::PathBuf};
 
 use activitypub_federation::{config::Data, traits::Object};
 use actix_web::http::StatusCode;
@@ -208,8 +208,19 @@ pub async fn upsert_note(
     )
     .await?;
 
+    let content = append_mention_and_tag_to_content(
+        &tx,
+        rconn,
+        content,
+        options
+            .append_mentions_to_content
+            .then(|| mentions.iter().cloned()),
+        options.append_hashtags_to_content.then(|| hashtags.iter()),
+    )
+    .await?;
+
     let content = match content_type {
-        ContentType::Html => CleanString::clean(content).into_inner(),
+        ContentType::Html => CleanString::clean(&content).into_inner(),
         _ => content.to_string(),
     };
 
@@ -568,6 +579,12 @@ pub struct PostCreateOptions {
     /// ノートをセンシティブ設定するか否か。デフォルトは false。
     #[builder(default = "UpsertOperation::KeepOrSetDefault")]
     sensitive: UpsertOperation<bool>,
+    /// 本文の最後にメンションを追加する。デフォルトは false。
+    #[builder(default)]
+    append_mentions_to_content: bool,
+    /// 本文の最後にハッシュタグを追加する。デフォルトは false。
+    #[builder(default)]
+    append_hashtags_to_content: bool,
 }
 
 impl Default for PostCreateOptions {
@@ -580,6 +597,8 @@ impl Default for PostCreateOptions {
             view_url: None,
             created_at: None,
             sensitive: UpsertOperation::KeepOrSetDefault,
+            append_mentions_to_content: false,
+            append_hashtags_to_content: false,
         }
     }
 }
@@ -622,6 +641,58 @@ pub fn validate_note_content(content: &str) -> ServiceResult<()> {
         return create_error_simple(StatusCode::BAD_REQUEST, "note content too long");
     }
     Ok(())
+}
+
+async fn append_mention_and_tag_to_content<'a, MI, TI, S>(
+    tx: &MaybeTxConn,
+    rconn: &KVObject,
+    content: &'a str,
+    mentions: Option<MI>,
+    tags: Option<TI>,
+) -> ServiceResult<Cow<'a, str>>
+where
+    MI: IntoIterator<Item = UserID>,
+    TI: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    match (&mentions, &tags) {
+        (None, None) => return Ok(Cow::Borrowed(content)),
+        _ => {}
+    }
+
+    let mut s = content.to_string();
+
+    if let Some(mentions) = mentions {
+        let mut first = true;
+        for mention in mentions {
+            let user = get_user_by_id(tx, rconn, mention).await?;
+            if let Some(user) = user {
+                if first {
+                    s.push_str("\n");
+                    first = false;
+                } else {
+                    s.push_str(" ");
+                }
+                let specifier = user.specifier();
+                s.push_str(specifier);
+            }
+        }
+    }
+
+    if let Some(tags) = tags {
+        let mut first = true;
+        for tag in tags {
+            if first {
+                s.push_str("\n");
+                first = false;
+            } else {
+                s.push_str(" ");
+            }
+            s.push_str(tag.as_ref());
+        }
+    }
+
+    Ok(Cow::Owned(s))
 }
 
 pub async fn rebuild_note_fulltext_index(
