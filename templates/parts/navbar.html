@@ -33,7 +33,7 @@
               class="badge"
               id="notificationBadge"
               hx-get="/notification/unread-count"
-              hx-trigger="revealed, every 30s"
+              hx-trigger="revealed, every 30s [document.visibilityState=='visible']"
             ></span>
           </a>
         </li>
@@ -52,7 +52,11 @@
       </ul>
       <ul class="navbar-nav ms-auto">
         <li class="nav-item">
-          <a class="nav-link source-link" href="https://github.com/lightpub-dev/lightpub" target="_blank">
+          <a
+            class="nav-link source-link"
+            href="https://github.com/lightpub-dev/lightpub"
+            target="_blank"
+          >
             <i class="fa fa-code"></i> Source
           </a>
         </li>
