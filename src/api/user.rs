@@ -197,6 +197,7 @@ pub async fn api_user_interaction(
                 st.conn(),
                 &st.rconn(),
                 st.qconn(),
+                st.wp(),
                 my_id,
                 target_id,
                 st.base_url(),

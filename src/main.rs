@@ -16,7 +16,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
+use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
 
 use activitypub_federation::config::FederationConfig;
 use actix_multipart::form::tempfile::TempFileConfig;
@@ -40,9 +40,10 @@ use lightpub_rs::{
         },
         notifications::{
             api_get_notifications, api_read_all_notifications, api_read_notification,
-            api_unread_notification_count,
+            api_unread_notification_count, api_wp_public_key, api_wp_subscribe,
         },
         search::api_search,
+        serve_sw_js,
         timeline::api_get_timeline,
         trends::api_get_trends,
         upload::api_get_upload,
@@ -73,6 +74,7 @@ use lightpub_service::{
     services::{
         db::{Conn, RedisConn},
         fulltext::FTClient,
+        notification::push::WPClient,
         queue::{ApubWorker, QConn},
     },
     ServiceState, ServiceStateBase,
@@ -82,6 +84,7 @@ use sea_orm::ConnectOptions;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 use url::Url;
+use web_push::{IsahcWebPushClient, VapidSignatureBuilder};
 
 const TYPESENSE_DEFAULT_LOCALE: &str = "ja";
 
@@ -207,6 +210,27 @@ async fn main() {
         }
     };
 
+    // Webpush
+    let webpush_key = std::env::var("WEBPUSH_VAPID_KEY");
+    let wp_client = match webpush_key {
+        Ok(k) if k.trim().is_empty() => {
+            info!("WEBPUSH_VAPID_KEY is empty, webpush notifications will be disabled");
+            None
+        }
+        Err(_) => {
+            info!("WEBPUSH_VAPID_KEY is not set, webpush notifications will be disabled");
+            None
+        }
+        Ok(k) => {
+            let private_key_file = File::open(k).expect("failed to open WEBPUSH_VAPID_KEY file");
+            Some(WPClient::new(
+                IsahcWebPushClient::new().expect("failed to create webpush client"),
+                VapidSignatureBuilder::from_pem_no_sub(private_key_file)
+                    .expect("failed to create vapid signature builder"),
+            ))
+        }
+    };
+
     // templates
     let handlebars = create_handlebars(dev_mode);
 
@@ -254,6 +278,7 @@ async fn main() {
         base_url.clone(),
         client,
         ft_client,
+        wp_client,
     );
 
     // activitypub federation config
@@ -350,7 +375,9 @@ async fn main() {
                     .service(api_get_notifications)
                     .service(api_read_all_notifications)
                     .service(api_read_notification)
-                    .service(api_unread_notification_count),
+                    .service(api_unread_notification_count)
+                    .service(api_wp_subscribe)
+                    .service(api_wp_public_key),
             )
             .service(api_search)
             .service(api_get_trends)
@@ -378,6 +405,7 @@ async fn main() {
             .service(api::federation::api_shared_inbox)
             .service(api::federation::nodeinfo::nodeinfo)
             .service(api::federation::nodeinfo::nodeinfo_2_1)
+            .service(serve_sw_js)
             .service(actix_files::Files::new("/static", "./static"))
             .wrap(
                 SessionMiddleware::builder(redis_store.clone(), session_key.clone())

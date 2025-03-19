@@ -65,6 +65,7 @@ impl ActivityHandler for FollowActivity {
             data.conn(),
             &data.rconn(),
             data.qconn(),
+            data.wp(),
             actor.basic.id,
             followed.basic.id,
             data.base_url(),

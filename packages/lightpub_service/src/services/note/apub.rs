@@ -62,6 +62,7 @@ use crate::services::db::MaybeTxConn;
 use crate::services::fulltext::FTClient;
 use crate::services::id::UploadID;
 use crate::services::kv::KVObject;
+use crate::services::notification::push::WPClient;
 use crate::services::queue::QConn;
 use crate::services::user::get_apubuser_by_id;
 
@@ -217,6 +218,7 @@ impl Object for NoteWithApubModel {
             &data.rconn(),
             data.qconn(),
             data.ft(),
+            data.wp(),
             data,
             &json,
             &data.my_domain(),
@@ -327,6 +329,7 @@ async fn upsert_apub_note(
     rconn: &KVObject,
     qconn: &QConn,
     ft: Option<&FTClient>,
+    wp: Option<&WPClient>,
     data: &Data<MyFederationData>,
     json: &ApubNoteModel,
     my_domain: &str,
@@ -396,6 +399,7 @@ async fn upsert_apub_note(
         rconn,
         qconn,
         ft,
+        wp,
         Some(ExistingNote::ByURL(json.id.inner().clone())),
         author_id,
         content,

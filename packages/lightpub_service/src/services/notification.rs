@@ -20,6 +20,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use expected_error::StatusCode;
 use expected_error_derive::ExpectedError;
+use push::PushNotificationBody;
 use push::PushSendResult;
 use push::WPClient;
 use sea_orm::ActiveModelTrait;
@@ -129,9 +130,11 @@ pub async fn get_notifications(conn: &Conn, user_id: UserID) -> ServiceResult<Ve
 
 pub async fn add_notification(
     tx: &MaybeTxConn,
+    rconn: &KVObject,
     wp: Option<&WPClient>,
     user_id: UserID,
     body: &NotificationBody,
+    base_url: &Url,
 ) -> ServiceResult<()> {
     let body_json = serde_json::to_string(body).map_err_unknown()?;
 
@@ -144,15 +147,19 @@ pub async fn add_notification(
 
     // Webpush notification
     if let Some(wp) = wp {
-        let body = todo!();
-        let subs = push::get_subscriptions_for_user(tx, user_id).await?;
-        for sub in subs {
-            let result = wp.try_send(&sub.subscription, &body).await?;
-            match result {
-                PushSendResult::Success => {}
-                PushSendResult::Failed(e) if e.should_disable_endpoint() => {}
-                PushSendResult::Failed(e) => {
-                    warn!("Failed to send push notification: {:?}", e);
+        if let Some(body) = get_related_notification_data(tx, rconn, base_url, body).await? {
+            let body = PushNotificationBody::new_from_notification_body(base_url, body)?;
+            let subs = push::get_subscriptions_for_user(tx, user_id).await?;
+            for sub in subs {
+                let result = wp.try_send(&sub.subscription, &body).await?;
+                match result {
+                    PushSendResult::Success => {}
+                    PushSendResult::Failed(e) if e.should_disable_endpoint() => {
+                        push::delete_subscription_id(tx, sub.subscription_id).await?;
+                    }
+                    PushSendResult::Failed(e) => {
+                        warn!("Failed to send push notification: {:?}", e);
+                    }
                 }
             }
         }

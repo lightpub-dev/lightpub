@@ -20,7 +20,9 @@ use std::{borrow::Cow, fmt::Debug};
 
 use activitypub_federation::config::FederationConfig;
 use derive_more::Constructor;
-use services::{db::MaybeTxConn, fulltext::FTClient, kv::KVObject, queue::QConn};
+use services::{
+    db::MaybeTxConn, fulltext::FTClient, kv::KVObject, notification::push::WPClient, queue::QConn,
+};
 use url::Url;
 
 pub mod services;
@@ -85,6 +87,10 @@ impl ServiceState {
     pub fn ft(&self) -> Option<&FTClient> {
         self.base.ft()
     }
+
+    pub fn wp(&self) -> Option<&WPClient> {
+        self.base.wp()
+    }
 }
 
 #[derive(Clone, Constructor)]
@@ -146,5 +152,9 @@ impl ServiceStateBase {
 
     pub fn ft(&self) -> Option<&FTClient> {
         self.ft.as_ref()
+    }
+
+    pub fn wp(&self) -> Option<&WPClient> {
+        self.webpush.as_ref()
     }
 }

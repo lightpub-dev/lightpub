@@ -78,6 +78,7 @@ futures-util = { workspace = true }
 tokio-util = { workspace = true }
 web-push = { workspace = true }
 http = { workspace = true }
+derive-new = "0.5"
 
 [dev-dependencies]
 serial_test = "*"

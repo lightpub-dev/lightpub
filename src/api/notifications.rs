@@ -19,9 +19,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 /// Route handlers for /notification
 use actix_web::{get, post, web, HttpResponse, Responder};
 use chrono::{DateTime, Utc};
-use lightpub_service::services::notification::push::{
-    register_push_subscription, PushSubscription,
-};
+use expected_error::StatusCode;
+use lightpub_service::services::create_error_simple;
+use lightpub_service::services::notification::push::register_push_subscription;
 use lightpub_service::services::notification::{
     get_related_notification_data, NotificationBodyData,
 };
@@ -253,13 +253,32 @@ nest! {
 }
 
 #[post("/push/subscribe", wrap = "from_fn(middleware_auth_jwt_required)")]
-async fn subscribe(
+pub async fn api_wp_subscribe(
     st: web::Data<AppState>,
     subscription: web::Json<SubscriptionInfo>,
     auth: web::ReqData<AuthedUser>,
 ) -> ServiceResult<impl Responder> {
+    if st.wp().is_none() {
+        return create_error_simple(
+            StatusCode::BAD_REQUEST,
+            "WebPush is disabled on this server",
+        );
+    }
+
     // Store subscription with user ID
     let user_id = auth.user_id_unwrap();
     register_push_subscription(&st.maybe_conn(), user_id, subscription.into_inner()).await?;
     Ok(HttpResponse::NoContent().finish())
+}
+
+#[get("/push/public-key")]
+pub async fn api_wp_public_key(st: web::Data<AppState>) -> impl Responder {
+    if let Some(wp) = st.wp() {
+        Ok(HttpResponse::Ok().body(wp.public_key().to_owned()))
+    } else {
+        return create_error_simple(
+            StatusCode::BAD_REQUEST,
+            "WebPush is disabled on this server",
+        );
+    }
 }

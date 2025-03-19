@@ -1,6 +1,10 @@
 use std::borrow::Cow;
+use std::sync::OnceLock;
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use derive_more::From;
+use derive_new::new;
 use expected_error::ExpectedError;
 use sea_orm::ActiveModelTrait;
 use sea_orm::Set;
@@ -10,9 +14,9 @@ use serde::Serialize;
 use thiserror::Error;
 use url::Url;
 use web_push::IsahcWebPushClient;
+use web_push::PartialVapidSignatureBuilder;
 pub use web_push::SubscriptionInfo;
 use web_push::SubscriptionKeys;
-use web_push::VapidSignature;
 use web_push::WebPushClient;
 use web_push::WebPushError;
 use web_push::WebPushMessageBuilder;
@@ -169,17 +173,20 @@ impl PushNotificationBody {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct WPClient {
+#[derive(Clone, new)]
+pub struct WPClient {
     client: IsahcWebPushClient,
-    vapid_signature: VapidSignature,
+    vapid_builder: PartialVapidSignatureBuilder,
+
+    #[new(default)]
+    _public_key_cache: OnceLock<String>,
 }
 
 impl std::fmt::Debug for WPClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WPClient")
             .field("client", &"<IsahcWebPushClient>")
-            .field("vapid_signature", &self.vapid_signature)
+            .field("vapid_builder", &"<PartialVapidSignatureBuilder>")
             .finish()
     }
 }
@@ -195,13 +202,13 @@ pub(crate) enum PushSendResult {
 pub(crate) struct PushNotificationSendError(WebPushError);
 
 impl PushNotificationSendError {
-    pub fn into_inner(self) -> WebPushError {
-        self.0
-    }
+    // pub fn into_inner(self) -> WebPushError {
+    //     self.0
+    // }
 
-    pub fn inner(&self) -> &WebPushError {
-        &self.0
-    }
+    // pub fn inner(&self) -> &WebPushError {
+    //     &self.0
+    // }
 
     pub fn should_disable_endpoint(&self) -> bool {
         match &self.0 {
@@ -223,15 +230,32 @@ impl ExpectedError for PushNotificationSendError {
 }
 
 impl WPClient {
-    pub async fn try_send(
+    fn generate_public_key(&self) -> String {
+        let bytes = self.vapid_builder.get_public_key();
+        BASE64_STANDARD.encode(&bytes)
+    }
+
+    pub fn public_key(&self) -> &str {
+        self._public_key_cache
+            .get_or_init(|| self.generate_public_key())
+    }
+
+    pub(crate) async fn try_send(
         &self,
         subscription: &SubscriptionInfo,
         body: &PushNotificationBody,
     ) -> ServiceResult<PushSendResult> {
+        let sig = self
+            .vapid_builder
+            .clone()
+            .add_sub_info(subscription)
+            .build()
+            .map_err_unknown()?;
+
         let mut builder = WebPushMessageBuilder::new(subscription);
         let content = serde_json::to_vec(body).map_err_unknown()?;
         builder.set_payload(web_push::ContentEncoding::Aes128Gcm, &content);
-        builder.set_vapid_signature(self.vapid_signature.clone());
+        builder.set_vapid_signature(sig);
         let message = builder.build().map_err_unknown()?;
 
         let result = self.client.send(message).await;

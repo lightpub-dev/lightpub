@@ -107,6 +107,7 @@ pub async fn test_setup() -> TestState {
         (*&BASE_URL).clone(),
         client,
         None, // disabled fulltext search
+        None, // disabled web push
     );
     let fed = FederationConfig::builder()
         .domain(MY_DOMAIN)

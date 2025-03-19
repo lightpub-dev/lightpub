@@ -21,6 +21,7 @@ use std::sync::Arc;
 use activitypub_federation::FEDERATION_CONTENT_TYPE;
 use actix_web::{
     body::BoxBody,
+    get,
     http::header::{self, ContentType, HeaderMap, TryIntoHeaderValue},
     web::Header,
     FromRequest, HttpResponse, Responder, ResponseError,
@@ -182,6 +183,12 @@ impl<T> WithAuthed<T> {
     pub fn with(authed: bool, data: T) -> Self {
         Self { authed, data }
     }
+}
+
+// service worker needs to be served in the root path
+#[get("/sw.js")]
+pub async fn serve_sw_js() -> impl Responder {
+    actix_files::NamedFile::open("static/js/sw.js")
 }
 
 #[cfg(test)]
