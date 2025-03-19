@@ -22,10 +22,31 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_index(
+                IndexCreateStatement::new()
+                    .name("idx_push_notification_unique")
+                    .table(PushNotification::Table)
+                    .col(PushNotification::UserId)
+                    .col(PushNotification::Endpoint)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_index(
+                IndexDropStatement::new()
+                    .name("idx_push_notification_unique")
+                    .table(PushNotification::Table)
+                    .to_owned(),
+            )
+            .await?;
+
         manager
             .drop_table(
                 TableDropStatement::new()
