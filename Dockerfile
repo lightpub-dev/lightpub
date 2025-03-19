@@ -10,6 +10,7 @@ WORKDIR /usr/src/app
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libgexiv2-dev \
+    libssl-dev \
     clang \
     lld \
     dos2unix \
