@@ -20,6 +20,8 @@ use chrono::DateTime;
 use chrono::Utc;
 use expected_error::StatusCode;
 use expected_error_derive::ExpectedError;
+use push::PushSendResult;
+use push::WPClient;
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::Condition;
@@ -32,6 +34,7 @@ use sea_orm::Set;
 use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::warn;
 use url::Url;
 
 use crate::try_opt_res;
@@ -126,6 +129,7 @@ pub async fn get_notifications(conn: &Conn, user_id: UserID) -> ServiceResult<Ve
 
 pub async fn add_notification(
     tx: &MaybeTxConn,
+    wp: Option<&WPClient>,
     user_id: UserID,
     body: &NotificationBody,
 ) -> ServiceResult<()> {
@@ -137,6 +141,22 @@ pub async fn add_notification(
         ..Default::default()
     };
     model.insert(tx).await.map_err_unknown()?;
+
+    // Webpush notification
+    if let Some(wp) = wp {
+        let body = todo!();
+        let subs = push::get_subscriptions_for_user(tx, user_id).await?;
+        for sub in subs {
+            let result = wp.try_send(&sub.subscription, &body).await?;
+            match result {
+                PushSendResult::Success => {}
+                PushSendResult::Failed(e) if e.should_disable_endpoint() => {}
+                PushSendResult::Failed(e) => {
+                    warn!("Failed to send push notification: {:?}", e);
+                }
+            }
+        }
+    }
 
     Ok(())
 }

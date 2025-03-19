@@ -28,6 +28,7 @@ use lightpub_service::services::notification::{
 use nestify::nest;
 use serde::Serialize;
 use url::Url;
+use web_push::SubscriptionInfo;
 
 use super::auth::AuthedUser;
 use crate::api::auth::middleware_auth_jwt_required;
@@ -254,7 +255,7 @@ nest! {
 #[post("/push/subscribe", wrap = "from_fn(middleware_auth_jwt_required)")]
 async fn subscribe(
     st: web::Data<AppState>,
-    subscription: web::Json<PushSubscription>,
+    subscription: web::Json<SubscriptionInfo>,
     auth: web::ReqData<AuthedUser>,
 ) -> ServiceResult<impl Responder> {
     // Store subscription with user ID

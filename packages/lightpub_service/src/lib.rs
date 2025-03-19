@@ -97,6 +97,7 @@ pub struct ServiceStateBase {
     base_url: Url,
     proxy_client: reqwest_middleware::ClientWithMiddleware,
     ft: Option<FTClient>,
+    webpush: Option<WPClient>,
 }
 
 impl std::fmt::Debug for ServiceStateBase {
