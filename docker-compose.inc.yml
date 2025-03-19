@@ -23,6 +23,7 @@ services:
       RUST_LOG: info,sqlx=warn
       JWT_PUBLIC_KEY_FILE: data/jwtpub.pem
       JWT_SECRET_KEY_FILE: data/jwt.pem
+      WEBPUSH_VAPID_KEY: data/vapid.pem
       TMP_DIR: /app/tmp
       UPLOAD_DIR: /app/uploads
       REGISTRATION_OPEN: true

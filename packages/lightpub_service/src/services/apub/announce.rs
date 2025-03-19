@@ -85,6 +85,7 @@ impl ActivityHandler for AnnounceActivity {
                     data.conn(),
                     &data.rconn(),
                     data.qconn(),
+                    data.wp(),
                     actor.basic.id,
                     target_note.basic.id,
                     target_note.basic.visibility,

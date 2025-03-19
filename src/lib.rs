@@ -29,6 +29,7 @@ use lightpub_service::{
         db::{Conn, MaybeTxConn},
         fulltext::FTClient,
         kv::KVObject,
+        notification::push::WPClient,
         queue::QConn,
     },
     MyFederationData, ServiceState,
@@ -112,6 +113,10 @@ impl AppState {
 
     pub fn ft(&self) -> Option<&FTClient> {
         self.service.ft()
+    }
+
+    pub fn wp(&self) -> Option<&WPClient> {
+        self.service.wp()
     }
 
     pub fn request_data(&self) -> Data<MyFederationData> {

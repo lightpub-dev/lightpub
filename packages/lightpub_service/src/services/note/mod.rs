@@ -64,6 +64,7 @@ use super::fulltext::FTClient;
 use super::kv::KVObject;
 use super::notification::NotificationBody;
 use super::notification::add_notification;
+use super::notification::push::WPClient;
 use super::queue::QConn;
 use super::timeline::get_note_reply_ids;
 use super::timeline::get_timeline_note_ids;
@@ -163,6 +164,7 @@ pub async fn create_renote(
     conn: &Conn,
     rconn: &KVObject,
     qconn: &QConn,
+    wp: Option<&WPClient>,
     user_id: UserID,
     target_note_id: NoteID,
     visibility: VisibilityModel,
@@ -233,7 +235,7 @@ pub async fn create_renote(
     // notification
     if target_note.basic.author.is_local() {
         let body = NotificationBody::Renoted(user_id, target_note_id);
-        add_notification(&tx, target_note.basic.author.id, &body).await?;
+        add_notification(&tx, rconn, wp, target_note.basic.author.id, &body, base_url).await?;
     }
 
     // send activitypub note
@@ -274,6 +276,7 @@ pub async fn create_note(
     rconn: &KVObject,
     qconn: &QConn,
     ft: Option<&FTClient>,
+    wp: Option<&WPClient>,
     author_id: UserID,
     content: &str,
     content_type: ContentType,
@@ -288,6 +291,7 @@ pub async fn create_note(
         rconn,
         qconn,
         ft,
+        wp,
         None,
         author_id,
         content,
@@ -306,6 +310,7 @@ pub async fn edit_note(
     rconn: &KVObject,
     qconn: &QConn,
     ft: Option<&FTClient>,
+    wp: Option<&WPClient>,
     editor_id: UserID,
     note_id: NoteID,
     content: &str,
@@ -321,6 +326,7 @@ pub async fn edit_note(
         rconn,
         qconn,
         ft,
+        wp,
         Some(ExistingNote::ByID(note_id)),
         editor_id,
         content,

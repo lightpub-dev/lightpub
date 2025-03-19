@@ -19,8 +19,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 /// Route handlers for /notification
 use actix_web::{get, post, web, HttpResponse, Responder};
 use chrono::{DateTime, Utc};
+use expected_error::StatusCode;
+use lightpub_service::services::create_error_simple;
+use lightpub_service::services::notification::push::register_push_subscription;
+use lightpub_service::services::notification::{
+    get_related_notification_data, NotificationBodyData,
+};
 use nestify::nest;
 use serde::Serialize;
+use url::Url;
+use web_push::SubscriptionInfo;
 
 use super::auth::AuthedUser;
 use crate::api::auth::middleware_auth_jwt_required;
@@ -42,7 +50,6 @@ use lightpub_service::services::{
         count_unread_notifications, get_notifications, mark_notification_read,
         mark_notification_read_all, Notification, NotificationBody,
     },
-    user::get_user_profile_by_id,
     ServiceResult,
 };
 use lightpub_service::try_opt_res;
@@ -89,7 +96,8 @@ pub async fn api_get_notifications(
 
     let mut ns = vec![];
     for n in notifications {
-        let nt = create_notification_template(&st.maybe_conn(), &st.rconn(), n).await?;
+        let nt =
+            create_notification_template(&st.maybe_conn(), &st.rconn(), st.base_url(), n).await?;
         if let Some(nt) = nt {
             ns.push(nt);
         }
@@ -103,6 +111,7 @@ pub async fn api_get_notifications(
 async fn create_notification_template(
     conn: &MaybeTxConn,
     rconn: &KVObject,
+    base_url: &Url,
     n: Notification,
 ) -> ServiceResult<Option<PartsNotifyListEntry>> {
     let base = |template_name: String| NotifyNotifyBase {
@@ -112,7 +121,7 @@ async fn create_notification_template(
         created_at: n.created_at,
         read_at: n.read_at,
     };
-    let data = try_opt_res!(get_notification_data(conn, rconn, base, &n.body).await?);
+    let data = try_opt_res!(get_notification_data(conn, rconn, base, base_url, &n.body).await?);
 
     Ok(Some(data))
 }
@@ -121,67 +130,65 @@ async fn get_notification_data(
     conn: &MaybeTxConn,
     rconn: &KVObject,
     base_func: impl FnOnce(String) -> NotifyNotifyBase,
-    body: &NotificationBody,
+    base_url: &Url,
+    raw_body: &NotificationBody,
 ) -> ServiceResult<Option<PartsNotifyListEntry>> {
+    let body = get_related_notification_data(conn, rconn, base_url, raw_body).await?;
+
+    let body = match body {
+        None => return Ok(None),
+        Some(b) => b,
+    };
+
     match body {
-        NotificationBody::Followed(follower) => {
-            let follower_model =
-                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *follower).await?);
+        NotificationBodyData::Followed(follower) => {
             Ok(Some(PartsNotifyListEntry::Followed(NotifyFollowedBody {
                 base: base_func("parts/notify/followed".to_owned()),
                 data: NotifyFollowedBodyData {
-                    follower_nickname: follower_model.basic.nickname,
-                    follower_url: format!("/client/user/{}", follower_model.basic.specifier),
+                    follower_nickname: follower.basic.nickname,
+                    follower_url: format!("/client/user/{}", follower.basic.specifier),
                 },
             })))
         }
-        NotificationBody::FollowRequested(follower) => {
-            let follower_model =
-                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *follower).await?);
-            Ok(Some(PartsNotifyListEntry::FollowRequested(
-                NotifyFollowRequestedBody {
-                    base: base_func("parts/notify/follow_requested".to_owned()),
-                    data: NotifyFollowRequestedBodyData {
-                        follower_url: format!("/client/user/{}", follower_model.basic.specifier),
-                        follower_nickname: follower_model.basic.nickname,
-                    },
+        NotificationBodyData::FollowRequested(follower) => Ok(Some(
+            PartsNotifyListEntry::FollowRequested(NotifyFollowRequestedBody {
+                base: base_func("parts/notify/follow_requested".to_owned()),
+                data: NotifyFollowRequestedBodyData {
+                    follower_url: format!("/client/user/{}", follower.basic.specifier),
+                    follower_nickname: follower.basic.nickname,
                 },
-            )))
-        }
-        NotificationBody::Mentioned(author_id, note_id) => {
-            let author_model =
-                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *author_id).await?);
+            }),
+        )),
+        NotificationBodyData::Mentioned { user, note } => {
             Ok(Some(PartsNotifyListEntry::Mentioned(NotifyMentionedBody {
                 base: base_func("parts/notify/mentioned".to_owned()),
                 data: NotifyMentionedBodyData {
-                    author_nickname: author_model.basic.nickname,
-                    author_url: format!("/client/user/{}", author_model.basic.specifier),
-                    note_url: format!("/client/note/{}", note_id),
+                    author_nickname: user.basic.nickname,
+                    author_url: format!("/client/user/{}", user.basic.specifier),
+                    note_url: note.view_url.to_string(),
                 },
             })))
         }
-        NotificationBody::Replied(author_id, reply_note_url, replied_note_url) => {
-            let author_model =
-                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *author_id).await?);
-            Ok(Some(PartsNotifyListEntry::Replied(NotifyRepliedBody {
-                base: base_func("parts/notify/replied".to_owned()),
-                data: NotifyRepliedBodyData {
-                    author_url: format!("/client/user/{}", author_model.basic.id),
-                    author_nickname: author_model.basic.nickname,
-                    reply_note_url: format!("/client/note/{}", reply_note_url),
-                    replied_note_url: format!("/client/note/{}", replied_note_url),
-                },
-            })))
-        }
-        NotificationBody::Renoted(author_id, renoted_note_id) => {
-            let author_model =
-                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *author_id).await?);
+        NotificationBodyData::Replied {
+            author,
+            replied_note,
+            reply_note,
+        } => Ok(Some(PartsNotifyListEntry::Replied(NotifyRepliedBody {
+            base: base_func("parts/notify/replied".to_owned()),
+            data: NotifyRepliedBodyData {
+                author_url: format!("/client/user/{}", author.basic.id),
+                author_nickname: author.basic.nickname,
+                reply_note_url: reply_note.view_url.to_string(),
+                replied_note_url: replied_note.view_url.to_string(),
+            },
+        }))),
+        NotificationBodyData::Renoted { user, renoted_note } => {
             Ok(Some(PartsNotifyListEntry::Renoted(NotifyRenotedBody {
                 base: base_func("parts/notify/renoted".to_owned()),
                 data: NotifyRenotedBodyData {
-                    author_url: format!("/client/user/{}", author_model.basic.id),
-                    author_nickname: author_model.basic.nickname,
-                    renoted_note_url: format!("/client/note/{}", renoted_note_id),
+                    author_url: format!("/client/user/{}", user.basic.id),
+                    author_nickname: user.basic.nickname,
+                    renoted_note_url: renoted_note.view_url.to_string(),
                 },
             })))
         }
@@ -243,4 +250,35 @@ nest! {
         }>
     }
 
+}
+
+#[post("/push/subscribe", wrap = "from_fn(middleware_auth_jwt_required)")]
+pub async fn api_wp_subscribe(
+    st: web::Data<AppState>,
+    subscription: web::Json<SubscriptionInfo>,
+    auth: web::ReqData<AuthedUser>,
+) -> ServiceResult<impl Responder> {
+    if st.wp().is_none() {
+        return create_error_simple(
+            StatusCode::BAD_REQUEST,
+            "WebPush is disabled on this server",
+        );
+    }
+
+    // Store subscription with user ID
+    let user_id = auth.user_id_unwrap();
+    register_push_subscription(&st.maybe_conn(), user_id, subscription.into_inner()).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
+#[get("/push/public-key")]
+pub async fn api_wp_public_key(st: web::Data<AppState>) -> impl Responder {
+    if let Some(wp) = st.wp() {
+        Ok(HttpResponse::Ok().body(wp.public_key().to_owned()))
+    } else {
+        return create_error_simple(
+            StatusCode::BAD_REQUEST,
+            "WebPush is disabled on this server",
+        );
+    }
 }

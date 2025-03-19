@@ -27,7 +27,7 @@ use crate::{
         },
         id::{Identifier, NoteID, UploadID, UserID},
         kv::KVObject,
-        notification::{NotificationBody, add_notification},
+        notification::{NotificationBody, add_notification, push::WPClient},
         queue::QConn,
         user::{
             UserSpecifier, get_apubuser_by_id, get_user_by_id, get_user_by_spec_with_remote,
@@ -48,6 +48,7 @@ pub async fn upsert_note(
     rconn: &KVObject,
     qconn: &QConn,
     ft: Option<&FTClient>,
+    wp: Option<&WPClient>,
     updated_note_id: Option<ExistingNote>,
     author_id: UserID,
     content: &str,
@@ -255,7 +256,7 @@ pub async fn upsert_note(
     // reply notification
     if let Some(replied_note) = &replied_note {
         let body = NotificationBody::Replied(author_id, note_id, replied_note.id);
-        add_notification(&tx, replied_note.author.id, &body).await?;
+        add_notification(&tx, rconn, wp, replied_note.author.id, &body, base_url).await?;
     }
 
     // mentions
@@ -287,7 +288,8 @@ pub async fn upsert_note(
         {
             continue;
         }
-        add_mention_notification_if_local(&tx, rconn, author_id, note_id, mention).await?;
+        add_mention_notification_if_local(&tx, rconn, wp, author_id, note_id, mention, base_url)
+            .await?;
     }
 
     // uploads
@@ -439,15 +441,17 @@ fn set_note_active_model(
 async fn add_mention_notification_if_local(
     tx: &MaybeTxConn,
     rconn: &KVObject,
+    wp: Option<&WPClient>,
     author_id: UserID,
     note_id: NoteID,
     target_user_id: UserID,
+    base_url: &Url,
 ) -> ServiceResult<()> {
     let target_user = get_user_by_id(tx, rconn, target_user_id).await?;
     if let Some(t) = target_user {
         if t.is_local() {
             let body = NotificationBody::Mentioned(author_id.clone(), note_id.clone());
-            add_notification(tx, target_user_id, &body).await?;
+            add_notification(tx, rconn, wp, target_user_id, &body, base_url).await?;
         }
     }
 

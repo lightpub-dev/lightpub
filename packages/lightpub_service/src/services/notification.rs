@@ -20,6 +20,9 @@ use chrono::DateTime;
 use chrono::Utc;
 use expected_error::StatusCode;
 use expected_error_derive::ExpectedError;
+use push::PushNotificationBody;
+use push::PushSendResult;
+use push::WPClient;
 use sea_orm::ActiveModelTrait;
 use sea_orm::ColumnTrait;
 use sea_orm::Condition;
@@ -32,16 +35,25 @@ use sea_orm::Set;
 use sea_orm::TransactionTrait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::warn;
+use url::Url;
+
+use crate::try_opt_res;
 
 use super::ServiceError;
 use super::db::MaybeTxConn;
 use super::id::NoteID;
 use super::id::NotificationID;
+use super::kv::KVObject;
+use super::user::UserDetailedProfile;
+use super::user::get_user_profile_by_id;
 use super::{
     MapToUnknown, ServiceResult,
     db::Conn,
     id::{Identifier, UserID},
 };
+
+pub mod push;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NotificationBody {
@@ -51,6 +63,32 @@ pub enum NotificationBody {
     Replied(UserID, NoteID, NoteID), // author_id, reply_note_id, replied_note_id
     Mentioned(UserID, NoteID),
     Renoted(UserID, NoteID),
+}
+
+#[derive(Debug, Clone)]
+pub struct NotificationNoteData {
+    pub id: NoteID,
+    pub view_url: Url,
+}
+
+#[derive(Debug, Clone)]
+pub enum NotificationBodyData {
+    Followed(UserDetailedProfile),
+    FollowRequested(UserDetailedProfile),
+    FollowAccepted(UserDetailedProfile),
+    Replied {
+        author: UserDetailedProfile,
+        reply_note: NotificationNoteData,
+        replied_note: NotificationNoteData,
+    },
+    Mentioned {
+        user: UserDetailedProfile,
+        note: NotificationNoteData,
+    },
+    Renoted {
+        user: UserDetailedProfile,
+        renoted_note: NotificationNoteData,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,8 +130,11 @@ pub async fn get_notifications(conn: &Conn, user_id: UserID) -> ServiceResult<Ve
 
 pub async fn add_notification(
     tx: &MaybeTxConn,
+    rconn: &KVObject,
+    wp: Option<&WPClient>,
     user_id: UserID,
     body: &NotificationBody,
+    base_url: &Url,
 ) -> ServiceResult<()> {
     let body_json = serde_json::to_string(body).map_err_unknown()?;
 
@@ -103,6 +144,26 @@ pub async fn add_notification(
         ..Default::default()
     };
     model.insert(tx).await.map_err_unknown()?;
+
+    // Webpush notification
+    if let Some(wp) = wp {
+        if let Some(body) = get_related_notification_data(tx, rconn, base_url, body).await? {
+            let body = PushNotificationBody::new_from_notification_body(base_url, body)?;
+            let subs = push::get_subscriptions_for_user(tx, user_id).await?;
+            for sub in subs {
+                let result = wp.try_send(&sub.subscription, &body).await?;
+                match result {
+                    PushSendResult::Success => {}
+                    PushSendResult::Failed(e) if e.should_disable_endpoint() => {
+                        push::delete_subscription_id(tx, sub.subscription_id).await?;
+                    }
+                    PushSendResult::Failed(e) => {
+                        warn!("Failed to send push notification: {:?}", e);
+                    }
+                }
+            }
+        }
+    }
 
     Ok(())
 }
@@ -166,4 +227,72 @@ pub async fn count_unread_notifications(conn: &Conn, user_id: UserID) -> Service
         .await
         .map_err_unknown()?;
     Ok(count)
+}
+
+pub async fn get_related_notification_data(
+    conn: &MaybeTxConn,
+    rconn: &KVObject,
+    base_url: &Url,
+    body: &NotificationBody,
+) -> ServiceResult<Option<NotificationBodyData>> {
+    match body {
+        NotificationBody::Followed(follower) => {
+            let follower_model =
+                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *follower).await?);
+            Ok(Some(NotificationBodyData::Followed(follower_model)))
+        }
+        NotificationBody::FollowRequested(follower) => {
+            let follower_model =
+                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *follower).await?);
+            Ok(Some(NotificationBodyData::FollowRequested(follower_model)))
+        }
+        NotificationBody::FollowAccepted(follow) => {
+            let follow_model =
+                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *follow).await?);
+            Ok(Some(NotificationBodyData::FollowAccepted(follow_model)))
+        }
+        NotificationBody::Mentioned(author_id, note_id) => {
+            let author_model =
+                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *author_id).await?);
+            Ok(Some(NotificationBodyData::Mentioned {
+                user: author_model,
+                note: NotificationNoteData {
+                    id: *note_id,
+                    view_url: base_url.join(&format!("/client/note/{note_id}")).unwrap(),
+                },
+            }))
+        }
+        NotificationBody::Replied(author_id, reply_note_id, replied_note_id) => {
+            let author_model =
+                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *author_id).await?);
+            Ok(Some(NotificationBodyData::Replied {
+                author: author_model,
+                reply_note: NotificationNoteData {
+                    id: *reply_note_id,
+                    view_url: base_url
+                        .join(&format!("/client/note/{reply_note_id}"))
+                        .unwrap(),
+                },
+                replied_note: NotificationNoteData {
+                    id: *replied_note_id,
+                    view_url: base_url
+                        .join(&format!("/client/note/{replied_note_id}"))
+                        .unwrap(),
+                },
+            }))
+        }
+        NotificationBody::Renoted(author_id, renoted_note_id) => {
+            let author_model =
+                try_opt_res!(get_user_profile_by_id(conn, rconn, None, *author_id).await?);
+            Ok(Some(NotificationBodyData::Renoted {
+                user: author_model,
+                renoted_note: NotificationNoteData {
+                    id: *renoted_note_id,
+                    view_url: base_url
+                        .join(&format!("/client/note/{renoted_note_id}"))
+                        .unwrap(),
+                },
+            }))
+        }
+    }
 }

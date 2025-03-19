@@ -36,6 +36,7 @@ use super::db::MaybeTxConn;
 use super::kv::KVObject;
 use super::notification::NotificationBody;
 use super::notification::add_notification;
+use super::notification::push::WPClient;
 use super::queue::QConn;
 use super::user::get_apubuser_by_id;
 use super::user::get_user_by_id;
@@ -65,6 +66,7 @@ pub async fn follow_user(
     conn: &Conn,
     rconn: &KVObject,
     qconn: &QConn,
+    wp: Option<&WPClient>,
     follower_id: UserID,
     followee_id: UserID,
     base_url: &Url,
@@ -157,16 +159,22 @@ pub async fn follow_user(
             // add notification (followed)
             add_notification(
                 &tx2,
+                rconn,
+                wp,
                 *followee.id(),
                 &NotificationBody::Followed(follower.id().clone()),
+                base_url,
             )
             .await?;
         } else {
             // add notification (follow requested)
             add_notification(
                 &tx2,
-                *followee.id(),
+                rconn,
+                wp,
+                followee.id,
                 &NotificationBody::FollowRequested(follower.id().clone()),
+                base_url,
             )
             .await?;
         }

@@ -61,6 +61,7 @@ COPY static ./static
 
 # copy scripts
 COPY generate-jwt-keys.sh /app
+COPY generate-vapid-keys.sh /app
 COPY entrypoint.sh /app
 RUN rm -f /app/.env && touch /app/.env
 

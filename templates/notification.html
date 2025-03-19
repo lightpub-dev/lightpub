@@ -13,9 +13,27 @@
     {{> parts/navbar }}
     <div class="layout-root">
       <div class="layout-content">
-        <button class="mark-all-read" hx-post="/notification/all/read">
-          すべて既読にする
-        </button>
+        <div>
+          <button class="mark-all-read" hx-post="/notification/all/read">
+            すべて既読にする
+          </button>
+          <div x-data="pushNotifications">
+            <button
+              x-show="!subscribed"
+              @click="subscribe()"
+              class="btn btn-sm btn-primary"
+            >
+              <i class="fa fa-bell"></i> Enable Notifications
+            </button>
+            <button
+              x-show="subscribed"
+              @click="unsubscribe()"
+              class="btn btn-sm btn-outline-secondary"
+            >
+              <i class="fa fa-bell-slash"></i> Disable Notifications
+            </button>
+          </div>
+        </div>
         <ul class="notification-list">
           <div
             hx-get="/notification/all"

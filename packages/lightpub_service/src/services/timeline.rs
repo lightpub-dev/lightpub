@@ -93,7 +93,6 @@ async fn get_note_ids_generalized(
         ))
         .await
         .map_err_unknown()?;
-    println!("{:#?}", ids);
 
     Ok(ids
         .into_iter()
