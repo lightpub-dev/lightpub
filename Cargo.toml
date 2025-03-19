@@ -86,6 +86,7 @@ redis = { workspace = true }
 async-nats = { workspace = true }
 futures-util = { workspace = true }
 tokio-util = { workspace = true }
+web-push = "0.11.0"
 
 [workspace.dependencies]
 redis = { version = "0.28.2", features = [
