@@ -24,3 +24,11 @@ type State struct {
 func (s *State) Service() *service.State {
 	return s.service
 }
+
+func (s *State) Auth() *auth.State {
+	return s.auth
+}
+
+func (s *State) DevMode() bool {
+	return s.service.DevMode()
+}

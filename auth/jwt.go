@@ -47,7 +47,7 @@ func (c Claims) GetAudience() (jwt.ClaimStrings, error) {
 	return nil, nil
 }
 
-func (s *State) GenerateJWT(userID types.UserID, secretKey []byte) (string, error) {
+func (s *State) GenerateJWT(userID types.UserID) (string, error) {
 	now := time.Now()
 	iat := now.Unix()
 	exp := now.Add(jwtDuration).Unix()
@@ -63,7 +63,7 @@ func (s *State) GenerateJWT(userID types.UserID, secretKey []byte) (string, erro
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	signKey, err := jwt.ParseRSAPrivateKeyFromPEM(secretKey)
+	signKey, err := jwt.ParseRSAPrivateKeyFromPEM(s.jwtPrivateKey)
 	if err != nil {
 		return "", err
 	}

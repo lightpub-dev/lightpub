@@ -14,6 +14,8 @@ var (
 type State struct {
 	db   *gorm.DB
 	inTx bool
+
+	devMode bool
 }
 
 func (s *State) WithTransaction(f func(tx *State) error) error {
@@ -48,4 +50,8 @@ func (s *State) WithTransaction(f func(tx *State) error) error {
 
 func (s *State) DB(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx)
+}
+
+func (s *State) DevMode() bool {
+	return s.devMode
 }
