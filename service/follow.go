@@ -21,7 +21,7 @@ var (
 
 type FollowState = int
 
-func (s *ServiceState) FollowUser(
+func (s *State) FollowUser(
 	ctx context.Context,
 	followerID types.UserID,
 	followeeID types.UserID,
@@ -68,7 +68,7 @@ func (s *ServiceState) FollowUser(
 	return nil
 }
 
-func (s *ServiceState) UnfollowUser(
+func (s *State) UnfollowUser(
 	ctx context.Context,
 	followerID types.UserID,
 	followeeID types.UserID,
@@ -108,7 +108,7 @@ func (s *ServiceState) UnfollowUser(
 	return nil
 }
 
-func (s *ServiceState) RejectFollowUser(
+func (s *State) RejectFollowUser(
 	ctx context.Context,
 	rejectorID types.UserID,
 	rejectedID types.UserID,
@@ -148,7 +148,7 @@ func (s *ServiceState) RejectFollowUser(
 	return nil
 }
 
-func (s *ServiceState) AcceptFollow(
+func (s *State) AcceptFollow(
 	ctx context.Context,
 	acceptorID types.UserID,
 	accepteeID types.UserID,
@@ -188,7 +188,7 @@ func (s *ServiceState) AcceptFollow(
 	return nil
 }
 
-func (s *ServiceState) GetFollowState(
+func (s *State) GetFollowState(
 	ctx context.Context,
 	followerID types.UserID, followeeID types.UserID,
 ) (FollowState, error) {

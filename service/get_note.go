@@ -14,7 +14,7 @@ type noteAuthorPair struct {
 	Author db.User
 }
 
-func (s *ServiceState) findNoteByIDRaw(ctx context.Context, noteID types.NoteID, includeDeleted bool) (*noteAuthorPair, error) {
+func (s *State) findNoteByIDRaw(ctx context.Context, noteID types.NoteID, includeDeleted bool) (*noteAuthorPair, error) {
 	var note db.Note
 	if err := s.DB(ctx).Where("id = ?", noteID).Joins("Author").First(&note).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -32,7 +32,7 @@ func (s *ServiceState) findNoteByIDRaw(ctx context.Context, noteID types.NoteID,
 	}, nil
 }
 
-func (s *ServiceState) FindNoteByID(ctx context.Context, noteID types.NoteID) (*types.SimpleNote, error) {
+func (s *State) FindNoteByID(ctx context.Context, noteID types.NoteID) (*types.SimpleNote, error) {
 	pair, err := s.findNoteByIDRaw(ctx, noteID, false)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (s *ServiceState) FindNoteByID(ctx context.Context, noteID types.NoteID) (*
 	}, nil
 }
 
-func (s *ServiceState) CheckNoteVisibility(ctx context.Context, viewerID *types.UserID, note types.SimpleNote) (bool, error) {
+func (s *State) CheckNoteVisibility(ctx context.Context, viewerID *types.UserID, note types.SimpleNote) (bool, error) {
 	switch note.Visibility {
 	case types.NoteVisibilityPublic:
 	case types.NoteVisibilityUnlisted:
@@ -111,7 +111,7 @@ func (s *ServiceState) CheckNoteVisibility(ctx context.Context, viewerID *types.
 	panic("unreachable")
 }
 
-func (s *ServiceState) checkNoteMentioned(ctx context.Context, noteID types.NoteID,
+func (s *State) checkNoteMentioned(ctx context.Context, noteID types.NoteID,
 	targetUserID types.UserID) (bool, error) {
 	var mentions db.NoteMention
 	if err := s.DB(ctx).Where("note_id = ? AND target_user_id = ?", noteID, targetUserID).First(&mentions).Error; err != nil {

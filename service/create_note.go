@@ -37,14 +37,14 @@ type CreateNoteParams struct {
 	Sensitive  bool
 }
 
-func (s *ServiceState) UpsertNote(
+func (s *State) UpsertNote(
 	ctx context.Context,
 	upsertTarget *UpsertTarget,
 	author types.UserID,
 	params CreateNoteParams,
 ) (types.NoteID, error) {
 	var upsertedNoteID types.NoteID
-	err := s.WithTransaction(func(tx *ServiceState) error {
+	err := s.WithTransaction(func(tx *State) error {
 		authorUser, err := tx.FindUserByID(ctx, author)
 		if err != nil {
 			return err
@@ -183,7 +183,7 @@ func setNoteModelForUpsert(model *db.Note, author types.UserID, url *string, par
 	}
 }
 
-func (s *ServiceState) getOrCreateTagID(ctx context.Context, name string) (int, error) {
+func (s *State) getOrCreateTagID(ctx context.Context, name string) (int, error) {
 	var tag db.Tag
 	if err := s.DB(ctx).Where("name = ?", name).First(&tag).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -202,7 +202,7 @@ func (s *ServiceState) getOrCreateTagID(ctx context.Context, name string) (int, 
 	return tag.ID, nil
 }
 
-func (s *ServiceState) findHashtagsInNoteContent(ctx context.Context, content types.NoteContent, override []string) ([]string, error) {
+func (s *State) findHashtagsInNoteContent(ctx context.Context, content types.NoteContent, override []string) ([]string, error) {
 	if override != nil {
 		return override, nil
 	}
@@ -215,7 +215,7 @@ func (s *ServiceState) findHashtagsInNoteContent(ctx context.Context, content ty
 	}
 }
 
-func (s *ServiceState) findMentionsInNoteContent(ctx context.Context, content types.NoteContent, override []types.UserID) ([]types.UserID, error) {
+func (s *State) findMentionsInNoteContent(ctx context.Context, content types.NoteContent, override []types.UserID) ([]types.UserID, error) {
 	if override != nil {
 		return override, nil
 	}
@@ -228,7 +228,7 @@ func (s *ServiceState) findMentionsInNoteContent(ctx context.Context, content ty
 	}
 }
 
-func (s *ServiceState) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarget) (*db.Note, error) {
+func (s *State) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarget) (*db.Note, error) {
 	if upsertTarget == nil {
 		// new local note
 		return nil, nil

@@ -88,6 +88,11 @@ type Notification struct {
 	ReadAt    sql.NullTime `gorm:"type:datetime(6);index:idx_notification_read_at,priority:2"`
 }
 
+type UnreadNotificationCount struct {
+	UserID      types.UserID `gorm:"type:binary(16);not null"`
+	UnreadCount uint64       `gorm:"type:int;not null"`
+}
+
 // PushNotification represents a push notification subscription
 type PushNotification struct {
 	ID        int          `gorm:"primaryKey;autoIncrement"`

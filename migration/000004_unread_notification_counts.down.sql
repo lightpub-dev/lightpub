@@ -1,0 +1,1 @@
+DROP VIEW unread_notification_counts;

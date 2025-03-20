@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func (s *ServiceState) FindUserByIDRaw(ctx context.Context, id types.UserID) (*db.User, error) {
+func (s *State) FindUserByIDRaw(ctx context.Context, id types.UserID) (*db.User, error) {
 	var user db.User
 	if err := s.DB(ctx).Where("id = ?", id).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -21,7 +21,7 @@ func (s *ServiceState) FindUserByIDRaw(ctx context.Context, id types.UserID) (*d
 	return &user, nil
 }
 
-func (s *ServiceState) FindUserByID(ctx context.Context, id types.UserID) (*types.SimpleUser, error) {
+func (s *State) FindUserByID(ctx context.Context, id types.UserID) (*types.SimpleUser, error) {
 	user, err := s.FindUserByIDRaw(ctx, id)
 	if err != nil {
 		return nil, err

@@ -11,12 +11,12 @@ var (
 	ErrNotInTx     = NewInternalServerError("not in transaction")
 )
 
-type ServiceState struct {
+type State struct {
 	db   *gorm.DB
 	inTx bool
 }
 
-func (s *ServiceState) WithTransaction(f func(tx *ServiceState) error) error {
+func (s *State) WithTransaction(f func(tx *State) error) error {
 	if s.inTx {
 		return ErrAlreadyInTx
 	}
@@ -46,6 +46,6 @@ func (s *ServiceState) WithTransaction(f func(tx *ServiceState) error) error {
 	return err
 }
 
-func (s *ServiceState) DB(ctx context.Context) *gorm.DB {
+func (s *State) DB(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx)
 }
