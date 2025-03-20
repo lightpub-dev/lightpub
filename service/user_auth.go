@@ -85,3 +85,7 @@ func (s *ServiceState) CheckUserLoginExpiration(userID types.UserID, loggedInAt 
 
 	return true, nil
 }
+
+func (s *ServiceState) SetUserLoginExpiration(userID types.UserID, expiresAt time.Time) error {
+	return s.DB().Model(&db.User{}).Where("id = ?", userID).Update("auth_expired_at", expiresAt).Error
+}
