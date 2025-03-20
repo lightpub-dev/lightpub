@@ -60,3 +60,28 @@ type NoteContent struct {
 	Type NoteContentType
 	Data string
 }
+
+type DetailedNote struct {
+	Basic   SimpleNote
+	Details NoteDetails
+}
+
+type NoteDetails struct {
+	ReplyCount    uint64
+	RenoteCount   uint64
+	ReactionCount map[string]uint64
+
+	Renoted    *bool
+	Reacted    *string
+	Bookmarked *bool
+
+	Hashtags []string
+	Mentions []NoteMention
+}
+
+type NoteMention struct {
+	ID       UserID
+	Username string
+	Nickname string
+	Domain   string
+}
