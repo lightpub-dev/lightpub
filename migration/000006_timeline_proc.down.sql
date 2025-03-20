@@ -1,0 +1,1 @@
+DROP PROCEDURE `get_note_ids_generalized`;
