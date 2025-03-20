@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lightpub Register</title>
+    {{> parts/global}}
+  </head>
+
+  <body>
+    <div class="d-flex justify-content-center align-items-center vh-100">
+      <div class="login" role="main">
+        <h1>Lightpub</h1>
+        <form
+          hx-post="/auth/register"
+          hx-swap="none"
+          hx-ext="json-enc"
+          hx-indicator="#indicator"
+          hx-disabled-elt="#submitButton"
+          method="post"
+          aria-labelledby="loginForm"
+        >
+          <div class="form-group">
+            <label for="username">ユーザー名</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              placeholder="Username"
+              required="required"
+              aria-required="true"
+              pattern="^[a-zA-Z0-9_]{3,60}$"
+            />
+          </div>
+          <div class="form-group">
+            <label for="nickname">ニックネーム</label>
+            <input
+              type="text"
+              id="nickname"
+              name="nickname"
+              placeholder="Nickname"
+              required="required"
+              aria-required="true"
+              minlength="1"
+              maxlength="50"
+            />
+          </div>
+          <div class="form-group">
+            <label for="password">パスワード</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Password"
+              required="required"
+              aria-required="true"
+              minlength="8"
+              maxlength="64"
+            />
+          </div>
+          <button
+            id="submitButton"
+            type="submit"
+            class="btn btn-primary btn-block btn-large"
+            aria-label="Submit Login Form"
+          >
+            登録
+            <img
+              id="indicator"
+              class="htmx-indicator"
+              src="/static/svgloader/svg-loaders/grid.svg"
+              style="height: 1em"
+            />
+          </button>
+        </form>
+        <a href="/client/login">ログイン</a>
+      </div>
+    </div>
+  </body>
+</html>

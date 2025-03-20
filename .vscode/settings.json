@@ -1,0 +1,22 @@
+{
+    "[handlebars]": {
+        "editor.suggest.insertMode": "replace",
+        "editor.tabSize": 2
+    },
+    "[html]": {
+        "editor.suggest.insertMode": "replace",
+        "editor.tabSize": 2
+    },
+    "cSpell.words": [
+        "activitypub",
+        "apub",
+        "apubnote",
+        "apubuser",
+        "Lightpub",
+        "Renote",
+        "reqwest",
+        "Undoable",
+        "unfollow",
+        "webfinger"
+    ]
+}

@@ -1,0 +1,88 @@
+<div class="card create-note layout-left-sidebar">
+  {{#if replyToId}}
+  <h3>{{title}}</h3>
+  {{else}}
+  <h2>{{title}}</h2>
+  {{/if}}
+  <form
+    hx-post="/note"
+    method="POST"
+    enctype="multipart/form-data"
+    hx-swap="none"
+    hx-on::after-request="this.reset()"
+  >
+    {{#if replyToId}}
+    <input type="hidden" name="replyToId" value="{{replyToId}}" />
+    {{/if}}
+    <div class="form-group">
+      <label for="content">投稿内容</label>
+      <textarea
+        id="content"
+        name="content"
+        class="form-control"
+        placeholder="あいうえお"
+        required="required"
+        aria-required="true"
+        {{#unless authed}}
+        disabled
+        title="投稿するにはログインしてください"
+        {{/unless}}
+      ></textarea>
+    </div>
+    <div class="form-group">
+      <label for="visibilityForm">公開範囲</label>
+      <select
+        name="visibility"
+        class="form-select"
+        id="visibilityForm"
+        required
+      >
+        <option value="public">Public</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="follower">Follower</option>
+        <option value="private">Private</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="contentTypeForm">コンテンツタイプ</label>
+      <select
+        id="contentTypeForm"
+        name="contentType"
+        class="form-select"
+        required
+        aria-required="true"
+      >
+        <option value="plain" selected>テキスト</option>
+        <option value="md">Markdown</option>
+        <option value="latex">LaTeX</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="uploads">ファイルアップロード</label>
+      <input
+        type="file"
+        id="uploads"
+        name="file"
+        class="form-control"
+        accept="image/*"
+        multiple
+      />
+    </div>
+    <div class="form-group">
+      <label for="sensitive">センシティブ</label>
+      <input type="checkbox" id="sensitive" name="sensitive" />
+    </div>
+    {{#if authed}}
+    <button type="submit" class="btn btn-primary">投稿</button>
+    {{else}}
+    <button
+      type="submit"
+      class="btn btn-primary"
+      disabled
+      title="投稿するにはログインしてください"
+    >
+      投稿
+    </button>
+    {{/if}}
+  </form>
+</div>

@@ -1,0 +1,36 @@
+/* small screens */
+.layout-root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* large screens */
+@media screen and (min-width: 1000px) {
+  .layout-root {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+  }
+
+  .layout-left-sidebar {
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .layout-content {
+    grid-column: 2;
+  }
+
+  .layout-right-sidebar {
+    grid-column: 3;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.line-split {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
