@@ -111,6 +111,25 @@ func (s *State) CheckNoteVisibility(ctx context.Context, viewerID *types.UserID,
 	panic("unreachable")
 }
 
+func (s *State) FindNoteByIDWithVisibilityCheck(ctx context.Context, viewerID *types.UserID, noteID types.NoteID) (*types.SimpleNote, error) {
+	note, err := s.FindNoteByID(ctx, noteID)
+	if err != nil {
+		return nil, err
+	}
+	if note == nil {
+		return nil, nil
+	}
+
+	visible, err := s.CheckNoteVisibility(ctx, viewerID, *note)
+	if err != nil {
+		return nil, err
+	}
+	if !visible {
+		return nil, nil
+	}
+	return note, nil
+}
+
 func (s *State) checkNoteMentioned(ctx context.Context, noteID types.NoteID,
 	targetUserID types.UserID) (bool, error) {
 	var mentions db.NoteMention

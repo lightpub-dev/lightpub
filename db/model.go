@@ -33,21 +33,32 @@ type Note struct {
 	Sensitive   bool           `gorm:"type:tinyint(1);not null;default:0"`
 	FetchedAt   sql.NullTime   `gorm:"type:datetime(6)"`
 
-	Author   User          `gorm:"foreignKey:AuthorID"`
-	Likes    []NoteLike    `gorm:"foreignKey:NoteID"`
-	Mentions []NoteMention `gorm:"foreignKey:NoteID"`
-	Tags     []NoteTag     `gorm:"foreignKey:NoteID"`
-	Uploads  []NoteUpload  `gorm:"foreignKey:NoteID"`
+	Author        User           `gorm:"foreignKey:AuthorID"`
+	NoteReactions []NoteReaction `gorm:"foreignKey:NoteID"`
+	NoteBookmarks []NoteBookmark `gorm:"foreignKey:NoteID"`
+	Mentions      []NoteMention  `gorm:"foreignKey:NoteID"`
+	Tags          []NoteTag      `gorm:"foreignKey:NoteID"`
+	Uploads       []NoteUpload   `gorm:"foreignKey:NoteID"`
 }
 
-// NoteLike represents a like on a note
-type NoteLike struct {
+// NoteReaction represents a reaction on a note
+type NoteReaction struct {
 	ID        int          `gorm:"primaryKey;autoIncrement"`
-	NoteID    types.NoteID `gorm:"type:binary(16);not null;uniqueIndex:idx_note_like_unique,priority:1"`
+	NoteID    types.NoteID `gorm:"type:binary(16);not null;uniqueIndex:idx_note_reactions_unique,priority:1"`
 	Note      Note         `gorm:"foreignKey:NoteID"`
-	UserID    types.UserID `gorm:"type:binary(16);not null;uniqueIndex:idx_note_like_unique,priority:2"`
+	UserID    types.UserID `gorm:"type:binary(16);not null;uniqueIndex:idx_note_reactions_unique,priority:2"`
 	User      User         `gorm:"foreignKey:UserID"`
-	IsPrivate bool         `gorm:"type:tinyint(1);not null;uniqueIndex:idx_note_like_unique,priority:3"`
+	Reaction  string       `gorm:"type:varchar(64) collate utf8mb4_bin;not null"`
+	CreatedAt time.Time    `gorm:"type:datetime(6);not null;default:current_timestamp(6)"`
+}
+
+// NoteBookmark represents a bookmark on a note
+type NoteBookmark struct {
+	ID        int          `gorm:"primaryKey;autoIncrement"`
+	NoteID    types.NoteID `gorm:"type:binary(16);not null;uniqueIndex:idx_note_bookmarks_unique,priority:1"`
+	Note      Note         `gorm:"foreignKey:NoteID"`
+	UserID    types.UserID `gorm:"type:binary(16);not null;uniqueIndex:idx_note_bookmarks_unique,priority:2"`
+	User      User         `gorm:"foreignKey:UserID"`
 	CreatedAt time.Time    `gorm:"type:datetime(6);not null;default:current_timestamp(6)"`
 }
 
@@ -158,7 +169,8 @@ type User struct {
 	HideFollows       bool               `gorm:"type:tinyint(1);not null;default:0"`
 	PreferredInbox    string             `gorm:"-"` // Generated column in DB
 	Notes             []Note             `gorm:"foreignKey:AuthorID"`
-	Likes             []NoteLike         `gorm:"foreignKey:UserID"`
+	NoteReactions     []NoteReaction     `gorm:"foreignKey:UserID"`
+	NoteBookmarks     []NoteBookmark     `gorm:"foreignKey:UserID"`
 	Mentions          []NoteMention      `gorm:"foreignKey:TargetUserID"`
 	Notifications     []Notification     `gorm:"foreignKey:UserID"`
 	PushNotifications []PushNotification `gorm:"foreignKey:UserID"`

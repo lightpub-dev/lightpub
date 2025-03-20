@@ -40,6 +40,14 @@ type NoteAuthor struct {
 	Domain   string
 }
 
+func (n NoteAuthor) IsLocal() bool {
+	return n.Domain == EmptyDomain
+}
+
+func (n NoteAuthor) IsRemote() bool {
+	return n.Domain != EmptyDomain
+}
+
 type NoteContent struct {
 	Type NoteContentType
 	Data string
