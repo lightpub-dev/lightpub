@@ -17,6 +17,9 @@ var (
 	ErrAuthorNotFound           = NewServiceError(400, "author not found")
 	ErrUpdateTargetNoteNotFound = NewServiceError(400, "update target note not found")
 	ErrVisibilityRequired       = NewServiceError(400, "visibility required")
+	ErrRenoteVisibility         = NewServiceError(400, "renote (and renote target) visibility should be public or unlisted")
+	ErrAlreadyRenoted           = NewServiceError(400, "already renoted")
+	ErrRenoteTargetNotFound     = NewServiceError(400, "renote target not found")
 )
 
 type UpsertTarget struct {
@@ -265,4 +268,69 @@ func (s *State) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarge
 	}
 
 	panic("unreachable")
+}
+
+func (s *State) CreateRenote(ctx context.Context, authorID types.UserID, targetNoteID types.NoteID, visibility types.NoteVisibility) (types.NoteID, error) {
+	// renote visibility check
+	if !visibility.ValidAsRenote() {
+		return types.NoteID{}, ErrRenoteVisibility
+	}
+
+	// author check
+	author, err := s.FindUserByID(ctx, authorID)
+	if err != nil {
+		return types.NoteID{}, err
+	}
+	if author == nil {
+		return types.NoteID{}, ErrAuthorNotFound
+	}
+
+	// check if author has already renoted the target note
+	var existingRenote db.Note
+	err = s.DB(ctx).Where("author_id = ? AND renote_of_id = ?", authorID, targetNoteID).First(&existingRenote).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return types.NoteID{}, err
+	}
+	if err == nil {
+		return types.NoteID{}, ErrAlreadyRenoted
+	}
+
+	// target note check
+	targetNote, err := s.FindNoteByIDWithVisibilityCheck(ctx, &authorID, targetNoteID)
+	if err != nil {
+		return types.NoteID{}, err
+	}
+	if targetNote == nil {
+		return types.NoteID{}, ErrUpdateTargetNoteNotFound
+	}
+
+	// target note visibility check
+	if !targetNote.Visibility.AcceptRenote() {
+		return types.NoteID{}, ErrRenoteVisibility
+	}
+
+	renoteID := types.NewNoteID()
+	now := time.Now()
+	err = s.DB(ctx).Create(&db.Note{
+		ID:         renoteID,
+		AuthorID:   authorID,
+		CreatedAt:  now,
+		Visibility: string(visibility),
+		RenoteOfID: &targetNoteID,
+	}).Error
+	if err != nil {
+		return types.NoteID{}, err
+	}
+
+	// notification (if renoted user is local)
+	if targetNote.Author.IsLocal() {
+		// TODO: create notification
+	}
+
+	// federation (if renoted user is remote)
+	if author.IsLocal() && targetNote.Author.IsRemote() {
+		// TODO: apub Announce
+	}
+
+	return renoteID, nil
 }

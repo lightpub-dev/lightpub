@@ -17,6 +17,14 @@ const (
 type NoteContentType string
 type NoteVisibility string
 
+func (n NoteVisibility) ValidAsRenote() bool {
+	return n == NoteVisibilityPublic || n == NoteVisibilityUnlisted
+}
+
+func (n NoteVisibility) AcceptRenote() bool {
+	return n == NoteVisibilityPublic || n == NoteVisibilityUnlisted
+}
+
 type SimpleNote struct {
 	ID         NoteID
 	Author     NoteAuthor
