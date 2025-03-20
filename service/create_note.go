@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -37,13 +38,14 @@ type CreateNoteParams struct {
 }
 
 func (s *ServiceState) UpsertNote(
+	ctx context.Context,
 	upsertTarget *UpsertTarget,
 	author types.UserID,
 	params CreateNoteParams,
 ) (types.NoteID, error) {
 	var upsertedNoteID types.NoteID
 	err := s.WithTransaction(func(tx *ServiceState) error {
-		authorUser, err := tx.FindUserByID(author)
+		authorUser, err := tx.FindUserByID(ctx, author)
 		if err != nil {
 			return err
 		}
@@ -51,7 +53,7 @@ func (s *ServiceState) UpsertNote(
 			return ErrAuthorNotFound
 		}
 
-		updatedNote, err := tx.findNoteForUpsert(upsertTarget)
+		updatedNote, err := tx.findNoteForUpsert(ctx, upsertTarget)
 		if err != nil {
 			return err
 		}
@@ -73,11 +75,11 @@ func (s *ServiceState) UpsertNote(
 		}
 		upsertedNoteID = updatedNote.ID
 
-		hashtags, err := tx.findHashtagsInNoteContent(params.Content, params.Hashtags)
+		hashtags, err := tx.findHashtagsInNoteContent(ctx, params.Content, params.Hashtags)
 		if err != nil {
 			return err
 		}
-		mentions, err := tx.findMentionsInNoteContent(params.Content, params.Mentions)
+		mentions, err := tx.findMentionsInNoteContent(ctx, params.Content, params.Mentions)
 		if err != nil {
 			return err
 		}
@@ -89,20 +91,20 @@ func (s *ServiceState) UpsertNote(
 
 		// Upsert note
 		setNoteModelForUpsert(updatedNote, author, remoteURL, params, isUpdate)
-		if err := tx.DB().Save(updatedNote).Error; err != nil {
+		if err := tx.DB(ctx).Save(updatedNote).Error; err != nil {
 			return err
 		}
 
 		// Update hashtags
-		if err := tx.DB().Where("note_id = ?", updatedNote.ID).Delete(&db.NoteTag{}).Error; err != nil {
+		if err := tx.DB(ctx).Where("note_id = ?", updatedNote.ID).Delete(&db.NoteTag{}).Error; err != nil {
 			return err
 		}
 		for _, hashtag := range hashtags {
-			tagID, err := tx.getOrCreateTagID(hashtag)
+			tagID, err := tx.getOrCreateTagID(ctx, hashtag)
 			if err != nil {
 				return err
 			}
-			if err := tx.DB().Create(&db.NoteTag{
+			if err := tx.DB(ctx).Create(&db.NoteTag{
 				NoteID: updatedNote.ID,
 				TagID:  tagID,
 			}).Error; err != nil {
@@ -111,11 +113,11 @@ func (s *ServiceState) UpsertNote(
 		}
 
 		// Update mentions
-		if err := tx.DB().Where("note_id = ?", updatedNote.ID).Delete(&db.NoteMention{}).Error; err != nil {
+		if err := tx.DB(ctx).Where("note_id = ?", updatedNote.ID).Delete(&db.NoteMention{}).Error; err != nil {
 			return err
 		}
 		for _, mention := range mentions {
-			if err := tx.DB().Create(&db.NoteMention{
+			if err := tx.DB(ctx).Create(&db.NoteMention{
 				NoteID:       updatedNote.ID,
 				TargetUserID: mention,
 			}).Error; err != nil {
@@ -126,7 +128,7 @@ func (s *ServiceState) UpsertNote(
 		// Insert uploads
 		if !isUpdate {
 			for _, uploadID := range params.Uploads {
-				if err := tx.DB().Create(&db.NoteUpload{
+				if err := tx.DB(ctx).Create(&db.NoteUpload{
 					NoteID:   updatedNote.ID,
 					UploadID: uploadID,
 				}).Error; err != nil {
@@ -181,15 +183,15 @@ func setNoteModelForUpsert(model *db.Note, author types.UserID, url *string, par
 	}
 }
 
-func (s *ServiceState) getOrCreateTagID(name string) (int, error) {
+func (s *ServiceState) getOrCreateTagID(ctx context.Context, name string) (int, error) {
 	var tag db.Tag
-	if err := s.DB().Where("name = ?", name).First(&tag).Error; err != nil {
+	if err := s.DB(ctx).Where("name = ?", name).First(&tag).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// create new tag
 			tag = db.Tag{
 				Name: name,
 			}
-			if err := s.DB().Create(&tag).Error; err != nil {
+			if err := s.DB(ctx).Create(&tag).Error; err != nil {
 				return 0, err
 			}
 		} else {
@@ -200,7 +202,7 @@ func (s *ServiceState) getOrCreateTagID(name string) (int, error) {
 	return tag.ID, nil
 }
 
-func (s *ServiceState) findHashtagsInNoteContent(content types.NoteContent, override []string) ([]string, error) {
+func (s *ServiceState) findHashtagsInNoteContent(ctx context.Context, content types.NoteContent, override []string) ([]string, error) {
 	if override != nil {
 		return override, nil
 	}
@@ -213,7 +215,7 @@ func (s *ServiceState) findHashtagsInNoteContent(content types.NoteContent, over
 	}
 }
 
-func (s *ServiceState) findMentionsInNoteContent(content types.NoteContent, override []types.UserID) ([]types.UserID, error) {
+func (s *ServiceState) findMentionsInNoteContent(ctx context.Context, content types.NoteContent, override []types.UserID) ([]types.UserID, error) {
 	if override != nil {
 		return override, nil
 	}
@@ -226,7 +228,7 @@ func (s *ServiceState) findMentionsInNoteContent(content types.NoteContent, over
 	}
 }
 
-func (s *ServiceState) findNoteForUpsert(upsertTarget *UpsertTarget) (*db.Note, error) {
+func (s *ServiceState) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarget) (*db.Note, error) {
 	if upsertTarget == nil {
 		// new local note
 		return nil, nil
@@ -239,7 +241,7 @@ func (s *ServiceState) findNoteForUpsert(upsertTarget *UpsertTarget) (*db.Note, 
 
 	if upsertTarget.noteID != nil {
 		var note db.Note
-		if err := s.DB().Where("id = ? AND deleted_at IS NULL AND renote_of_id IS NULL", upsertTarget.noteID).First(&note).Error; err != nil {
+		if err := s.DB(ctx).WithContext(ctx).Where("id = ? AND deleted_at IS NULL AND renote_of_id IS NULL", upsertTarget.noteID).First(&note).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, ErrUpdateTargetNoteNotFound
 			}
@@ -251,7 +253,7 @@ func (s *ServiceState) findNoteForUpsert(upsertTarget *UpsertTarget) (*db.Note, 
 
 	if upsertTarget.noteURL != nil {
 		var note db.Note
-		if err := s.DB().Where("url = ? AND deleted_at IS NULL AND renote_of_id IS NULL", upsertTarget.noteURL).First(&note).Error; err != nil {
+		if err := s.DB(ctx).WithContext(ctx).Where("url = ? AND deleted_at IS NULL AND renote_of_id IS NULL", upsertTarget.noteURL).First(&note).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// new remote note
 				return nil, nil

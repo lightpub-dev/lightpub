@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -22,7 +23,7 @@ type UserCreateParams struct {
 	Password string
 }
 
-func (s *ServiceState) CreateNewLocalUser(user UserCreateParams) (types.UserID, error) {
+func (s *ServiceState) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (types.UserID, error) {
 	userID := types.NewUserID()
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
@@ -39,16 +40,16 @@ func (s *ServiceState) CreateNewLocalUser(user UserCreateParams) (types.UserID, 
 		Password:         sql.NullString{String: hashedPasswordStr, Valid: true},
 		AutoFollowAccept: true,
 	}
-	if s.DB().Create(&newUser).Error != nil {
+	if s.DB(ctx).Create(&newUser).Error != nil {
 		return types.UserID{}, NewInternalServerErrorWithCause("failed to create user", err)
 	}
 
 	return userID, nil
 }
 
-func (s *ServiceState) LoginUser(username, password string) (*types.UserID, error) {
+func (s *ServiceState) LoginUser(ctx context.Context, username, password string) (*types.UserID, error) {
 	var user db.User
-	if err := s.DB().Where("username = ? AND domain = '' AND password IS NOT NULL", username).First(&user).Error; err != nil {
+	if err := s.DB(ctx).Where("username = ? AND domain = '' AND password IS NOT NULL", username).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -66,8 +67,8 @@ func (s *ServiceState) LoginUser(username, password string) (*types.UserID, erro
 }
 
 // CheckUserLoginExpiration returns true if the user's login has not expired.
-func (s *ServiceState) CheckUserLoginExpiration(userID types.UserID, loggedInAt time.Time) (bool, error) {
-	user, err := s.FindUserByIDRaw(userID)
+func (s *ServiceState) CheckUserLoginExpiration(ctx context.Context, userID types.UserID, loggedInAt time.Time) (bool, error) {
+	user, err := s.FindUserByIDRaw(ctx, userID)
 	if err != nil {
 		return false, err
 	}
@@ -82,6 +83,6 @@ func (s *ServiceState) CheckUserLoginExpiration(userID types.UserID, loggedInAt 
 	return true, nil
 }
 
-func (s *ServiceState) SetUserLoginExpiration(userID types.UserID, expiresAt time.Time) error {
-	return s.DB().Model(&db.User{}).Where("id = ?", userID).Update("auth_expired_at", expiresAt).Error
+func (s *ServiceState) SetUserLoginExpiration(ctx context.Context, userID types.UserID, expiresAt time.Time) error {
+	return s.DB(ctx).Model(&db.User{}).Where("id = ?", userID).Update("auth_expired_at", expiresAt).Error
 }

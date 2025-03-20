@@ -1,0 +1,1 @@
+DROP VIEW actual_user_follows;

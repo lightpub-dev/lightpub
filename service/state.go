@@ -1,6 +1,10 @@
 package service
 
-import "gorm.io/gorm"
+import (
+	"context"
+
+	"gorm.io/gorm"
+)
 
 var (
 	ErrAlreadyInTx = NewInternalServerError("already in transaction")
@@ -42,6 +46,6 @@ func (s *ServiceState) WithTransaction(f func(tx *ServiceState) error) error {
 	return err
 }
 
-func (s *ServiceState) DB() *gorm.DB {
-	return s.db
+func (s *ServiceState) DB(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx)
 }

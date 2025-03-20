@@ -22,3 +22,10 @@ func timePtrToSql(t *time.Time) sql.NullTime {
 	}
 	return sql.NullTime{Time: *t, Valid: true}
 }
+
+func sqlToTimePtr(t sql.NullTime) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	return &t.Time
+}

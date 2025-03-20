@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 
 	"github.com/lightpub-dev/lightpub/db"
@@ -8,9 +9,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func (s *ServiceState) FindUserByIDRaw(id types.UserID) (*db.User, error) {
+func (s *ServiceState) FindUserByIDRaw(ctx context.Context, id types.UserID) (*db.User, error) {
 	var user db.User
-	if err := s.DB().Where("id = ?", id).First(&user).Error; err != nil {
+	if err := s.DB(ctx).Where("id = ?", id).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -20,8 +21,8 @@ func (s *ServiceState) FindUserByIDRaw(id types.UserID) (*db.User, error) {
 	return &user, nil
 }
 
-func (s *ServiceState) FindUserByID(id types.UserID) (*types.SimpleUser, error) {
-	user, err := s.FindUserByIDRaw(id)
+func (s *ServiceState) FindUserByID(ctx context.Context, id types.UserID) (*types.SimpleUser, error) {
+	user, err := s.FindUserByIDRaw(ctx, id)
 	if err != nil {
 		return nil, err
 	}

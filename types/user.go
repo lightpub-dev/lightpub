@@ -19,3 +19,11 @@ func (s SimpleUser) Specifier() string {
 	}
 	return "@" + s.Username + "@" + s.Domain
 }
+
+func (s SimpleUser) IsRemote() bool {
+	return s.Domain != EmptyDomain
+}
+
+func (s SimpleUser) IsLocal() bool {
+	return s.Domain == EmptyDomain
+}
