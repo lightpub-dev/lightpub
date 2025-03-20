@@ -66,6 +66,10 @@ func (s *State) LoginUser(ctx context.Context, username, password string) (*type
 	return &user.ID, nil
 }
 
+func (s *State) LogoutAllUser(ctx context.Context, userID types.UserID) error {
+	return s.DB(ctx).Model(&db.User{}).Where("id = ?", userID).Update("auth_expired_at", time.Now()).Error
+}
+
 // CheckUserLoginExpiration returns true if the user's login has not expired.
 func (s *State) CheckUserLoginExpiration(ctx context.Context, userID types.UserID, loggedInAt time.Time) (bool, error) {
 	user, err := s.FindUserByIDRaw(ctx, userID)

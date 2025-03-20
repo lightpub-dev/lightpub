@@ -103,7 +103,9 @@ func (s *State) LogoutUser(c echo.Context) error {
 	})
 
 	if q.All != nil && *q.All {
-		// TODO: logout all
+		if err := s.service.LogoutAllUser(c.Request().Context(), c.Get(authCtxName).(*authedUser).UserID); err != nil {
+			return err
+		}
 	}
 
 	c.Response().Header().Set(hxRedirect, "/client/login")
