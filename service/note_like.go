@@ -12,7 +12,17 @@ var (
 	ErrAlreadyReacted         = NewServiceError(400, "already reacted to note")
 	ErrReactionTargetNotFound = NewServiceError(400, "reaction target not found")
 	ErrReactionerNotFound     = NewServiceError(400, "reactioner not found")
+
+	DefaultNoteReaction types.NoteReactionContent
 )
+
+func init() {
+	d, err := types.NewEmojiNoteReaction("❤")
+	if err != nil {
+		panic(err)
+	}
+	DefaultNoteReaction = d
+}
 
 func (s *State) NoteReactionAdd(
 	ctx context.Context,
