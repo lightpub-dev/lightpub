@@ -83,3 +83,29 @@ func (s *State) LoginUser(c echo.Context) error {
 		"token":   token,
 	})
 }
+
+func (s *State) LogoutUser(c echo.Context) error {
+	type query struct {
+		All *bool `query:"all"`
+	}
+
+	var q query
+	if err := c.Bind(&q); err != nil {
+		return errBadInput
+	}
+
+	c.SetCookie(&http.Cookie{
+		Name:     jwtCookieName,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   !s.DevMode(),
+		HttpOnly: true,
+		MaxAge:   -1, // delete cookie
+	})
+
+	if q.All != nil && *q.All {
+		// TODO: logout all
+	}
+
+	c.Response().Header().Set(hxRedirect, "/client/login")
+	return c.JSON(http.StatusOK, nil)
+}
