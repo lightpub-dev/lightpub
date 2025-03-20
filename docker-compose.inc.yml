@@ -1,0 +1,69 @@
+services:
+  # lightpub_mathjax:
+  #   image: ghcr.io/lightpub-dev/lightpub/mathjax:latest
+  #   build:
+  #     context: ./subsystems/mathjax
+  #   environment:
+  #     NATS_URL: nats://lightpub_nats:4222
+  #   depends_on:
+  #     lightpub_nats:
+  #       condition: service_started
+  #   init: true
+  #   restart: unless-stopped
+
+  lightpub_db:
+    image: mariadb:latest
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:3306:3306
+    environment:
+      - MARIADB_DATABASE=lightpub
+      - MARIADB_USER=lightpub
+      - MARIADB_PASSWORD=lightpub
+      - MARIADB_ROOT_PASSWORD=lightpub
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    command: mariadbd --collation-server utf8mb4_general_ci --performance-schema
+
+  lightpub_kv:
+    image: valkey/valkey:latest
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+
+  lightpub_nats:
+    image: nats:latest
+    ports:
+      - 127.0.0.1:4222:4222
+    volumes:
+      - nats_data:/data
+    command: -js -sd /data
+    restart: unless-stopped
+
+  # For fulltext search
+  lightpub_typesense:
+    image: typesense/typesense:29.0.rc5
+    restart: on-failure
+    ports:
+      - "127.0.0.1:8108:8108"
+    volumes:
+      - lightpub_typesense_data:/data
+    command: "--data-dir /data --api-key=xyz --enable-cors"
+
+volumes:
+  nats_data:
+  mariadb_data:
+    name: lightpub_mariadb_data
+  lightpub_data:
+    name: lightpub_data
+  lightpub_tmp:
+    name: lightpub_tmp
+  lightpub_uploads:
+    name: lightpub_uploads
+  lightpub_typesense_data:
