@@ -1,4 +1,0 @@
-include:
-  - path:
-      - ./docker-compose.inc.yml
-      - ./docker-compose.dev.or.yml

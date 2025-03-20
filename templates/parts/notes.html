@@ -1,9 +1,0 @@
-{{#each data}} {{> parts/note note=this.note renoteInfo=this.renoteInfo
-authed=../authed}} {{/each}} {{#if nextUrl}}
-<div
-  hx-get="{{nextUrl}}"
-  hx-trigger="revealed"
-  hx-swap="afterend"
-  style="height: 1px"
-></div>
-{{/if}}

@@ -1,7 +1,0 @@
-services:
-  lightpub_app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        BUILD_TYPE: debug
