@@ -20,7 +20,7 @@ func (s *ServiceState) FindUserByIDRaw(id types.UserID) (*db.User, error) {
 	return &user, nil
 }
 
-func (s *ServiceState) FindUserByID(id types.UserID) (*SimpleUser, error) {
+func (s *ServiceState) FindUserByID(id types.UserID) (*types.SimpleUser, error) {
 	user, err := s.FindUserByIDRaw(id)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func (s *ServiceState) FindUserByID(id types.UserID) (*SimpleUser, error) {
 		return nil, nil
 	}
 
-	return &SimpleUser{
+	return &types.SimpleUser{
 		ID:       user.ID,
 		Username: user.Username,
 		Domain:   user.Domain,

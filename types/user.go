@@ -1,14 +1,16 @@
-package service
+package types
 
-import "github.com/lightpub-dev/lightpub/types"
+const (
+	EmptyDomain = "" // Empty string means local server
+)
 
 type SimpleUser struct {
-	ID       types.UserID
+	ID       UserID
 	Username string
 	Domain   string // Empty string means local server
 	Nickname string
 	Bio      string
-	Avatar   *types.UploadID
+	Avatar   *UploadID
 }
 
 func (s SimpleUser) Specifier() string {

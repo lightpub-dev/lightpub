@@ -16,10 +16,6 @@ var (
 	ErrUsernameAlreadyExists = NewServiceError(400, "username already exists")
 )
 
-const (
-	EmptyDomain = "" // Empty string means local server
-)
-
 type UserCreateParams struct {
 	Username string
 	Nickname string
@@ -38,7 +34,7 @@ func (s *ServiceState) CreateNewLocalUser(user UserCreateParams) (types.UserID, 
 	newUser := db.User{
 		ID:               userID,
 		Username:         user.Username,
-		Domain:           EmptyDomain,
+		Domain:           types.EmptyDomain,
 		Nickname:         user.Nickname,
 		Password:         sql.NullString{String: hashedPasswordStr, Valid: true},
 		AutoFollowAccept: true,
