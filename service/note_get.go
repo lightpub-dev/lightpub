@@ -91,6 +91,10 @@ func (s *State) FindNoteByID(ctx context.Context, noteID types.NoteID) (*types.S
 }
 
 func (s *State) CheckNoteVisibility(ctx context.Context, viewerID *types.UserID, note types.SimpleNote) (bool, error) {
+	if viewerID != nil && *viewerID == note.Author.ID {
+		return true, nil
+	}
+
 	switch note.Visibility {
 	case types.NoteVisibilityPublic:
 		fallthrough
