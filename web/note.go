@@ -13,6 +13,10 @@ import (
 	"github.com/lightpub-dev/lightpub/types"
 )
 
+const (
+	hxNoteRefreshEvent = "note-refresh"
+)
+
 type ClientCreateNoteParams struct {
 	Authed    bool
 	Title     string
@@ -201,6 +205,40 @@ func (s *State) CreateNote(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"note_id": noteID,
 	})
+}
+
+func (s *State) PutBookmarkOnNote(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	if err := s.service.NoteBookmarkAdd(c.Request().Context(), *viewerID, noteID); err != nil {
+		return err
+	}
+
+	c.Response().Header().Set(hxTrigger, hxNoteRefreshEvent)
+	return c.NoContent(http.StatusOK)
+}
+
+func (s *State) DeleteBookmarkOnNote(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	if err := s.service.NoteBookmarkRemove(c.Request().Context(), *viewerID, noteID); err != nil {
+		return err
+	}
+
+	c.Response().Header().Set(hxTrigger, hxNoteRefreshEvent)
+	return c.NoContent(http.StatusOK)
 }
 
 func (s *State) GetTimeline(c echo.Context) error {

@@ -16,6 +16,7 @@ var (
 
 const (
 	hxRedirect = "HX-Redirect"
+	hxTrigger  = "HX-Trigger"
 
 	paginationSize   = 20
 	paginationSizeP1 = paginationSize + 1
