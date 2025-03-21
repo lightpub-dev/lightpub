@@ -1,0 +1,10 @@
+<ul class="trend-list">
+  {{range .Data}}
+  <a style="text-decoration: none" href="{{.URL}}">
+    <li class="trend-item">
+      <p class="trend-hashtag">{{.Hashtag}}</p>
+      <p class="trend-count">{{.Count}}</p>
+    </li>
+  </a>
+  {{end}}
+</ul>

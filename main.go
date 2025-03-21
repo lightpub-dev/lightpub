@@ -64,6 +64,7 @@ func main() {
 	noteGroup.DELETE("/:id/bookmark", s.DeleteBookmarkOnNote, authRequired)
 
 	e.GET("/timeline", s.GetTimeline, authOptional)
+	e.GET("/trends", s.GetTrends)
 
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)

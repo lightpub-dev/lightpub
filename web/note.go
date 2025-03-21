@@ -3,6 +3,7 @@ package web
 import (
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 
 const (
 	hxNoteRefreshEvent = "note-refresh"
+
+	trendShowCount = 5
 )
 
 type ClientCreateNoteParams struct {
@@ -326,4 +329,32 @@ func (s *State) GetTimeline(c echo.Context) error {
 
 	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
 	return c.Render(http.StatusOK, "notes.html", renderParams)
+}
+
+type TrendRenderParams struct {
+	Data []TrendEntry
+}
+
+type TrendEntry struct {
+	service.TrendEntry
+	URL string
+}
+
+func (s *State) GetTrends(c echo.Context) error {
+	trends, err := s.service.GetTrendingTags(c.Request().Context(), trendShowCount)
+	if err != nil {
+		return err
+	}
+
+	entries := make([]TrendEntry, 0, len(trends))
+	for _, trend := range trends {
+		entries = append(entries, TrendEntry{
+			TrendEntry: trend,
+			URL:        "/timeline?tag=" + url.QueryEscape(trend.Hashtag),
+		})
+	}
+
+	return c.Render(http.StatusOK, "trends.html", TrendRenderParams{
+		Data: entries,
+	})
 }
