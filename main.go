@@ -59,6 +59,7 @@ func main() {
 	noteGroup.POST("", s.CreateNote, authRequired)
 	noteGroup.GET("/:id", s.GetNote, authOptional)
 	noteGroup.DELETE("/:id", s.DeleteNote, authRequired)
+	noteGroup.POST("/:id/renote", s.CreateRenote, authRequired)
 	noteGroup.PUT("/:id/bookmark", s.PutBookmarkOnNote, authRequired)
 	noteGroup.DELETE("/:id/bookmark", s.DeleteBookmarkOnNote, authRequired)
 

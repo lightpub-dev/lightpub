@@ -75,7 +75,7 @@ func (s *State) renderNotes(notes []types.DetailedNote, authed bool, nextURL *st
 func (s *State) GetNote(c echo.Context) error {
 	var param struct {
 		ID        string `param:"id"`
-		RenotedBy string `query:"renoted_by"`
+		RenotedBy string `query:"renotedBy"`
 	}
 	if err := c.Bind(&param); err != nil {
 		return errBadInput
@@ -221,6 +221,35 @@ func (s *State) CreateNote(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"note_id": noteID,
+	})
+}
+
+func (s *State) CreateRenote(c echo.Context) error {
+	var param struct {
+		Visibility types.NoteVisibility `json:"visibility" validate:"required,oneof=public unlisted follower private"`
+		NoteIDStr  string               `param:"id" validate:"required"`
+	}
+	if err := c.Bind(&param); err != nil {
+		return errBadInput
+	}
+	if err := validate.Struct(param); err != nil {
+		return errBadInput
+	}
+
+	noteID, err := types.ParseNoteID(param.NoteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	renoteID, err := s.service.CreateRenote(c.Request().Context(), *viewerID, noteID, param.Visibility)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"note_id": renoteID,
 	})
 }
 

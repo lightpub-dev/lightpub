@@ -20,23 +20,30 @@
       {{if .Note.Basic.ReplyToID}}
       <aside aria-label="返信先情報" class="note-reply-to">
         <i aria-label="返信マーク" class="fa fa-reply" aria-hidden="true"></i>
-        <a href="/client/note/{{.Note.Basic.ReplyToID}}" aria-label="返信先ノート">返信先</a>
+        <a
+          href="/client/note/{{.Note.Basic.ReplyToID}}"
+          aria-label="返信先ノート"
+          >返信先</a
+        >
       </aside>
-      {{end}}
-      {{if .RenoteInfo}}
+      {{end}} {{if .RenoteInfo}}
       <aside aria-label="リノート情報" class="note-repost-of">
-        <i aria-label="リノートマーク" class="fa fa-repeat" aria-hidden="true"></i>
+        <i
+          aria-label="リノートマーク"
+          class="fa fa-repeat"
+          aria-hidden="true"
+        ></i>
         <p aria-label="リノート者情報" style="display: inline">
-          {{.RenoteInfo.User.Nickname}} (
-            href="/client/user/{{.RenoteInfo.User.Username}}"
-            >{{.RenoteInfo.User.Username}}</a
+          {{.RenoteInfo.User.Nickname}} (<a
+            href="/client/user/{{.RenoteInfo.User.Specifier}}"
+            >{{.RenoteInfo.User.Specifier}}</a
           >) がリノート
         </p>
       </aside>
       {{end}}
     </div>
     <header class="card-author line-split">
-      <address aria-label="投稿者情報" style="margin-bottom: 0px;">
+      <address aria-label="投稿者情報" style="margin-bottom: 0px">
         <img
           src="/user/{{.Note.Basic.Author.ID}}/avatar"
           alt="ユーザーアバター"
@@ -44,9 +51,13 @@
           height="48"
           class="avatar"
         />
-        <span aria-label="ニックネーム" class="author-nickname">{{.Note.Basic.Author.Nickname}}</span>
+        <span aria-label="ニックネーム" class="author-nickname"
+          >{{.Note.Basic.Author.Nickname}}</span
+        >
         <a href="/client/user/{{.Note.Basic.Author.Specifier}}">
-          <span aria-label="ユーザーネーム" class="author-id"> {{.Note.Basic.Author.Specifier}} </span>
+          <span aria-label="ユーザーネーム" class="author-id">
+            {{.Note.Basic.Author.Specifier}}
+          </span>
         </a>
       </address>
       <div class="note-actions">
@@ -75,17 +86,15 @@
       <div class="content">{{.Note.Basic.Content.RawHTML}}</div>
       {{if .Note.Basic.Uploads}}
       <div role="group" aria-label="アップロード画像リスト">
-        {{range .Note.Basic.Uploads}}
-          {{if $.Note.Basic.Sensitive}}
-          <a href="{{.}}" target="_blank">画像を見る (sensitive)</a>
-          {{else}}
-          <a href="{{.}}" target="_blank">
-            <figure>
-              <img src="{{.}}" alt="アップロード画像" class="upload" />
-            </figure>
-          </a>
-          {{end}}
-        {{end}}
+        {{range .Note.Basic.Uploads}} {{if $.Note.Basic.Sensitive}}
+        <a href="{{.}}" target="_blank">画像を見る (sensitive)</a>
+        {{else}}
+        <a href="{{.}}" target="_blank">
+          <figure>
+            <img src="{{.}}" alt="アップロード画像" class="upload" />
+          </figure>
+        </a>
+        {{end}} {{end}}
       </div>
       {{end}}
     </div>
@@ -107,12 +116,11 @@
         <div class="counter note-reply">{{.Note.Details.ReplyCount}}</div>
         {{end}}
       </button>
-      {{end}}
-
-      {{if .Authed}}
-      {{if .Note.Basic.Renotable}}
-      <button class="note-toolbar-item"
-        {{if .Note.Details.Renoted}}
+      {{end}} {{if .Authed}} {{if .Note.Basic.Renotable}}
+      <button
+        class="note-toolbar-item"
+        {{if
+        .Note.Details.Renoted}}
         hx-delete="/note/{{.Note.Basic.ID}}/renote"
         aria-label="リノート解除"
         {{else}}
@@ -120,24 +128,22 @@
         aria-label="リノート"
         {{end}}
         hx-swap="none"
-        hx-include="this" hx-ext="json-enc"
+        hx-include="this"
+        hx-ext="json-enc"
       >
         <input type="hidden" name="visibility" value="public" />
         <i class="fa-solid fa-repeat" aria-hidden="true" title="リノート"></i>
         {{if .Note.Details.Renoted}}
         <i class="fa-regular fa-circle-check" style="color: green"></i>
-        {{end}}
-        {{if .Note.Details.RenoteCount}}
+        {{end}} {{if .Note.Details.RenoteCount}}
         <div class="counter note-renote">{{.Note.Details.RenoteCount}}</div>
         {{end}}
       </button>
-      {{end}}
-      {{end}}
-
-      {{if .Authed}}
+      {{end}} {{end}} {{if .Authed}}
       <button
         class="note-toolbar-item like-badge"
-        {{if .Note.Details.Reacted}}
+        {{if
+        .Note.Details.Reacted}}
         hx-delete="/note/{{.Note.Basic.ID}}/like"
         aria-label="お気に入り解除"
         {{else}}
@@ -147,24 +153,20 @@
         hx-swap="none"
       >
         <i class="fa-regular fa-star" aria-hidden="true" title="お気に入り"></i>
-        {{if .Note.Details.ReactionList}}
-        {{range .Note.Details.ReactionList}}
+        {{if .Note.Details.ReactionList}} {{range .Note.Details.ReactionList}}
         <div class="counter note-reply">
-            <span class="reaction-emoji">{{.Emoji}}</span>
-            <span class="reaction-count">{{.Count}}</span>
+          <span class="reaction-emoji">{{.Emoji}}</span>
+          <span class="reaction-count">{{.Count}}</span>
         </div>
-        {{end}}
-        {{end}}
-        {{if .Note.Details.Reacted}}
+        {{end}} {{end}} {{if .Note.Details.Reacted}}
         <i class="fa-regular fa-circle-check" style="color: green"></i>
         {{end}}
       </button>
-      {{end}}
-
-      {{if .Authed}}
+      {{end}} {{if .Authed}}
       <button
         class="note-toolbar-item"
-        {{if .Note.Details.Bookmarked}}
+        {{if
+        .Note.Details.Bookmarked}}
         hx-delete="/note/{{.Note.Basic.ID}}/bookmark"
         aria-label="ブックマーク解除"
         {{else}}
@@ -173,7 +175,11 @@
         {{end}}
         hx-swap="none"
       >
-        <i class="fa-regular fa-bookmark" aria-hidden="true" title="ブックマーク"></i>
+        <i
+          class="fa-regular fa-bookmark"
+          aria-hidden="true"
+          title="ブックマーク"
+        ></i>
         {{if .Note.Details.Bookmarked}}
         <i class="fa-regular fa-circle-check" style="color: green"></i>
         {{end}}
@@ -193,11 +199,15 @@
       <ul class="dropdown-menu">
         {{if .Authed}}
         <li>
-          <a class="dropdown-item" href="#" onclick="alert('未実装です')">通報</a>
+          <a class="dropdown-item" href="#" onclick="alert('未実装です')"
+            >通報</a
+          >
         </li>
         {{end}}
         <li>
-          <a class="dropdown-item" href="/client/note/{{.Note.Basic.ID}}/renotes"
+          <a
+            class="dropdown-item"
+            href="/client/note/{{.Note.Basic.ID}}/renotes"
             >リノート一覧</a
           >
         </li>
@@ -207,16 +217,23 @@
           >
         </li>
         <li>
-          <a class="dropdown-item" href="/client/note/{{.Note.Basic.ID}}/mentions"
+          <a
+            class="dropdown-item"
+            href="/client/note/{{.Note.Basic.ID}}/mentions"
             >メンション一覧</a
           >
         </li>
         <li>
-          <a class="dropdown-item" href="/client/note/{{.Note.Basic.ID}}">詳細</a>
+          <a class="dropdown-item" href="/client/note/{{.Note.Basic.ID}}"
+            >詳細</a
+          >
         </li>
         {{if .Note.Details.RemoteViewURL}}
         <li>
-          <a class="dropdown-item" href="{{.Note.Details.RemoteViewURL}}" target="_blank"
+          <a
+            class="dropdown-item"
+            href="{{.Note.Details.RemoteViewURL}}"
+            target="_blank"
             >外部ページで表示</a
           >
         </li>
@@ -224,17 +241,20 @@
       </ul>
     </div>
     <footer aria-label="ノートのメタデータ" class="card-footer note-metainfo">
-      <span aria-label="公開範囲" class="visibility">{{.Note.Basic.Visibility}}</span>
+      <span aria-label="公開範囲" class="visibility"
+        >{{.Note.Basic.Visibility}}</span
+      >
       {{if .Note.Basic.Sensitive}}
-      <span aria-label="センシティブなコンテンツを含む" class="sensitive">sensitive</span>
+      <span aria-label="センシティブなコンテンツを含む" class="sensitive"
+        >sensitive</span
+      >
       {{end}}
-      <span
-        aria-label="投稿時刻"
-        class="created-at"
-      ><time
-        datetime="{{.Note.Basic.CreatedAt}}"
-        x-data
-        x-text="new Date('{{.Note.Basic.CreatedAt}}').toLocaleString()"></time>
+      <span aria-label="投稿時刻" class="created-at"
+        ><time
+          datetime="{{.Note.Basic.CreatedAt}}"
+          x-data
+          x-text="new Date('{{.Note.Basic.CreatedAt}}').toLocaleString()"
+        ></time>
       </span>
     </footer>
     <div class="note-reply-form collapse" id="noteReplyForm_{{.Note.Basic.ID}}">
