@@ -50,7 +50,7 @@
         </a>
       </address>
       <div class="note-actions">
-        {{if .IsMyNote}}
+        {{if .Note.Details.IsMyNote}}
         <button
           hx-get="/note/{{.Note.Basic.ID}}/edit"
           hx-target="closest .note-container"
@@ -110,7 +110,7 @@
       {{end}}
 
       {{if .Authed}}
-      {{if .Note.Renotable}}
+      {{if .Note.Basic.Renotable}}
       <button class="note-toolbar-item"
         {{if .Note.Details.Renoted}}
         hx-delete="/note/{{.Note.Basic.ID}}/renote"
@@ -214,9 +214,9 @@
         <li>
           <a class="dropdown-item" href="/client/note/{{.Note.Basic.ID}}">詳細</a>
         </li>
-        {{if .ViewURL}}
+        {{if .Note.Details.RemoteViewURL}}
         <li>
-          <a class="dropdown-item" href="{{.ViewURL}}" target="_blank"
+          <a class="dropdown-item" href="{{.Note.Details.RemoteViewURL}}" target="_blank"
             >外部ページで表示</a
           >
         </li>
@@ -238,7 +238,7 @@
       </span>
     </footer>
     <div class="note-reply-form collapse" id="noteReplyForm_{{.Note.Basic.ID}}">
-      {{template "parts/create_note" .}}
+      {{template "createNote.html" .Reply}}
     </div>
     {{end}}
   </div>

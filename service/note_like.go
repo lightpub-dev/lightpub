@@ -188,12 +188,9 @@ func (s *State) checkNoteReacted(ctx context.Context, noteID types.NoteID, userI
 }
 
 func (s *State) checkNoteBookmarked(ctx context.Context, noteID types.NoteID, userID types.UserID) (bool, error) {
-	var bookmark db.NoteBookmark
-	if err := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).First(&bookmark).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return false, nil
-		}
+	var count int64
+	if err := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Model(&db.NoteBookmark{}).Count(&count).Error; err != nil {
 		return false, err
 	}
-	return true, nil
+	return count > 0, nil
 }

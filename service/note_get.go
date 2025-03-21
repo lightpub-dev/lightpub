@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/types"
@@ -21,7 +22,7 @@ type noteAuthorPair struct {
 
 func (s *State) findNoteByIDRaw(ctx context.Context, noteID types.NoteID, includeDeleted bool) (*noteAuthorPair, error) {
 	var note db.Note
-	if err := s.DB(ctx).Where("id = ?", noteID).Joins("Author").First(&note).Error; err != nil {
+	if err := s.DB(ctx).Where("notes.id = ?", noteID).Joins("Author").First(&note).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -92,6 +93,7 @@ func (s *State) FindNoteByID(ctx context.Context, noteID types.NoteID) (*types.S
 func (s *State) CheckNoteVisibility(ctx context.Context, viewerID *types.UserID, note types.SimpleNote) (bool, error) {
 	switch note.Visibility {
 	case types.NoteVisibilityPublic:
+		fallthrough
 	case types.NoteVisibilityUnlisted:
 		return true, nil
 	case types.NoteVisibilityFollower:
@@ -114,7 +116,7 @@ func (s *State) CheckNoteVisibility(ctx context.Context, viewerID *types.UserID,
 		return isMentioned, nil
 	}
 
-	panic("unreachable")
+	panic(fmt.Sprintf("unknown note visibility: %s", note.Visibility))
 }
 
 func (s *State) FindNoteByIDWithVisibilityCheck(ctx context.Context, viewerID *types.UserID, noteID types.NoteID) (*types.SimpleNote, error) {
@@ -159,6 +161,11 @@ func (s *State) FindNoteByIDWithDetails(ctx context.Context, viewerID *types.Use
 func (s *State) getNoteDetails(ctx context.Context, viewerID *types.UserID, note types.SimpleNote) (types.NoteDetails, error) {
 	details := types.NoteDetails{}
 
+	rawNote, err := s.findNoteByIDRaw(ctx, note.ID, false)
+	if err != nil {
+		return details, err
+	}
+
 	if viewerID != nil {
 		renoted, err := s.checkNoteRenoted(ctx, note.ID, *viewerID)
 		if err != nil {
@@ -177,6 +184,9 @@ func (s *State) getNoteDetails(ctx context.Context, viewerID *types.UserID, note
 			return details, err
 		}
 		details.Bookmarked = &bookmarked
+
+		isMyNote := *viewerID == note.Author.ID
+		details.IsMyNote = &isMyNote
 	}
 
 	var (
@@ -204,7 +214,6 @@ func (s *State) getNoteDetails(ctx context.Context, viewerID *types.UserID, note
 	details.RenoteCount = uint64(renoteCount)
 	details.ReactionCount = reactionCount
 
-	var err error
 	details.Hashtags, err = s.getNoteHashtags(ctx, note.ID)
 	if err != nil {
 		return details, err
@@ -213,6 +222,8 @@ func (s *State) getNoteDetails(ctx context.Context, viewerID *types.UserID, note
 	if err != nil {
 		return details, err
 	}
+
+	details.RemoteViewURL = sqlToStringPtr(rawNote.Note.ViewURL)
 
 	return details, nil
 }
@@ -230,14 +241,11 @@ func (s *State) checkNoteMentioned(ctx context.Context, noteID types.NoteID,
 }
 
 func (s *State) checkNoteRenoted(ctx context.Context, noteID types.NoteID, renoterID types.UserID) (bool, error) {
-	var renote db.Note
-	if err := s.DB(ctx).Where("renote_of_id = ? AND author_id = ? AND content IS NULL", noteID, renoterID).First(&renote).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
+	var count int64
+	if err := s.DB(ctx).Where("renote_of_id = ? AND author_id = ? AND content IS NULL", noteID, renoterID).Model(&db.Note{}).Count(&count).Error; err != nil {
 		return false, err
 	}
-	return true, nil
+	return count > 0, nil
 }
 
 func (s *State) getNoteHashtags(ctx context.Context, noteID types.NoteID) ([]string, error) {

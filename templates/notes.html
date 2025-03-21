@@ -1,0 +1,8 @@
+{{range .Data}} {{template "note.html" .}} {{end}} {{if .NextURL}}
+<div
+  hx-get="{{.NextURL}}"
+  hx-trigger="revealed"
+  hx-swap="afterend"
+  style="height: 1px"
+></div>
+{{end}}

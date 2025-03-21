@@ -16,6 +16,9 @@ var (
 
 const (
 	hxRedirect = "HX-Redirect"
+
+	paginationSize   = 20
+	paginationSizeP1 = paginationSize + 1
 )
 
 type State struct {

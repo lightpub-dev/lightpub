@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/failure"
@@ -21,11 +22,17 @@ type ClientCreateNoteParams struct {
 type ClientNoteParams struct {
 	Note       *types.DetailedNote
 	RenoteInfo *ClientRenoteInfo
+	Reply      ClientCreateNoteParams
 	Authed     bool
 }
 
 type ClientRenoteInfo struct {
 	User types.SimpleUser
+}
+
+type ClientNotesParams struct {
+	Data    []ClientNoteParams
+	NextURL *string
 }
 
 func (s *State) renderNote(note *types.DetailedNote, renoter *types.SimpleUser, authed bool) ClientNoteParams {
@@ -36,10 +43,28 @@ func (s *State) renderNote(note *types.DetailedNote, renoter *types.SimpleUser, 
 		}
 	}
 
+	noteID := note.Basic.ID.String()
 	return ClientNoteParams{
 		Note:       note,
 		RenoteInfo: renoteInfo,
-		Authed:     authed,
+		Reply: ClientCreateNoteParams{
+			Title:     "返信",
+			Authed:    authed,
+			ReplyToID: &noteID,
+		},
+		Authed: authed,
+	}
+}
+
+func (s *State) renderNotes(notes []types.DetailedNote, authed bool, nextURL *string) ClientNotesParams {
+	data := make([]ClientNoteParams, 0, len(notes))
+	for _, note := range notes {
+		data = append(data, s.renderNote(&note, nil, authed))
+	}
+
+	return ClientNotesParams{
+		Data:    data,
+		NextURL: nextURL,
 	}
 }
 
@@ -176,4 +201,45 @@ func (s *State) CreateNote(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"note_id": noteID,
 	})
+}
+
+func (s *State) GetTimeline(c echo.Context) error {
+	var query struct {
+		BeforeTime *time.Time `query:"before_time"`
+		Public     bool       `query:"public"`
+	}
+	if err := c.Bind(&query); err != nil {
+		return err
+	}
+
+	viewerID := getViewerID(c)
+	if viewerID == nil && !query.Public {
+		return failure.NewError(http.StatusUnauthorized, "you have to log in to see non-public timeline")
+	}
+
+	var (
+		notes []types.DetailedNote
+		err   error
+	)
+	if query.Public {
+		notes, err = s.service.GetPublicTimeline(c.Request().Context(), viewerID, paginationSizeP1, query.BeforeTime)
+	} else {
+		notes, err = s.service.GetTimeline(c.Request().Context(), *viewerID, paginationSizeP1, query.BeforeTime)
+	}
+	if err != nil {
+		return err
+	}
+
+	var nextURL *string
+	if len(notes) == paginationSizeP1 {
+		beforeTime := notes[len(notes)-1].Basic.CreatedAt.UTC().Format(time.RFC3339Nano)
+		nextURLP := buildURLWithParams(c.Request().URL, map[string]string{
+			"before_time": beforeTime,
+		})
+		nextURL = &nextURLP
+		notes = notes[:paginationSize]
+	}
+
+	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
+	return c.Render(http.StatusOK, "notes.html", renderParams)
 }

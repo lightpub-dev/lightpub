@@ -117,12 +117,16 @@ type NoteDetails struct {
 	RenoteCount   uint64
 	ReactionCount map[string]uint64
 
+	// viewer's interaction
 	Renoted    *bool
 	Reacted    *string
 	Bookmarked *bool
+	IsMyNote   *bool
 
 	Hashtags []string
 	Mentions []NoteMention
+
+	RemoteViewURL *string
 }
 
 func (n NoteDetails) ReactionList() []NoteReactionCount {

@@ -32,6 +32,7 @@ func main() {
 	if err != nil {
 		e.Logger.Fatalf("Failed to create state: %v", err)
 	}
+	e.Debug = s.DevMode()
 
 	authRequired := s.MakeJwtAuthMiddleware(false)
 	authOptional := s.MakeJwtAuthMiddleware(true)
@@ -48,6 +49,8 @@ func main() {
 	noteGroup := e.Group("/note")
 	noteGroup.GET("/:id", s.GetNote)
 	noteGroup.POST("", s.CreateNote, authRequired)
+
+	e.GET("/timeline", s.GetTimeline, authOptional)
 
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)
