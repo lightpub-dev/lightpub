@@ -202,3 +202,14 @@ type UserFollow struct {
 	URL        sql.NullString `gorm:"type:varchar(512)"`
 	CreatedAt  time.Time      `gorm:"type:datetime(6);not null;default:current_timestamp(6)"`
 }
+
+// UserFollow represents a follow relationship between users
+type ActualUserFollow struct {
+	ID         int            `gorm:"primaryKey;autoIncrement"`
+	FollowerID types.UserID   `gorm:"type:binary(16);not null;uniqueIndex:user_follow_unique,priority:1"`
+	Follower   User           `gorm:"foreignKey:FollowerID"`
+	FollowedID types.UserID   `gorm:"type:binary(16);not null;uniqueIndex:user_follow_unique,priority:2"`
+	Followed   User           `gorm:"foreignKey:FollowedID"`
+	URL        sql.NullString `gorm:"type:varchar(512)"`
+	CreatedAt  time.Time      `gorm:"type:datetime(6);not null;default:current_timestamp(6)"`
+}

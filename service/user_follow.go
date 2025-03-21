@@ -14,13 +14,7 @@ var (
 	ErrCannotFollowBlock = NewServiceError(400, "cannot follow blocked user")
 	ErrFollowerNotFound  = NewServiceError(404, "follower not found")
 	ErrFolloweeNotFound  = NewServiceError(404, "followee not found")
-
-	FollowStateNo      FollowState = 0
-	FollowStateYes     FollowState = 1
-	FollowStatePending FollowState = 2
 )
-
-type FollowState = int
 
 func (s *State) FollowUser(
 	ctx context.Context,
@@ -227,9 +221,9 @@ func (s *State) AcceptFollow(
 func (s *State) GetFollowState(
 	ctx context.Context,
 	followerID types.UserID, followeeID types.UserID,
-) (FollowState, error) {
+) (types.FollowState, error) {
 	if followerID == followeeID {
-		return FollowStateNo, ErrCannotFollowSelf
+		return types.FollowStateNo, ErrCannotFollowSelf
 	}
 
 	var follow db.UserFollow
@@ -238,14 +232,14 @@ func (s *State) GetFollowState(
 		followerID, followeeID,
 	).First(&follow).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return FollowStateNo, nil
+			return types.FollowStateNo, nil
 		}
-		return FollowStateNo, err
+		return types.FollowStateNo, err
 	}
 
 	if follow.Pending {
-		return FollowStatePending, nil
+		return types.FollowStatePending, nil
 	}
 
-	return FollowStateYes, nil
+	return types.FollowStateYes, nil
 }
