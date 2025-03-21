@@ -1,21 +1,29 @@
 package auth
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 type State struct {
 	jwtPublicKey  []byte
 	jwtPrivateKey []byte
 }
 
-func NewStateFromEnv() *State {
-	jwtPublicKey, err := readJWTPublicKey()
+type Config struct {
+	JWTPublicKeyPath  string `yaml:"jwt_public_key_path"`
+	JWTPrivateKeyPath string `yaml:"jwt_private_key_path"`
+}
+
+func NewStateFromConfig(config Config) *State {
+	jwtPublicKey, err := readJWTPublicKey(config.JWTPublicKeyPath)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to read JWT public key: %v", err)
 	}
 
-	jwtPrivateKey, err := readJWTPrivateKey()
+	jwtPrivateKey, err := readJWTPrivateKey(config.JWTPrivateKeyPath)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to read JWT private key: %v", err)
 	}
 
 	return &State{
@@ -24,12 +32,7 @@ func NewStateFromEnv() *State {
 	}
 }
 
-func readJWTPrivateKey() ([]byte, error) {
-	path, exists := os.LookupEnv("JWT_SECRET_KEY_FILE")
-	if !exists {
-		panic("JWT_SECRET_KEY_FILE not set")
-	}
-
+func readJWTPrivateKey(path string) ([]byte, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -38,12 +41,7 @@ func readJWTPrivateKey() ([]byte, error) {
 	return key, nil
 }
 
-func readJWTPublicKey() ([]byte, error) {
-	path, exists := os.LookupEnv("JWT_PUBLIC_KEY_FILE")
-	if !exists {
-		panic("JWT_PUBLIC_KEY_FILE not set")
-	}
-
+func readJWTPublicKey(path string) ([]byte, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

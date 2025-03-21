@@ -17,6 +17,7 @@ require (
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/datatypes v1.2.5 // indirect
 	gorm.io/gen v0.3.26 // indirect
 	gorm.io/hints v1.1.2 // indirect

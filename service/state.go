@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/lightpub-dev/lightpub/kv"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"resty.dev/v3"
 )
@@ -18,10 +19,43 @@ type State struct {
 	inTx bool
 
 	uploadFetchClient *resty.Client
-	remoteUploadCache kv.Cache
+	// remoteUploadCache kv.Cache
 
 	uploadDir string
 	devMode   bool
+}
+
+type Config struct {
+	Database  DatabaseConfig `yaml:"database"`
+	UploadDir string         `yaml:"upload_dir"`
+	DevMode   bool           `yaml:"dev_mode"`
+}
+
+type DatabaseConfig struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
+	User string `yaml:"user"`
+	Pass string `yaml:"pass"`
+	Name string `yaml:"name"`
+}
+
+func NewStateFromConfig(config Config) *State {
+	db := dbConnect(config.Database)
+	return &State{
+		db:                db,
+		uploadFetchClient: resty.New(),
+		uploadDir:         config.UploadDir,
+		devMode:           config.DevMode,
+	}
+}
+
+func dbConnect(config DatabaseConfig) *gorm.DB {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=true&loc=UTC", config.User, config.Pass, config.Host, config.Port, config.Name)
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		panic(err)
+	}
+	return db
 }
 
 func (s *State) WithTransaction(f func(tx *State) error) error {

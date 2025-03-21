@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -9,7 +10,13 @@ import (
 	"github.com/lightpub-dev/lightpub/web"
 )
 
+var (
+	configFileFlag = flag.String("config", "config.yaml", "Path to the configuration file")
+)
+
 func main() {
+	flag.Parse()
+
 	e := echo.New()
 
 	e.Use(middleware.Logger())
@@ -18,13 +25,16 @@ func main() {
 	e.Renderer = templ
 	e.Logger.SetLevel(log.DEBUG)
 
-	s := web.State{}
+	s, err := web.NewStateFromConfigFile(*configFileFlag)
+	if err != nil {
+		e.Logger.Fatalf("Failed to create state: %v", err)
+	}
 
 	// authRequired := s.MakeJwtAuthMiddleware(false)
 	authOptional := s.MakeJwtAuthMiddleware(true)
 
 	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!")
+		return c.Redirect(http.StatusFound, "/client/timeline")
 	})
 
 	authGroup := e.Group("/auth")
@@ -36,6 +46,10 @@ func main() {
 	clientGroup.GET("/register", s.ClientRegisterUser)
 	clientGroup.GET("/login", s.ClientLoginUser)
 	clientGroup.GET("/timeline", s.ClientTimeline, authOptional)
+
+	e.GET("/healthcheck", func(c echo.Context) error {
+		return c.String(http.StatusOK, "OK")
+	})
 
 	e.Static("/static", "static")
 

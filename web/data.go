@@ -1,9 +1,13 @@
 package web
 
 import (
+	"io"
+	"os"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/lightpub-dev/lightpub/auth"
 	"github.com/lightpub-dev/lightpub/service"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -22,11 +26,36 @@ type State struct {
 }
 
 type Config struct {
-	RegistrationOpen bool `json:"registration_open"`
+	Service          service.Config `yaml:"service"`
+	Auth             auth.Config    `yaml:"auth"`
+	RegistrationOpen bool           `yaml:"registration_open"`
+}
+
+func NewStateFromConfigFile(path string) (*State, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	fBytes, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(fBytes, &config); err != nil {
+		return nil, err
+	}
+
+	return NewState(config), nil
 }
 
 func NewState(config Config) *State {
-
+	return &State{
+		service:          service.NewStateFromConfig(config.Service),
+		auth:             auth.NewStateFromConfig(config.Auth),
+		registrationOpen: config.RegistrationOpen,
+	}
 }
 
 func (s *State) Service() *service.State {
