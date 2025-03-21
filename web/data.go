@@ -21,6 +21,14 @@ type State struct {
 	registrationOpen bool
 }
 
+type Config struct {
+	RegistrationOpen bool `json:"registration_open"`
+}
+
+func NewState(config Config) *State {
+
+}
+
 func (s *State) Service() *service.State {
 	return s.service
 }

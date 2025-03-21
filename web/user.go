@@ -102,7 +102,7 @@ func (s *State) LogoutUser(c echo.Context) error {
 		MaxAge:   -1, // delete cookie
 	})
 
-	if q.All != nil && *q.All {
+	if q.All != nil && *q.All && isAuthed(c) {
 		if err := s.service.LogoutAllUser(c.Request().Context(), c.Get(authCtxName).(*authedUser).UserID); err != nil {
 			return err
 		}

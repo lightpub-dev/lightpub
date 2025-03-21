@@ -20,7 +20,7 @@ func main() {
 
 	s := web.State{}
 
-	authRequired := s.MakeJwtAuthMiddleware(false)
+	// authRequired := s.MakeJwtAuthMiddleware(false)
 	authOptional := s.MakeJwtAuthMiddleware(true)
 
 	e.GET("/", func(c echo.Context) error {
@@ -30,7 +30,7 @@ func main() {
 	authGroup := e.Group("/auth")
 	authGroup.POST("/register", s.RegisterUser)
 	authGroup.POST("/login", s.LoginUser)
-	authGroup.POST("/logout", s.LogoutUser, authRequired)
+	authGroup.POST("/logout", s.LogoutUser, authOptional)
 
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)
