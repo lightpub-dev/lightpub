@@ -56,8 +56,9 @@ func main() {
 	authGroup.POST("/logout", s.LogoutUser, authOptional)
 
 	noteGroup := e.Group("/note")
-	noteGroup.GET("/:id", s.GetNote, authOptional)
 	noteGroup.POST("", s.CreateNote, authRequired)
+	noteGroup.GET("/:id", s.GetNote, authOptional)
+	noteGroup.DELETE("/:id", s.DeleteNote, authRequired)
 	noteGroup.PUT("/:id/bookmark", s.PutBookmarkOnNote, authRequired)
 	noteGroup.DELETE("/:id/bookmark", s.DeleteBookmarkOnNote, authRequired)
 

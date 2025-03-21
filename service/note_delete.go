@@ -28,7 +28,7 @@ func (s *State) DeleteNoteByID(ctx context.Context, userID types.UserID, noteID 
 			return err
 		}
 
-		if err := tx.DB(ctx).Where("id = ?", note.ID).Update("deleted_at", time.Now()).Error; err != nil {
+		if err := tx.DB(ctx).Where("id = ?", note.ID).Model(&db.Note{}).Update("deleted_at", time.Now()).Error; err != nil {
 			return err
 		}
 

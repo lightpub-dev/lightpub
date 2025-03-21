@@ -119,6 +119,23 @@ func (s *State) GetNote(c echo.Context) error {
 	return c.Render(http.StatusOK, "note.html", renderParams)
 }
 
+func (s *State) DeleteNote(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	if err := s.service.DeleteNoteByID(c.Request().Context(), *viewerID, noteID); err != nil {
+		return err
+	}
+
+	c.Response().Header().Set(hxRefresh, trueHeaderValue)
+	return c.NoContent(http.StatusOK)
+}
+
 func (s *State) CreateNote(c echo.Context) error {
 	content := c.FormValue("content")
 	contentTypeStr := c.FormValue("contentType")
