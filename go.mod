@@ -5,6 +5,7 @@ go 1.23.3
 require (
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/google/uuid v1.6.0
+	resty.dev/v3 v3.0.0-beta.2
 )
 
 require (
@@ -14,6 +15,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/time v0.8.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 	gorm.io/datatypes v1.2.5 // indirect
 	gorm.io/gen v0.3.26 // indirect

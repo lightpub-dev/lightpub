@@ -96,7 +96,7 @@ func (s *State) CheckNoteVisibility(ctx context.Context, viewerID *types.UserID,
 		if err != nil {
 			return false, err
 		}
-		return followState == FollowStateYes, nil
+		return followState == types.FollowStateYes, nil
 	case types.NoteVisibilityPrivate:
 		if viewerID == nil {
 			return false, nil

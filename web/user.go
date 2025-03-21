@@ -111,3 +111,7 @@ func (s *State) LogoutUser(c echo.Context) error {
 	c.Response().Header().Set(hxRedirect, "/client/login")
 	return c.JSON(http.StatusOK, nil)
 }
+
+func (s *State) ClientRegisterUser(c echo.Context) error {
+	return c.Render(http.StatusOK, "topRegister.html", nil)
+}

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 
+	"github.com/lightpub-dev/lightpub/kv"
 	"gorm.io/gorm"
+	"resty.dev/v3"
 )
 
 var (
@@ -15,7 +17,11 @@ type State struct {
 	db   *gorm.DB
 	inTx bool
 
-	devMode bool
+	uploadFetchClient *resty.Client
+	remoteUploadCache kv.Cache
+
+	uploadDir string
+	devMode   bool
 }
 
 func (s *State) WithTransaction(f func(tx *State) error) error {
@@ -54,4 +60,8 @@ func (s *State) DB(ctx context.Context) *gorm.DB {
 
 func (s *State) DevMode() bool {
 	return s.devMode
+}
+
+func (s *State) getUploadsDir() string {
+	return s.uploadDir
 }
