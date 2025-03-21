@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	bioSanitizer  = bluemonday.UGCPolicy()
 	noteSanitizer = bluemonday.UGCPolicy()
 )
 

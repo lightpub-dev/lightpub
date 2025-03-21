@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -21,12 +22,14 @@ type State struct {
 	uploadFetchClient *resty.Client
 	// remoteUploadCache kv.Cache
 
+	baseURL   string
 	uploadDir string
 	devMode   bool
 }
 
 type Config struct {
 	Database  DatabaseConfig `yaml:"database"`
+	BaseURL   string         `yaml:"base_url"`
 	UploadDir string         `yaml:"upload_dir"`
 	DevMode   bool           `yaml:"dev_mode"`
 }
@@ -44,6 +47,7 @@ func NewStateFromConfig(config Config) *State {
 	return &State{
 		db:                db,
 		uploadFetchClient: resty.New(),
+		baseURL:           config.BaseURL,
 		uploadDir:         config.UploadDir,
 		devMode:           config.DevMode,
 	}
@@ -98,4 +102,22 @@ func (s *State) DevMode() bool {
 
 func (s *State) getUploadsDir() string {
 	return s.uploadDir
+}
+
+func (s *State) BaseURL() *url.URL {
+	// TODO: cache result
+	u, err := url.Parse(s.baseURL)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}
+
+func (s *State) MyDomain() string {
+	// TODO: cache result
+	url, err := url.Parse(s.baseURL)
+	if err != nil {
+		panic(err)
+	}
+	return url.Host
 }

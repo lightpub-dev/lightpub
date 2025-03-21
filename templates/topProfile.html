@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lightpub</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/static/css/note.css" />
+    <link rel="stylesheet" href="/static/css/user.css" />
+    {{template "global.html" .}}
+    <meta property="og:url" content="{{.Og.URL}}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="{{.Og.Title}}" />
+    <meta property="og:description" content="{{.Og.Description}}" />
+    <meta property="og:site_name" content="{{.Og.SiteName}}" />
+    {{if .Og.Image}}
+    <meta property="og:image" content="{{.Og.Image}}" />
+    {{end}}
+  </head>
+
+  <body>
+    {{template "navbar.html" .}}
+    <div class="layout-root">
+      <aside></aside>
+      <main>
+        {{if .User}}
+        <div class="user-profile card" x-data>
+          <h1>ユーザー情報</h1>
+          <div class="user-info-line">
+            <div class="user-info">
+              <img
+                src="/user/{{.User.Basic.ID}}/avatar"
+                alt="ユーザーアバター"
+                width="48"
+                height="48"
+                class="avatar"
+              />
+              <span class="user-nickname">{{.User.Basic.Nickname}}</span>
+              <span class="user-id">{{.User.Basic.Specifier}}</span>
+              <div class="user-stats">
+                <div class="user-counter">
+                  <span class="user-counter-label">ノート数</span>
+                  <span class="user-counter-value"
+                    >{{.User.Details.NoteCount}}</span
+                  >
+                </div>
+                <a
+                  href="/client/user/{{.User.Basic.Specifier}}/following"
+                  class="hidden-link"
+                >
+                  <div class="user-counter">
+                    <span class="user-counter-label">フォロー数</span>
+                    <span class="user-counter-value"
+                      >{{.User.Details.FollowCount}}</span
+                    >
+                  </div>
+                </a>
+                <a
+                  href="/client/user/{{.User.Basic.Specifier}}/followers"
+                  class="hidden-link"
+                >
+                  <div class="user-counter">
+                    <span class="user-counter-label">フォロワー数</span>
+                    <span class="user-counter-value"
+                      >{{.User.Details.FollowerCount}}</span
+                    >
+                  </div>
+                </a>
+              </div>
+            </div>
+            <div>
+              {{if .User.Details.IsMe}}
+              <a href="/client/user/{{.User.Basic.Specifier}}/edit"
+                ><button class="btn btn-secondary">編集</button></a
+              >
+              {{end}}
+            </div>
+          </div>
+          <div class="user-interaction-line">
+            {{if .User.Details.IsActuallyFollowed}}
+            <p class="user-followed">フォローされています</p>
+            {{end}} {{if .User.Details.IsBlocked}}
+            <p class="user-blocked">ブロックされています</p>
+            {{end}} {{if .User.Details.IsFollowRequested}}
+            <p class="user-followed">フォローリクエストが届いています</p>
+            {{end}}
+          </div>
+          <div class="toolbar">
+            <!-- Follow button -->
+            {{if .Authed}}
+            <form
+              hx-post="/user/{{.User.Basic.ID}}/interaction"
+              hx-ext="json-enc"
+            >
+              <!-- start following button -->
+              {{if .User.Details.CanFollow}}
+              <input type="hidden" name="type" value="follow" />
+              <button type="submit" class="btn btn-primary">フォロー</button>
+              {{end}}
+              <!-- unfollow button -->
+              {{if .User.Details.CanUnfollow}}
+              <input type="hidden" name="type" value="unfollow" />
+              <button type="submit" class="btn btn-danger">
+                <!-- actually following -->
+                {{if .User.Details.IsActuallyFollowing}}フォロー解除{{end}}
+                <!-- follow requesting -->
+                {{if
+                .User.Details.IsFollowRequesting}}フォローリクエスト取り消し
+                {{end}}
+              </button>
+              {{end}}
+              <!-- accept follow button -->
+              {{if .User.Details.IsFollowRequested}}
+              <input type="hidden" name="type" value="acceptFollow" />
+              <button type="submit" class="btn btn-primary">
+                フォロー承認
+              </button>
+              {{end}}
+            </form>
+            {{end}}
+            <!-- メニュー -->
+            <div class="dropdown">
+              <button
+                class="btn btn-secondary dropdown-toggle"
+                type="button"
+                id="dropdownMenuButton"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                詳細
+              </button>
+              <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                {{if .Authed}}
+                <li>
+                  {{if .User.Details.CanRefuseFollow}}
+                  <form
+                    hx-post="/user/{{.User.Basic.ID}}/interaction"
+                    hx-ext="json-enc"
+                  >
+                    <input type="hidden" name="type" value="rejectFollow" />
+                    <button type="submit" class="dropdown-item">
+                      フォロー拒否
+                    </button>
+                  </form>
+                  {{end}}
+                </li>
+                {{end}}
+
+                <li>
+                  {{if .Authed}}
+                  <form
+                    hx-post="/user/{{.User.Basic.ID}}/interaction"
+                    hx-ext="json-enc"
+                  >
+                    {{if .User.Details.IsBlocking}}
+                    <input type="hidden" name="type" value="block" />
+                    <button type="submit" class="dropdown-item">
+                      ブロック
+                    </button>
+                    {{else}}
+                    <input type="hidden" name="type" value="unblock" />
+                    <button type="submit" class="dropdown-item">
+                      ブロック解除
+                    </button>
+                    {{end}}
+                  </form>
+                  {{end}}
+                </li>
+                {{if .User.Details.RemoteViewURL}}
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{.User.Details.RemoteViewURL}}"
+                    target="_blank"
+                    >外部ページで表示</a
+                  >
+                </li>
+                {{end}}
+              </ul>
+            </div>
+          </div>
+          <div>
+            <table>
+              <tr>
+                <td>
+                  <p>自己紹介</p>
+                </td>
+                <td>
+                  {{if .User.Basic.Bio}}
+                  <p>{{.User.Basic.RawBio}}</p>
+                  {{else}}
+                  <p>
+                    <italic>自己紹介がありません</italic>
+                  </p>
+                  {{end}}
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h2>最新の投稿</h2>
+          <div
+            hx-get="/user/{{.User.Basic.ID}}/notes"
+            hx-trigger="revealed"
+            hx-swap="afterend"
+            style="height: 1px"
+          ></div>
+        </div>
+        {{else}}
+        <p>ユーザーが見つかりません</p>
+        {{end}}
+      </main>
+      <aside></aside>
+    </div>
+  </body>
+</html>

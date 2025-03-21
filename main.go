@@ -63,6 +63,9 @@ func main() {
 	noteGroup.PUT("/:id/bookmark", s.PutBookmarkOnNote, authRequired)
 	noteGroup.DELETE("/:id/bookmark", s.DeleteBookmarkOnNote, authRequired)
 
+	// userGroup := e.Group("/user")
+	// userGroup.GET("/:id", s.ClientProfile)
+
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
 
@@ -70,6 +73,7 @@ func main() {
 	clientGroup.GET("/register", s.ClientRegisterUser)
 	clientGroup.GET("/login", s.ClientLoginUser)
 	clientGroup.GET("/timeline", s.ClientTimeline, authOptional)
+	clientGroup.GET("/user/:spec", s.ClientProfile, authOptional)
 
 	e.GET("/healthcheck", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")

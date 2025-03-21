@@ -2,6 +2,7 @@ package web
 
 import (
 	"io"
+	"net/url"
 	"os"
 
 	"github.com/go-playground/validator/v10"
@@ -74,4 +75,12 @@ func (s *State) Auth() *auth.State {
 
 func (s *State) DevMode() bool {
 	return s.service.DevMode()
+}
+
+func (s *State) BaseURL() *url.URL {
+	return s.service.BaseURL()
+}
+
+func (s *State) MyDomain() string {
+	return s.service.MyDomain()
 }

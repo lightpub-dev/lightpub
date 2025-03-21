@@ -46,33 +46,31 @@ func (s *State) GetUserProfile(
 	}
 
 	var (
-		isFollowing *types.FollowState
-		isFollowed  *types.FollowState
-		isBlocking  *bool
-		isBlocked   *bool
+		isFollowing types.FollowState
+		isFollowed  types.FollowState
+		isBlocking  bool
+		isBlocked   bool
 	)
-	if viewerID != nil {
-		isFollowingP, err := s.GetFollowState(ctx, *viewerID, userID)
+	if viewerID != nil && *viewerID != userID {
+		isFollowing, err = s.GetFollowState(ctx, *viewerID, userID)
 		if err != nil {
 			return types.DetailedUser{}, err
 		}
-		isFollowing = &isFollowingP
-		isFollowedP, err := s.GetFollowState(ctx, userID, *viewerID)
+		isFollowed, err = s.GetFollowState(ctx, userID, *viewerID)
 		if err != nil {
 			return types.DetailedUser{}, err
 		}
-		isFollowed = &isFollowedP
-		isBlockingP, err := s.IsBlocking(ctx, *viewerID, userID)
+		isBlocking, err = s.IsBlocking(ctx, *viewerID, userID)
 		if err != nil {
 			return types.DetailedUser{}, err
 		}
-		isBlocking = &isBlockingP
-		isBlockedP, err := s.IsBlocking(ctx, userID, *viewerID)
+		isBlocked, err = s.IsBlocking(ctx, userID, *viewerID)
 		if err != nil {
 			return types.DetailedUser{}, err
 		}
-		isBlocked = &isBlockedP
 	}
+
+	cleanBio := bioSanitizer.Sanitize(userRaw.Bio)
 
 	return types.DetailedUser{
 		Basic: types.SimpleUser{
@@ -80,7 +78,7 @@ func (s *State) GetUserProfile(
 			Username: userRaw.Username,
 			Nickname: userRaw.Nickname,
 			Domain:   userRaw.Domain,
-			Bio:      userRaw.Bio,
+			Bio:      cleanBio,
 			Avatar:   userRaw.Avatar,
 		},
 		Details: types.DetailedUserModel{
@@ -89,13 +87,14 @@ func (s *State) GetUserProfile(
 			NoteCount:        noteCount,
 			AutoFollowAccept: userRaw.AutoFollowAccept,
 			HideFollows:      userRaw.HideFollows,
-			RemoteURL:        sqlToStringPtr(userRaw.URL),
-			RemoteViewURL:    sqlToStringPtr(userRaw.ViewURL),
+			RemoteURL:        sqlToString(userRaw.URL),
+			RemoteViewURL:    sqlToString(userRaw.ViewURL),
 
 			IsFollowing: isFollowing,
 			IsFollowed:  isFollowed,
 			IsBlocking:  isBlocking,
 			IsBlocked:   isBlocked,
+			IsMe:        viewerID != nil && *viewerID == userRaw.ID,
 		},
 	}, nil
 }
@@ -124,7 +123,7 @@ func (s *State) getFollowerCount(ctx context.Context, userID types.UserID) (foll
 
 func (s *State) getNoteCount(ctx context.Context, userID types.UserID) (uint64, error) {
 	var count int64
-	if err := s.DB(ctx).Where("user_id = ? AND deleted_at IS NULL", userID).Model(&db.Note{}).Count(&count).Error; err != nil {
+	if err := s.DB(ctx).Where("author_id = ? AND deleted_at IS NULL", userID).Model(&db.Note{}).Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return uint64(count), nil

@@ -1,5 +1,7 @@
 package types
 
+import "html/template"
+
 const (
 	EmptyDomain = "" // Empty string means local server
 
@@ -30,6 +32,10 @@ func (s SimpleUser) Specifier() string {
 	return makeSpecifier(s.Username, s.Domain)
 }
 
+func (s SimpleUser) RawBio() template.HTML {
+	return template.HTML(s.Bio)
+}
+
 func (s SimpleUser) IsRemote() bool {
 	return s.Domain != EmptyDomain
 }
@@ -49,12 +55,41 @@ type DetailedUserModel struct {
 	NoteCount        uint64
 	AutoFollowAccept bool
 	HideFollows      bool
-	RemoteURL        *string
-	RemoteViewURL    *string
+	RemoteURL        string
+	RemoteViewURL    string
 
-	// when the user is logged in
-	IsFollowing *FollowState
-	IsFollowed  *FollowState
-	IsBlocking  *bool
-	IsBlocked   *bool
+	// effective when the user is logged in
+	IsFollowing FollowState
+	IsFollowed  FollowState
+	IsBlocking  bool
+	IsBlocked   bool
+	IsMe        bool
+}
+
+func (d DetailedUserModel) IsActuallyFollowed() bool {
+	return d.IsFollowed == FollowStateYes
+}
+
+func (d DetailedUserModel) IsFollowRequested() bool {
+	return d.IsFollowed == FollowStatePending
+}
+
+func (d DetailedUserModel) IsActuallyFollowing() bool {
+	return d.IsFollowing == FollowStateYes
+}
+
+func (d DetailedUserModel) IsFollowRequesting() bool {
+	return d.IsFollowing == FollowStatePending
+}
+
+func (d DetailedUserModel) CanFollow() bool {
+	return d.IsFollowing == FollowStateNo && !d.IsMe
+}
+
+func (d DetailedUserModel) CanUnfollow() bool {
+	return d.IsFollowing != FollowStateNo && !d.IsMe
+}
+
+func (d DetailedUserModel) CanRefuseFollow() bool {
+	return d.IsFollowed != FollowStateNo && !d.IsMe
 }

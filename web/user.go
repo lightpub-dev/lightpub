@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/failure"
 	"github.com/lightpub-dev/lightpub/service"
+	"github.com/lightpub-dev/lightpub/types"
 )
 
 const (
@@ -120,4 +121,58 @@ func (s *State) ClientRegisterUser(c echo.Context) error {
 
 func (s *State) ClientLoginUser(c echo.Context) error {
 	return c.Render(http.StatusOK, "topLogin.html", nil)
+}
+
+type UserOpenGraph struct {
+	URL         string
+	Title       string
+	Description string
+	SiteName    string
+	Image       string
+}
+
+type ClientProfileParams struct {
+	Og     UserOpenGraph
+	Authed bool
+	User   types.DetailedUser
+}
+
+func (s *State) ClientProfile(c echo.Context) error {
+	userSpecifierStr := c.Param("spec")
+	userSpecifier, ok := types.ParseUserSpecifier(userSpecifierStr, s.MyDomain())
+	if !ok {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	targetUserID, err := s.service.FindUserIDBySpecifierWithRemote(c.Request().Context(), userSpecifier)
+	if err != nil {
+		return err
+	}
+	if targetUserID == nil {
+		return failure.NewError(http.StatusNotFound, "user not found")
+	}
+
+	user, err := s.service.GetUserProfile(c.Request().Context(), viewerID, *targetUserID)
+	if err != nil {
+		return err
+	}
+
+	var avatar string
+	if user.Basic.Avatar != nil {
+		avatar = user.Basic.Avatar.String()
+	}
+	params := ClientProfileParams{
+		Og: UserOpenGraph{
+			URL:         s.BaseURL().JoinPath("client", "user", userSpecifier.String()).String(),
+			Title:       user.Basic.Nickname,
+			SiteName:    "Lightpub", // TODO
+			Description: user.Basic.Bio,
+			Image:       avatar,
+		},
+		Authed: viewerID != nil,
+		User:   user,
+	}
+	return c.Render(http.StatusOK, "topProfile.html", params)
 }
