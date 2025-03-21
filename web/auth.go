@@ -91,3 +91,11 @@ func getAuth(c echo.Context) (authedUser, bool) {
 	auth, ok := c.Get(authCtxName).(authedUser)
 	return auth, ok
 }
+
+func getViewerID(c echo.Context) *types.UserID {
+	auth, ok := getAuth(c)
+	if !ok {
+		return nil
+	}
+	return &auth.UserID
+}

@@ -160,8 +160,8 @@ type User struct {
 	CreatedAt         sql.NullTime       `gorm:"type:datetime(6)"`
 	FetchedAt         sql.NullTime       `gorm:"type:datetime(6)"`
 	ViewURL           sql.NullString     `gorm:"type:varchar(512)"`
-	FollowingURL      sql.NullString     `gorm:"column:following,type:varchar(512)"`
-	FollowersURL      sql.NullString     `gorm:"column:followers,type:varchar(512)"`
+	FollowingURL      sql.NullString     `gorm:"column:following;type:varchar(512)"`
+	FollowersURL      sql.NullString     `gorm:"column:followers;type:varchar(512)"`
 	AutoFollowAccept  bool               `gorm:"type:tinyint(1);not null;default:1"`
 	AuthExpiredAt     sql.NullTime       `gorm:"type:datetime(6)"`
 	IsBot             bool               `gorm:"type:tinyint(1);not null;default:0"`

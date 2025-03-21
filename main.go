@@ -19,8 +19,11 @@ func main() {
 
 	e := echo.New()
 
-	e.Use(middleware.Logger())
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Format: "method=${method}, status=${status}, uri=${uri}\n",
+	}))
 	e.Use(middleware.Recover())
+	e.Use(errorHandleMiddleware)
 
 	e.Renderer = templ
 	e.Logger.SetLevel(log.DEBUG)
@@ -41,6 +44,9 @@ func main() {
 	authGroup.POST("/register", s.RegisterUser)
 	authGroup.POST("/login", s.LoginUser)
 	authGroup.POST("/logout", s.LogoutUser, authOptional)
+
+	noteGroup := e.Group("/note")
+	noteGroup.GET("/:id", s.GetNote)
 
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)

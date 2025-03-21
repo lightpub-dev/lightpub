@@ -6,7 +6,12 @@ import (
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/types"
+	"github.com/microcosm-cc/bluemonday"
 	"gorm.io/gorm"
+)
+
+var (
+	noteSanitizer = bluemonday.UGCPolicy()
 )
 
 type noteAuthorPair struct {
@@ -55,8 +60,9 @@ func (s *State) FindNoteByID(ctx context.Context, noteID types.NoteID) (*types.S
 
 	var content *types.NoteContent
 	if note.Content.Valid && note.ContentType.Valid {
+		cleanContent := noteSanitizer.Sanitize(note.Content.String)
 		content = &types.NoteContent{
-			Data: note.Content.String,
+			Data: cleanContent,
 			Type: types.NoteContentType(note.ContentType.String),
 		}
 	}

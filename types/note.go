@@ -1,6 +1,10 @@
 package types
 
-import "time"
+import (
+	"html/template"
+	"sort"
+	"time"
+)
 
 const (
 	NoteContentTypePlain NoteContentType = "plain"
@@ -41,6 +45,10 @@ type SimpleNote struct {
 	Uploads   []UploadID
 }
 
+func (n SimpleNote) Renotable() bool {
+	return n.Visibility.AcceptRenote()
+}
+
 type NoteAuthor struct {
 	ID       UserID
 	Username string
@@ -61,6 +69,10 @@ type NoteContent struct {
 	Data string
 }
 
+func (n NoteContent) RawHTML() template.HTML {
+	return template.HTML(n.Data)
+}
+
 type DetailedNote struct {
 	Basic   SimpleNote
 	Details NoteDetails
@@ -77,6 +89,28 @@ type NoteDetails struct {
 
 	Hashtags []string
 	Mentions []NoteMention
+}
+
+func (n NoteDetails) ReactionList() []NoteReactionCount {
+	list := make([]NoteReactionCount, 0, len(n.ReactionCount))
+	for emoji, count := range n.ReactionCount {
+		list = append(list, NoteReactionCount{Emoji: emoji, Count: count})
+	}
+
+	// sort by count desc, emoji asc
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Count == list[j].Count {
+			return list[i].Emoji < list[j].Emoji
+		}
+		return list[i].Count > list[j].Count
+	})
+
+	return list
+}
+
+type NoteReactionCount struct {
+	Emoji string
+	Count uint64
 }
 
 type NoteMention struct {

@@ -77,6 +77,7 @@ func (s *State) LoginUser(c echo.Context) error {
 		Secure:   !s.DevMode(),
 		HttpOnly: true,
 		MaxAge:   jwtCookieAge,
+		Path:     "/",
 	})
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"user_id": userID,
@@ -100,6 +101,7 @@ func (s *State) LogoutUser(c echo.Context) error {
 		Secure:   !s.DevMode(),
 		HttpOnly: true,
 		MaxAge:   -1, // delete cookie
+		Path:     "/",
 	})
 
 	if q.All != nil && *q.All && isAuthed(c) {
