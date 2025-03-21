@@ -40,6 +40,14 @@ type CreateNoteParams struct {
 	Sensitive  bool
 }
 
+func (s *State) CreateNote(
+	ctx context.Context,
+	author types.UserID,
+	params CreateNoteParams,
+) (types.NoteID, error) {
+	return s.UpsertNote(ctx, nil, author, params)
+}
+
 func (s *State) UpsertNote(
 	ctx context.Context,
 	upsertTarget *UpsertTarget,

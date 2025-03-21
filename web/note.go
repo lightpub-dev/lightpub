@@ -1,10 +1,14 @@
 package web
 
 import (
+	"io"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/failure"
+	"github.com/lightpub-dev/lightpub/service"
 	"github.com/lightpub-dev/lightpub/types"
 )
 
@@ -84,4 +88,92 @@ func (s *State) GetNote(c echo.Context) error {
 
 	renderParams := s.renderNote(note, renoteUser, viewerID != nil)
 	return c.Render(http.StatusOK, "note.html", renderParams)
+}
+
+func (s *State) CreateNote(c echo.Context) error {
+	content := c.FormValue("content")
+	contentTypeStr := c.FormValue("contentType")
+	sensitive := c.FormValue("sensitive") == "on"
+	visibilityStr := c.FormValue("visibility")
+	replyToIDStr := c.FormValue("replyToId")
+
+	if !types.IsValidContentType(contentTypeStr) {
+		return errBadInput
+	}
+	contentType := types.NoteContentType(contentTypeStr)
+	if contentType == types.NoteContentTypeHTML {
+		// cannot create HTML note from web
+		return errBadInput
+	}
+
+	if !types.IsValidVisibility(visibilityStr) {
+		return errBadInput
+	}
+	visibility := types.NoteVisibility(visibilityStr)
+
+	var replyToID *types.NoteID
+	if replyToIDStr != "" {
+		replyToIDP, err := types.ParseNoteID(replyToIDStr)
+		if err != nil {
+			return errBadInput
+		}
+		replyToID = &replyToIDP
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		return err
+	}
+	files := form.File["file"]
+	uploadIDs := make([]types.UploadID, 0, len(files))
+	for _, file := range files {
+		if !strings.HasPrefix(file.Header.Get("Content-Type"), "image/") {
+			return failure.NewError(http.StatusBadRequest, "invalid file type")
+		}
+
+		src, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+
+		// copy to tempfile
+		tmp, err := os.CreateTemp("", "lp-upload-")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(tmp.Name())
+		defer tmp.Close()
+
+		if _, err := io.Copy(tmp, src); err != nil {
+			return err
+		}
+
+		uploadID, err := s.service.UploadFile(c.Request().Context(), tmp.Name())
+		if err != nil {
+			return err
+		}
+		uploadIDs = append(uploadIDs, uploadID)
+	}
+
+	viewerID := getViewerID(c) // must be non-nil
+	noteContent := types.NoteContent{
+		Type: contentType,
+		Data: content,
+	}
+
+	noteID, err := s.service.CreateNote(c.Request().Context(), *viewerID, service.CreateNoteParams{
+		Content:    noteContent,
+		Visibility: &visibility,
+		ReplyToID:  replyToID,
+		Uploads:    uploadIDs,
+		Sensitive:  sensitive,
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"note_id": noteID,
+	})
 }

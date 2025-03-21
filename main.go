@@ -33,7 +33,7 @@ func main() {
 		e.Logger.Fatalf("Failed to create state: %v", err)
 	}
 
-	// authRequired := s.MakeJwtAuthMiddleware(false)
+	authRequired := s.MakeJwtAuthMiddleware(false)
 	authOptional := s.MakeJwtAuthMiddleware(true)
 
 	e.GET("/", func(c echo.Context) error {
@@ -47,6 +47,7 @@ func main() {
 
 	noteGroup := e.Group("/note")
 	noteGroup.GET("/:id", s.GetNote)
+	noteGroup.POST("", s.CreateNote, authRequired)
 
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)

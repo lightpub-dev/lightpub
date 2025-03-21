@@ -18,6 +18,40 @@ const (
 	NoteVisibilityPrivate  NoteVisibility = "private"
 )
 
+var (
+	NoteContentTypes = []NoteContentType{
+		NoteContentTypePlain,
+		NoteContentTypeHTML,
+		NoteContentTypeMD,
+		NoteContentTypeLatex,
+	}
+
+	Visibilities = []NoteVisibility{
+		NoteVisibilityPublic,
+		NoteVisibilityUnlisted,
+		NoteVisibilityFollower,
+		NoteVisibilityPrivate,
+	}
+)
+
+func IsValidContentType(t string) bool {
+	for _, tt := range NoteContentTypes {
+		if tt == NoteContentType(t) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsValidVisibility(v string) bool {
+	for _, vv := range Visibilities {
+		if vv == NoteVisibility(v) {
+			return true
+		}
+	}
+	return false
+}
+
 type NoteContentType string
 type NoteVisibility string
 
