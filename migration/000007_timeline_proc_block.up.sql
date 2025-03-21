@@ -74,6 +74,28 @@ WHERE
                 )
             END
         )
+    ) -- block check
+    AND (
+        CASE
+            WHEN viewer_id IS NULL THEN TRUE
+            ELSE (
+                NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        user_block b
+                    WHERE
+                        (
+                            b.blocker_id = viewer_id
+                            AND b.blocked_id = n.author_id
+                        )
+                        OR (
+                            b.blocker_id = n.author_id
+                            AND b.blocked_id = viewer_id
+                        )
+                )
+            )
+        END
     ) -- deleted_at
     AND (n.deleted_at IS NULL) -- limit to replies
     AND (

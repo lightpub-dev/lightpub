@@ -1,5 +1,5 @@
 -- 1. Tables with no foreign key dependencies
-CREATE TABLE `apub_error_report` (
+CREATE TABLE IF NOT EXISTS `apub_error_report` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `activity` text NOT NULL,
     `error_msg` text NOT NULL,
@@ -7,13 +7,13 @@ CREATE TABLE `apub_error_report` (
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `tag` (
+CREATE TABLE IF NOT EXISTS `tag` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` varchar(256) NOT NULL,
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `upload` (
+CREATE TABLE IF NOT EXISTS `upload` (
     `id` binary(16) NOT NULL,
     `filename` varchar(64) DEFAULT NULL,
     `url` varchar(512) DEFAULT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE `upload` (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
 -- 2. Create user table (depends on upload)
-CREATE TABLE `user` (
+CREATE TABLE IF NOT EXISTS `user` (
     `id` binary(16) NOT NULL,
     `username` varchar(128) NOT NULL,
     `domain` varchar(128) NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE `user` (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
 -- 3. Create note table (depends on user)
-CREATE TABLE `note` (
+CREATE TABLE IF NOT EXISTS `note` (
     `id` binary(16) NOT NULL,
     `url` varchar(512) DEFAULT NULL,
     `view_url` varchar(512) DEFAULT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE `note` (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
 -- 4. Tables that depend on note and/or user
-CREATE TABLE `note_like` (
+CREATE TABLE IF NOT EXISTS `note_like` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `note_id` binary(16) NOT NULL,
     `user_id` binary(16) NOT NULL,
@@ -95,7 +95,7 @@ CREATE TABLE `note_like` (
     CONSTRAINT `fk_note_like_user_id` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `note_mention` (
+CREATE TABLE IF NOT EXISTS `note_mention` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `note_id` binary(16) NOT NULL,
     `target_user_id` binary(16) NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE `note_mention` (
     CONSTRAINT `fk_note_mention_user_id` FOREIGN KEY (`target_user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB AUTO_INCREMENT = 4 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `note_tag` (
+CREATE TABLE IF NOT EXISTS `note_tag` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `note_id` binary(16) NOT NULL,
     `tag_id` INTEGER NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE `note_tag` (
     CONSTRAINT `fk_note_tag_tag_id` FOREIGN KEY (`tag_id`) REFERENCES `tag` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `note_upload` (
+CREATE TABLE IF NOT EXISTS `note_upload` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `note_id` binary(16) NOT NULL,
     `upload_id` binary(16) NOT NULL,
@@ -128,7 +128,7 @@ CREATE TABLE `note_upload` (
     CONSTRAINT `fk_note_upload_upload_id` FOREIGN KEY (`upload_id`) REFERENCES `upload` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `notification` (
+CREATE TABLE IF NOT EXISTS `notification` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `user_id` binary(16) NOT NULL,
     `body` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`body`)),
@@ -139,7 +139,7 @@ CREATE TABLE `notification` (
     CONSTRAINT `fk_notification_user_id` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB AUTO_INCREMENT = 12 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `push_notification` (
+CREATE TABLE IF NOT EXISTS `push_notification` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `user_id` binary(16) NOT NULL,
     `endpoint` varchar(512) NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE `push_notification` (
     CONSTRAINT `fk_push_notification_user_id` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB AUTO_INCREMENT = 9 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `remote_public_key` (
+CREATE TABLE IF NOT EXISTS `remote_public_key` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `owner_id` binary(16) NOT NULL,
     `key_id` varchar(512) NOT NULL,
@@ -162,7 +162,7 @@ CREATE TABLE `remote_public_key` (
     CONSTRAINT `fk_remote_public_key_owner_id` FOREIGN KEY (`owner_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `user_block` (
+CREATE TABLE IF NOT EXISTS `user_block` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `blocker_id` binary(16) NOT NULL,
     `blocked_id` binary(16) NOT NULL,
@@ -174,7 +174,7 @@ CREATE TABLE `user_block` (
     CONSTRAINT `fk_user_block_blocker_id` FOREIGN KEY (`blocker_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
 
-CREATE TABLE `user_follow` (
+CREATE TABLE IF NOT EXISTS `user_follow` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `follower_id` binary(16) NOT NULL,
     `followed_id` binary(16) NOT NULL,
