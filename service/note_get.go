@@ -171,26 +171,25 @@ func (s *State) getNoteDetails(ctx context.Context, viewerID *types.UserID, note
 	}
 
 	if viewerID != nil {
-		renoted, err := s.checkNoteRenoted(ctx, note.ID, *viewerID)
+		details.Renoted, err = s.checkNoteRenoted(ctx, note.ID, *viewerID)
 		if err != nil {
 			return details, err
 		}
-		details.Renoted = &renoted
 
-		reaction, err := s.checkNoteReacted(ctx, note.ID, *viewerID)
+		reacted, err := s.checkNoteReacted(ctx, note.ID, *viewerID)
 		if err != nil {
 			return details, err
 		}
-		details.Reacted = reaction
+		if reacted != nil {
+			details.Reacted = *reacted
+		}
 
-		bookmarked, err := s.checkNoteBookmarked(ctx, note.ID, *viewerID)
+		details.Bookmarked, err = s.checkNoteBookmarked(ctx, note.ID, *viewerID)
 		if err != nil {
 			return details, err
 		}
-		details.Bookmarked = &bookmarked
 
-		isMyNote := *viewerID == note.Author.ID
-		details.IsMyNote = &isMyNote
+		details.IsMyNote = *viewerID == note.Author.ID
 	}
 
 	var (
@@ -227,7 +226,7 @@ func (s *State) getNoteDetails(ctx context.Context, viewerID *types.UserID, note
 		return details, err
 	}
 
-	details.RemoteViewURL = sqlToStringPtr(rawNote.Note.ViewURL)
+	details.RemoteViewURL = sqlToString(rawNote.Note.ViewURL)
 
 	return details, nil
 }

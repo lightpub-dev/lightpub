@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -16,6 +18,13 @@ var (
 
 func main() {
 	flag.Parse()
+
+	slog.SetDefault(
+		slog.New(slog.NewTextHandler(
+			os.Stderr,
+			&slog.HandlerOptions{},
+		)),
+	)
 
 	e := echo.New()
 
