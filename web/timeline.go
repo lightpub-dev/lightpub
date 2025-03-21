@@ -12,8 +12,14 @@ type ClientTimelineParams struct {
 }
 
 func (s *State) ClientTimeline(c echo.Context) error {
+	isPublic := c.QueryParam("public") == "true"
+	timelineURL := "/timeline"
+	if isPublic {
+		timelineURL += "?public=true"
+	}
+
 	params := ClientTimelineParams{
-		TimelineURL: "/timeline",
+		TimelineURL: timelineURL,
 		CreateNote: ClientCreateNoteParams{
 			Authed: isAuthed(c),
 			Title:  "ノート作成",
