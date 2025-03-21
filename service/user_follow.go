@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	ErrCannotFollowSelf = NewServiceError(400, "cannot follow self")
-	ErrFollowerNotFound = NewServiceError(404, "follower not found")
-	ErrFolloweeNotFound = NewServiceError(404, "followee not found")
+	ErrCannotFollowSelf  = NewServiceError(400, "cannot follow self")
+	ErrCannotFollowBlock = NewServiceError(400, "cannot follow blocked user")
+	ErrFollowerNotFound  = NewServiceError(404, "follower not found")
+	ErrFolloweeNotFound  = NewServiceError(404, "followee not found")
 
 	FollowStateNo      FollowState = 0
 	FollowStateYes     FollowState = 1
@@ -26,6 +27,11 @@ func (s *State) FollowUser(
 	followerID types.UserID,
 	followeeID types.UserID,
 ) error {
+	// Self check
+	if followerID == followeeID {
+		return ErrCannotFollowSelf
+	}
+
 	followerUser, err := s.FindUserByID(ctx, followerID)
 	if err != nil {
 		return err
@@ -42,6 +48,15 @@ func (s *State) FollowUser(
 		return ErrFolloweeNotFound
 	}
 	autoAcceptFollow := followeeUser.AutoFollowAccept
+
+	// block check
+	blocked, err := s.IsBlockingOrBlocked(ctx, followerID, followeeID)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return ErrCannotFollowBlock
+	}
 
 	follow := db.UserFollow{
 		FollowerID: followerID,
@@ -73,6 +88,10 @@ func (s *State) UnfollowUser(
 	followerID types.UserID,
 	followeeID types.UserID,
 ) error {
+	if followerID == followeeID {
+		return ErrCannotFollowSelf
+	}
+
 	followerUser, err := s.FindUserByID(ctx, followerID)
 	if err != nil {
 		return err
@@ -113,6 +132,10 @@ func (s *State) RejectFollowUser(
 	rejectorID types.UserID,
 	rejectedID types.UserID,
 ) error {
+	if rejectorID == rejectedID {
+		return ErrCannotFollowSelf
+	}
+
 	rejectorUser, err := s.FindUserByID(ctx, rejectorID)
 	if err != nil {
 		return err
@@ -153,6 +176,10 @@ func (s *State) AcceptFollow(
 	acceptorID types.UserID,
 	accepteeID types.UserID,
 ) error {
+	if acceptorID == accepteeID {
+		return ErrCannotFollowSelf
+	}
+
 	acceptorUser, err := s.FindUserByID(ctx, acceptorID)
 	if err != nil {
 		return err
@@ -167,6 +194,15 @@ func (s *State) AcceptFollow(
 	}
 	if accepteeUser == nil {
 		return ErrFollowerNotFound
+	}
+
+	// block check
+	blocked, err := s.IsBlockingOrBlocked(ctx, acceptorID, accepteeID)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return ErrCannotFollowBlock
 	}
 
 	result := s.DB(ctx).Model(&db.UserFollow{}).Where(
@@ -192,6 +228,10 @@ func (s *State) GetFollowState(
 	ctx context.Context,
 	followerID types.UserID, followeeID types.UserID,
 ) (FollowState, error) {
+	if followerID == followeeID {
+		return FollowStateNo, ErrCannotFollowSelf
+	}
+
 	var follow db.UserFollow
 	if err := s.DB(ctx).Where(
 		"follower_id = ? AND followed_id = ?",

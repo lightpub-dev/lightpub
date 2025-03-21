@@ -48,6 +48,16 @@ func (s *State) BlockUser(ctx context.Context, blockerID types.UserID, blockedID
 		// TODO: apub Block?
 	}
 
+	// unfollow each other
+	err = s.UnfollowUser(ctx, blockerID, blockedID)
+	if err != nil {
+		return err
+	}
+	err = s.UnfollowUser(ctx, blockedID, blockerID)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -101,4 +111,18 @@ func (s *State) IsBlocking(ctx context.Context, blockerID types.UserID, blockedI
 	}
 
 	return true, nil
+}
+
+func (s *State) IsBlockingOrBlocked(ctx context.Context, user1 types.UserID, user2 types.UserID) (bool, error) {
+	var count int64
+	result := s.DB(ctx).Model(&db.UserBlock{}).Where(
+		"(blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)",
+		user1, user2, user2, user1,
+	).Count(&count)
+
+	if result.Error != nil {
+		return false, NewInternalServerErrorWithCause("failed to check block status", result.Error)
+	}
+
+	return count > 0, nil
 }
