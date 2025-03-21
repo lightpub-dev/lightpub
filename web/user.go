@@ -115,3 +115,7 @@ func (s *State) LogoutUser(c echo.Context) error {
 func (s *State) ClientRegisterUser(c echo.Context) error {
 	return c.Render(http.StatusOK, "topRegister.html", nil)
 }
+
+func (s *State) ClientLoginUser(c echo.Context) error {
+	return c.Render(http.StatusOK, "topLogin.html", nil)
+}

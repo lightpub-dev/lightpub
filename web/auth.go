@@ -33,7 +33,6 @@ func (s *State) MakeJwtAuthMiddleware(authIsOptional bool) echo.MiddlewareFunc {
 
 			if token == "" {
 				if authIsOptional {
-					c.Set(authCtxName, nil)
 					return next(c)
 				} else {
 					return failure.NewError(http.StatusUnauthorized, "missing auth")
@@ -59,7 +58,7 @@ func (s *State) MakeJwtAuthMiddleware(authIsOptional bool) echo.MiddlewareFunc {
 			}
 
 			// Store authenticated user in context
-			c.Set(authCtxName, &authedUser{UserID: userID})
+			c.Set(authCtxName, authedUser{UserID: userID})
 
 			return next(c)
 		}
@@ -81,4 +80,14 @@ func getCookieFromReq(c echo.Context) (string, error) {
 	}
 
 	return "", nil
+}
+
+func isAuthed(c echo.Context) bool {
+	_, ok := c.Get(authCtxName).(authedUser)
+	return ok
+}
+
+func getAuth(c echo.Context) (authedUser, bool) {
+	auth, ok := c.Get(authCtxName).(authedUser)
+	return auth, ok
 }

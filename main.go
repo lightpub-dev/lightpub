@@ -21,7 +21,7 @@ func main() {
 	s := web.State{}
 
 	authRequired := s.MakeJwtAuthMiddleware(false)
-	// authOptional := s.MakeJwtAuthMiddleware(true)
+	authOptional := s.MakeJwtAuthMiddleware(true)
 
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
@@ -34,6 +34,8 @@ func main() {
 
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)
+	clientGroup.GET("/login", s.ClientLoginUser)
+	clientGroup.GET("/timeline", s.ClientTimeline, authOptional)
 
 	e.Static("/static", "static")
 

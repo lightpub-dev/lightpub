@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lightpub</title>
+    <link rel="stylesheet" type="text/css" href="/static/css/note.css" />
+    {{template "global.html" .}}
+  </head>
+  <body>
+    {{template "navbar.html" .}}
+    <div class="layout-root" x-data>
+      <aside>
+        <div class="layout-left-sidebar">
+          {{template "createNote.html" .CreateNote}}
+        </div>
+      </aside>
+      <main>
+        <h2>タイムライン</h2>
+        <div class="timeline layout-content" role="list">
+          <div
+            hx-get="{{ .TimelineURL }}"
+            hx-trigger="revealed"
+            hx-swap="afterend"
+          ></div>
+        </div>
+      </main>
+      <aside>
+        <div class="layout-right-sidebar">
+          <div class="card trending">
+            <h2>トレンド</h2>
+            <div
+              hx-get="/trends"
+              hx-trigger="revealed"
+              hx-swap="outerHTML"
+            ></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </body>
+</html>
