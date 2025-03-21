@@ -90,6 +90,10 @@ type NoteAuthor struct {
 	Domain   string
 }
 
+func (n NoteAuthor) Specifier() string {
+	return makeSpecifier(n.Username, n.Domain)
+}
+
 func (n NoteAuthor) IsLocal() bool {
 	return n.Domain == EmptyDomain
 }

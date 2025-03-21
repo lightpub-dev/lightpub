@@ -19,11 +19,15 @@ type SimpleUser struct {
 	Avatar   *UploadID
 }
 
-func (s SimpleUser) Specifier() string {
-	if s.Domain == EmptyDomain {
-		return "@" + s.Username
+func makeSpecifier(username, domain string) string {
+	if domain == EmptyDomain {
+		return "@" + username
 	}
-	return "@" + s.Username + "@" + s.Domain
+	return "@" + username + "@" + domain
+}
+
+func (s SimpleUser) Specifier() string {
+	return makeSpecifier(s.Username, s.Domain)
 }
 
 func (s SimpleUser) IsRemote() bool {
