@@ -222,6 +222,7 @@ func (s *State) CreateNote(c echo.Context) error {
 		return err
 	}
 
+	c.Response().Header().Set(hxRefresh, trueHeaderValue)
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"note_id": noteID,
 	})
@@ -288,6 +289,41 @@ func (s *State) DeleteBookmarkOnNote(c echo.Context) error {
 
 	c.Response().Header().Set(hxTrigger, hxNoteRefreshEvent)
 	return c.NoContent(http.StatusOK)
+}
+
+func (s *State) GetNoteReplies(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return err
+	}
+
+	var query struct {
+		BeforeTime *time.Time `query:"beforeTime"`
+	}
+	if err := c.Bind(&query); err != nil {
+		return err
+	}
+
+	viewerID := getViewerID(c)
+
+	notes, err := s.service.GetNoteReplies(c.Request().Context(), viewerID, noteID, paginationSizeP1, query.BeforeTime)
+	if err != nil {
+		return err
+	}
+
+	var nextURL *string
+	if len(notes) == paginationSizeP1 {
+		beforeTime := notes[len(notes)-1].Basic.CreatedAt.UTC().Format(time.RFC3339Nano)
+		nextURLP := buildURLWithParams(c.Request().URL, map[string]string{
+			"beforeTime": beforeTime,
+		})
+		nextURL = &nextURLP
+		notes = notes[:paginationSize]
+	}
+
+	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
+	return c.Render(http.StatusOK, "notes.html", renderParams)
 }
 
 func (s *State) GetTimeline(c echo.Context) error {

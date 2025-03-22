@@ -56,3 +56,11 @@ func (s *State) GetUserNotes(ctx context.Context, viewerID *types.UserID, userID
 
 	return s.getNotesFromIDs(ctx, viewerID, noteIDs)
 }
+
+func (s *State) GetNoteReplies(ctx context.Context, viewerID *types.UserID, targetNoteID types.NoteID, limit uint64, beforeDate *time.Time) ([]types.DetailedNote, error) {
+	noteIDs, err := s.getNoteReplyIDs(ctx, viewerID, targetNoteID, limit, beforeDate)
+	if err != nil {
+		return nil, err
+	}
+	return s.getNotesFromIDs(ctx, viewerID, noteIDs)
+}
