@@ -166,8 +166,8 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 	return fmt.Errorf("unknown notification body type: %T", body)
 }
 
-func (s *State) ReadNotificationID(ctx context.Context, notificationID types.NotificationID) error {
-	if err := s.DB(ctx).Model(&db.Notification{}).Where("id = ?", notificationID).Update("read_at", time.Now()).Error; err != nil {
+func (s *State) ReadNotificationID(ctx context.Context, userID types.UserID, notificationID types.NotificationID) error {
+	if err := s.DB(ctx).Model(&db.Notification{}).Where("id = ? AND user_id = ?", notificationID, userID).Update("read_at", time.Now()).Error; err != nil {
 		return err
 	}
 	return nil

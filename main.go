@@ -34,7 +34,7 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(errorHandleMiddleware)
 
-	e.Renderer = templ
+	e.Renderer = web.TemplateRenderer
 	e.Logger.SetLevel(log.DEBUG)
 
 	s, err := web.NewStateFromConfigFile(*configFileFlag)
@@ -69,6 +69,9 @@ func main() {
 
 	notificationGroup := e.Group("/notification")
 	notificationGroup.GET("/unread-count", s.GetUnreadNotificationCount, authRequired)
+	notificationGroup.POST("/all/read", s.MarkAllNotificationsAsRead, authRequired)
+	notificationGroup.GET("/all", s.GetNotifications, authRequired)
+	notificationGroup.POST("/:id/read", s.MarkNotificationAsRead, authRequired)
 
 	e.GET("/upload/:id", s.GetUpload)
 	e.GET("/timeline", s.GetTimeline, authOptional)
@@ -80,6 +83,7 @@ func main() {
 	clientGroup.GET("/timeline", s.ClientTimeline, authOptional)
 	clientGroup.GET("/my", s.ClientMy, authRequired)
 	clientGroup.GET("/user/:spec", s.ClientProfile, authOptional)
+	clientGroup.GET("/notification", s.ClientNotification, authRequired)
 
 	e.GET("/healthcheck", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")

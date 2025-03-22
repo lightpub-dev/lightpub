@@ -1,6 +1,8 @@
 package types
 
 import (
+	"strconv"
+
 	"github.com/google/uuid"
 	"github.com/oklog/ulid/v2"
 )
@@ -34,4 +36,9 @@ func NewUploadID() UploadID {
 
 func ParseUploadID(s string) (UploadID, error) {
 	return ParseBinUUID(s)
+}
+
+func ParseNotificationID(s string) (NotificationID, error) {
+	id, err := strconv.ParseInt(s, 10, 32)
+	return NotificationID(id), err
 }

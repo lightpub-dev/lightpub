@@ -1,0 +1,23 @@
+<li class="notification-item">
+  <div class="notification-icon">
+    {{if .IconURL}}
+    <img src="{{.IconURL}}" alt="icon" />
+    {{end}}
+  </div>
+  <div class="notification-content">
+    {{.Body}}
+    <time
+      class="notification-date"
+      x-data
+      datetime="{{.CreatedAt}}"
+      x-text="new Date('{{.CreatedAt}}').toLocaleString()"
+    ></time>
+  </div>
+  {{if not .IsRead}}
+  <div class="button-container">
+    <button class="mark-as-read" hx-post="/notification/{{.ID}}/read">
+      既読にする
+    </button>
+  </div>
+  {{end}}
+</li>
