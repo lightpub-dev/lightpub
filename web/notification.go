@@ -83,6 +83,7 @@ func (s *State) MarkNotificationAsRead(c echo.Context) error {
 		return err
 	}
 
+	c.Response().Header().Set(hxRefresh, trueHeaderValue)
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -92,6 +93,7 @@ func (s *State) MarkAllNotificationsAsRead(c echo.Context) error {
 		return err
 	}
 
+	c.Response().Header().Set(hxRefresh, trueHeaderValue)
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -140,6 +142,10 @@ func (s *State) GetNotifications(c echo.Context) error {
 }
 
 func renderNotificationBody(body notification.Body) template.HTML {
+	if body == nil {
+		panic("notification body is nil")
+	}
+
 	switch b := body.(type) {
 	case *notification.Followed:
 		return renderTemplateToRawHTML("notification_followed.html", NotificationFollowedParams{
@@ -177,5 +183,5 @@ func renderNotificationBody(body notification.Body) template.HTML {
 		})
 	}
 
-	panic("unreachable")
+	panic(fmt.Sprintf("unknown notification body type: %T", body))
 }

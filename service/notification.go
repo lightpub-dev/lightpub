@@ -24,7 +24,7 @@ func (s *State) GetUnreadNotificationCount(ctx context.Context, userID types.Use
 }
 
 func (s *State) AddNotification(ctx context.Context, userID types.UserID, body notification.Body) error {
-	bodyJson, err := notification.Stringify(body)
+	bodyJson, err := body.AsDB()
 	if err != nil {
 		return err
 	}
@@ -52,9 +52,11 @@ func (s *State) GetNotifications(ctx context.Context, userID types.UserID, limit
 		body, err := notification.ParseBody(n.Body)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to parse notification body (old format?)", "notificationID", n.ID, "err", err)
+			continue
 		}
 		if err := s.fillRelatedNotificationInfo(ctx, body); err != nil {
 			slog.WarnContext(ctx, "failed to fill related notification info", "notificationID", n.ID, "err", err)
+			continue
 		}
 		n := notification.Notification{
 			ID:        types.NotificationID(n.ID),
@@ -79,6 +81,7 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 			return ErrExpiredNotification
 		}
 		b.FollowerUser = user
+		return nil
 	case *notification.FollowRequested:
 		user, err := s.FindUserByID(ctx, b.RequesterUserID)
 		if err != nil {
@@ -88,6 +91,7 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 			return ErrExpiredNotification
 		}
 		b.RequesterUser = user
+		return nil
 	case *notification.FollowAccepted:
 		user, err := s.FindUserByID(ctx, b.AcceptorUserID)
 		if err != nil {
@@ -97,6 +101,7 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 			return ErrExpiredNotification
 		}
 		b.AcceptorUser = user
+		return nil
 	case *notification.Replied:
 		replier, err := s.FindUserByID(ctx, b.ReplierUserID)
 		if err != nil {
@@ -130,6 +135,7 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 			NoteID:  repliedNote.ID,
 			ViewURL: "", // TODO: fill this
 		}
+		return nil
 	case *notification.Mentioned:
 		mentioner, err := s.FindUserByID(ctx, b.MentionerUserID)
 		if err != nil {
@@ -151,6 +157,7 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 			NoteID:  mentionNote.ID,
 			ViewURL: "", // TODO: fill this
 		}
+		return nil
 	case *notification.Renote:
 		renoter, err := s.FindUserByID(ctx, b.RenoterUserID)
 		if err != nil {
@@ -161,6 +168,7 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 		}
 
 		b.RenoterUser = renoter
+		return nil
 	}
 
 	return fmt.Errorf("unknown notification body type: %T", body)

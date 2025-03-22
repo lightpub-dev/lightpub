@@ -2,6 +2,7 @@ package notification
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/types"
@@ -21,7 +22,15 @@ type NoteData struct {
 }
 
 type Body interface {
-	NotificationBody()
+	AsDB() (string, error)
+}
+
+func toJSON(t any) (string, error) {
+	b, err := json.Marshal(t)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 type Followed struct {
@@ -30,7 +39,9 @@ type Followed struct {
 	FollowerUser *types.SimpleUser `json:"-"`
 }
 
-func (*Followed) NotificationBody() {}
+func (f *Followed) AsDB() (string, error) {
+	return toJSON(*f)
+}
 
 type FollowRequested struct {
 	RequesterUserID types.UserID `json:"r"`
@@ -38,7 +49,9 @@ type FollowRequested struct {
 	RequesterUser *types.SimpleUser `json:"-"`
 }
 
-func (*FollowRequested) NotificationBody() {}
+func (f *FollowRequested) AsDB() (string, error) {
+	return toJSON(*f)
+}
 
 type FollowAccepted struct {
 	AcceptorUserID types.UserID `json:"a"`
@@ -46,7 +59,9 @@ type FollowAccepted struct {
 	AcceptorUser *types.SimpleUser `json:"-"`
 }
 
-func (*FollowAccepted) NotificationBody() {}
+func (f *FollowAccepted) AsDB() (string, error) {
+	return toJSON(*f)
+}
 
 type Replied struct {
 	ReplierUserID types.UserID `json:"a"`
@@ -58,7 +73,9 @@ type Replied struct {
 	RepliedNote *NoteData         `json:"-"`
 }
 
-func (*Replied) NotificationBody() {}
+func (r *Replied) AsDB() (string, error) {
+	return toJSON(*r)
+}
 
 type Mentioned struct {
 	MentionerUserID types.UserID `json:"m"`
@@ -68,7 +85,9 @@ type Mentioned struct {
 	MentionNote   *NoteData         `json:"-"`
 }
 
-func (*Mentioned) NotificationBody() {}
+func (m *Mentioned) AsDB() (string, error) {
+	return toJSON(*m)
+}
 
 type Renote struct {
 	RenoterUserID types.UserID `json:"r"`
@@ -77,20 +96,42 @@ type Renote struct {
 	RenoterUser *types.SimpleUser `json:"-"`
 }
 
-func (*Renote) NotificationBody() {}
-
-func Stringify(b Body) (string, error) {
-	bodyJson, err := json.Marshal(b)
-	if err != nil {
-		return "", err
-	}
-	return string(bodyJson), nil
+func (r *Renote) AsDB() (string, error) {
+	return toJSON(*r)
 }
 
 func ParseBody(s string) (Body, error) {
-	var b Body
-	if err := json.Unmarshal([]byte(s), &b); err != nil {
-		return nil, err
+	b := []byte(s)
+
+	var follow Followed
+	if err := json.Unmarshal(b, &follow); err == nil {
+		return &follow, nil
 	}
-	return b, nil
+
+	var followRequested FollowRequested
+	if err := json.Unmarshal(b, &followRequested); err != nil {
+		return &followRequested, nil
+	}
+
+	var followAccepted FollowAccepted
+	if err := json.Unmarshal(b, &followAccepted); err != nil {
+		return &followAccepted, nil
+	}
+
+	var replied Replied
+	if err := json.Unmarshal(b, &replied); err != nil {
+		return &replied, nil
+	}
+
+	var mentioned Mentioned
+	if err := json.Unmarshal(b, &mentioned); err != nil {
+		return &mentioned, nil
+	}
+
+	var renote Renote
+	if err := json.Unmarshal(b, &renote); err != nil {
+		return &renote, nil
+	}
+
+	return nil, fmt.Errorf("unknown notification body type: %s", s)
 }
