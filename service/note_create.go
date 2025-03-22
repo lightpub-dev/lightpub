@@ -389,8 +389,14 @@ func (s *State) CreateRenote(ctx context.Context, authorID types.UserID, targetN
 	}
 
 	// notification (if renoted user is local)
-	if targetNote.Author.IsLocal() {
-		// TODO: create notification
+	if targetNote.Author.IsLocal() && targetNote.Author.ID != authorID {
+		notification := notification.Renote{
+			RenoterUserID: authorID,
+			RenoteNoteID:  renoteID,
+		}
+		if err := s.AddNotification(ctx, targetNote.Author.ID, notification); err != nil {
+			slog.ErrorContext(ctx, "failed to send renote notification", "noteID", renoteID, "userID", targetNote.Author.ID, "err", err)
+		}
 	}
 
 	// federation (if renoted user is remote)
