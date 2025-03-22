@@ -76,11 +76,11 @@ func (s *State) FollowUser(
 	if followeeUser.Domain == types.EmptyDomain {
 		var n notification.Body
 		if autoAcceptFollow {
-			n = notification.Followed{
+			n = &notification.Followed{
 				FollowerUserID: followerID,
 			}
 		} else {
-			n = notification.FollowRequested{
+			n = &notification.FollowRequested{
 				RequesterUserID: followerID,
 			}
 		}
@@ -232,7 +232,7 @@ func (s *State) AcceptFollow(
 
 	// send notification if acceptee is local
 	if accepteeUser.IsLocal() {
-		n := notification.FollowAccepted{
+		n := &notification.FollowAccepted{
 			AcceptorUserID: acceptorID,
 		}
 		if err := s.AddNotification(ctx, accepteeID, n); err != nil {

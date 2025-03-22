@@ -183,7 +183,7 @@ func (s *State) UpsertNote(
 	}
 	// reply notification
 	if repliedNote != nil && repliedNote.Author.IsLocal() {
-		notification := notification.Replied{
+		notification := &notification.Replied{
 			ReplierUserID: author,
 			ReplyNoteID:   upsertedNoteID,
 			RepliedNoteID: repliedNote.ID,
@@ -206,7 +206,7 @@ func (s *State) UpsertNote(
 		if mentionUser.ID == author || mentionUser.IsRemote() || isAlreadyNotified(mentionUser.ID) {
 			continue
 		}
-		notification := notification.Mentioned{
+		notification := &notification.Mentioned{
 			MentionerUserID: author,
 			MentionNoteID:   upsertedNoteID,
 		}
@@ -390,7 +390,7 @@ func (s *State) CreateRenote(ctx context.Context, authorID types.UserID, targetN
 
 	// notification (if renoted user is local)
 	if targetNote.Author.IsLocal() && targetNote.Author.ID != authorID {
-		notification := notification.Renote{
+		notification := &notification.Renote{
 			RenoterUserID: authorID,
 			RenoteNoteID:  renoteID,
 		}

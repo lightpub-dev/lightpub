@@ -67,6 +67,9 @@ func main() {
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
 	userGroup.GET("/:id/avatar", s.GetUserAvatar)
 
+	notificationGroup := e.Group("/notification")
+	notificationGroup.GET("/unread-count", s.GetUnreadNotificationCount, authRequired)
+
 	e.GET("/upload/:id", s.GetUpload)
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
