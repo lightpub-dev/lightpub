@@ -398,3 +398,62 @@ func (s *State) GetTrends(c echo.Context) error {
 		Data: entries,
 	})
 }
+
+type NoteDetailsParams struct {
+	Og     NoteOpenGraph
+	Create ClientCreateNoteParams
+	Note   ClientNoteParams
+}
+
+type NoteOpenGraph struct {
+	URL            string
+	AuthorID       string
+	AuthorNickname string
+	NoteContent    string
+	BaseURL        string
+}
+
+func (s *State) ClientGetNote(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	note, err := s.service.FindNoteByIDWithDetails(c.Request().Context(), viewerID, noteID)
+	if err != nil {
+		return err
+	}
+	if note == nil {
+		return failure.NewError(http.StatusNotFound, "note not found")
+	}
+
+	og := NoteOpenGraph{
+		URL:            s.BaseURL().JoinPath("client", "note", noteIDStr).String(),
+		AuthorID:       note.Basic.Author.ID.String(),
+		AuthorNickname: note.Basic.Author.Nickname,
+		NoteContent:    note.Basic.Content.Data,
+		BaseURL:        s.BaseURL().String(),
+	}
+	create := ClientCreateNoteParams{
+		Authed: viewerID != nil,
+		Title:  "ノート作成",
+	}
+
+	return c.Render(http.StatusOK, "topNoteDetails.html", NoteDetailsParams{
+		Og:     og,
+		Create: create,
+		Note: ClientNoteParams{
+			Note:       note,
+			RenoteInfo: nil,
+			Reply: ClientCreateNoteParams{
+				Title:     "返信",
+				Authed:    viewerID != nil,
+				ReplyToID: &noteIDStr,
+			},
+			Authed: viewerID != nil,
+		},
+	})
+}

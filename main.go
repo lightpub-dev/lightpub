@@ -88,6 +88,7 @@ func main() {
 	clientGroup.GET("/user/:spec", s.ClientProfile, authOptional)
 	clientGroup.GET("/user/:spec/following", s.ClientUserFollowings)
 	clientGroup.GET("/user/:spec/followers", s.ClientUserFollowers)
+	clientGroup.GET("/note/:id", s.ClientGetNote, authOptional)
 	clientGroup.GET("/notification", s.ClientNotification, authRequired)
 
 	e.GET("/healthcheck", func(c echo.Context) error {

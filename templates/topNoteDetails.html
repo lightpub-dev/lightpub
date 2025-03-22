@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head prefix="og: https://ogp.me/ns#">
+    <title>Lightpub</title>
+    <link rel="stylesheet" href="/static/css/note.css" />
+    {{template "global.html" .}}
+    <meta property="og:url" content="{{.Og.URL}}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="{{.Og.AuthorNickname}} の投稿" />
+    <meta property="og:description" content="{{.Og.NoteContent}}" />
+    <meta property="og:site_name" content="Lightpub" />
+    <meta
+      property="og:image"
+      content="{{.Og.BaseURL}}/user/{{.Og.AuthorID}}/avatar"
+    />
+  </head>
+  <body>
+    {{template "navbar.html" .}}
+    <div class="layout-root" x-data>
+      <div class="layout-left-sidebar">
+        {{template "createNote.html" .Create}}
+      </div>
+      <main>
+        <div class="timeline layout-content">
+          <div>
+            <h2>ノート</h2>
+            {{template "note.html" .Note}}
+          </div>
+          {{if .Note.Note.Basic.ReplyToID}}
+          <aside>
+            <div class="reply-to-note">
+              <h2>返信先</h2>
+              <div
+                hx-get="/note/{{.Note.Note.Basic.ReplyToID}}"
+                hx-trigger="revealed"
+                hx-swap="outerHTML"
+              ></div>
+            </div>
+          </aside>
+          {{end}}
+
+          <aside>
+            <div class="replying-post-list">
+              <h2>このノートへの返信</h2>
+              <div
+                hx-get="/note/{{.Note.Note.Basic.ID}}/replies"
+                hx-trigger="revealed"
+                hx-swap="outerHTML"
+              >
+                ありません
+              </div>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
