@@ -66,6 +66,8 @@ func main() {
 	userGroup := e.Group("/user")
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
 	userGroup.GET("/:id/avatar", s.GetUserAvatar)
+	userGroup.GET("/:id/following", s.GetUserFollowings)
+	userGroup.GET("/:id/followers", s.GetUserFollowers)
 
 	notificationGroup := e.Group("/notification")
 	notificationGroup.GET("/unread-count", s.GetUnreadNotificationCount, authRequired)
@@ -83,6 +85,8 @@ func main() {
 	clientGroup.GET("/timeline", s.ClientTimeline, authOptional)
 	clientGroup.GET("/my", s.ClientMy, authRequired)
 	clientGroup.GET("/user/:spec", s.ClientProfile, authOptional)
+	clientGroup.GET("/user/:spec/following", s.ClientUserFollowings)
+	clientGroup.GET("/user/:spec/followers", s.ClientUserFollowers)
 	clientGroup.GET("/notification", s.ClientNotification, authRequired)
 
 	e.GET("/healthcheck", func(c echo.Context) error {

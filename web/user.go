@@ -2,6 +2,8 @@ package web
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/failure"
@@ -207,4 +209,128 @@ func (s *State) GetUserAvatar(c echo.Context) error {
 	} else {
 		return c.Blob(http.StatusOK, "image/jpeg", avatar.Ideticon)
 	}
+}
+
+type UserListParams struct {
+	Data    []UserListEntry
+	NextURL string
+}
+
+type UserListEntry struct {
+	User      types.SimpleUser
+	CreatedAt *time.Time
+}
+
+func makeUserListParamsFromSlice(users []types.SimpleUser, limit int, nextURL string) UserListParams {
+	if len(users) > limit {
+		users = users[:limit]
+	}
+
+	params := make([]UserListEntry, len(users))
+	for i, user := range users {
+		params[i].User = user
+	}
+	return UserListParams{
+		Data:    params,
+		NextURL: nextURL,
+	}
+}
+
+func (s *State) GetUserFollowings(c echo.Context) error {
+	id := c.Param("id")
+	userID, err := types.ParseUserID(id)
+	if err != nil {
+		return errBadInput
+	}
+	var query struct {
+		Page int `query:"page"`
+	}
+
+	followings, err := s.service.GetUserFollowingList(c.Request().Context(), userID, paginationSizeP1, query.Page)
+	if err != nil {
+		return err
+	}
+
+	var nextURL string
+	if len(followings) == paginationSizeP1 {
+		nextURL = buildURLWithParams(c.Request().URL, map[string]string{
+			"page": strconv.Itoa(query.Page + 1),
+		})
+	}
+
+	params := makeUserListParamsFromSlice(followings, paginationSize, nextURL)
+	return c.Render(http.StatusOK, "userList.html", params)
+}
+
+func (s *State) GetUserFollowers(c echo.Context) error {
+	id := c.Param("id")
+	userID, err := types.ParseUserID(id)
+	if err != nil {
+		return errBadInput
+	}
+	var query struct {
+		Page int `query:"page"`
+	}
+
+	followers, err := s.service.GetUserFollowersList(c.Request().Context(), userID, paginationSizeP1, query.Page)
+	if err != nil {
+		return err
+	}
+
+	var nextURL string
+	if len(followers) == paginationSizeP1 {
+		nextURL = buildURLWithParams(c.Request().URL, map[string]string{
+			"page": strconv.Itoa(query.Page + 1),
+		})
+	}
+
+	params := makeUserListParamsFromSlice(followers, paginationSize, nextURL)
+	return c.Render(http.StatusOK, "userList.html", params)
+}
+
+type ClientUserListParams struct {
+	Title string
+	URL   string
+}
+
+func (s *State) ClientUserFollowings(c echo.Context) error {
+	userSpecStr := c.Param("spec")
+	userSpec, ok := types.ParseUserSpecifier(userSpecStr, s.MyDomain())
+	if !ok {
+		return errBadInput
+	}
+
+	userID, err := s.service.FindLocalUserIDBySpecifier(c.Request().Context(), userSpec)
+	if err != nil {
+		return errBadInput
+	}
+	if userID == nil {
+		return failure.NewError(http.StatusNotFound, "user not found")
+	}
+
+	return c.Render(http.StatusOK, "topUserList.html", ClientUserListParams{
+		Title: "フォロー一覧",
+		URL:   "/user/" + userID.String() + "/following",
+	})
+}
+
+func (s *State) ClientUserFollowers(c echo.Context) error {
+	userSpecStr := c.Param("spec")
+	userSpec, ok := types.ParseUserSpecifier(userSpecStr, s.MyDomain())
+	if !ok {
+		return errBadInput
+	}
+
+	userID, err := s.service.FindLocalUserIDBySpecifier(c.Request().Context(), userSpec)
+	if err != nil {
+		return errBadInput
+	}
+	if userID == nil {
+		return failure.NewError(http.StatusNotFound, "user not found")
+	}
+
+	return c.Render(http.StatusOK, "topUserList.html", ClientUserListParams{
+		Title: "フォロワ―一覧",
+		URL:   "/user/" + userID.String() + "/followers",
+	})
 }

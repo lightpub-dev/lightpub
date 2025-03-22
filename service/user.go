@@ -21,6 +21,19 @@ func (s *State) FindUserByIDRaw(ctx context.Context, id types.UserID) (*db.User,
 	return &user, nil
 }
 
+func (s *State) makeSimpleUserFromDB(user *db.User) types.SimpleUser {
+	cleanBio := bioSanitizer.Sanitize(user.Bio)
+
+	return types.SimpleUser{
+		ID:       user.ID,
+		Username: user.Username,
+		Domain:   user.Domain,
+		Nickname: user.Nickname,
+		Bio:      cleanBio,
+		Avatar:   user.Avatar,
+	}
+}
+
 func (s *State) FindUserByID(ctx context.Context, id types.UserID) (*types.SimpleUser, error) {
 	user, err := s.FindUserByIDRaw(ctx, id)
 	if err != nil {
@@ -30,16 +43,8 @@ func (s *State) FindUserByID(ctx context.Context, id types.UserID) (*types.Simpl
 		return nil, nil
 	}
 
-	cleanBio := bioSanitizer.Sanitize(user.Bio)
-
-	return &types.SimpleUser{
-		ID:       user.ID,
-		Username: user.Username,
-		Domain:   user.Domain,
-		Nickname: user.Nickname,
-		Bio:      cleanBio,
-		Avatar:   user.Avatar,
-	}, nil
+	u := s.makeSimpleUserFromDB(user)
+	return &u, nil
 }
 
 func (s *State) FindLocalUserIDBySpecifier(ctx context.Context, specifier *types.UserSpecifier) (*types.UserID, error) {

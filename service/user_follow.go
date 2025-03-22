@@ -272,3 +272,45 @@ func (s *State) GetFollowState(
 
 	return types.FollowStateYes, nil
 }
+
+func (s *State) GetUserFollowingList(
+	ctx context.Context,
+	userID types.UserID,
+	limit int,
+	page int,
+) ([]types.SimpleUser, error) {
+	var follows []db.ActualUserFollow
+	if err := s.DB(ctx).Model(&db.ActualUserFollow{}).Where(
+		"follower_id = ?", userID,
+	).Order("created_at DESC").Joins("Followed").Limit(limit).Offset(limit * page).Find(&follows).Error; err != nil {
+		return nil, err
+	}
+
+	followings := make([]types.SimpleUser, 0, len(follows))
+	for _, follow := range follows {
+		followings = append(followings, s.makeSimpleUserFromDB(&follow.Followed))
+	}
+
+	return followings, nil
+}
+
+func (s *State) GetUserFollowersList(
+	ctx context.Context,
+	userID types.UserID,
+	limit int,
+	page int,
+) ([]types.SimpleUser, error) {
+	var follows []db.ActualUserFollow
+	if err := s.DB(ctx).Model(&db.ActualUserFollow{}).Where(
+		"followed_id = ?", userID,
+	).Order("created_at DESC").Joins("Follower").Limit(limit).Offset(limit * page).Find(&follows).Error; err != nil {
+		return nil, err
+	}
+
+	followers := make([]types.SimpleUser, 0, len(follows))
+	for _, follow := range follows {
+		followers = append(followers, s.makeSimpleUserFromDB(&follow.Follower))
+	}
+
+	return followers, nil
+}

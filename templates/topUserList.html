@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lightpub</title>
+    <link rel="stylesheet" href="/static/css/user.css" />
+    <link rel="stylesheet" href="/static/css/userList.css" />
+    {{template "global.html" .}}
+  </head>
+  <body>
+    {{template "navbar.html" .}}
+    <div class="layout-root" x-data>
+      <div class="layout-content">
+        <h1>{{ .Title }}</h1>
+        <ul class="user-list">
+          <div
+            hx-get="{{ .URL }}"
+            hx-trigger="revealed"
+            hx-swap="afterend"
+          ></div>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>
