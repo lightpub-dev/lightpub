@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/service/notification"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -68,6 +70,23 @@ func (s *State) FollowUser(
 	if result.RowsAffected == 0 {
 		// follow already exists
 		return nil
+	}
+
+	// send notification if followee is local
+	if followeeUser.Domain == types.EmptyDomain {
+		var n notification.Body
+		if autoAcceptFollow {
+			n = notification.Followed{
+				FollowerUserID: followerID,
+			}
+		} else {
+			n = notification.FollowRequested{
+				RequesterUserID: followerID,
+			}
+		}
+		if err := s.AddNotification(ctx, followeeID, n); err != nil {
+			slog.ErrorContext(ctx, "failed to send notification", "followerID", followerID, "followeeID", followeeID, "err", err)
+		}
 	}
 
 	if followerUser.IsLocal() && followeeUser.Domain != types.EmptyDomain {
@@ -209,6 +228,16 @@ func (s *State) AcceptFollow(
 	if result.RowsAffected == 0 {
 		// follow does not exist or is not pending
 		return nil
+	}
+
+	// send notification if acceptee is local
+	if accepteeUser.IsLocal() {
+		n := notification.FollowAccepted{
+			AcceptorUserID: acceptorID,
+		}
+		if err := s.AddNotification(ctx, accepteeID, n); err != nil {
+			slog.ErrorContext(ctx, "failed to send notification", "acceptorID", acceptorID, "accepteeID", accepteeID, "err", err)
+		}
 	}
 
 	if acceptorUser.IsLocal() && accepteeUser.IsRemote() {

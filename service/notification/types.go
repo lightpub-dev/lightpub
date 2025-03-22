@@ -10,12 +10,12 @@ import (
 type Notification struct {
 	ID        types.NotificationID
 	UserID    types.UserID
-	Body      NotificationBody // NotificationBody
+	Body      Body // NotificationBody
 	CreatedAt time.Time
 	ReadAt    *time.Time // nil means unread
 }
 
-type NotificationBody interface {
+type Body interface {
 	NotificationBody()
 }
 
@@ -32,7 +32,7 @@ type FollowRequested struct {
 func (FollowRequested) NotificationBody() {}
 
 type FollowAccepted struct {
-	AccepterUserID types.UserID `json:"a"`
+	AcceptorUserID types.UserID `json:"a"`
 }
 
 func (FollowAccepted) NotificationBody() {}
@@ -59,7 +59,7 @@ type Renote struct {
 
 func (Renote) NotificationBody() {}
 
-func Stringify(b NotificationBody) (string, error) {
+func Stringify(b Body) (string, error) {
 	bodyJson, err := json.Marshal(b)
 	if err != nil {
 		return "", err

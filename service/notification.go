@@ -17,7 +17,7 @@ func (s *State) GetUnreadNotificationCount(ctx context.Context, userID types.Use
 	return count.UnreadCount, nil
 }
 
-func (s *State) AddNotification(ctx context.Context, userID types.UserID, body notification.NotificationBody) error {
+func (s *State) AddNotification(ctx context.Context, userID types.UserID, body notification.Body) error {
 	bodyJson, err := notification.Stringify(body)
 	if err != nil {
 		return err
