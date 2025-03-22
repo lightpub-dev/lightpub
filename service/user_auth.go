@@ -40,7 +40,10 @@ func (s *State) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (
 		Password:         sql.NullString{String: hashedPasswordStr, Valid: true},
 		AutoFollowAccept: true,
 	}
-	if s.DB(ctx).Create(&newUser).Error != nil {
+	if err := s.DB(ctx).Create(&newUser).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return types.UserID{}, ErrUsernameAlreadyExists
+		}
 		return types.UserID{}, NewInternalServerErrorWithCause("failed to create user", err)
 	}
 
