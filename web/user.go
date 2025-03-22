@@ -176,3 +176,35 @@ func (s *State) ClientProfile(c echo.Context) error {
 	}
 	return c.Render(http.StatusOK, "topProfile.html", params)
 }
+
+func (s *State) ClientMy(c echo.Context) error {
+	viewerID := getViewerID(c) // must be non-nil
+	return c.Redirect(http.StatusTemporaryRedirect, s.BaseURL().JoinPath("client", "user", viewerID.String()).String())
+}
+
+func (s *State) GetUserAvatar(c echo.Context) error {
+	userIDStr := c.Param("id")
+	userID, err := types.ParseUserID(userIDStr)
+	if err != nil {
+		return err
+	}
+
+	user, err := s.service.FindUserByID(c.Request().Context(), userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return failure.NewError(http.StatusNotFound, "user not found")
+	}
+
+	avatar, err := s.service.GetUserAvatarFromUser(*user)
+	if err != nil {
+		return err
+	}
+
+	if avatar.HasUpload {
+		return c.Redirect(http.StatusTemporaryRedirect, s.BaseURL().JoinPath("upload", avatar.UploadID.String()).String())
+	} else {
+		return c.Blob(http.StatusOK, "image/jpeg", avatar.Ideticon)
+	}
+}

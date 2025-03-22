@@ -1,11 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/types"
+	"github.com/rrivera/identicon"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -178,4 +180,44 @@ func (s *State) UpdateUserProfile(
 
 	// TODO: apub Update
 	return nil
+}
+
+type UserAvatar struct {
+	HasUpload bool
+
+	// If HasUpload is true
+	UploadID types.UploadID
+	// If HasUpload is false
+	Ideticon []byte
+}
+
+func (s *State) GetUserAvatarFromUser(
+	user types.SimpleUser,
+) (UserAvatar, error) {
+	if user.Avatar != nil {
+		return UserAvatar{
+			HasUpload: true,
+			UploadID:  *user.Avatar,
+		}, nil
+	}
+
+	identiconSource := user.ID.String()
+	ig, err := identicon.New("", 5, 3)
+	if err != nil {
+		return UserAvatar{}, err
+	}
+	ii, err := ig.Draw(identiconSource)
+	if err != nil {
+		return UserAvatar{}, err
+	}
+
+	var buf bytes.Buffer
+	if err := ii.Jpeg(300, 90, &buf); err != nil {
+		return UserAvatar{}, err
+	}
+
+	return UserAvatar{
+		HasUpload: false,
+		Ideticon:  buf.Bytes(),
+	}, nil
 }
