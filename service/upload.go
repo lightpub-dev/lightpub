@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/service/upload"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
-	"resty.dev/v3"
 )
 
 var (
@@ -120,35 +120,97 @@ func (s *State) saveUploadFileInfo(ctx context.Context, info uploadFileInfo) err
 	}).Error
 }
 
+// UploadResult holds information about an upload.
+// The owner of this value should be call Close() after using it.
+// UploadResult implements io.Reader.
 type UploadResult struct {
 	IsLocal  bool
 	MimeType string
 
 	// If Local:
 	RelativePath string
+	uploadDir    string
+	localFile    *os.File
 
 	// If Remote:
 	CacheControl string
 	Response     []byte
 	ContentType  string
 	StatusCode   int
+
+	// Thread safety
+	mu           sync.Mutex
+	remoteOffset int
 }
 
-func (s *State) GetUpload(ctx context.Context, uploadID string, client *resty.Client) (UploadResult, error) {
+func (up *UploadResult) Read(b []byte) (n int, err error) {
+	if up == nil {
+		return 0, io.EOF
+	}
+
+	up.mu.Lock()
+	defer up.mu.Unlock()
+
+	if up.IsLocal {
+		// If local file isn't open yet, open it
+		if up.localFile == nil {
+			fullPath := filepath.Join(up.uploadDir, up.RelativePath)
+			var err error
+			up.localFile, err = os.Open(fullPath)
+			if err != nil {
+				return 0, err
+			}
+		}
+		// Read from the local file
+		return up.localFile.Read(b)
+	}
+
+	if !up.IsLocal {
+		// For remote data, read from Response using offset
+		if up.remoteOffset >= len(up.Response) {
+			return 0, io.EOF
+		}
+
+		n = copy(b, up.Response[up.remoteOffset:])
+		up.remoteOffset += n
+
+		return n, nil
+	}
+
+	return 0, io.EOF
+}
+
+func (up *UploadResult) Close() error {
+	if up == nil {
+		return nil
+	}
+
+	up.mu.Lock()
+	defer up.mu.Unlock()
+
+	if up.localFile != nil {
+		up.localFile.Close()
+		up.localFile = nil
+	}
+
+	return nil
+}
+
+func (s *State) GetUpload(ctx context.Context, uploadID types.UploadID) (*UploadResult, error) {
 	var upload db.Upload
 	err := s.DB(ctx).Where("id = ?", uploadID).First(&upload).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return UploadResult{}, ErrNoUploadFound
+			return nil, ErrNoUploadFound
 		}
-		return UploadResult{}, err
+		return nil, err
 	}
 
 	// For demonstration, just showing the structure
-	var result UploadResult
+	result := &UploadResult{}
 
 	if (upload.Filename.Valid && upload.URL.Valid) || (!upload.Filename.Valid && !upload.URL.Valid) {
-		return UploadResult{}, ErrInvalidUploadInDB
+		return nil, ErrInvalidUploadInDB
 	}
 
 	// If local file:
@@ -156,26 +218,27 @@ func (s *State) GetUpload(ctx context.Context, uploadID string, client *resty.Cl
 		result.IsLocal = true
 		result.RelativePath = "example.jpg"
 		result.MimeType = "image/jpeg"
+		result.uploadDir = s.getUploadsDir()
 	}
 
 	// If remote file:
 	if upload.URL.Valid {
 		result, err = s.handleRemoteUpload(ctx, upload.URL.String)
 		if err != nil {
-			return UploadResult{}, err
+			return nil, err
 		}
 	}
 
 	return result, nil
 }
 
-func (s *State) handleRemoteUpload(ctx context.Context, uploadURL string) (UploadResult, error) {
+func (s *State) handleRemoteUpload(ctx context.Context, uploadURL string) (*UploadResult, error) {
 	var result UploadResult
 	result.IsLocal = false
 
 	resp, err := s.uploadFetchClient.R().WithContext(ctx).Get(uploadURL)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 
 	if resp.Header().Get("Cache-Control") != "" {
@@ -184,18 +247,18 @@ func (s *State) handleRemoteUpload(ctx context.Context, uploadURL string) (Uploa
 
 	result.StatusCode = resp.StatusCode()
 	if result.StatusCode != http.StatusOK {
-		return result, nil
+		return nil, nil
 	}
 
 	contentType := resp.Header().Get("Content-Type")
 	if contentType == "" {
-		return result, errors.New("invalid remote: no content type")
+		return nil, errors.New("invalid remote: no content type")
 	}
 	result.ContentType = contentType
 
 	result.Response = resp.Bytes()
 
-	return result, nil
+	return &result, nil
 }
 
 func (s *State) registerRemoteUpload(ctx context.Context, url string) (types.UploadID, error) {

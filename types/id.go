@@ -8,7 +8,7 @@ import (
 type UserID = ulid.ULID
 type NoteID = ulid.ULID
 type NotificationID = int32
-type UploadID = uuid.UUID
+type UploadID = BinUUID
 
 func NewUserID() UserID {
 	return ulid.Make()
@@ -29,10 +29,9 @@ func ParseNoteID(s string) (NoteID, error) {
 }
 
 func NewUploadID() UploadID {
-	return uuid.New()
+	return WrapBinUUID(uuid.New())
 }
 
 func ParseUploadID(s string) (UploadID, error) {
-	id, err := uuid.Parse(s)
-	return UploadID(id), err
+	return ParseBinUUID(s)
 }

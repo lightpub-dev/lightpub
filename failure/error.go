@@ -42,7 +42,11 @@ func NewInternalServerErrorWithCause(msg string, cause error) *LightpubError {
 }
 
 func (e *LightpubError) Error() string {
-	return e.message
+	s := e.message
+	if e.cause != nil {
+		s += ": " + e.cause.Error()
+	}
+	return s
 }
 
 func (e *LightpubError) StatusCode() int {

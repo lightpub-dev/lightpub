@@ -66,6 +66,7 @@ func main() {
 	userGroup := e.Group("/user")
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
 
+	e.GET("/upload/:id", s.GetUpload)
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
 

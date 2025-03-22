@@ -87,9 +87,9 @@
       {{if .Note.Basic.Uploads}}
       <div role="group" aria-label="アップロード画像リスト">
         {{range .Note.Basic.Uploads}} {{if $.Note.Basic.Sensitive}}
-        <a href="{{.}}" target="_blank">画像を見る (sensitive)</a>
+        <a href="/upload/{{.}}" target="_blank">画像を見る (sensitive)</a>
         {{else}}
-        <a href="{{.}}" target="_blank">
+        <a href="/upload/{{.}}" target="_blank">
           <figure>
             <img src="{{.}}" alt="アップロード画像" class="upload" />
           </figure>
