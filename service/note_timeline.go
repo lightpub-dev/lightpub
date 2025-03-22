@@ -37,3 +37,22 @@ func (s *State) GetTimeline(ctx context.Context, userID types.UserID, limit uint
 	}
 	return s.getNotesFromIDs(ctx, &userID, noteIDs)
 }
+
+func (s *State) GetUserNotes(ctx context.Context, viewerID *types.UserID, userID types.UserID, limit uint64, beforeDate *time.Time) ([]types.DetailedNote, error) {
+	var ids []struct {
+		ID types.NoteID `db:"id"`
+	}
+
+	query := `CALL get_user_note_ids(?,?,?,?)`
+	err := s.DB(ctx).Raw(query, viewerID, userID, limit, beforeDate).Scan(&ids).Error
+	if err != nil {
+		return nil, err
+	}
+
+	noteIDs := make([]types.NoteID, len(ids))
+	for i, id := range ids {
+		noteIDs[i] = id.ID
+	}
+
+	return s.getNotesFromIDs(ctx, viewerID, noteIDs)
+}

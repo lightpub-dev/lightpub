@@ -292,7 +292,7 @@ func (s *State) DeleteBookmarkOnNote(c echo.Context) error {
 
 func (s *State) GetTimeline(c echo.Context) error {
 	var query struct {
-		BeforeTime *time.Time `query:"before_time"`
+		BeforeTime *time.Time `query:"beforeTime"`
 		Public     bool       `query:"public"`
 	}
 	if err := c.Bind(&query); err != nil {
@@ -321,12 +321,52 @@ func (s *State) GetTimeline(c echo.Context) error {
 	if len(notes) == paginationSizeP1 {
 		beforeTime := notes[len(notes)-1].Basic.CreatedAt.UTC().Format(time.RFC3339Nano)
 		nextURLP := buildURLWithParams(c.Request().URL, map[string]string{
-			"before_time": beforeTime,
+			"beforeTime": beforeTime,
 		})
 		nextURL = &nextURLP
 		notes = notes[:paginationSize]
 	}
 
+	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
+	return c.Render(http.StatusOK, "notes.html", renderParams)
+}
+
+func (s *State) GetUserNoteList(c echo.Context) error {
+	var query struct {
+		BeforeTime *time.Time `query:"beforeTime"`
+	}
+	if err := c.Bind(&query); err != nil {
+		return err
+	}
+
+	// Get the user ID from URL parameter
+	userIDStr := c.Param("id")
+	userID, err := types.ParseUserID(userIDStr)
+	if err != nil {
+		return failure.NewError(http.StatusBadRequest, "invalid user ID")
+	}
+
+	// Get current viewer ID (if logged in)
+	viewerID := getViewerID(c)
+
+	// Get user notes with pagination
+	notes, err := s.service.GetUserNotes(c.Request().Context(), viewerID, userID, paginationSizeP1, query.BeforeTime)
+	if err != nil {
+		return err
+	}
+
+	// Handle pagination
+	var nextURL *string
+	if len(notes) == paginationSizeP1 {
+		beforeTime := notes[len(notes)-1].Basic.CreatedAt.UTC().Format(time.RFC3339Nano)
+		nextURLP := buildURLWithParams(c.Request().URL, map[string]string{
+			"beforeTime": beforeTime,
+		})
+		nextURL = &nextURLP
+		notes = notes[:paginationSize]
+	}
+
+	// Render the notes template
 	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
 	return c.Render(http.StatusOK, "notes.html", renderParams)
 }

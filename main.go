@@ -63,8 +63,8 @@ func main() {
 	noteGroup.PUT("/:id/bookmark", s.PutBookmarkOnNote, authRequired)
 	noteGroup.DELETE("/:id/bookmark", s.DeleteBookmarkOnNote, authRequired)
 
-	// userGroup := e.Group("/user")
-	// userGroup.GET("/:id", s.ClientProfile)
+	userGroup := e.Group("/user")
+	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
 
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
