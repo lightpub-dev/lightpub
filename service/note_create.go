@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/service/notification"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
 )
@@ -20,6 +22,7 @@ var (
 	ErrRenoteVisibility         = NewServiceError(400, "renote (and renote target) visibility should be public or unlisted")
 	ErrAlreadyRenoted           = NewServiceError(400, "already renoted")
 	ErrRenoteTargetNotFound     = NewServiceError(400, "renote target not found")
+	ErrReplyTargetNotFound      = NewServiceError(400, "reply target not found")
 )
 
 type UpsertTarget struct {
@@ -54,7 +57,11 @@ func (s *State) UpsertNote(
 	author types.UserID,
 	params CreateNoteParams,
 ) (types.NoteID, error) {
-	var upsertedNoteID types.NoteID
+	var (
+		upsertedNoteID   types.NoteID
+		repliedNote      *types.SimpleNote
+		mentionedUserIDs []types.UserID
+	)
 	err := s.WithTransaction(func(tx *State) error {
 		authorUser, err := tx.FindUserByID(ctx, author)
 		if err != nil {
@@ -93,6 +100,19 @@ func (s *State) UpsertNote(
 		mentions, err := tx.findMentionsInNoteContent(ctx, params.Content, params.Mentions)
 		if err != nil {
 			return err
+		}
+		mentionedUserIDs = mentions
+
+		// reply note visibility check
+		if params.ReplyToID != nil {
+			replyNote, err := tx.FindNoteByIDWithVisibilityCheck(ctx, &author, *params.ReplyToID)
+			if err != nil {
+				return err
+			}
+			if replyNote == nil {
+				return ErrReplyTargetNotFound
+			}
+			repliedNote = replyNote
 		}
 
 		var remoteURL *string
@@ -155,7 +175,45 @@ func (s *State) UpsertNote(
 		return types.NoteID{}, err
 	}
 
-	// TODO: reply and mention notifications
+	// send notifications
+	notifiedUserIDs := make(map[types.UserID]struct{})
+	isAlreadyNotified := func(userID types.UserID) bool {
+		_, ok := notifiedUserIDs[userID]
+		return ok
+	}
+	// reply notification
+	if repliedNote != nil && repliedNote.Author.IsLocal() {
+		notification := notification.Replied{
+			ReplierUserID: author,
+			ReplyNoteID:   upsertedNoteID,
+			RepliedNoteID: repliedNote.ID,
+		}
+		if err := s.AddNotification(ctx, repliedNote.Author.ID, notification); err != nil {
+			slog.ErrorContext(ctx, "failed to send reply notification", "noteID", upsertedNoteID, "err", err)
+		}
+		notifiedUserIDs[repliedNote.Author.ID] = struct{}{}
+	}
+	// mention notification
+	for _, mentionUserID := range mentionedUserIDs {
+		mentionUser, err := s.FindUserByID(ctx, mentionUserID)
+		if err != nil {
+			return types.NoteID{}, err
+		}
+		if mentionUser == nil {
+			slog.ErrorContext(ctx, "failed to send mention notification: user not found", "noteID", upsertedNoteID, "userID", mentionUserID)
+			continue
+		}
+		if mentionUser.ID == author || mentionUser.IsRemote() || isAlreadyNotified(mentionUser.ID) {
+			continue
+		}
+		notification := notification.Mentioned{
+			MentionerUserID: author,
+			MentionNoteID:   upsertedNoteID,
+		}
+		if err := s.AddNotification(ctx, mentionUser.ID, notification); err != nil {
+			slog.ErrorContext(ctx, "failed to send mention notification", "noteID", upsertedNoteID, "userID", mentionUserID, "err", err)
+		}
+	}
 
 	// TODO: apub federation
 
