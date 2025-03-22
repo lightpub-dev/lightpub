@@ -216,7 +216,7 @@ func (s *State) GetUpload(ctx context.Context, uploadID types.UploadID) (*Upload
 	// If local file:
 	if upload.Filename.Valid {
 		result.IsLocal = true
-		result.RelativePath = "example.jpg"
+		result.RelativePath = upload.Filename.String
 		result.MimeType = "image/jpeg"
 		result.uploadDir = s.getUploadsDir()
 	}

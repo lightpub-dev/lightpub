@@ -1,12 +1,10 @@
 package types
 
 import (
-	"context"
+	"database/sql/driver"
 	"fmt"
-	"reflect"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm/schema"
 )
 
 // BinUUID is a custom UUID type which stores value as binary in database
@@ -35,8 +33,7 @@ func (u *BinUUID) Scan(value interface{}) error {
 	switch value := value.(type) {
 	case []byte:
 		var err error
-		u.inner, err = uuid.FromBytes(value
-		)
+		u.inner, err = uuid.FromBytes(value)
 		if err != nil {
 			return err
 		}
@@ -46,7 +43,7 @@ func (u *BinUUID) Scan(value interface{}) error {
 	return nil
 }
 
-func (u BinUUID) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
+func (u BinUUID) Value() (driver.Value, error) {
 	b := [16]byte(u.inner)
 	return b[:], nil
 }
