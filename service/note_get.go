@@ -62,10 +62,14 @@ func (s *State) FindNoteByID(ctx context.Context, noteID types.NoteID) (*types.S
 
 	var content *types.NoteContent
 	if note.Content.Valid && note.ContentType.Valid {
-		cleanContent := noteSanitizer.Sanitize(note.Content.String)
+		contentType := types.NoteContentType(note.ContentType.String)
+		cleanContent, err := renderNoteContent(note.Content.String, contentType)
+		if err != nil {
+			return nil, err
+		}
 		content = &types.NoteContent{
 			Data: cleanContent,
-			Type: types.NoteContentType(note.ContentType.String),
+			Type: contentType,
 		}
 	}
 
