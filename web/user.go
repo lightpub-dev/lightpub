@@ -334,3 +334,59 @@ func (s *State) ClientUserFollowers(c echo.Context) error {
 		URL:   "/user/" + userID.String() + "/followers",
 	})
 }
+
+type UserInteractionType string
+
+const (
+	userInteractionFollow       = "follow"
+	userInteractionUnfollow     = "unfollow"
+	userInteractionBlock        = "block"
+	userInteractionUnblock      = "unblock"
+	userInteractionAcceptFollow = "acceptFollow"
+	userInteractionRejectFollow = "rejectFollow"
+)
+
+func (s *State) UserInteraction(c echo.Context) error {
+	viewerID := getViewerID(c) // must be non-nil
+
+	var req struct {
+		Type UserInteractionType `json:"type" validate:"required,oneof=follow unfollow block unblock acceptFollow rejectFollow"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return errBadInput
+	}
+	if err := validate.Struct(&req); err != nil {
+		return errBadInput
+	}
+
+	targetUserIDStr := c.Param("id")
+	targetUserID, err := types.ParseUserID(targetUserIDStr)
+	if err != nil {
+		return err
+	}
+
+	switch req.Type {
+	case userInteractionFollow:
+		err = s.service.FollowUser(c.Request().Context(), *viewerID, targetUserID)
+	case userInteractionUnfollow:
+		err = s.service.UnfollowUser(c.Request().Context(), *viewerID, targetUserID)
+	case userInteractionBlock:
+		err = s.service.BlockUser(c.Request().Context(), *viewerID, targetUserID)
+	case userInteractionUnblock:
+		err = s.service.UnblockUser(c.Request().Context(), *viewerID, targetUserID)
+	case userInteractionAcceptFollow:
+		err = s.service.AcceptFollow(c.Request().Context(), *viewerID, targetUserID)
+	case userInteractionRejectFollow:
+		err = s.service.RejectFollowUser(c.Request().Context(), *viewerID, targetUserID)
+	default:
+		return failure.NewError(http.StatusBadRequest, "invalid interaction type")
+	}
+
+	if err != nil {
+		return err
+	}
+
+	c.Response().Header().Set(hxRefresh, trueHeaderValue)
+	return c.NoContent(http.StatusOK)
+}

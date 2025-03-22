@@ -68,6 +68,7 @@ func main() {
 	userGroup.GET("/:id/avatar", s.GetUserAvatar)
 	userGroup.GET("/:id/following", s.GetUserFollowings)
 	userGroup.GET("/:id/followers", s.GetUserFollowers)
+	userGroup.POST("/:id/interaction", s.UserInteraction, authRequired)
 
 	notificationGroup := e.Group("/notification")
 	notificationGroup.GET("/unread-count", s.GetUnreadNotificationCount, authRequired)
