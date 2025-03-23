@@ -1,6 +1,7 @@
 .PHONY: install-deps
 install-deps:
 	go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	go install github.com/air-verse/air@latest
 
 .PHONY: generate-migration
 generate-migration:
@@ -13,3 +14,7 @@ migrate:
 .PHONY: dev-up
 dev-up:
 	docker compose -f ./docker-compose.dev.yml up -d lightpub_db lightpub_kv lightpub_typesense lightpub_nats
+
+.PHONY: dev
+dev: dev-up migrate
+	air
