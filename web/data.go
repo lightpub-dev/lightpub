@@ -38,6 +38,9 @@ const (
 	hxTrigger       = "HX-Trigger"
 	hxRefresh       = "HX-Refresh"
 	trueHeaderValue = "true"
+	cacheControl    = "Cache-Control"
+	vary            = "Vary"
+	acceptLanguage  = "Accept-Language"
 
 	paginationSize   = 20
 	paginationSizeP1 = paginationSize + 1

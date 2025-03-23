@@ -48,7 +48,12 @@ func (s *State) GetUpload(c echo.Context) error {
 		return err
 	}
 
-	c.Response().Header().Set("Cache-Control", "private, max-age=604800, stale-while-revalidate=604800")
+	if upload.IsLocal {
+		c.Response().Header().Set("Cache-Control", "public, max-age=604800, stale-while-revalidate=604800")
+	} else {
+		// TODO: should respect remote server's cache headers
+		c.Response().Header().Set("Cache-Control", "private, no-cache") // ETag is used for cache validation
+	}
 	return c.Blob(http.StatusOK, upload.MimeType, bytes)
 }
 

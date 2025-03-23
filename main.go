@@ -52,6 +52,7 @@ func main() {
 	}))
 	e.Use(middleware.Recover())
 	e.Use(errorHandleMiddleware)
+	e.Use(etag.Etag())
 
 	e.Renderer = web.TemplateRenderer
 	e.Logger.SetLevel(log.DEBUG)
@@ -88,7 +89,7 @@ func main() {
 	userGroup := e.Group("/user")
 	userGroup.PATCH("/:id", s.ProfileUpdate, authRequired)
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
-	userGroup.GET("/:id/avatar", s.GetUserAvatar, etag.Etag())
+	userGroup.GET("/:id/avatar", s.GetUserAvatar)
 	userGroup.GET("/:id/following", s.GetUserFollowings)
 	userGroup.GET("/:id/followers", s.GetUserFollowers)
 	userGroup.POST("/:id/interaction", s.UserInteraction, authRequired)
@@ -99,7 +100,7 @@ func main() {
 	notificationGroup.GET("/all", s.GetNotifications, authRequired)
 	notificationGroup.POST("/:id/read", s.MarkNotificationAsRead, authRequired)
 
-	e.GET("/upload/:id", s.GetUpload, etag.Etag())
+	e.GET("/upload/:id", s.GetUpload)
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
 

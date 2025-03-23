@@ -134,6 +134,9 @@ func (s *State) GetNote(c echo.Context) error {
 	}
 
 	renderParams := s.renderNote(note, renoteUser, viewerID != nil)
+
+	// private: for enforcing access control
+	c.Response().Header().Set(cacheControl, "private, max-age=60, stale-while-revalidate=86400")
 	return c.Render(http.StatusOK, "note.html", renderParams)
 }
 
@@ -275,6 +278,8 @@ func (s *State) GetEditNotePage(c echo.Context) error {
 		return failure.NewError(http.StatusForbidden, "you are not the author of this note")
 	}
 
+	// always returns the latest version of the note
+	c.Response().Header().Set(cacheControl, "no-store")
 	return c.Render(http.StatusOK, "editNote.html", NoteEditParams{
 		Note: note,
 	})
@@ -379,6 +384,8 @@ func (s *State) GetNoteReplies(c echo.Context) error {
 	}
 
 	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
+
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "notes.html", renderParams)
 }
 
@@ -420,6 +427,7 @@ func (s *State) GetTimeline(c echo.Context) error {
 	}
 
 	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
+	c.Response().Header().Set(cacheControl, "private, max-age=86400")
 	return c.Render(http.StatusOK, "notes.html", renderParams)
 }
 
@@ -460,6 +468,8 @@ func (s *State) GetUserNoteList(c echo.Context) error {
 
 	// Render the notes template
 	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
+
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "notes.html", renderParams)
 }
 
@@ -486,6 +496,7 @@ func (s *State) GetTrends(c echo.Context) error {
 		})
 	}
 
+	c.Response().Header().Set(cacheControl, "public, max-age=60") // cache for 1 minute
 	return c.Render(http.StatusOK, "trends.html", TrendRenderParams{
 		Data: entries,
 	})
@@ -534,6 +545,7 @@ func (s *State) ClientGetNote(c echo.Context) error {
 		Title:  "ノート作成",
 	}
 
+	c.Response().Header().Set(cacheControl, "private, max-age=60, stale-while-revalidate=86400")
 	return c.Render(http.StatusOK, "topNoteDetails.html", NoteDetailsParams{
 		Og:     og,
 		Create: create,

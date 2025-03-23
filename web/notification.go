@@ -83,6 +83,7 @@ func (s *State) GetUnreadNotificationCount(c echo.Context) error {
 		return err
 	}
 
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	if count == 0 {
 		return c.String(http.StatusOK, "")
 	}
@@ -116,6 +117,7 @@ func (s *State) MarkAllNotificationsAsRead(c echo.Context) error {
 }
 
 func (s *State) ClientNotification(c echo.Context) error {
+	c.Response().Header().Set(cacheControl, "public, max-age=604800")
 	return c.Render(http.StatusOK, "topNotification.html", nil)
 }
 
@@ -153,6 +155,7 @@ func (s *State) GetNotifications(c echo.Context) error {
 		nextURL = fmt.Sprintf("/notification?page=%d", param.Page+1)
 	}
 
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "notification_list.html", NotificationListParams{
 		Data:    nParams,
 		NextURL: nextURL,

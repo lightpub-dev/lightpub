@@ -137,10 +137,12 @@ func (s *State) LogoutUser(c echo.Context) error {
 }
 
 func (s *State) ClientRegisterUser(c echo.Context) error {
+	c.Response().Header().Set(cacheControl, "private, max-age=604800") // 1 week
 	return c.Render(http.StatusOK, "topRegister.html", nil)
 }
 
 func (s *State) ClientLoginUser(c echo.Context) error {
+	c.Response().Header().Set(cacheControl, "private, max-age=604800") // 1 week
 	return c.Render(http.StatusOK, "topLogin.html", nil)
 }
 
@@ -195,6 +197,7 @@ func (s *State) ClientProfile(c echo.Context) error {
 		Authed: viewerID != nil,
 		User:   user,
 	}
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "topProfile.html", params)
 }
 
@@ -259,11 +262,13 @@ func (s *State) ClientProfileUpdatePage(c echo.Context) error {
 	params := ClientProfileUpdateParams{
 		User: user,
 	}
+	c.Response().Header().Set(cacheControl, "no-store")
 	return c.Render(http.StatusOK, "topProfileUpdate.html", params)
 }
 
 func (s *State) ClientMy(c echo.Context) error {
 	viewerID := getViewerID(c) // must be non-nil
+	c.Response().Header().Set(cacheControl, "no-store")
 	return c.Redirect(http.StatusTemporaryRedirect, s.BaseURL().JoinPath("client", "user", viewerID.String()).String())
 }
 
@@ -344,6 +349,8 @@ func (s *State) GetUserFollowings(c echo.Context) error {
 	}
 
 	params := makeUserListParamsFromSlice(followings, paginationSize, nextURL)
+
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "userList.html", params)
 }
 
@@ -370,6 +377,8 @@ func (s *State) GetUserFollowers(c echo.Context) error {
 	}
 
 	params := makeUserListParamsFromSlice(followers, paginationSize, nextURL)
+
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "userList.html", params)
 }
 
@@ -393,6 +402,7 @@ func (s *State) ClientUserFollowings(c echo.Context) error {
 		return failure.NewError(http.StatusNotFound, "user not found")
 	}
 
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "topUserList.html", ClientUserListParams{
 		Title: "フォロー一覧",
 		URL:   "/user/" + userID.String() + "/following",
@@ -414,6 +424,7 @@ func (s *State) ClientUserFollowers(c echo.Context) error {
 		return failure.NewError(http.StatusNotFound, "user not found")
 	}
 
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "topUserList.html", ClientUserListParams{
 		Title: "フォロワ―一覧",
 		URL:   "/user/" + userID.String() + "/followers",

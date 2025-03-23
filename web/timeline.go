@@ -43,5 +43,7 @@ func (s *State) ClientTimeline(c echo.Context) error {
 			Title:  "ノート作成",
 		},
 	}
+
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "topTimeline.html", params)
 }
