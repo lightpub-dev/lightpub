@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/lightpub-dev/lightpub/db"
 	"github.com/lightpub-dev/lightpub/types"
@@ -32,6 +33,8 @@ import (
 var (
 	bioSanitizer  = bluemonday.UGCPolicy()
 	noteSanitizer = bluemonday.UGCPolicy()
+
+	ErrNoteNotFound = NewServiceError(http.StatusNotFound, "note not found")
 )
 
 type noteAuthorPair struct {
@@ -303,4 +306,64 @@ func (s *State) getNoteMentions(ctx context.Context, noteID types.NoteID) ([]typ
 		}
 	}
 	return mentionPairs, nil
+}
+
+func (s *State) GetNoteRenoters(ctx context.Context, viewerID *types.UserID, noteID types.NoteID, limit int, page int) ([]types.SimpleUser, error) {
+	// visibility check
+	note, err := s.FindNoteByIDWithVisibilityCheck(ctx, viewerID, noteID)
+	if err != nil {
+		return nil, err
+	}
+	if note == nil {
+		return nil, ErrNoteNotFound
+	}
+
+	var renotes []db.Note
+	if err := s.DB(ctx).Model(&db.Note{}).Where("renote_of_id = ? AND content IS NULL", noteID).Find(&renotes).Error; err != nil {
+		return nil, err
+	}
+
+	renoters := make([]types.SimpleUser, len(renotes))
+	for i, renote := range renotes {
+		renoter, err := s.FindUserByID(ctx, renote.AuthorID)
+		if err != nil {
+			return nil, err
+		}
+		if renoter == nil {
+			return nil, fmt.Errorf("renoter not found: %s", renote.AuthorID)
+		}
+		renoters[i] = *renoter
+	}
+
+	return renoters, nil
+}
+
+func (s *State) GetMentions(ctx context.Context, viewerID *types.UserID, noteID types.NoteID) ([]types.SimpleUser, error) {
+	// visibility check
+	note, err := s.FindNoteByIDWithVisibilityCheck(ctx, viewerID, noteID)
+	if err != nil {
+		return nil, err
+	}
+	if note == nil {
+		return nil, ErrNoteNotFound
+	}
+
+	var noteMentions []db.NoteMention
+	if err := s.DB(ctx).Model(&db.NoteMention{}).Where("note_id = ?", noteID).Find(&noteMentions).Error; err != nil {
+		return nil, err
+	}
+
+	mentionUserIDs := make([]types.SimpleUser, len(noteMentions))
+	for i, noteMention := range noteMentions {
+		mention, err := s.FindUserByID(ctx, noteMention.TargetUserID)
+		if err != nil {
+			return nil, err
+		}
+		if mention == nil {
+			return nil, fmt.Errorf("mention not found: %s", noteMention.TargetUserID)
+		}
+		mentionUserIDs[i] = *mention
+	}
+
+	return mentionUserIDs, nil
 }
