@@ -47,6 +47,7 @@ func (s *State) GetNotifications(ctx context.Context, userID types.UserID, limit
 
 	mayHaveNext := len(ns) == limit
 
+	expiredNotificationIDs := make([]types.NotificationID, 0)
 	nss := make([]notification.Notification, 0, len(ns))
 	for _, n := range ns {
 		body, err := notification.ParseBody(n.Body)
@@ -55,7 +56,8 @@ func (s *State) GetNotifications(ctx context.Context, userID types.UserID, limit
 			continue
 		}
 		if err := s.fillRelatedNotificationInfo(ctx, body); err != nil {
-			slog.WarnContext(ctx, "failed to fill related notification info", "notificationID", n.ID, "err", err)
+			slog.DebugContext(ctx, "failed to fill related notification info", "notificationID", n.ID, "err", err)
+			expiredNotificationIDs = append(expiredNotificationIDs, types.NotificationID(n.ID))
 			continue
 		}
 		n := notification.Notification{
@@ -65,6 +67,12 @@ func (s *State) GetNotifications(ctx context.Context, userID types.UserID, limit
 			ReadAt:    sqlToTimePtr(n.ReadAt),
 		}
 		nss = append(nss, n)
+	}
+
+	for _, expiredNotificationID := range expiredNotificationIDs {
+		if err := s.deleteNotificationByID(ctx, expiredNotificationID); err != nil {
+			return nil, false, err
+		}
 	}
 
 	return nss, mayHaveNext, nil
@@ -172,6 +180,15 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 	}
 
 	return fmt.Errorf("unknown notification body type: %T", body)
+}
+
+func (s *State) deleteNotificationByID(ctx context.Context, notificationID types.NotificationID) error {
+	if err := s.DB(ctx).Unscoped().Delete(&db.Notification{
+		ID: int(notificationID),
+	}).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *State) ReadNotificationID(ctx context.Context, userID types.UserID, notificationID types.NotificationID) error {
