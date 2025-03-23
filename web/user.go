@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -177,6 +178,70 @@ func (s *State) ClientProfile(c echo.Context) error {
 		User:   user,
 	}
 	return c.Render(http.StatusOK, "topProfile.html", params)
+}
+
+func (s *State) ProfileUpdate(c echo.Context) error {
+	avatar, err := c.FormFile("avatar")
+	if err != nil {
+		if errors.Is(err, http.ErrMissingFile) {
+			avatar = nil
+		} else {
+			return err
+		}
+	}
+	avatarRemove := c.FormValue("avatarRemove") == "on"
+	nickname := c.FormValue("nickname")
+	bio := c.FormValue("bio")
+	autoFollowAccept := c.FormValue("autoFollowAccept") == "on"
+	hideFollows := c.FormValue("hideFollows") == "on"
+
+	var updatedAvatarUploadID *types.UploadID
+	if avatarRemove {
+		updatedAvatarUploadID = &types.UploadID{} // zero value means remove
+	} else {
+		if avatar != nil {
+			avatarUploadID, err := s.newUpload(c.Request().Context(), avatar)
+			if err != nil {
+				return err
+			}
+			updatedAvatarUploadID = &avatarUploadID // non-nil and non-zero means change
+		} else {
+			updatedAvatarUploadID = nil // nil means no change
+		}
+	}
+
+	viewerID := getViewerID(c) // must be non-nil
+
+	if err := s.service.UpdateUserProfile(c.Request().Context(), *viewerID, service.ProfileUpdateParams{
+		Nickname:         &nickname,
+		Bio:              &bio,
+		AvatarUploadID:   updatedAvatarUploadID,
+		AutoAcceptFollow: &autoFollowAccept,
+		HideFollows:      &hideFollows,
+	}); err != nil {
+		return err
+	}
+
+	c.Response().Header().Set(hxRedirect, "/client/my")
+	return c.NoContent(http.StatusOK)
+}
+
+type ClientProfileUpdateParams struct {
+	User types.DetailedUser
+}
+
+func (s *State) ClientProfileUpdatePage(c echo.Context) error {
+	viewerID := getViewerID(c) // must be non-nil
+
+	user, err := s.service.GetUserProfile(c.Request().Context(), viewerID, *viewerID)
+	if err != nil {
+		return err
+	}
+
+	params := ClientProfileUpdateParams{
+		User: user,
+	}
+	return c.Render(http.StatusOK, "topProfileUpdate.html", params)
 }
 
 func (s *State) ClientMy(c echo.Context) error {

@@ -1,11 +1,8 @@
 package web
 
 import (
-	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -176,29 +173,7 @@ func (s *State) CreateNote(c echo.Context) error {
 	files := form.File["file"]
 	uploadIDs := make([]types.UploadID, 0, len(files))
 	for _, file := range files {
-		if !strings.HasPrefix(file.Header.Get("Content-Type"), "image/") {
-			return failure.NewError(http.StatusBadRequest, "invalid file type")
-		}
-
-		src, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer src.Close()
-
-		// copy to tempfile
-		tmp, err := os.CreateTemp("", "lp-upload-")
-		if err != nil {
-			return err
-		}
-		defer os.Remove(tmp.Name())
-		defer tmp.Close()
-
-		if _, err := io.Copy(tmp, src); err != nil {
-			return err
-		}
-
-		uploadID, err := s.service.UploadFile(c.Request().Context(), tmp.Name())
+		uploadID, err := s.newUpload(c.Request().Context(), file)
 		if err != nil {
 			return err
 		}

@@ -67,6 +67,7 @@ func main() {
 	noteGroup.GET("/:id/edit", s.GetEditNotePage, authRequired)
 
 	userGroup := e.Group("/user")
+	userGroup.PATCH("/:id", s.ProfileUpdate, authRequired)
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
 	userGroup.GET("/:id/avatar", s.GetUserAvatar)
 	userGroup.GET("/:id/following", s.GetUserFollowings)
@@ -88,6 +89,7 @@ func main() {
 	clientGroup.GET("/login", s.ClientLoginUser)
 	clientGroup.GET("/timeline", s.ClientTimeline, authOptional)
 	clientGroup.GET("/my", s.ClientMy, authRequired)
+	clientGroup.GET("/my/edit", s.ClientProfileUpdatePage, authRequired)
 	clientGroup.GET("/user/:spec", s.ClientProfile, authOptional)
 	clientGroup.GET("/user/:spec/following", s.ClientUserFollowings)
 	clientGroup.GET("/user/:spec/followers", s.ClientUserFollowers)

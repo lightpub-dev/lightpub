@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Lightpub</title>
+    <link rel="stylesheet" href="/static/css/note.css" />
+    <link rel="stylesheet" href="/static/css/user.css" />
+    {{template "global.html" .}}
+  </head>
+
+  <body>
+    <form
+      class="form"
+      hx-patch="/user/{{.User.Basic.ID}}"
+      hx-swap="none"
+      enctype="multipart/form-data"
+      x-data
+    >
+      <div class="user-profile card">
+        <h1>ユーザー情報編集</h1>
+        <div>
+          <img
+            src="/user/{{.User.Basic.ID}}/avatar"
+            alt="User Avatar"
+            width="48"
+            height="48"
+            class="avatar"
+          />
+          <div>
+            <label for="avatarForm">アバター画像</label>
+            <input
+              name="avatar"
+              id="avatarForm"
+              type="file"
+              class="form-control"
+              name="avatar"
+            />
+          </div>
+          <div>
+            <label for="avatarRemove">アバター画像を削除</label>
+            <input
+              type="checkbox"
+              name="avatarRemove"
+              id="avatarRemove"
+              x-on:change=" if (document.getElementById('avatarForm').files.length
+            > 0) { document.getElementById('avatarForm').value = ''; } "
+            />
+          </div>
+          <div>
+            <label for="nicknameForm">ニックネーム</label>
+            <input
+              id="nicknameForm"
+              name="nickname"
+              type="text"
+              class="form-control"
+              value="{{.User.Basic.Nickname}}"
+              required
+              aria-required="true"
+            />
+          </div>
+        </div>
+        <div>
+          <table>
+            <tr>
+              <td>
+                <p>自己紹介</p>
+              </td>
+              <td>
+                <textarea
+                  class="form-control bio-form"
+                  name="bio"
+                  placeholder="自己紹介"
+                >
+{{.User.Basic.Bio}}</textarea
+                >
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <p>フォローを自動的に承認する</p>
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  name="autoFollowAccept"
+                  {{if
+                  .User.Details.AutoFollowAccept}}checked{{end}}
+                />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <p>フォロー/フォロワー一覧を非公開にする</p>
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  name="hideFollows"
+                  {{if
+                  .User.Details.HideFollows}}checked{{end}}
+                />
+              </td>
+            </tr>
+          </table>
+        </div>
+        <div class="form-toolbar">
+          <a href="/client/changePassword">パスワード変更</a>
+          <button type="submit" class="btn btn-primary">更新</button>
+        </div>
+      </div>
+    </form>
+    <div>
+      <h1>アカウント管理</h1>
+      <button
+        class="btn btn-danger"
+        hx-post="/auth/logout?all=true"
+        hx-confirm="他の端末からもログアウトしますか？"
+      >
+        全セッションからログアウト
+      </button>
+    </div>
+  </body>
+</html>
