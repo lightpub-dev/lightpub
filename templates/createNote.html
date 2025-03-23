@@ -31,6 +31,93 @@
         {{end}}
       ></textarea>
     </div>
+
+    <details>
+      <summary>メンション</summary>
+      <div class="form-group" x-data="{ mentions: [], currentMention: '' }">
+        <div class="input-group mb-2">
+          <input
+            type="text"
+            class="form-control"
+            placeholder="@username or @username@domain.tld"
+            x-model="currentMention"
+            x-on:keydown.enter.prevent="if(currentMention.match(/^@[\w]+(@[\w.]+)?$/) && !mentions.includes(currentMention)) { mentions.push(currentMention); currentMention = ''; }"
+          />
+          <button
+            class="btn btn-primary"
+            type="button"
+            x-on:click="if(currentMention.match(/^@[\w]+(@[\w.]+)?$/) && !mentions.includes(currentMention)) { mentions.push(currentMention); currentMention = ''; }"
+          >
+            Add
+          </button>
+        </div>
+        <div class="mention-list">
+          <template x-for="(mention, index) in mentions" :key="index">
+            <div
+              class="alert alert-secondary d-flex justify-content-between align-items-center"
+            >
+              <span x-text="mention"></span>
+              <button
+                type="button"
+                class="btn-close"
+                x-on:click="mentions.splice(index, 1)"
+              ></button>
+              <input type="hidden" name="mentions[]" x-bind:value="mention" />
+            </div>
+          </template>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>タグ</summary>
+      <div class="form-group" x-data="{ tags: [], currentTag: '' }">
+        <div class="input-group mb-2">
+          <input
+            type="text"
+            class="form-control"
+            placeholder="#tag"
+            x-model="currentTag"
+            x-on:keydown.enter.prevent="if(currentTag.trim() !== '') { 
+              let tagValue = currentTag.startsWith('#') ? currentTag : '#' + currentTag;
+              if(!tags.includes(tagValue)) { 
+                tags.push(tagValue); 
+                currentTag = ''; 
+              }
+            }"
+          />
+          <button
+            class="btn btn-primary"
+            type="button"
+            x-on:click="if(currentTag.trim() !== '') { 
+              let tagValue = currentTag.startsWith('#') ? currentTag : '#' + currentTag;
+              if(!tags.includes(tagValue) && !tagValue.substring(1).includes('#')) { 
+                tags.push(tagValue); 
+                currentTag = ''; 
+              }
+            }"
+          >
+            Add
+          </button>
+        </div>
+        <div class="tag-list">
+          <template x-for="(tag, index) in tags" :key="index">
+            <div
+              class="alert alert-secondary d-flex justify-content-between align-items-center"
+            >
+              <span x-text="tag"></span>
+              <button
+                type="button"
+                class="btn-close"
+                x-on:click="tags.splice(index, 1)"
+              ></button>
+              <input type="hidden" name="tags[]" x-bind:value="tag" />
+            </div>
+          </template>
+        </div>
+      </div>
+    </details>
+
     <div class="form-group">
       <label for="visibilityForm">公開範囲</label>
       <select

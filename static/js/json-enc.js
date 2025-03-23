@@ -1,19 +1,38 @@
-if (htmx.version && !htmx.version.startsWith("1.")) {
-  console.warn(
-    "WARNING: You are using an htmx 1 extension with htmx " +
-      htmx.version +
-      ".  It is recommended that you move to the version of this extension found on https://htmx.org/extensions"
-  );
-}
-htmx.defineExtension("json-enc", {
-  onEvent: function (name, evt) {
-    if (name === "htmx:configRequest") {
-      evt.detail.headers["Content-Type"] = "application/json";
-    }
-  },
+(function () {
+  let api;
+  htmx.defineExtension("json-enc", {
+    init: function (apiRef) {
+      api = apiRef;
+    },
 
-  encodeParameters: function (xhr, parameters, elt) {
-    xhr.overrideMimeType("text/json");
-    return JSON.stringify(parameters);
-  },
-});
+    onEvent: function (name, evt) {
+      if (name === "htmx:configRequest") {
+        evt.detail.headers["Content-Type"] = "application/json";
+      }
+    },
+
+    encodeParameters: function (xhr, parameters, elt) {
+      xhr.overrideMimeType("text/json");
+
+      const object = {};
+      parameters.forEach(function (value, key) {
+        if (Object.hasOwn(object, key)) {
+          if (!Array.isArray(object[key])) {
+            object[key] = [object[key]];
+          }
+          object[key].push(value);
+        } else {
+          object[key] = value;
+        }
+      });
+
+      const vals = api.getExpressionVars(elt);
+      Object.keys(object).forEach(function (key) {
+        // FormData encodes values as strings, restore hx-vals/hx-vars with their initial types
+        object[key] = Object.hasOwn(vals, key) ? vals[key] : object[key];
+      });
+
+      return JSON.stringify(object);
+    },
+  });
+})();

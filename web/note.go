@@ -33,6 +33,8 @@ const (
 	hxNoteRefreshEvent = "note-refresh"
 
 	trendShowCount = 5
+
+	maxInMemoryBytes = 1024 * 1024 * 1 // 1 MB
 )
 
 type ClientCreateNoteParams struct {
@@ -158,11 +160,17 @@ func (s *State) DeleteNote(c echo.Context) error {
 }
 
 func (s *State) CreateNote(c echo.Context) error {
+	if err := c.Request().ParseMultipartForm(maxInMemoryBytes); err != nil {
+		return err
+	}
+
 	content := c.FormValue("content")
 	contentTypeStr := c.FormValue("contentType")
 	sensitive := c.FormValue("sensitive") == "on"
 	visibilityStr := c.FormValue("visibility")
 	replyToIDStr := c.FormValue("replyToId")
+	tags := c.Request().PostForm["tags[]"]
+	mentions := c.Request().PostForm["mentions[]"]
 
 	if !types.IsValidContentType(contentTypeStr) {
 		return errBadInput
@@ -201,6 +209,22 @@ func (s *State) CreateNote(c echo.Context) error {
 		uploadIDs = append(uploadIDs, uploadID)
 	}
 
+	mentionUserIDs := make([]types.UserID, 0, len(mentions))
+	for _, mention := range mentions {
+		specifier, ok := types.ParseUserSpecifier(mention, s.MyDomain())
+		if !ok {
+			return failure.NewError(http.StatusBadRequest, "bad mention: "+mention)
+		}
+		mentionUserID, err := s.service.FindLocalUserIDBySpecifier(c.Request().Context(), specifier)
+		if err != nil {
+			return err
+		}
+		if mentionUserID == nil {
+			return failure.NewError(http.StatusNotFound, "mention user not found")
+		}
+		mentionUserIDs = append(mentionUserIDs, *mentionUserID)
+	}
+
 	viewerID := getViewerID(c) // must be non-nil
 	noteContent := types.NoteContent{
 		Type: contentType,
@@ -213,6 +237,8 @@ func (s *State) CreateNote(c echo.Context) error {
 		ReplyToID:  replyToID,
 		Uploads:    uploadIDs,
 		Sensitive:  sensitive,
+		Hashtags:   tags,
+		Mentions:   mentionUserIDs,
 	})
 	if err != nil {
 		return err
@@ -427,7 +453,7 @@ func (s *State) GetTimeline(c echo.Context) error {
 	}
 
 	renderParams := s.renderNotes(notes, viewerID != nil, nextURL)
-	c.Response().Header().Set(cacheControl, "private, max-age=86400")
+	c.Response().Header().Set(cacheControl, "private, no-cache")
 	return c.Render(http.StatusOK, "notes.html", renderParams)
 }
 
