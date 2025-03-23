@@ -23,7 +23,7 @@ type noteAuthorPair struct {
 
 func (s *State) findNoteByIDRaw(ctx context.Context, noteID types.NoteID, includeDeleted bool) (*noteAuthorPair, error) {
 	var note db.Note
-	if err := s.DB(ctx).Where("notes.id = ?", noteID).Joins("Author").First(&note).Error; err != nil {
+	if err := s.DB(ctx).Unscoped().Where("notes.id = ?", noteID).Joins("Author").First(&note).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -70,6 +70,8 @@ func (s *State) FindNoteByID(ctx context.Context, noteID types.NoteID) (*types.S
 		content = &types.NoteContent{
 			Data: cleanContent,
 			Type: contentType,
+
+			Source: note.Content.String,
 		}
 	}
 

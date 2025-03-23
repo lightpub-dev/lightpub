@@ -23,6 +23,7 @@ var (
 	ErrAlreadyRenoted           = NewServiceError(400, "already renoted")
 	ErrRenoteTargetNotFound     = NewServiceError(400, "renote target not found")
 	ErrReplyTargetNotFound      = NewServiceError(400, "reply target not found")
+	ErrEditNotePermission       = NewServiceError(403, "edit note permission denied")
 )
 
 type UpsertTarget struct {
@@ -76,6 +77,11 @@ func (s *State) UpsertNote(
 			return err
 		}
 		isUpdate := updatedNote != nil
+
+		// update author check
+		if updatedNote != nil && updatedNote.AuthorID != author {
+			return ErrEditNotePermission
+		}
 
 		if updatedNote == nil && params.Visibility == nil {
 			return ErrVisibilityRequired
@@ -243,9 +249,13 @@ func setNoteModelForUpsert(model *db.Note, author types.UserID, url *string, par
 		}
 	}
 
-	model.Visibility = string(*params.Visibility)
-	model.ReplyToID = params.ReplyToID
-	model.Sensitive = params.Sensitive
+	if !isUpdate {
+		// Non-updatable fields
+		model.Visibility = string(*params.Visibility)
+		model.ReplyToID = params.ReplyToID
+		model.Sensitive = params.Sensitive
+	}
+
 	if model.URL.Valid {
 		// is remote
 		model.FetchedAt = timePtrToSql(&now)
@@ -405,4 +415,40 @@ func (s *State) CreateRenote(ctx context.Context, authorID types.UserID, targetN
 	}
 
 	return renoteID, nil
+}
+
+type NoteEditParams struct {
+	Content types.NoteContent
+}
+
+func (s *State) EditNote(ctx context.Context, authorID types.UserID, noteID types.NoteID, newNote NoteEditParams) error {
+	// author check
+	author, err := s.FindUserByID(ctx, authorID)
+	if err != nil {
+		return err
+	}
+	if author == nil {
+		return ErrAuthorNotFound
+	}
+
+	// note check
+	note, err := s.FindNoteByIDWithVisibilityCheck(ctx, &authorID, noteID)
+	if err != nil {
+		return err
+	}
+	if note == nil {
+		return ErrUpdateTargetNoteNotFound
+	}
+	if note.Author.ID != authorID {
+		return ErrEditNotePermission
+	}
+
+	_, err = s.UpsertNote(ctx, &UpsertTarget{noteID: &noteID}, authorID, CreateNoteParams{
+		Content: newNote.Content,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -1,0 +1,38 @@
+<div class="note-container">
+  <div class="card edit-note">
+    <h2>ノート編集</h2>
+    <form
+      hx-patch="/note/{{.Note.Basic.ID}}"
+      hx-encoding="multipart/form-data"
+      hx-target="closest .note-container"
+      hx-swap="outerHTML"
+    >
+      <div class="form-group">
+        <textarea name="content" class="form-control" required>
+{{.Note.Basic.Content.Source}}</textarea
+        >
+      </div>
+      <!-- XSS-Safety: .Note.Basic.Content.Type is server-validated value -->
+      <select
+        name="contentType"
+        class="form-select"
+        x-data="{contentType: '{{.Note.Basic.Content.Type}}'}"
+        x-model="contentType"
+        required
+      >
+        <option value="plain">テキスト</option>
+        <option value="md">Markdown</option>
+        <option value="latex">LaTeX</option>
+      </select>
+      <button type="submit" class="btn btn-primary">更新</button>
+      <button
+        hx-get="/note/{{.Note.Basic.ID}}"
+        hx-target="closest .note-container"
+        hx-swap="outerHTML"
+        class="btn btn-secondary"
+      >
+        キャンセル
+      </button>
+    </form>
+  </div>
+</div>

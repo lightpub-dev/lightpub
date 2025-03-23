@@ -105,6 +105,8 @@ func (n NoteAuthor) IsRemote() bool {
 type NoteContent struct {
 	Type NoteContentType
 	Data string
+
+	Source string
 }
 
 func (n NoteContent) RawHTML() template.HTML {

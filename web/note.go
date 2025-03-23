@@ -257,6 +257,69 @@ func (s *State) CreateRenote(c echo.Context) error {
 	})
 }
 
+type NoteEditParams struct {
+	Note *types.DetailedNote
+}
+
+func (s *State) GetEditNotePage(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c) // non-nil
+
+	note, err := s.service.FindNoteByIDWithDetails(c.Request().Context(), viewerID, noteID)
+	if err != nil {
+		return err
+	}
+	if note == nil {
+		return failure.NewError(http.StatusNotFound, "note not found")
+	}
+
+	if note.Basic.Author.ID != *viewerID {
+		return failure.NewError(http.StatusForbidden, "you are not the author of this note")
+	}
+
+	return c.Render(http.StatusOK, "editNote.html", NoteEditParams{
+		Note: note,
+	})
+}
+
+func (s *State) PatchNote(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c) // non-nil
+
+	content := c.FormValue("content")
+	contentTypeStr := c.FormValue("contentType")
+	if !types.IsValidContentType(contentTypeStr) {
+		return errBadInput
+	}
+	contentType := types.NoteContentType(contentTypeStr)
+	if contentType == types.NoteContentTypeHTML {
+		// cannot create HTML note from web
+		return errBadInput
+	}
+
+	err = s.service.EditNote(c.Request().Context(), *viewerID, noteID, service.NoteEditParams{
+		Content: types.NoteContent{
+			Type: contentType,
+			Data: content,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return c.Redirect(http.StatusSeeOther, "/note/"+noteIDStr)
+}
+
 func (s *State) PutBookmarkOnNote(c echo.Context) error {
 	noteIDStr := c.Param("id")
 	noteID, err := types.ParseNoteID(noteIDStr)
