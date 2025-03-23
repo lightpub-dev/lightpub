@@ -16,6 +16,7 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
+	github.com/pablor21/echo-etag/v4 v4.0.3 // indirect
 	github.com/rrivera/identicon v0.0.0-20240116195454-d5ba35832c0d // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
 	golang.org/x/mod v0.24.0 // indirect

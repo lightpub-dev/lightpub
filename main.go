@@ -28,6 +28,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/lightpub-dev/lightpub/web"
+	etag "github.com/pablor21/echo-etag/v4"
 )
 
 var (
@@ -87,7 +88,7 @@ func main() {
 	userGroup := e.Group("/user")
 	userGroup.PATCH("/:id", s.ProfileUpdate, authRequired)
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
-	userGroup.GET("/:id/avatar", s.GetUserAvatar)
+	userGroup.GET("/:id/avatar", s.GetUserAvatar, etag.Etag())
 	userGroup.GET("/:id/following", s.GetUserFollowings)
 	userGroup.GET("/:id/followers", s.GetUserFollowers)
 	userGroup.POST("/:id/interaction", s.UserInteraction, authRequired)
@@ -98,7 +99,7 @@ func main() {
 	notificationGroup.GET("/all", s.GetNotifications, authRequired)
 	notificationGroup.POST("/:id/read", s.MarkNotificationAsRead, authRequired)
 
-	e.GET("/upload/:id", s.GetUpload)
+	e.GET("/upload/:id", s.GetUpload, etag.Etag())
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
 

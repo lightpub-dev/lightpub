@@ -288,8 +288,10 @@ func (s *State) GetUserAvatar(c echo.Context) error {
 	}
 
 	if avatar.HasUpload {
+		c.Response().Header().Set("Cache-Control", "public, max-age=60")
 		return c.Redirect(http.StatusTemporaryRedirect, s.BaseURL().JoinPath("upload", avatar.UploadID.String()).String())
 	} else {
+		c.Response().Header().Set("Cache-Control", "public, max-age=60, state-while-revalidate=86400")
 		return c.Blob(http.StatusOK, "image/jpeg", avatar.Ideticon)
 	}
 }

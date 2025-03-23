@@ -48,6 +48,7 @@ func (s *State) GetUpload(c echo.Context) error {
 		return err
 	}
 
+	c.Response().Header().Set("Cache-Control", "private, max-age=604800, stale-while-revalidate=604800")
 	return c.Blob(http.StatusOK, upload.MimeType, bytes)
 }
 
