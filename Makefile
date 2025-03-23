@@ -15,6 +15,10 @@ migrate:
 dev-up:
 	docker compose -f ./docker-compose.dev.yml up -d lightpub_db lightpub_kv lightpub_typesense lightpub_nats
 
+.PHONY: generate-keys
+generate-keys:
+	./scripts/generate-jwt-keys.sh
+
 .PHONY: dev
-dev: dev-up migrate
+dev: generate-keys dev-up migrate
 	air
