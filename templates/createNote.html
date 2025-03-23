@@ -9,12 +9,17 @@
     method="POST"
     enctype="multipart/form-data"
     hx-swap="none"
-    hx-on::after-request="this.reset()"
+    hx-on::after-request="if(event.detail.successful) {
+      this.reset();
+      $data.mentions = [];
+      $data.tags = [];
+      $data.content = '';
+    }"
   >
     {{if .ReplyToID}}
     <input type="hidden" name="replyToId" value="{{.ReplyToID}}" />
     {{end}}
-    <div class="form-group">
+    <div class="form-group" x-data="{ content: '' }">
       <label for="content">投稿内容</label>
       <textarea
         id="content"
@@ -23,6 +28,7 @@
         placeholder="あいうえお"
         required="required"
         aria-required="true"
+        x-model="content"
         {{if
         not
         .Authed}}
