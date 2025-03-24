@@ -21,6 +21,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -585,5 +586,88 @@ func (s *State) ClientGetNote(c echo.Context) error {
 			},
 			Authed: viewerID != nil,
 		},
+	})
+}
+
+type ModalUserListParams struct {
+	Title   string
+	Data    []UserListEntry
+	NextURL string
+}
+
+func (s *State) GetRenotersModal(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	var p struct {
+		Page int `query:"page"`
+	}
+	if err := c.Bind(&p); err != nil {
+		return errBadInput
+	}
+	if p.Page < 0 {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	renoters, err := s.service.GetNoteRenoters(c.Request().Context(), viewerID, noteID, paginationSize, p.Page)
+	if err != nil {
+		return err
+	}
+
+	var nextURL string
+	if len(renoters) == paginationSize {
+		nextURL = buildURLWithParams(c.Request().URL, map[string]string{
+			"page": strconv.Itoa(p.Page + 1),
+		})
+	}
+
+	entries := make([]UserListEntry, 0, len(renoters))
+	for _, r := range renoters {
+		entries = append(entries, UserListEntry{
+			User:      r,
+			CreatedAt: nil,
+		})
+	}
+
+	c.Response().Header().Set(cacheControl, "private, no-cache")
+	return c.Render(http.StatusOK, "modalUserList.html", &ModalUserListParams{
+		Title:   "リノート一覧",
+		Data:    entries,
+		NextURL: nextURL,
+	})
+}
+
+func (s *State) GetNoteMentionsModal(c echo.Context) error {
+	noteIDStr := c.Param("id")
+	noteID, err := types.ParseNoteID(noteIDStr)
+	if err != nil {
+		return errBadInput
+	}
+
+	viewerID := getViewerID(c)
+
+	mentions, err := s.service.GetMentions(c.Request().Context(), viewerID, noteID)
+	if err != nil {
+		return err
+	}
+
+	entries := make([]UserListEntry, 0, len(mentions))
+	for _, r := range mentions {
+		entries = append(entries, UserListEntry{
+			User:      r,
+			CreatedAt: nil,
+		})
+	}
+
+	c.Response().Header().Set(cacheControl, "private, no-cache")
+	return c.Render(http.StatusOK, "modalUserList.html", &ModalUserListParams{
+		Title:   "メンション一覧",
+		Data:    entries,
+		NextURL: "",
 	})
 }

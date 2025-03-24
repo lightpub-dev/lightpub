@@ -1,0 +1,26 @@
+<li class="user-list-item">
+  <div class="line-split">
+    <div class="user-list-user">
+      <img
+        src="/user/{{.User.ID}}/avatar"
+        alt="Author Avatar"
+        width="48"
+        height="48"
+        class="avatar"
+      />
+      <span class="nickname">{{.User.Nickname}}</span>
+      <a href="/client/user/{{.User.Specifier}}">
+        <span class="user-id">{{.User.Specifier}}</span>
+      </a>
+    </div>
+    {{if .CreatedAt}}
+    <div>
+      追加日:
+      <time
+        datetime="{{.CreatedAt}}"
+        x-text="new Date('{{.CreatedAt}}').toLocaleString()"
+      ></time>
+    </div>
+    {{end}}
+  </div>
+</li>

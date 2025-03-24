@@ -205,9 +205,13 @@
         </li>
         {{end}}
         <li>
-          <a
+          <button
             class="dropdown-item"
-            href="/client/note/{{.Note.Basic.ID}}/renotes"
+            hx-get="/note/{{.Note.Basic.ID}}/renotes"
+            hx-trigger="click"
+            hx-target="#globalModal"
+            data-bs-toggle="modal"
+            data-bs-target="#globalModal"
             >リノート一覧</a
           >
         </li>
@@ -217,9 +221,13 @@
           >
         </li>
         <li>
-          <a
+          <button
             class="dropdown-item"
-            href="/client/note/{{.Note.Basic.ID}}/mentions"
+            hx-get="/note/{{.Note.Basic.ID}}/mentions"
+            hx-trigger="click"
+            hx-target="#globalModal"
+            data-bs-toggle="modal"
+            data-bs-target="#globalModal"
             >メンション一覧</a
           >
         </li>

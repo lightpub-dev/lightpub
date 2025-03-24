@@ -82,6 +82,8 @@ func main() {
 	noteGroup.PATCH("/:id", s.PatchNote, authRequired)
 	noteGroup.POST("/:id/renote", s.CreateRenote, authRequired)
 	noteGroup.GET("/:id/replies", s.GetNoteReplies, authOptional)
+	noteGroup.GET("/:id/renotes", s.GetRenotersModal, authOptional)
+	noteGroup.GET("/:id/mentions", s.GetNoteMentionsModal, authOptional)
 	noteGroup.PUT("/:id/bookmark", s.PutBookmarkOnNote, authRequired)
 	noteGroup.DELETE("/:id/bookmark", s.DeleteBookmarkOnNote, authRequired)
 	noteGroup.GET("/:id/edit", s.GetEditNotePage, authRequired)

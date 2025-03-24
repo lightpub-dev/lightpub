@@ -1,0 +1,25 @@
+<div class="modal-dialog modal-dialog-centered">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title">{{ .Title }}</h5>
+    </div>
+    <div class="modal-body">
+      <ul class="user-list">
+        {{range .Data}} {{template "userListElement.html" .}} {{end}}
+        <!-- Next URL -->
+        {{if .NextURL}}
+        <div
+          hx-get="{{.NextURL}}"
+          hx-trigger="revealed"
+          hx-swap="afterend"
+        ></div>
+        {{end}}
+      </ul>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
