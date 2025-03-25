@@ -1,30 +1,73 @@
 package apub
 
 import (
-	"strings"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/types"
 )
 
+type CreatableObjectType string
+
+const (
+	CreatableObjectTypeNote CreatableObjectType = "Note"
+)
+
 type CreateActivity struct {
-	ID     string          `json:"id"`
-	Kind   string          `json:"type"`
-	Actor  URI             `json:"actor"`
+	ID     string          `json:"id" validate:"required"`
+	Kind   string          `json:"type" validate:"required"`
+	Actor  URI             `json:"actor" validate:"required"`
 	To     []string        `json:"to"`
 	Cc     []string        `json:"cc"`
-	Object CreatableObject `json:"object"`
+	Object CreatableObject `json:"object" validate:"required"`
 }
 
 type CreatableObject struct {
+	Kind CreatableObjectType
+
+	NoteObject *NoteObject
+}
+
+func (c CreatableObject) MarshalJSON() ([]byte, error) {
+	switch c.Kind {
+	case CreatableObjectTypeNote:
+		return json.Marshal(*c.NoteObject)
+	}
+
+	return nil, fmt.Errorf("unknown creatable object type: %s", c.Kind)
+}
+
+func (c *CreatableObject) UnmarshalJSON(data []byte) error {
+	_, typ, err := unmarshalToMapAndType(data)
+	if err != nil {
+		return err
+	}
+
+	switch typ {
+	case "Note":
+		c.Kind = CreatableObjectTypeNote
+		var n NoteObject
+		if err := json.Unmarshal(data, &n); err != nil {
+			return fmt.Errorf("error unmarshalling note object: %w", err)
+		}
+		if err := validate.Struct(n); err != nil {
+			return fmt.Errorf("error validating note object: %w", err)
+		}
+		c.NoteObject = &n
+	default:
+		return fmt.Errorf("unknown creatable object Type: %s", typ)
+	}
+
+	return nil
 }
 
 type NoteObject struct {
-	ID           URI              `json:"id"`
-	Kind         string           `json:"type"`
-	AttributedTo URI              `json:"attributedTo"`
-	Content      string           `json:"content"`
-	Published    time.Time        `json:"published"`
+	ID           URI              `json:"id" validate:"required"`
+	Kind         string           `json:"type" validate:"required"`
+	AttributedTo URI              `json:"attributedTo" validate:"required"`
+	Content      string           `json:"content" validate:"required"`
+	Published    time.Time        `json:"published" validate:"required"`
 	Updated      *time.Time       `json:"updated,omitempty"`
 	To           []string         `json:"to"`
 	Cc           []string         `json:"cc"`
@@ -54,17 +97,5 @@ type NoteAttachment struct {
 }
 
 func (n *NoteObject) InferredVisibility() types.NoteVisibility {
-	if containsPublicURL(n.To) {
-		return types.NoteVisibilityPublic
-	} else if containsPublicURL(n.Cc) {
-		return types.NoteVisibilityUnlisted
-	}
-
-	for _, t := range n.To {
-		if strings.HasSuffix(t, followersSuffix) {
-			return types.NoteVisibilityFollower
-		}
-	}
-
-	return types.NoteVisibilityPrivate
+	return inferVisibility(n.To, n.Cc)
 }
