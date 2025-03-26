@@ -21,7 +21,7 @@ package service
 import (
 	"context"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -69,7 +69,7 @@ func (s *State) NoteReactionAdd(
 		clause.OnConflict{
 			DoNothing: true,
 		},
-	).Create(&db.NoteReaction{
+	).Create(&models.NoteReaction{
 		NoteID:   noteID,
 		UserID:   userID,
 		Reaction: reaction.ReactionAsText(),
@@ -109,7 +109,7 @@ func (s *State) NoteReactionRemove(
 		return ErrReactionTargetNotFound
 	}
 
-	result := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Delete(&db.NoteReaction{})
+	result := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Delete(&models.NoteReaction{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -150,7 +150,7 @@ func (s *State) NoteBookmarkAdd(
 		clause.OnConflict{
 			DoNothing: true,
 		},
-	).Create(&db.NoteBookmark{
+	).Create(&models.NoteBookmark{
 		NoteID: noteID,
 		UserID: userID,
 	})
@@ -184,7 +184,7 @@ func (s *State) NoteBookmarkRemove(
 		return ErrReactionTargetNotFound
 	}
 
-	result := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Delete(&db.NoteBookmark{})
+	result := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Delete(&models.NoteBookmark{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -195,7 +195,7 @@ func (s *State) NoteBookmarkRemove(
 }
 
 func (s *State) checkNoteReacted(ctx context.Context, noteID types.NoteID, userID types.UserID) (*string, error) {
-	var reaction db.NoteReaction
+	var reaction models.NoteReaction
 	if err := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).First(&reaction).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -207,7 +207,7 @@ func (s *State) checkNoteReacted(ctx context.Context, noteID types.NoteID, userI
 
 func (s *State) checkNoteBookmarked(ctx context.Context, noteID types.NoteID, userID types.UserID) (bool, error) {
 	var count int64
-	if err := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Model(&db.NoteBookmark{}).Count(&count).Error; err != nil {
+	if err := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Model(&models.NoteBookmark{}).Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count > 0, nil

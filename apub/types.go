@@ -72,9 +72,18 @@ type Object interface {
 }
 
 type Actor interface {
+	Object
 	// PublicKey returns the public key of the actor.
 	PublicKey() string
+	// PrivateKey returns the private key of the actor.
+	// If the actor is a remote actor, this should return an empty string.
+	PrivateKey() string
+	// Key ID returns the key ID of the actor.
+	KeyID() string
 }
 
-type Identifiable[T Object] interface {
+// Signable is an interface for objects that can be signed.
+type Signable interface {
+	// Signer returns the actor of the object.
+	Signer() Actor
 }

@@ -111,3 +111,47 @@ func (d DetailedUserModel) CanUnfollow() bool {
 func (d DetailedUserModel) CanRefuseFollow() bool {
 	return d.IsFollowed != FollowStateNo && !d.IsMe
 }
+
+type ApubUser struct {
+	Basic SimpleUser
+	Apub  ApubUserData
+}
+
+type ApubUserData struct {
+	PublicKey_  string
+	PrivateKey_ string
+	KeyID_      string
+
+	Bio string
+
+	Inbox       string
+	SharedInbox string // nullable
+
+	Following string // nullable
+	Followers string // nullable
+	URL       string
+	ViewURL   string // nullable
+}
+
+func (a ApubUserData) ID() string {
+	return a.URL
+}
+
+func (a ApubUserData) PublicKey() string {
+	return a.PublicKey_
+}
+
+func (a ApubUserData) PrivateKey() string {
+	return a.PrivateKey_
+}
+
+func (a ApubUserData) KeyID() string {
+	return a.KeyID_
+}
+
+func (a ApubUserData) PreferredInbox() string {
+	if a.SharedInbox != "" {
+		return a.SharedInbox
+	}
+	return a.Inbox
+}

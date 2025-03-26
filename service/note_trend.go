@@ -21,7 +21,7 @@ package service
 import (
 	"context"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 )
 
 type TrendEntry struct {
@@ -30,8 +30,8 @@ type TrendEntry struct {
 }
 
 func (s *State) GetTrendingTags(ctx context.Context, limit uint64) ([]TrendEntry, error) {
-	var tags []db.TrendingTag
-	if err := s.DB(ctx).Model(&db.TrendingTag{}).Limit(int(limit)).Find(&tags).Error; err != nil {
+	var tags []models.TrendingTag
+	if err := s.DB(ctx).Model(&models.TrendingTag{}).Limit(int(limit)).Find(&tags).Error; err != nil {
 		return nil, err
 	}
 

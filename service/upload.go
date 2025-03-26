@@ -29,7 +29,7 @@ import (
 	"sync"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/service/upload"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
@@ -131,7 +131,7 @@ func removeExif(uploadPath string) error {
 }
 
 func (s *State) saveUploadFileInfo(ctx context.Context, info uploadFileInfo) error {
-	return s.DB(ctx).Create(&db.Upload{
+	return s.DB(ctx).Create(&models.Upload{
 		ID:       info.UploadID,
 		Filename: stringToSql(info.Filename),
 		MimeType: info.MimeType,
@@ -215,7 +215,7 @@ func (up *UploadResult) Close() error {
 }
 
 func (s *State) GetUpload(ctx context.Context, uploadID types.UploadID) (*UploadResult, error) {
-	var upload db.Upload
+	var upload models.Upload
 	err := s.DB(ctx).Where("id = ?", uploadID).First(&upload).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -287,7 +287,7 @@ func (s *State) registerRemoteUpload(ctx context.Context, url string) (types.Upl
 
 	uploadID := types.NewUploadID()
 
-	err = s.DB(ctx).Create(&db.Upload{
+	err = s.DB(ctx).Create(&models.Upload{
 		ID:       uploadID,
 		URL:      stringToSql(url),
 		MimeType: mimeType,

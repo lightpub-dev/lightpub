@@ -71,6 +71,22 @@ func IsValidVisibility(v string) bool {
 }
 
 type NoteContentType string
+
+func (n NoteContentType) MimeType() string {
+	switch n {
+	case NoteContentTypePlain:
+		return "text/plain"
+	case NoteContentTypeMD:
+		return "text/markdown"
+	case NoteContentTypeLatex:
+		return "application/x-latex"
+	case NoteContentTypeHTML:
+		return "text/html"
+	}
+
+	panic("invalid content type: " + n)
+}
+
 type NoteVisibility string
 
 func (n NoteVisibility) ValidAsRenote() bool {
@@ -180,4 +196,45 @@ type NoteMention struct {
 	Username string
 	Nickname string
 	Domain   string
+}
+
+func (m NoteMention) Specifier() string {
+	return makeSpecifier(m.Username, m.Domain)
+}
+
+type ApubNote struct {
+	Basic SimpleNote
+	Apub  ApubNoteData
+}
+
+type ApubNoteData struct {
+	AuthorURL string
+
+	To      []string
+	Cc      []string
+	Inboxes []string
+
+	Hashtags []ApubHashtag
+	Mentions []ApubMention
+	Uploads  []ApubUpload
+
+	ReplyToURL string
+
+	URL     string
+	ViewURL string // nullable
+}
+
+type ApubHashtag struct {
+	Name        string
+	TimelineURL string
+}
+
+type ApubMention struct {
+	Specifier string
+	URL       string
+}
+
+type ApubUpload struct {
+	URL      string
+	MimeType string
 }

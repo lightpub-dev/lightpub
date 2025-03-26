@@ -42,3 +42,10 @@ func inferVisibility(to, cc []string) types.NoteVisibility {
 
 	return types.NoteVisibilityPrivate
 }
+
+func activityIDFromObject(activityType string, objectID URI) URI {
+	if strings.HasSuffix(objectID, "/") {
+		return objectID + activityType
+	}
+	return objectID + "/" + activityType
+}

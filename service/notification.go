@@ -24,7 +24,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/service/notification"
 	"github.com/lightpub-dev/lightpub/types"
 )
@@ -34,7 +34,7 @@ var (
 )
 
 func (s *State) GetUnreadNotificationCount(ctx context.Context, userID types.UserID) (uint64, error) {
-	var count db.UnreadNotificationCount
+	var count models.UnreadNotificationCount
 	if err := s.DB(ctx).Where("user_id = ?", userID).First(&count).Error; err != nil {
 		return 0, err
 	}
@@ -47,7 +47,7 @@ func (s *State) AddNotification(ctx context.Context, userID types.UserID, body n
 		return err
 	}
 
-	if err := s.DB(ctx).Create(&db.Notification{
+	if err := s.DB(ctx).Create(&models.Notification{
 		UserID: userID,
 		Body:   bodyJson,
 	}).Error; err != nil {
@@ -58,7 +58,7 @@ func (s *State) AddNotification(ctx context.Context, userID types.UserID, body n
 }
 
 func (s *State) GetNotifications(ctx context.Context, userID types.UserID, limit int, page int) ([]notification.Notification, bool, error) {
-	var ns []db.Notification
+	var ns []models.Notification
 	if err := s.DB(ctx).Where("user_id = ?", userID).Order("created_at DESC").Limit(int(limit)).Offset(int(limit * page)).Find(&ns).Error; err != nil {
 		return nil, false, err
 	}
@@ -201,7 +201,7 @@ func (s *State) fillRelatedNotificationInfo(ctx context.Context, body notificati
 }
 
 func (s *State) deleteNotificationByID(ctx context.Context, notificationID types.NotificationID) error {
-	if err := s.DB(ctx).Unscoped().Delete(&db.Notification{
+	if err := s.DB(ctx).Unscoped().Delete(&models.Notification{
 		ID: int(notificationID),
 	}).Error; err != nil {
 		return err
@@ -210,14 +210,14 @@ func (s *State) deleteNotificationByID(ctx context.Context, notificationID types
 }
 
 func (s *State) ReadNotificationID(ctx context.Context, userID types.UserID, notificationID types.NotificationID) error {
-	if err := s.DB(ctx).Model(&db.Notification{}).Where("id = ? AND user_id = ?", notificationID, userID).Update("read_at", time.Now()).Error; err != nil {
+	if err := s.DB(ctx).Model(&models.Notification{}).Where("id = ? AND user_id = ?", notificationID, userID).Update("read_at", time.Now()).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
 func (s *State) ReadAllNotifications(ctx context.Context, userID types.UserID) error {
-	if err := s.DB(ctx).Model(&db.Notification{}).Where("user_id = ? AND read_at IS NULL", userID).Update("read_at", time.Now()).Error; err != nil {
+	if err := s.DB(ctx).Model(&models.Notification{}).Where("user_id = ? AND read_at IS NULL", userID).Update("read_at", time.Now()).Error; err != nil {
 		return err
 	}
 	return nil

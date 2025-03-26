@@ -22,7 +22,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/service/notification"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
@@ -72,7 +72,7 @@ func (s *State) FollowUser(
 		return ErrCannotFollowBlock
 	}
 
-	follow := db.UserFollow{
+	follow := models.UserFollow{
 		FollowerID: followerID,
 		FollowedID: followeeID,
 		Pending:    !autoAcceptFollow,
@@ -142,7 +142,7 @@ func (s *State) UnfollowUser(
 	result := s.DB(ctx).Where(
 		"follower_id = ? AND followed_id = ?",
 		followerID, followeeID,
-	).Delete(&db.UserFollow{})
+	).Delete(&models.UserFollow{})
 	if result.Error != nil {
 		return NewInternalServerErrorWithCause("failed to delete follow", err)
 	}
@@ -186,7 +186,7 @@ func (s *State) RejectFollowUser(
 	result := s.DB(ctx).Where(
 		"follower_id = ? AND followed_id = ?",
 		rejectedID, rejectorID,
-	).Delete(&db.UserFollow{})
+	).Delete(&models.UserFollow{})
 	if result.Error != nil {
 		return NewInternalServerErrorWithCause("failed to reject follow", err)
 	}
@@ -236,7 +236,7 @@ func (s *State) AcceptFollow(
 		return ErrCannotFollowBlock
 	}
 
-	result := s.DB(ctx).Model(&db.UserFollow{}).Where(
+	result := s.DB(ctx).Model(&models.UserFollow{}).Where(
 		"follower_id = ? AND followed_id = ? AND pending = true",
 		accepteeID, acceptorID,
 	).Update("pending", false)
@@ -273,7 +273,7 @@ func (s *State) GetFollowState(
 		return types.FollowStateNo, ErrCannotFollowSelf
 	}
 
-	var follow db.UserFollow
+	var follow models.UserFollow
 	if err := s.DB(ctx).Where(
 		"follower_id = ? AND followed_id = ?",
 		followerID, followeeID,
@@ -297,8 +297,8 @@ func (s *State) GetUserFollowingList(
 	limit int,
 	page int,
 ) ([]types.SimpleUser, error) {
-	var follows []db.ActualUserFollow
-	if err := s.DB(ctx).Model(&db.ActualUserFollow{}).Where(
+	var follows []models.ActualUserFollow
+	if err := s.DB(ctx).Model(&models.ActualUserFollow{}).Where(
 		"follower_id = ?", userID,
 	).Order("created_at DESC").Joins("Followed").Limit(limit).Offset(limit * page).Find(&follows).Error; err != nil {
 		return nil, err
@@ -318,8 +318,8 @@ func (s *State) GetUserFollowersList(
 	limit int,
 	page int,
 ) ([]types.SimpleUser, error) {
-	var follows []db.ActualUserFollow
-	if err := s.DB(ctx).Model(&db.ActualUserFollow{}).Where(
+	var follows []models.ActualUserFollow
+	if err := s.DB(ctx).Model(&models.ActualUserFollow{}).Where(
 		"followed_id = ?", userID,
 	).Order("created_at DESC").Joins("Follower").Limit(limit).Offset(limit * page).Find(&follows).Error; err != nil {
 		return nil, err

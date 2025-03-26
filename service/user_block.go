@@ -22,7 +22,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -50,7 +50,7 @@ func (s *State) BlockUser(ctx context.Context, blockerID types.UserID, blockedID
 		return ErrBlockedNotFound
 	}
 
-	result := s.DB(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&db.UserBlock{
+	result := s.DB(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&models.UserBlock{
 		BlockerID: blockerID,
 		BlockedID: blockedID,
 	})
@@ -96,10 +96,10 @@ func (s *State) UnblockUser(ctx context.Context, blockerID types.UserID, blocked
 		return ErrBlockedNotFound
 	}
 
-	result := s.DB(ctx).Where(&db.UserBlock{
+	result := s.DB(ctx).Where(&models.UserBlock{
 		BlockerID: blockerID,
 		BlockedID: blockedID,
-	}).Delete(&db.UserBlock{})
+	}).Delete(&models.UserBlock{})
 	if result.Error != nil {
 		return NewInternalServerErrorWithCause("failed to delete block", result.Error)
 	}
@@ -115,8 +115,8 @@ func (s *State) UnblockUser(ctx context.Context, blockerID types.UserID, blocked
 }
 
 func (s *State) IsBlocking(ctx context.Context, blockerID types.UserID, blockedID types.UserID) (bool, error) {
-	var block db.UserBlock
-	result := s.DB(ctx).Where(&db.UserBlock{
+	var block models.UserBlock
+	result := s.DB(ctx).Where(&models.UserBlock{
 		BlockerID: blockerID,
 		BlockedID: blockedID,
 	}).First(&block)
@@ -133,7 +133,7 @@ func (s *State) IsBlocking(ctx context.Context, blockerID types.UserID, blockedI
 
 func (s *State) IsBlockingOrBlocked(ctx context.Context, user1 types.UserID, user2 types.UserID) (bool, error) {
 	var count int64
-	result := s.DB(ctx).Model(&db.UserBlock{}).Where(
+	result := s.DB(ctx).Model(&models.UserBlock{}).Where(
 		"(blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)",
 		user1, user2, user2, user1,
 	).Count(&count)

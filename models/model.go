@@ -16,7 +16,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-package db
+package models
 
 import (
 	"database/sql"
@@ -35,21 +35,21 @@ type ApubErrorReport struct {
 
 // Note represents a post in the system
 type Note struct {
-	ID          types.NoteID   `gorm:"type:binary(16);primaryKey"`
-	URL         sql.NullString `gorm:"type:varchar(512)"`
-	ViewURL     sql.NullString `gorm:"type:varchar(512)"`
-	AuthorID    types.UserID   `gorm:"type:binary(16);not null"`
-	Content     sql.NullString `gorm:"type:text"`
-	ContentType sql.NullString `gorm:"type:varchar(32)"`
-	CreatedAt   time.Time      `gorm:"type:datetime(6);not null;index:idx_note_created_at,sort:desc"`
-	InsertedAt  time.Time      `gorm:"type:datetime(6);not null;default:current_timestamp(6)"`
-	UpdatedAt   sql.NullTime   `gorm:"type:datetime(6)"`
-	DeletedAt   sql.NullTime   `gorm:"type:datetime(6)"`
-	Visibility  string         `gorm:"type:enum('public','unlisted','follower','private');not null"`
-	ReplyToID   *types.NoteID  `gorm:"type:binary(16);index:idx_note_reply_to_id"`
-	RenoteOfID  *types.NoteID  `gorm:"type:binary(16);index:idx_note_renote_of_id"`
-	Sensitive   bool           `gorm:"type:tinyint(1);not null;default:0"`
-	FetchedAt   sql.NullTime   `gorm:"type:datetime(6)"`
+	ID          types.NoteID         `gorm:"type:binary(16);primaryKey"`
+	URL         sql.NullString       `gorm:"type:varchar(512)"`
+	ViewURL     sql.NullString       `gorm:"type:varchar(512)"`
+	AuthorID    types.UserID         `gorm:"type:binary(16);not null"`
+	Content     sql.NullString       `gorm:"type:text"`
+	ContentType sql.NullString       `gorm:"type:varchar(32)"`
+	CreatedAt   time.Time            `gorm:"type:datetime(6);not null;index:idx_note_created_at,sort:desc"`
+	InsertedAt  time.Time            `gorm:"type:datetime(6);not null;default:current_timestamp(6)"`
+	UpdatedAt   sql.NullTime         `gorm:"type:datetime(6)"`
+	DeletedAt   sql.NullTime         `gorm:"type:datetime(6)"`
+	Visibility  types.NoteVisibility `gorm:"type:enum('public','unlisted','follower','private');not null"`
+	ReplyToID   *types.NoteID        `gorm:"type:binary(16);index:idx_note_reply_to_id"`
+	RenoteOfID  *types.NoteID        `gorm:"type:binary(16);index:idx_note_renote_of_id"`
+	Sensitive   bool                 `gorm:"type:tinyint(1);not null;default:0"`
+	FetchedAt   sql.NullTime         `gorm:"type:datetime(6)"`
 
 	Author        User           `gorm:"foreignKey:AuthorID"`
 	NoteReactions []NoteReaction `gorm:"foreignKey:NoteID"`
