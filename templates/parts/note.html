@@ -75,15 +75,24 @@
       <div class="content">{{{ note.content.content }}}</div>
       {{#if note.uploads}}
       <div role="group" aria-label="アップロード画像リスト">
-        {{#each note.uploads}} {{#if note.sensitive}}
-        <a href="{{this}}" target="_blank">画像を見る (sensitive)</a>
+        {{#if note.sensitive}}
+          {{#each note.uploads}}
+            <a href="{{this}}" target="_blank">
+              <figure>
+                <span class="sensitive-image-label">センシティブ</span>
+                <img src="{{this}}" alt="アップロード画像" class="upload sensitive-image-blur" />
+              </figure>
+            </a>
+          {{/each}}
         {{else}}
-        <a href="{{this}}" target="_blank">
-          <figure>
-            <img src="{{this}}" alt="アップロード画像" class="upload" />
-          </figure>
-        </a>
-        {{/if}} {{/each}}
+          {{#each note.uploads}}
+            <a href="{{this}}" target="_blank">
+              <figure>
+                <img src="{{this}}" alt="アップロード画像" class="upload" />
+              </figure>
+            </a>
+          {{/each}}
+        {{/if}}
       </div>
       {{/if}}
     </div>
