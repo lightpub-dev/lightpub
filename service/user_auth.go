@@ -22,7 +22,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
@@ -63,7 +65,27 @@ func (s *State) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (
 	}
 	publicKey := privateKey.PublicKey
 
-	privateKeyPem := 
+	privateKeyBin, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return types.UserID{}, fmt.Errorf("failed to marshal private key: %w", err)
+	}
+	publicKeyBin, err := x509.MarshalPKIXPublicKey(&publicKey)
+	if err != nil {
+		return types.UserID{}, fmt.Errorf("failed to marshal public key: %w", err)
+	}
+
+	publicKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: publicKeyBin,
+		},
+	)
+	privateKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: privateKeyBin,
+		},
+	)
 
 	newUser := models.User{
 		ID:               userID,
@@ -72,6 +94,8 @@ func (s *State) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (
 		Nickname:         user.Nickname,
 		Password:         sql.NullString{String: hashedPasswordStr, Valid: true},
 		AutoFollowAccept: true,
+		PublicKey:        stringToSql(string(publicKeyPem)),
+		PrivateKey:       stringToSql(string(privateKeyPem)),
 	}
 	if err := s.DB(ctx).Create(&newUser).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
