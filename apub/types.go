@@ -1,6 +1,7 @@
 package apub
 
 import (
+	"crypto"
 	"encoding/json"
 	"fmt"
 )
@@ -74,10 +75,10 @@ type Object interface {
 type Actor interface {
 	Object
 	// PublicKey returns the public key of the actor.
-	PublicKey() string
+	PublicKey() crypto.PublicKey
 	// PrivateKey returns the private key of the actor.
 	// If the actor is a remote actor, this should return an empty string.
-	PrivateKey() string
+	PrivateKey() crypto.PrivateKey
 	// Key ID returns the key ID of the actor.
 	KeyID() string
 }

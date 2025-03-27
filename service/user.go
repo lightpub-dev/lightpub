@@ -20,6 +20,7 @@ package service
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 
@@ -78,8 +79,8 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 	u := s.makeSimpleUserFromDB(user)
 
 	var (
-		pubkey  string
-		privkey string
+		pubkey  crypto.PublicKey
+		privkey crypto.PrivateKey
 		keyID   string
 	)
 	if u.Domain == types.EmptyDomain {

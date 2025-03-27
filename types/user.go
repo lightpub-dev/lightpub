@@ -18,7 +18,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package types
 
-import "html/template"
+import (
+	"crypto"
+	"html/template"
+)
 
 const (
 	EmptyDomain = "" // Empty string means local server
@@ -118,8 +121,8 @@ type ApubUser struct {
 }
 
 type ApubUserData struct {
-	PublicKey_  string
-	PrivateKey_ string
+	PublicKey_  crypto.PublicKey
+	PrivateKey_ crypto.PrivateKey
 	KeyID_      string
 
 	Bio string
@@ -137,11 +140,11 @@ func (a ApubUserData) ID() string {
 	return a.URL
 }
 
-func (a ApubUserData) PublicKey() string {
+func (a ApubUserData) PublicKey() crypto.PublicKey {
 	return a.PublicKey_
 }
 
-func (a ApubUserData) PrivateKey() string {
+func (a ApubUserData) PrivateKey() crypto.PrivateKey {
 	return a.PrivateKey_
 }
 

@@ -20,14 +20,21 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+)
+
+const (
+	privateKeyBits = 2048
 )
 
 var (
@@ -49,6 +56,14 @@ func (s *State) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (
 		return types.UserID{}, NewInternalServerErrorWithCause("failed to hash password", err)
 	}
 	hashedPasswordStr := string(hashedPassword)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, privateKeyBits)
+	if err != nil {
+		return types.UserID{}, fmt.Errorf("failed to generate private key: %w", err)
+	}
+	publicKey := privateKey.PublicKey
+
+	privateKeyPem := 
 
 	newUser := models.User{
 		ID:               userID,
