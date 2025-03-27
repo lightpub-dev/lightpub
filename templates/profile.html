@@ -141,14 +141,14 @@
                     hx-ext="json-enc"
                   >
                     {{#if user.isBlocking}}
-                    <input type="hidden" name="type" value="block" />
-                    <button type="submit" class="dropdown-item">
-                      ブロック
-                    </button>
-                    {{else}}
                     <input type="hidden" name="type" value="unblock" />
                     <button type="submit" class="dropdown-item">
                       ブロック解除
+                    </button>
+                    {{else}}
+                    <input type="hidden" name="type" value="block" />
+                    <button type="submit" class="dropdown-item">
+                      ブロック
                     </button>
                     {{/if}}
                   </form>
