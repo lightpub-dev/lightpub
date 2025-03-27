@@ -86,15 +86,18 @@
       <div class="content">{{.Note.Basic.Content.RawHTML}}</div>
       {{if .Note.Basic.Uploads}}
       <div role="group" aria-label="アップロード画像リスト">
-        {{range .Note.Basic.Uploads}} {{if $.Note.Basic.Sensitive}}
-        <a href="/upload/{{.}}" target="_blank">画像を見る (sensitive)</a>
-        {{else}}
+        {{range .Note.Basic.Uploads}}
         <a href="/upload/{{.}}" target="_blank">
           <figure>
+            {{if $.Note.Basic.Sensitive}}
+            <span class="sensitive-image-label">センシティブ</span>
+            <img src="/upload/{{.}}" alt="アップロード画像" class="upload sensitive-image-blur" />
+            {{else}}
             <img src="/upload/{{.}}" alt="アップロード画像" class="upload" />
+            {{end}}
           </figure>
         </a>
-        {{end}} {{end}}
+        {{end}}
       </div>
       {{end}}
     </div>
