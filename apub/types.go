@@ -33,7 +33,7 @@ func containsPublicURL(urls []string) bool {
 }
 
 type ObjectID struct {
-	ID URI
+	ID URI `validate:"required,http_url"`
 }
 
 func NewObjectID(id URI) ObjectID {
