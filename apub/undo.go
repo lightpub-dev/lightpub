@@ -12,16 +12,38 @@ const (
 )
 
 type UndoActivity struct {
-	ID     string           `json:"id" validate:"required"`
-	Kind   string           `json:"type" validate:"required"`
-	Actor  URI              `json:"actor" validate:"required"`
+	ID     string           `json:"id" validate:"required,http_url"`
+	Kind   string           `json:"type" validate:"required,eq=Undo"`
+	Actor  URI              `json:"actor" validate:"required,http_url"`
 	Object UndoableActivity `json:"object" validate:"required"`
 }
 
+func NewUndoActivity(
+	undoer URI,
+	undoableActivity UndoableActivity,
+) UndoActivity {
+	undoID := activityIDFromObject("Undo", undoableActivity.ID())
+	return UndoActivity{
+		ID:     undoID,
+		Kind:   "Undo",
+		Actor:  undoer,
+		Object: undoableActivity,
+	}
+}
+
 type UndoableActivity struct {
-	Kind UndoableActivityType
+	Kind UndoableActivityType `validate:"required,oneof=Follow"`
 
 	FollowObject *FollowActivity
+}
+
+func (u UndoableActivity) ID() string {
+	switch u.Kind {
+	case UndoableActivityTypeFollow:
+		return u.FollowObject.ID
+	}
+
+	panic("unknown undoable object type")
 }
 
 func (u UndoableActivity) MarshalJSON() ([]byte, error) {

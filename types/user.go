@@ -120,6 +120,29 @@ type ApubUser struct {
 	Apub  ApubUserData
 }
 
+func (a ApubUser) ID() string {
+	return a.Apub.URL
+}
+
+func (a ApubUser) PublicKey() crypto.PublicKey {
+	return a.Apub.PublicKey_
+}
+
+func (a ApubUser) PrivateKey() crypto.PrivateKey {
+	return a.Apub.PrivateKey_
+}
+
+func (a ApubUser) KeyID() string {
+	return a.Apub.KeyID_
+}
+
+func (a ApubUser) PreferredInbox() string {
+	if a.Apub.SharedInbox != "" {
+		return a.Apub.SharedInbox
+	}
+	return a.Apub.Inbox
+}
+
 type ApubUserData struct {
 	PublicKey_  crypto.PublicKey
 	PrivateKey_ crypto.PrivateKey

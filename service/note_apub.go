@@ -152,7 +152,7 @@ func (s *State) publishNoteToApub(ctx context.Context, noteID types.NoteID) erro
 		return fmt.Errorf("author not found: %s", note.Basic.Author.ID)
 	}
 
-	if err := s.delivery.QueueUnsignedActivity(ctx, createActivity, apubAuthor.Apub, note.Apub.Inboxes); err != nil {
+	if err := s.delivery.QueueActivity(ctx, createActivity, apubAuthor.Apub, note.Apub.Inboxes); err != nil {
 		return fmt.Errorf("failed to queue activity: %w", err)
 	}
 
