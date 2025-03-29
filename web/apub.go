@@ -59,3 +59,13 @@ func containsApubAccept(acceptHeader string) bool {
 
 	return false
 }
+
+// Inbox is a handler for both user-specific and shared inbox.
+func (s *State) Inbox(c echo.Context) error {
+	userID, err := s.Service().AuthorizeWithHttpSig(c.Request().Context(), c.Request())
+	if err != nil {
+		return err
+	}
+
+	// body := c.Request()
+}

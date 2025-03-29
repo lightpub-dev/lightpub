@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
@@ -69,17 +70,7 @@ func (s *State) FindUserByID(ctx context.Context, id types.UserID) (*types.Simpl
 	return &u, nil
 }
 
-func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.ApubUser, error) {
-	user, err := s.FindUserByIDRaw(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if user == nil {
-		return nil, nil
-	}
-
-	u := s.makeSimpleUserFromDB(user)
-
+func (s *State) createApubUserData(user *models.User, u types.SimpleUser) (types.ApubUserData, error) {
 	var (
 		pubkey  crypto.PublicKey
 		privkey crypto.PrivateKey
@@ -88,21 +79,21 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 	if u.Domain == types.EmptyDomain {
 		pub, _ := pem.Decode([]byte(user.PublicKey.String))
 		if pub == nil {
-			return nil, fmt.Errorf("failed to decode public key PEM")
+			return types.ApubUserData{}, fmt.Errorf("failed to decode public key PEM")
 		}
 		pubk, err := x509.ParsePKIXPublicKey(pub.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse public key: %w", err)
+			return types.ApubUserData{}, fmt.Errorf("failed to parse public key: %w", err)
 		}
 		pubkey = pubk
 
 		priv, _ := pem.Decode([]byte(user.PrivateKey.String))
 		if priv == nil {
-			return nil, fmt.Errorf("failed to decode private key PEM")
+			return types.ApubUserData{}, fmt.Errorf("failed to decode private key PEM")
 		}
 		privk, err := x509.ParsePKCS8PrivateKey(priv.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse private key: %w", err)
+			return types.ApubUserData{}, fmt.Errorf("failed to parse private key: %w", err)
 		}
 		privkey = privk
 
@@ -137,7 +128,7 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 		viewURL = s.viewURLForLocalUser(user.ID)
 	}
 
-	a := types.ApubUserData{
+	return types.ApubUserData{
 		PublicKey_:  pubkey,
 		PrivateKey_: privkey,
 		KeyID_:      keyID,
@@ -154,6 +145,68 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 		Inbox:       inbox,
 		Outbox:      outbox,
 		SharedInbox: sharedInbox,
+	}, nil
+}
+
+func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.ApubUser, error) {
+	user, err := s.FindUserByIDRaw(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, nil
+	}
+
+	u := s.makeSimpleUserFromDB(user)
+	a, err := s.createApubUserData(user, u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.ApubUser{
+		Basic: u,
+		Apub:  a,
+	}, nil
+}
+
+func (s *State) findApubUserByKeyIDWithRemote(ctx context.Context, keyID string) (*types.ApubUser, error) {
+	au, err := s.findApubUserByKeyID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+	if au != nil {
+		return au, nil
+	}
+
+	// not found: try to fetch from remote
+	keyURL, err := url.Parse(keyID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key ID URL: %w", err)
+	}
+	if keyURL.Scheme != "https" && keyURL.Scheme != "http" {
+		return nil, fmt.Errorf("invalid key ID URL scheme: %s", keyURL.Scheme)
+	}
+	// user URL is inferred to be keyURL without fragment
+	keyURL.Fragment = ""
+	userURL := keyURL.String()
+	_ = userURL
+	// TODO:
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *State) findApubUserByKeyID(ctx context.Context, keyID string) (*types.ApubUser, error) {
+	var pub models.RemotePublicKey
+	if err := s.DB(ctx).Where("key_id = ?", keyID).Joins("Owner").First(&pub).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("error fetching public key %s: %w", keyID, err)
+	}
+
+	u := s.makeSimpleUserFromDB(&pub.Owner)
+	a, err := s.createApubUserData(&pub.Owner, u)
+	if err != nil {
+		return nil, err
 	}
 
 	return &types.ApubUser{

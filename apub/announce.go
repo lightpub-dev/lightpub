@@ -29,6 +29,8 @@ type AnnounceActivity struct {
 	Object ObjectID `json:"object" validate:"required"`
 }
 
+func (AnnounceActivity) InboxActivity() {}
+
 func (a *AnnounceActivity) InferredVisibility() types.NoteVisibility {
 	return inferVisibility(a.To, a.Cc)
 }

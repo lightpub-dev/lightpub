@@ -36,6 +36,8 @@ type UndoActivity struct {
 	Object UndoableActivity `json:"object" validate:"required"`
 }
 
+func (UndoActivity) InboxActivity() {}
+
 func NewUndoActivity(
 	undoer URI,
 	undoableActivity UndoableActivity,

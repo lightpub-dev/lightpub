@@ -36,6 +36,8 @@ type RejectActivity struct {
 	Object RejectableActivity `json:"object" validate:"required"`
 }
 
+func (RejectActivity) InboxActivity() {}
+
 func NewRejectActivityWithID(
 	rejectID string,
 	rejecter URI,

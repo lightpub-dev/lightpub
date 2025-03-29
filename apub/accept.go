@@ -36,6 +36,8 @@ type AcceptActivity struct {
 	Object AcceptableActivity `json:"object" validate:"required"`
 }
 
+func (AcceptActivity) InboxActivity() {}
+
 func NewAcceptActivityWithID(
 	acceptID string,
 	accepter URI,

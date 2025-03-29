@@ -25,6 +25,8 @@ type FollowActivity struct {
 	Object ObjectID `json:"object" validate:"required"`
 }
 
+func (FollowActivity) InboxActivity() {}
+
 func NewFollowActivity(
 	followURL URI,
 	followerURL URI,
