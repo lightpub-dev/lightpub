@@ -19,28 +19,43 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package web
 
 import (
+	"strings"
+
 	"github.com/labstack/echo/v4"
 	"github.com/lightpub-dev/lightpub/apub"
 )
 
 var (
 	apubContentType = "application/activity+json"
+	apubLdType      = "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""
 )
 
 func renderApubJson(c echo.Context, statusCode int, v interface{}) error {
 	withContext := apub.WithContext(v)
 
-	c.Response().Header().Set("Content-Type", apubContentType)
+	c.Response().Header().Set("Content-Type", apubLdType)
 
 	return c.JSON(statusCode, withContext)
 }
 
 func CheckApubMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		if c.Request().Header.Get("Accept") != apubContentType {
+		if !containsApubAccept(c.Request().Header.Get("Accept")) {
+
 			return c.String(406, "Not Acceptable")
 		}
 
 		return next(c)
 	}
+}
+
+func containsApubAccept(acceptHeader string) bool {
+	if strings.Contains(acceptHeader, apubContentType) {
+		return true
+	}
+	if strings.Contains(acceptHeader, apubLdType) {
+		return true
+	}
+
+	return false
 }

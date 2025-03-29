@@ -107,6 +107,8 @@ func main() {
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
 
+	e.GET("/.well-known/webfinger", s.WebFinger)
+
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)
 	clientGroup.GET("/login", s.ClientLoginUser)
