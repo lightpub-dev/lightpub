@@ -7,6 +7,10 @@
   --link-color: light-dark(#0d6efd, #3391ff);
   --nav-background-color: light-dark(#f8f9fa, #2c2f33);
   --nav-link-color: light-dark(#595959, #b1b2b4);
+
+  --form-control-background-color: light-dark(white, #5a5a5a);
+  --form-control-text-color: light-dark(black, #f7f7f7);
+
 }
 
 body {
@@ -16,6 +20,20 @@ body {
 
 a {
   color: var(--link-color);
+}
+
+.form-control {
+  background-color: var(--form-control-background-color);
+  color: var(--form-control-text-color) !important;
+}
+
+.form-control::placeholder {
+  color: var(--form-control-text-color) !important;
+}
+
+.form-select {
+  background-color: var(--form-control-background-color);
+  color: var(--form-control-text-color);
 }
 
 /* small screens */
