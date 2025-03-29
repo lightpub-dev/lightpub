@@ -3,6 +3,8 @@
   padding: 10px;
   /* round-corner */
   border-radius: 10px;
+  background-color: var(--card-background-color) !important;
+  color: var(--text-color) !important;
 }
 
 .card-content {
@@ -79,4 +81,20 @@
   padding: 1em;
   border: 1px dotted black;
   border-radius: 5px;
+}
+
+.sensitive-image-label {
+  /*center the text*/
+  z-index: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.1em;
+  color: white;
+  -webkit-text-stroke: 0.6px #000;
+}
+
+.sensitive-image-blur {
+  filter: blur(20px);
 }

@@ -1,5 +1,17 @@
+.navbar {
+  background-color: var(--nav-background-color);
+}
+
+.navbar-brand {
+  color: var(--text-color);
+}
+
 .navbar-link {
   cursor: pointer;
+}
+
+.nav-link {
+  color: var(--nav-link-color) !important;
 }
 
 .badge {
