@@ -1,0 +1,14 @@
+service:
+  database:
+    host: lightpub_db
+    port: 3306
+    user: lightpub
+    pass: lightpub
+    name: lightpub
+  upload_dir: ./uploads
+  dev_mode: true
+  base_url: http://localhost:8000
+auth:
+  jwt_private_key_path: "data/jwt.pem"
+  jwt_public_key_path: "data/jwtpub.pem"
+registration_open: true

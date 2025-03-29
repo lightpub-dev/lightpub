@@ -11,6 +11,19 @@ services:
   #   init: true
   #   restart: unless-stopped
 
+  lightpub_app:
+    image: ghcr.io/lightpub-dev/lightpub:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 127.0.0.1:8000:8000
+    volumes:
+      - lightpub_data:/app/data
+      - lightpub_uploads:/app/uploads
+    init: true
+    restart: unless-stopped
+
   lightpub_db:
     image: mariadb:latest
     restart: unless-stopped
@@ -62,8 +75,6 @@ volumes:
     name: lightpub_mariadb_data
   lightpub_data:
     name: lightpub_data
-  lightpub_tmp:
-    name: lightpub_tmp
   lightpub_uploads:
     name: lightpub_uploads
   lightpub_typesense_data:
