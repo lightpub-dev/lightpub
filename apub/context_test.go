@@ -76,7 +76,7 @@ func TestWithContext_MarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := WithContext[Signable]{Data: tt.data}
+			w := WithContextData{Data: tt.data}
 			got, err := w.MarshalJSON()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("WithContext.MarshalJSON() error = %v, wantErr %v", err, tt.wantErr)

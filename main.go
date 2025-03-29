@@ -89,6 +89,7 @@ func main() {
 	noteGroup.GET("/:id/edit", s.GetEditNotePage, authRequired)
 
 	userGroup := e.Group("/user")
+	userGroup.GET("/:id", s.ApubUser, web.CheckApubMiddleware)
 	userGroup.PATCH("/:id", s.ProfileUpdate, authRequired)
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
 	userGroup.GET("/:id/avatar", s.GetUserAvatar)

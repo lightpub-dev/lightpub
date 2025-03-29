@@ -7,7 +7,7 @@ service:
     name: lightpub
   upload_dir: ./uploads
   dev_mode: true
-  base_url: http://localhost:8000
+  base_url: https://lp.tinax.local
 auth:
   jwt_private_key_path: "data/jwt.pem"
   jwt_public_key_path: "data/jwtpub.pem"

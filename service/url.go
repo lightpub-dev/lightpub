@@ -85,6 +85,10 @@ func (s *State) inboxForLocalUser(userID types.UserID) string {
 	return s.BaseURL().JoinPath("user", userID.String(), "inbox").String()
 }
 
+func (s *State) outboxForLocalUser(userID types.UserID) string {
+	return s.BaseURL().JoinPath("user", userID.String(), "outbox").String()
+}
+
 func (s *State) sharedInboxForLocalUser() string {
 	return s.BaseURL().JoinPath("inbox").String()
 }

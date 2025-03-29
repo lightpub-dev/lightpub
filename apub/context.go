@@ -31,15 +31,15 @@ var (
 	}
 )
 
-type WithContext[T Signable] struct {
-	Data T
+type WithContextData struct {
+	Data any
 }
 
-func (w WithContext[T]) Signer() Actor {
-	return w.Data.Signer()
+func WithContext(data any) WithContextData {
+	return WithContextData{Data: data}
 }
 
-func (w WithContext[T]) MarshalJSON() ([]byte, error) {
+func (w WithContextData) MarshalJSON() ([]byte, error) {
 	fields := make(map[string]any)
 
 	v := reflect.ValueOf(w.Data)

@@ -21,6 +21,8 @@ package service
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 
@@ -84,13 +86,32 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 		keyID   string
 	)
 	if u.Domain == types.EmptyDomain {
-		pubkey = user.PublicKey.String
-		privkey = user.PrivateKey.String
+		pub, _ := pem.Decode([]byte(user.PublicKey.String))
+		if pub == nil {
+			return nil, fmt.Errorf("failed to decode public key PEM")
+		}
+		pubk, err := x509.ParsePKIXPublicKey(pub.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key: %w", err)
+		}
+		pubkey = pubk
+
+		priv, _ := pem.Decode([]byte(user.PrivateKey.String))
+		if priv == nil {
+			return nil, fmt.Errorf("failed to decode private key PEM")
+		}
+		privk, err := x509.ParsePKCS8PrivateKey(priv.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %w", err)
+		}
+		privkey = privk
+
 		keyID = s.keyIDForLocalUser(user.ID)
 	}
 
 	var (
 		inbox       string
+		outbox      string
 		sharedInbox string
 		following   string
 		followers   string
@@ -99,6 +120,7 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 	)
 	if u.Domain != types.EmptyDomain {
 		inbox = user.Inbox.String
+		outbox = user.Outbox.String
 		sharedInbox = user.SharedInbox.String
 		following = user.FollowingURL.String
 		followers = user.FollowersURL.String
@@ -106,6 +128,7 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 		viewURL = user.ViewURL.String
 	} else {
 		inbox = s.inboxForLocalUser(user.ID)
+		outbox = s.outboxForLocalUser(user.ID)
 		sharedInbox = s.sharedInboxForLocalUser()
 		col := s.collectionURLsForLocalUser(user.ID)
 		following = col.Following
@@ -124,9 +147,12 @@ func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.A
 		URL:     url,
 		ViewURL: viewURL,
 
+		ManuallyApprovesFollowers: !user.AutoFollowAccept,
+
 		Following:   following,
 		Followers:   followers,
 		Inbox:       inbox,
+		Outbox:      outbox,
 		SharedInbox: sharedInbox,
 	}
 

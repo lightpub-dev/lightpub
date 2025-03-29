@@ -151,7 +151,10 @@ type ApubUserData struct {
 	Bio string
 
 	Inbox       string
+	Outbox      string
 	SharedInbox string // nullable
+
+	ManuallyApprovesFollowers bool
 
 	Following string // nullable
 	Followers string // nullable
