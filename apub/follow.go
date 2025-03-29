@@ -26,3 +26,17 @@ func (f FollowActivity) AsUndoable() UndoableActivity {
 		FollowObject: &f,
 	}
 }
+
+func (f FollowActivity) AsRejectable() RejectableActivity {
+	return RejectableActivity{
+		Kind:   RejectableActivityTypeFollow,
+		Follow: &f,
+	}
+}
+
+func (f FollowActivity) AsAcceptable() AcceptableActivity {
+	return AcceptableActivity{
+		Kind:   AcceptableActivityTypeFollow,
+		Follow: &f,
+	}
+}

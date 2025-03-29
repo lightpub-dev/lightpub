@@ -20,6 +20,7 @@ package service
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/lightpub-dev/lightpub/types"
@@ -104,4 +105,12 @@ func (s *State) viewURLForHashtag(hashtag string) string {
 
 func (s *State) urlForLocalUpload(uploadID types.UploadID) string {
 	return s.BaseURL().JoinPath("upload", uploadID.String()).String()
+}
+
+func (s *State) urlForLocalFollowReject(followID int) string {
+	return s.BaseURL().JoinPath("follow", strconv.Itoa(followID), "reject").String()
+}
+
+func (s *State) urlForLocalFollowAccept(followID int) string {
+	return s.BaseURL().JoinPath("follow", strconv.Itoa(followID), "accept").String()
 }
