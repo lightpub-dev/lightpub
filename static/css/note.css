@@ -3,6 +3,8 @@
   padding: 10px;
   /* round-corner */
   border-radius: 10px;
+  background-color: var(--card-background-color) !important;
+  color: var(--text-color) !important;
 }
 
 .card-content {
