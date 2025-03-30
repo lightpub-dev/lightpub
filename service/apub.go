@@ -77,6 +77,12 @@ func (s *State) ReceiveActivity(ctx context.Context, signerID types.UserID, acti
 	switch act := activity.(type) {
 	case apub.FollowActivity:
 		return s.handleFollowActivity(ctx, act)
+	case apub.AcceptActivity:
+		return s.handleAcceptActivity(ctx, act)
+	case apub.UndoActivity:
+		return s.handleUndoActivity(ctx, act)
+	case apub.RejectActivity:
+		return s.handleRejectActivity(ctx, act)
 	default:
 		return ErrUnsupportedActivityType
 	}

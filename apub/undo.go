@@ -41,7 +41,7 @@ func (UndoActivity) InboxActivity() {}
 func (a UndoActivity) IDCheck() error {
 	switch a.Object.Kind {
 	case UndoableActivityTypeFollow:
-		f := a.Object.FollowObject
+		f := a.Object.Follow
 		if err := f.IDCheck(); err != nil {
 			return err
 		}
@@ -70,13 +70,13 @@ func NewUndoActivity(
 type UndoableActivity struct {
 	Kind UndoableActivityType `validate:"required,oneof=Follow"`
 
-	FollowObject *FollowActivity
+	Follow *FollowActivity
 }
 
 func (u UndoableActivity) ID() string {
 	switch u.Kind {
 	case UndoableActivityTypeFollow:
-		return u.FollowObject.ID
+		return u.Follow.ID
 	}
 
 	panic("unknown undoable object type")
@@ -85,7 +85,7 @@ func (u UndoableActivity) ID() string {
 func (u UndoableActivity) MarshalJSON() ([]byte, error) {
 	switch u.Kind {
 	case UndoableActivityTypeFollow:
-		return json.Marshal(*u.FollowObject)
+		return json.Marshal(*u.Follow)
 	}
 
 	return nil, fmt.Errorf("unknown undoable object type: %s", u.Kind)
@@ -107,7 +107,7 @@ func (u *UndoableActivity) UnmarshalJSON(data []byte) error {
 		if err := validate.Struct(f); err != nil {
 			return fmt.Errorf("error validating follow object: %w", err)
 		}
-		u.FollowObject = &f
+		u.Follow = &f
 	}
 
 	return fmt.Errorf("unknown undoable object type: %s", typ)

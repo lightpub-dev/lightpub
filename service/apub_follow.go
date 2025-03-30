@@ -26,32 +26,49 @@ import (
 	"github.com/lightpub-dev/lightpub/types"
 )
 
-func (s *State) handleFollowActivity(ctx context.Context, activity apub.FollowActivity) error {
+type followObjectPair struct {
+	ActorID  types.UserID
+	ObjectID types.UserID
+}
+
+func (s *State) parseFollowActivity(ctx context.Context, activity apub.FollowActivity) (followObjectPair, error) {
 	actorURL, err := types.NewUserURLFromString(activity.Actor)
 	if err != nil {
-		return err
+		return followObjectPair{}, err
 	}
 	actorID, err := s.FindUserIDBySpecifierWithRemote(ctx, actorURL)
 	if err != nil {
-		return fmt.Errorf("failed to find actor: %w", err)
+		return followObjectPair{}, fmt.Errorf("failed to find actor: %w", err)
 	}
 	if actorID == nil {
-		return ErrFollowerNotFound
+		return followObjectPair{}, ErrFollowerNotFound
 	}
 
 	objectURL, err := types.NewUserURLFromString(activity.Object.ID)
 	if err != nil {
-		return err
+		return followObjectPair{}, err
 	}
 	objectID, err := s.FindUserIDBySpecifierWithRemote(ctx, objectURL)
 	if err != nil {
-		return fmt.Errorf("failed to find object: %w", err)
+		return followObjectPair{}, fmt.Errorf("failed to find object: %w", err)
 	}
 	if objectID == nil {
-		return ErrFolloweeNotFound
+		return followObjectPair{}, ErrFolloweeNotFound
 	}
 
-	if err := s.FollowUser(ctx, *actorID, *objectID); err != nil {
+	return followObjectPair{
+		ActorID:  *actorID,
+		ObjectID: *objectID,
+	}, nil
+}
+
+func (s *State) handleFollowActivity(ctx context.Context, activity apub.FollowActivity) error {
+	pair, err := s.parseFollowActivity(ctx, activity)
+	if err != nil {
+		return err
+	}
+
+	if err := s.FollowUser(ctx, pair.ActorID, pair.ObjectID); err != nil {
 		return fmt.Errorf("failed to follow: %w", err)
 	}
 

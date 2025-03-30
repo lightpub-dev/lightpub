@@ -46,8 +46,8 @@ func NewFollowActivity(
 
 func (f FollowActivity) AsUndoable() UndoableActivity {
 	return UndoableActivity{
-		Kind:         UndoableActivityTypeFollow,
-		FollowObject: &f,
+		Kind:   UndoableActivityTypeFollow,
+		Follow: &f,
 	}
 }
 

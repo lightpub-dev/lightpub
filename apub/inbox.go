@@ -48,6 +48,9 @@ func ParseActivity(reader io.Reader) (InboxActivity, error) {
 	if err := validate.Struct(activity); err != nil {
 		return nil, err
 	}
+	if err := activity.Activity.IDCheck(); err != nil {
+		return nil, err
+	}
 	return activity.Activity, nil
 }
 
