@@ -38,7 +38,21 @@ type UndoActivity struct {
 
 func (UndoActivity) InboxActivity() {}
 
-func (UndoActivity) IDCheck() error { return nil }
+func (a UndoActivity) IDCheck() error {
+	switch a.Object.Kind {
+	case UndoableActivityTypeFollow:
+		f := a.Object.FollowObject
+		if err := f.IDCheck(); err != nil {
+			return err
+		}
+		if f.Actor != a.Actor {
+			return fmt.Errorf("actor %s does not match follow activity actor %s", a.Actor, f.Actor)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("unknown undoable activity type: %s", a.Object.Kind)
+}
 
 func NewUndoActivity(
 	undoer URI,

@@ -38,7 +38,21 @@ type RejectActivity struct {
 
 func (RejectActivity) InboxActivity() {}
 
-func (RejectActivity) IDCheck() error { return nil }
+func (a RejectActivity) IDCheck() error {
+	switch a.Object.Kind {
+	case RejectableActivityTypeFollow:
+		f := a.Object.Follow
+		if err := f.IDCheck(); err != nil {
+			return err
+		}
+		if f.Object.ID != a.Actor {
+			return fmt.Errorf("object ID %s does not match actor ID %s", f.Object.ID, a.Actor)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("unknown rejectable object type: %s", a.Object.Kind)
+}
 
 func NewRejectActivityWithID(
 	rejectID string,

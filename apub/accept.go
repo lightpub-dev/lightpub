@@ -42,6 +42,9 @@ func (a AcceptActivity) IDCheck() error {
 	switch a.Object.Kind {
 	case AcceptableActivityTypeFollow:
 		follow := a.Object.Follow
+		if err := follow.IDCheck(); err != nil {
+			return err
+		}
 		if follow.Object.ID != a.Actor {
 			return fmt.Errorf("actor %s does not match follow object %s", a.Actor, follow.Object.ID)
 		}
