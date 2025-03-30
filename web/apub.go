@@ -26,7 +26,7 @@ import (
 	"github.com/lightpub-dev/lightpub/apub"
 )
 
-var (
+const (
 	apubContentType = "application/activity+json"
 	apubLdType      = "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""
 )
