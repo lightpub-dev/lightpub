@@ -19,9 +19,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package apub
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/lightpub-dev/lightpub/failure"
 	"github.com/lightpub-dev/lightpub/types"
 )
 
@@ -107,4 +111,27 @@ func NewUser(
 			PublicKeyPem: publicKey,
 		},
 	}, nil
+}
+
+func (s *Requester) fetchRemoteUserAndStore(ctx context.Context, specifier *types.UserSpecifier) (*types.ApubUser, error) {
+	switch specifier.Kind {
+	case types.UserSpecifierID:
+		return nil, fmt.Errorf("cannot fetch remote user by ID")
+	case types.UserSpecifierUsername:
+		// use webfinger to get URL
+		userURL, err := s.fetchUserURLByWebfinger(ctx, specifier.Username.Username, specifier.Username.Domain)
+		if err != nil {
+			return nil, failure.NewErrorWithCause(http.StatusNotFound, "failed to fetch remote user", err)
+		}
+		return s.fetchRemoteUser(ctx, userURL)
+	case types.UserSpecifierURL:
+		// fetch
+		return s.fetchRemoteUser(ctx, specifier.URL)
+	}
+
+	panic("unreachable")
+}
+
+func (s *Requester) fetchRemoteUser(ctx context.Context, url *url.URL) (*types.ApubUser, error) {
+	return nil, nil
 }

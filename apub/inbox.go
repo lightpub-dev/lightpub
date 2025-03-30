@@ -19,8 +19,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package apub
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 )
 
 // InboxActivity is a placeholder for activities that can be received in the inbox.
@@ -32,9 +34,14 @@ type InboxActivityData struct {
 	Activity InboxActivity
 }
 
-func ParseActivity(data []byte) (InboxActivity, error) {
+func ParseActivityFromBytes(data []byte) (InboxActivity, error) {
+	r := bytes.NewReader(data)
+	return ParseActivity(r)
+}
+
+func ParseActivity(reader io.Reader) (InboxActivity, error) {
 	var activity InboxActivityData
-	if err := json.Unmarshal(data, &activity); err != nil {
+	if err := json.NewDecoder(reader).Decode(&activity); err != nil {
 		return nil, err
 	}
 	if err := validate.Struct(activity); err != nil {

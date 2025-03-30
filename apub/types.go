@@ -26,6 +26,9 @@ import (
 
 const (
 	PublicURL = "https://www.w3.org/ns/activitystreams#Public"
+
+	ApubActivityJsonType = "application/activity+json"
+	ApubLdJsonType       = "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""
 )
 
 var (

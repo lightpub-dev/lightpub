@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package web
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -67,5 +68,17 @@ func (s *State) Inbox(c echo.Context) error {
 		return err
 	}
 
-	// body := c.Request()
+	body := c.Request().Body
+	defer body.Close()
+
+	activity, err := apub.ParseActivity(body)
+	if err != nil {
+		return err
+	}
+
+	if err := s.Service().ReceiveActivity(c.Request().Context(), userID, activity); err != nil {
+		return err
+	}
+
+	return c.NoContent(http.StatusOK)
 }

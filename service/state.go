@@ -38,7 +38,7 @@ type State struct {
 	db   *gorm.DB
 	inTx bool
 
-	delivery *apub.DeliveryState
+	delivery *apub.Requester
 
 	uploadFetchClient *resty.Client
 	// remoteUploadCache kv.Cache

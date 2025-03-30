@@ -28,20 +28,27 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 )
 
-type DeliveryState struct {
+type Requester struct {
 	// requester
-	client *http.Client
+	client  *http.Client
+	baseURL *url.URL
 }
 
-func NewDeliveryState() *DeliveryState {
-	return &DeliveryState{
-		client: http.DefaultClient,
+func NewRequester(baseURL *url.URL) *Requester {
+	return &Requester{
+		client:  http.DefaultClient,
+		baseURL: baseURL,
 	}
 }
 
-func (s *DeliveryState) queueActivityInternal(ctx context.Context, q queuedActivity) error {
+func (s *Requester) MyDomain() string {
+	return s.baseURL.Host
+}
+
+func (s *Requester) queueActivityInternal(ctx context.Context, q queuedActivity) error {
 	// TODO: queue activtiy
 	// TODO: execute immediately for now
 
@@ -146,7 +153,7 @@ func newMinimalSignerFromActor(actor Actor) (minimalSigner, error) {
 
 // QueueActivity queues an activity for delivery.
 // The activity should be unsigned.
-func (s *DeliveryState) QueueActivity(ctx context.Context, activity any, signer Actor, targetInboxes []string) error {
+func (s *Requester) QueueActivity(ctx context.Context, activity any, signer Actor, targetInboxes []string) error {
 	if s == nil {
 		return nil
 	}
