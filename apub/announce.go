@@ -31,6 +31,8 @@ type AnnounceActivity struct {
 
 func (AnnounceActivity) InboxActivity() {}
 
+func (AnnounceActivity) IDCheck() error { return nil }
+
 func (a *AnnounceActivity) InferredVisibility() types.NoteVisibility {
 	return inferVisibility(a.To, a.Cc)
 }

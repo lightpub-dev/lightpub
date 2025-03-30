@@ -27,6 +27,10 @@ type FollowActivity struct {
 
 func (FollowActivity) InboxActivity() {}
 
+func (FollowActivity) IDCheck() error {
+	return nil
+}
+
 func NewFollowActivity(
 	followURL URI,
 	followerURL URI,

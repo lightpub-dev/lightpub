@@ -38,6 +38,8 @@ type RejectActivity struct {
 
 func (RejectActivity) InboxActivity() {}
 
+func (RejectActivity) IDCheck() error { return nil }
+
 func NewRejectActivityWithID(
 	rejectID string,
 	rejecter URI,

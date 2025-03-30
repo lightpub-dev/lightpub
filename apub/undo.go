@@ -38,6 +38,8 @@ type UndoActivity struct {
 
 func (UndoActivity) InboxActivity() {}
 
+func (UndoActivity) IDCheck() error { return nil }
+
 func NewUndoActivity(
 	undoer URI,
 	undoableActivity UndoableActivity,

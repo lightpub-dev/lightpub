@@ -43,6 +43,8 @@ type CreateActivity struct {
 
 func (CreateActivity) InboxActivity() {}
 
+func (CreateActivity) IDCheck() error { return nil }
+
 func NewCreateActivity(object CreatableObject) CreateActivity {
 	return CreateActivity{
 		ID:     activityIDFromObject("Create", object.ID()),

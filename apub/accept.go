@@ -38,6 +38,19 @@ type AcceptActivity struct {
 
 func (AcceptActivity) InboxActivity() {}
 
+func (a AcceptActivity) IDCheck() error {
+	switch a.Object.Kind {
+	case AcceptableActivityTypeFollow:
+		follow := a.Object.Follow
+		if follow.Object.ID != a.Actor {
+			return fmt.Errorf("actor %s does not match follow object %s", a.Actor, follow.Object.ID)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("unknown acceptable object type: %s", a.Object.Kind)
+}
+
 func NewAcceptActivityWithID(
 	acceptID string,
 	accepter URI,

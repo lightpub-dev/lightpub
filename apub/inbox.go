@@ -28,6 +28,7 @@ import (
 // InboxActivity is a placeholder for activities that can be received in the inbox.
 type InboxActivity interface {
 	InboxActivity()
+	IDCheck() error
 }
 
 type InboxActivityData struct {
