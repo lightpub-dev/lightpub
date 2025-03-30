@@ -20,6 +20,7 @@ package apub
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -27,6 +28,10 @@ import (
 
 	"github.com/lightpub-dev/lightpub/failure"
 	"github.com/lightpub-dev/lightpub/types"
+)
+
+var (
+	ErrInvalidUserID = failure.NewError(http.StatusBadRequest, "invalid URL in Remote actor object")
 )
 
 type User struct {
@@ -113,7 +118,7 @@ func NewUser(
 	}, nil
 }
 
-func (s *Requester) fetchRemoteUserAndStore(ctx context.Context, specifier *types.UserSpecifier) (*types.ApubUser, error) {
+func (s *Requester) FetchRemoteUserBySpecifier(ctx context.Context, specifier *types.UserSpecifier) (*User, error) {
 	switch specifier.Kind {
 	case types.UserSpecifierID:
 		return nil, fmt.Errorf("cannot fetch remote user by ID")
@@ -132,6 +137,62 @@ func (s *Requester) fetchRemoteUserAndStore(ctx context.Context, specifier *type
 	panic("unreachable")
 }
 
-func (s *Requester) fetchRemoteUser(ctx context.Context, url *url.URL) (*types.ApubUser, error) {
-	return nil, nil
+func (s *Requester) fetchRemoteUser(ctx context.Context, url *url.URL) (*User, error) {
+	// Create a new HTTP request
+	req, err := http.NewRequestWithContext(ctx, "GET", url.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set Accept header for ActivityPub content types
+	req.Header.Set("Accept", "application/activity+json, application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"")
+
+	// Perform the HTTP request
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check if the response status is OK
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request returned status: %d", resp.StatusCode)
+	}
+
+	// Parse the JSON response into the User struct
+	var user User
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, fmt.Errorf("failed to decode actor JSON: %w", err)
+	}
+	if err := validate.Struct(user); err != nil {
+		return nil, fmt.Errorf("failed to validate actor JSON: %w", err)
+	}
+	if err := s.userSecurityCheck(url.Host, &user); err != nil {
+		return nil, fmt.Errorf("failed to validate actor JSON: %w", err)
+	}
+
+	return &user, nil
+}
+
+func (s *Requester) userSecurityCheck(expectedOrigin string, user *User) error {
+	userID, err := url.Parse(user.ID)
+	if err != nil {
+		return ErrInvalidUserID
+	}
+	if userID.Host != expectedOrigin {
+		return failure.NewError(http.StatusBadRequest, "invalid URL host in actor.id")
+	}
+
+	if user.PublicKey.Owner != user.ID {
+		return failure.NewError(http.StatusBadRequest, "key owner does not match actor.id")
+	}
+	pubKeyID, err := url.Parse(user.PublicKey.ID)
+	if err != nil {
+		return failure.NewError(http.StatusBadRequest, "invalid URL in actor.publicKey.id")
+	}
+	if pubKeyID.Host != expectedOrigin {
+		return failure.NewError(http.StatusBadRequest, "invalid URL host in actor.publicKey.id")
+	}
+
+	return nil
 }

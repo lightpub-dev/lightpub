@@ -34,6 +34,13 @@ func stringToSql(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
+func stringToNullableSql(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
 func timePtrToSql(t *time.Time) sql.NullTime {
 	if t == nil {
 		return sql.NullTime{}

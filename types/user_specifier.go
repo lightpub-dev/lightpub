@@ -115,12 +115,20 @@ func NewUsernameAndDomain(username string, domain string) *UserSpecifier {
 	}
 }
 
-// NewURL creates a UserSpecifier from a URL
-func NewURL(url *url.URL) *UserSpecifier {
+// NewUserURL creates a UserSpecifier from a URL
+func NewUserURL(url *url.URL) *UserSpecifier {
 	return &UserSpecifier{
 		Kind: UserSpecifierURL,
 		URL:  url,
 	}
+}
+
+func NewUserURLFromString(u string) (*UserSpecifier, error) {
+	ur, err := url.Parse(u)
+	if err != nil {
+		return nil, fmt.Errorf("invalid User ID URL: %w", err)
+	}
+	return NewUserURL(ur), nil
 }
 
 // OmitMyDomain converts a domain to local if it matches myDomain

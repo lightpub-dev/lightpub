@@ -20,10 +20,40 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/lightpub-dev/lightpub/apub"
+	"github.com/lightpub-dev/lightpub/types"
 )
 
 func (s *State) handleFollowActivity(ctx context.Context, activity apub.FollowActivity) error {
-	return nil // TODO:
+	actorURL, err := types.NewUserURLFromString(activity.Actor)
+	if err != nil {
+		return err
+	}
+	actorID, err := s.FindUserIDBySpecifierWithRemote(ctx, actorURL)
+	if err != nil {
+		return fmt.Errorf("failed to find actor: %w", err)
+	}
+	if actorID == nil {
+		return ErrFollowerNotFound
+	}
+
+	objectURL, err := types.NewUserURLFromString(activity.Object.ID)
+	if err != nil {
+		return err
+	}
+	objectID, err := s.FindUserIDBySpecifierWithRemote(ctx, objectURL)
+	if err != nil {
+		return fmt.Errorf("failed to find object: %w", err)
+	}
+	if objectID == nil {
+		return ErrFolloweeNotFound
+	}
+
+	if err := s.FollowUser(ctx, *actorID, *objectID); err != nil {
+		return fmt.Errorf("failed to follow: %w", err)
+	}
+
+	return nil
 }

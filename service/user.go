@@ -245,10 +245,18 @@ func (s *State) FindLocalUserIDBySpecifier(ctx context.Context, specifier *types
 		return &user.ID, nil
 	case types.UserSpecifierURL:
 		localUserID, ok := s.extractUserIDFromLocalURL(specifier.URL)
-		if !ok {
-			return nil, nil
+		if ok {
+			return &localUserID, nil
 		}
-		return &localUserID, nil
+
+		var user models.User
+		if err := s.DB(ctx).Where("url = ?", specifier.URL.String()).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return &user.ID, nil
 	}
 
 	panic("unreachable")
@@ -264,8 +272,22 @@ func (s *State) FindUserIDBySpecifierWithRemote(ctx context.Context, specifier *
 		return localUserID, nil
 	}
 
-	// try remote
-	// TODO: implement remote user lookup
+	// filter cases where we don't need to fetch remote
+	switch specifier.Kind {
+	case types.UserSpecifierID:
+		// id is local only
+		return nil, nil
+	case types.UserSpecifierUsername:
+		if specifier.Username.Domain == "" {
+			// local username
+			return nil, nil
+		}
+	}
 
-	return nil, nil
+	// try remote
+	userID, err := s.fetchAndStoreRemoteUser(ctx, specifier)
+	if err != nil {
+		return nil, err
+	}
+	return &userID, nil
 }
