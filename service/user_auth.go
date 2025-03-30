@@ -20,14 +20,23 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+)
+
+const (
+	privateKeyBits = 2048
 )
 
 var (
@@ -50,13 +59,43 @@ func (s *State) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (
 	}
 	hashedPasswordStr := string(hashedPassword)
 
-	newUser := db.User{
+	privateKey, err := rsa.GenerateKey(rand.Reader, privateKeyBits)
+	if err != nil {
+		return types.UserID{}, fmt.Errorf("failed to generate private key: %w", err)
+	}
+	publicKey := privateKey.PublicKey
+
+	privateKeyBin, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return types.UserID{}, fmt.Errorf("failed to marshal private key: %w", err)
+	}
+	publicKeyBin, err := x509.MarshalPKIXPublicKey(&publicKey)
+	if err != nil {
+		return types.UserID{}, fmt.Errorf("failed to marshal public key: %w", err)
+	}
+
+	publicKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: publicKeyBin,
+		},
+	)
+	privateKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: privateKeyBin,
+		},
+	)
+
+	newUser := models.User{
 		ID:               userID,
 		Username:         user.Username,
 		Domain:           types.EmptyDomain,
 		Nickname:         user.Nickname,
 		Password:         sql.NullString{String: hashedPasswordStr, Valid: true},
 		AutoFollowAccept: true,
+		PublicKey:        stringToSql(string(publicKeyPem)),
+		PrivateKey:       stringToSql(string(privateKeyPem)),
 	}
 	if err := s.DB(ctx).Create(&newUser).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
@@ -69,7 +108,7 @@ func (s *State) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (
 }
 
 func (s *State) LoginUser(ctx context.Context, username, password string) (*types.UserID, error) {
-	var user db.User
+	var user models.User
 	if err := s.DB(ctx).Where("username = ? AND domain = '' AND password IS NOT NULL", username).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -88,7 +127,7 @@ func (s *State) LoginUser(ctx context.Context, username, password string) (*type
 }
 
 func (s *State) LogoutAllUser(ctx context.Context, userID types.UserID) error {
-	return s.DB(ctx).Model(&db.User{}).Where("id = ?", userID).Update("auth_expired_at", time.Now()).Error
+	return s.DB(ctx).Model(&models.User{}).Where("id = ?", userID).Update("auth_expired_at", time.Now()).Error
 }
 
 // CheckUserLoginExpiration returns true if the user's login has not expired.
@@ -109,5 +148,5 @@ func (s *State) CheckUserLoginExpiration(ctx context.Context, userID types.UserI
 }
 
 func (s *State) SetUserLoginExpiration(ctx context.Context, userID types.UserID, expiresAt time.Time) error {
-	return s.DB(ctx).Model(&db.User{}).Where("id = ?", userID).Update("auth_expired_at", expiresAt).Error
+	return s.DB(ctx).Model(&models.User{}).Where("id = ?", userID).Update("auth_expired_at", expiresAt).Error
 }

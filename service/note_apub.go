@@ -20,7 +20,10 @@ package service
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/lightpub-dev/lightpub/apub"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 )
 
@@ -30,6 +33,128 @@ type calculateToAndCcResult struct {
 	Inboxes []string
 }
 
-func (s *State) calculateToAndCc(ctx context.Context, noteID types.NoteID, authorID types.UserID, visibility types.NoteVisibility, includeAuthor bool) {
+// calculateToAndCc calculates the to and cc fields for a local note.
+// Passing a remote note will result in incorrect results.
+func (s *State) calculateToAndCc(ctx context.Context, noteID types.NoteID, needInboxes bool) (calculateToAndCcResult, error) {
+	// Fetch info from DB
+	var note models.Note
+	if err := s.DB(ctx).Unscoped().Where("id = ? AND deleted_at IS NULL AND content IS NOT NULL", noteID).Joins("Author").First(&note).Error; err != nil {
+		return calculateToAndCcResult{}, err
+	}
 
+	var mentions []models.NoteMention
+	if err := s.DB(ctx).Where("note_id = ?", noteID).Joins("TargetUser").Find(&mentions).Error; err != nil {
+		return calculateToAndCcResult{}, err
+	}
+
+	// Prepare results
+	result := calculateToAndCcResult{}
+	inboxAddedMap := make(map[string]struct{})
+	addInbox := func(inbox string) {
+		if !needInboxes {
+			return
+		}
+		// 重複を省く
+		if _, ok := inboxAddedMap[inbox]; ok {
+			return
+		}
+		inboxAddedMap[inbox] = struct{}{}
+		result.Inboxes = append(result.Inboxes, inbox)
+	}
+
+	// Reply
+	if note.ReplyToID != nil {
+		replyToUser, err := s.FindApubUserByID(ctx, *note.ReplyToID)
+		if err != nil {
+			return calculateToAndCcResult{}, fmt.Errorf("error fetching reply-to user %s: %w", *note.ReplyToID, err)
+		}
+		if replyToUser == nil {
+			return calculateToAndCcResult{}, fmt.Errorf("reply-to user not found: %s", *note.ReplyToID)
+		}
+
+		result.To = append(result.To, replyToUser.Apub.URL)
+		addInbox(replyToUser.Apub.PreferredInbox())
+	}
+
+	// Public URLs
+	switch note.Visibility {
+	case types.NoteVisibilityPublic:
+		result.To = append(result.To, apub.PublicURL)
+	case types.NoteVisibilityUnlisted:
+		result.Cc = append(result.Cc, apub.PublicURL)
+	}
+
+	// Followers
+	deliverToFollowers := false
+	switch note.Visibility {
+	case types.NoteVisibilityPublic:
+		fallthrough
+	case types.NoteVisibilityUnlisted:
+		result.Cc = append(result.Cc, s.followersURLForLocalUser(note.AuthorID))
+		deliverToFollowers = true
+	case types.NoteVisibilityFollower:
+		result.To = append(result.To, s.followersURLForLocalUser(note.AuthorID))
+		deliverToFollowers = true
+	}
+
+	if needInboxes && deliverToFollowers {
+		var follows []models.ActualUserFollow
+		if err := s.DB(ctx).Where("followed_id = ?", note.AuthorID).Find(&follows).Error; err != nil {
+			return calculateToAndCcResult{}, fmt.Errorf("failed to get followers for user %s: %w", note.AuthorID, err)
+		}
+		// TODO: inbox 取得するだけなので、Join で処理できるはず
+		for _, follow := range follows {
+			followerUser, err := s.FindApubUserByID(ctx, follow.FollowerID)
+			if err != nil {
+				return calculateToAndCcResult{}, fmt.Errorf("error fetching follower user %s: %w", follow.FollowerID, err)
+			}
+			if followerUser == nil {
+				return calculateToAndCcResult{}, fmt.Errorf("follower user not found: %s", follow.FollowerID)
+			}
+			addInbox(followerUser.Apub.PreferredInbox())
+		}
+	}
+
+	// Mentioned users
+	for _, mention := range mentions {
+		mentionUserID := mention.TargetUserID
+		mentionedUser, err := s.FindApubUserByID(ctx, mentionUserID)
+		if err != nil {
+			return calculateToAndCcResult{}, fmt.Errorf("error fetching mentioned user %s: %w", mentionUserID, err)
+		}
+		if mentionedUser == nil {
+			return calculateToAndCcResult{}, fmt.Errorf("mentioned user not found: %s", mentionUserID)
+		}
+		result.To = append(result.To, mentionedUser.Apub.URL)
+		addInbox(mentionedUser.Apub.PreferredInbox())
+	}
+
+	return result, nil
+}
+
+func (s *State) publishNoteToApub(ctx context.Context, noteID types.NoteID) error {
+	note, err := s.findApubNoteByID(ctx, noteID)
+	if err != nil {
+		return fmt.Errorf("failed to find note: %w", err)
+	}
+	if note == nil {
+		return fmt.Errorf("note not found or deleted: %s", noteID)
+	}
+
+	noteObject := apub.NewNoteObject(note)
+	createActivity := apub.NewCreateActivity(noteObject.AsCreatableObject())
+
+	apubAuthor, err := s.FindApubUserByID(ctx, note.Basic.Author.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find author: %w", err)
+	}
+	if apubAuthor == nil {
+		return fmt.Errorf("author not found: %s", note.Basic.Author.ID)
+	}
+
+	if err := s.delivery.QueueActivity(ctx, createActivity, apubAuthor.Apub, note.Apub.Inboxes); err != nil {
+		return fmt.Errorf("failed to queue activity: %w", err)
+	}
+
+	return nil
 }

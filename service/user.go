@@ -20,15 +20,20 @@ package service
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"net/url"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
 )
 
-func (s *State) FindUserByIDRaw(ctx context.Context, id types.UserID) (*db.User, error) {
-	var user db.User
+func (s *State) FindUserByIDRaw(ctx context.Context, id types.UserID) (*models.User, error) {
+	var user models.User
 	if err := s.DB(ctx).Where("id = ?", id).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -39,7 +44,7 @@ func (s *State) FindUserByIDRaw(ctx context.Context, id types.UserID) (*db.User,
 	return &user, nil
 }
 
-func (s *State) makeSimpleUserFromDB(user *db.User) types.SimpleUser {
+func (s *State) makeSimpleUserFromDB(user *models.User) types.SimpleUser {
 	cleanBio := bioSanitizer.Sanitize(user.Bio)
 
 	return types.SimpleUser{
@@ -65,12 +70,172 @@ func (s *State) FindUserByID(ctx context.Context, id types.UserID) (*types.Simpl
 	return &u, nil
 }
 
+func (s *State) createApubUserData(user *models.User, u types.SimpleUser) (types.ApubUserData, error) {
+	var (
+		pubkey  crypto.PublicKey
+		privkey crypto.PrivateKey
+		keyID   string
+	)
+	if u.Domain == types.EmptyDomain {
+		pub, _ := pem.Decode([]byte(user.PublicKey.String))
+		if pub == nil {
+			return types.ApubUserData{}, fmt.Errorf("failed to decode public key PEM")
+		}
+		pubk, err := x509.ParsePKIXPublicKey(pub.Bytes)
+		if err != nil {
+			return types.ApubUserData{}, fmt.Errorf("failed to parse public key: %w", err)
+		}
+		pubkey = pubk
+
+		priv, _ := pem.Decode([]byte(user.PrivateKey.String))
+		if priv == nil {
+			return types.ApubUserData{}, fmt.Errorf("failed to decode private key PEM")
+		}
+		privk, err := x509.ParsePKCS8PrivateKey(priv.Bytes)
+		if err != nil {
+			return types.ApubUserData{}, fmt.Errorf("failed to parse private key: %w", err)
+		}
+		privkey = privk
+
+		keyID = s.keyIDForLocalUser(user.ID)
+	}
+
+	var (
+		inbox       string
+		outbox      string
+		sharedInbox string
+		following   string
+		followers   string
+		url         string
+		viewURL     string
+	)
+	if u.Domain != types.EmptyDomain {
+		inbox = user.Inbox.String
+		outbox = user.Outbox.String
+		sharedInbox = user.SharedInbox.String
+		following = user.FollowingURL.String
+		followers = user.FollowersURL.String
+		url = user.URL.String
+		viewURL = user.ViewURL.String
+	} else {
+		inbox = s.inboxForLocalUser(user.ID)
+		outbox = s.outboxForLocalUser(user.ID)
+		sharedInbox = s.sharedInboxForLocalUser()
+		col := s.collectionURLsForLocalUser(user.ID)
+		following = col.Following
+		followers = col.Followers
+		url = s.urlForLocalUser(user.ID)
+		viewURL = s.viewURLForLocalUser(user.ID)
+	}
+
+	return types.ApubUserData{
+		PublicKey_:  pubkey,
+		PrivateKey_: privkey,
+		KeyID_:      keyID,
+
+		Bio: s.renderBio(user.Bio),
+
+		URL:     url,
+		ViewURL: viewURL,
+
+		ManuallyApprovesFollowers: !user.AutoFollowAccept,
+
+		Following:   following,
+		Followers:   followers,
+		Inbox:       inbox,
+		Outbox:      outbox,
+		SharedInbox: sharedInbox,
+	}, nil
+}
+
+func (s *State) FindApubUserByID(ctx context.Context, id types.UserID) (*types.ApubUser, error) {
+	user, err := s.FindUserByIDRaw(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, nil
+	}
+
+	u := s.makeSimpleUserFromDB(user)
+	a, err := s.createApubUserData(user, u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.ApubUser{
+		Basic: u,
+		Apub:  a,
+	}, nil
+}
+
+func (s *State) findApubUserByKeyIDWithRemote(ctx context.Context, keyID string) (*types.ApubUser, error) {
+	au, err := s.findApubUserByKeyID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+	if au != nil {
+		return au, nil
+	}
+
+	// not found: try to fetch from remote
+	keyURL, err := url.Parse(keyID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid key ID URL: %w", err)
+	}
+	if keyURL.Scheme != "https" && keyURL.Scheme != "http" {
+		return nil, fmt.Errorf("invalid key ID URL scheme: %s", keyURL.Scheme)
+	}
+	// user URL is inferred to be keyURL without fragment
+	keyURL.Fragment = ""
+	userURL := keyURL.String()
+	_ = userURL
+	// TODO:
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *State) findApubUserByKeyID(ctx context.Context, keyID string) (*types.ApubUser, error) {
+	var pub models.RemotePublicKey
+	if err := s.DB(ctx).Where("key_id = ?", keyID).Joins("Owner").First(&pub).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("error fetching public key %s: %w", keyID, err)
+	}
+
+	u := s.makeSimpleUserFromDB(&pub.Owner)
+	a, err := s.createApubUserData(&pub.Owner, u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.ApubUser{
+		Basic: u,
+		Apub:  a,
+	}, nil
+}
+
+func (s *State) findApubURLForUserID(ctx context.Context, id types.UserID) (string, error) {
+	user, err := s.FindUserByIDRaw(ctx, id)
+	if err != nil {
+		return "", fmt.Errorf("error fetching user %s: %w", id, err)
+	}
+	if user == nil {
+		return "", nil
+	}
+
+	if user.URL.Valid {
+		return user.URL.String, nil
+	}
+	return s.urlForLocalUser(user.ID), nil
+}
+
 func (s *State) FindLocalUserIDBySpecifier(ctx context.Context, specifier *types.UserSpecifier) (*types.UserID, error) {
 	switch specifier.Kind {
 	case types.UserSpecifierID:
 		return &specifier.ID, nil
 	case types.UserSpecifierUsername:
-		var user db.User
+		var user models.User
 		if err := s.DB(ctx).Where("username = ? AND domain = ?", specifier.Username.Username, specifier.Username.Domain).First(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, nil

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/lightpub-dev/lightpub/apub"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"resty.dev/v3"
@@ -36,6 +37,8 @@ var (
 type State struct {
 	db   *gorm.DB
 	inTx bool
+
+	delivery *apub.Requester
 
 	uploadFetchClient *resty.Client
 	// remoteUploadCache kv.Cache

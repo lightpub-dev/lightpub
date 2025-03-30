@@ -23,7 +23,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 	"github.com/rrivera/identicon"
 	"gorm.io/gorm"
@@ -40,6 +40,10 @@ type ProfileUpdateParams struct {
 	AutoAcceptFollow *bool
 	HideFollows      *bool
 	AvatarUploadID   *types.UploadID // nil = no change, 0 = remove, otherwise = change
+}
+
+func (s *State) renderBio(bio string) string {
+	return bioSanitizer.Sanitize(bio)
 }
 
 func (s *State) GetUserProfile(
@@ -90,7 +94,7 @@ func (s *State) GetUserProfile(
 		}
 	}
 
-	cleanBio := bioSanitizer.Sanitize(userRaw.Bio)
+	cleanBio := s.renderBio(userRaw.Bio)
 
 	return types.DetailedUser{
 		Basic: types.SimpleUser{
@@ -129,10 +133,10 @@ func (s *State) getFollowerCount(ctx context.Context, userID types.UserID) (foll
 		follows   int64
 		followers int64
 	)
-	if err := s.DB(ctx).Where("follower_id = ?", userID).Model(&db.ActualUserFollow{}).Count(&follows).Error; err != nil {
+	if err := s.DB(ctx).Where("follower_id = ?", userID).Model(&models.ActualUserFollow{}).Count(&follows).Error; err != nil {
 		return followCount{}, err
 	}
-	if err := s.DB(ctx).Where("followed_id = ?", userID).Model(&db.ActualUserFollow{}).Count(&followers).Error; err != nil {
+	if err := s.DB(ctx).Where("followed_id = ?", userID).Model(&models.ActualUserFollow{}).Count(&followers).Error; err != nil {
 		return followCount{}, err
 	}
 	return followCount{
@@ -143,7 +147,7 @@ func (s *State) getFollowerCount(ctx context.Context, userID types.UserID) (foll
 
 func (s *State) getNoteCount(ctx context.Context, userID types.UserID) (uint64, error) {
 	var count int64
-	if err := s.DB(ctx).Where("author_id = ? AND deleted_at IS NULL", userID).Model(&db.Note{}).Count(&count).Error; err != nil {
+	if err := s.DB(ctx).Where("author_id = ? AND deleted_at IS NULL", userID).Model(&models.Note{}).Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return uint64(count), nil
@@ -155,7 +159,7 @@ func (s *State) UpdateUserProfile(
 	update ProfileUpdateParams,
 ) error {
 	err := s.WithTransaction(func(tx *State) error {
-		var user db.User
+		var user models.User
 		err := tx.DB(ctx).Where("id = ?", userID).Clauses(clause.Locking{Strength: "UPDATE"}).First(&user).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

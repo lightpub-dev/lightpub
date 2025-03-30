@@ -18,7 +18,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package types
 
-import "html/template"
+import (
+	"crypto"
+	"html/template"
+)
 
 const (
 	EmptyDomain = "" // Empty string means local server
@@ -110,4 +113,74 @@ func (d DetailedUserModel) CanUnfollow() bool {
 
 func (d DetailedUserModel) CanRefuseFollow() bool {
 	return d.IsFollowed != FollowStateNo && !d.IsMe
+}
+
+type ApubUser struct {
+	Basic SimpleUser
+	Apub  ApubUserData
+}
+
+func (a ApubUser) ID() string {
+	return a.Apub.URL
+}
+
+func (a ApubUser) PublicKey() crypto.PublicKey {
+	return a.Apub.PublicKey_
+}
+
+func (a ApubUser) PrivateKey() crypto.PrivateKey {
+	return a.Apub.PrivateKey_
+}
+
+func (a ApubUser) KeyID() string {
+	return a.Apub.KeyID_
+}
+
+func (a ApubUser) PreferredInbox() string {
+	if a.Apub.SharedInbox != "" {
+		return a.Apub.SharedInbox
+	}
+	return a.Apub.Inbox
+}
+
+type ApubUserData struct {
+	PublicKey_  crypto.PublicKey
+	PrivateKey_ crypto.PrivateKey
+	KeyID_      string
+
+	Bio string
+
+	Inbox       string
+	Outbox      string
+	SharedInbox string // nullable
+
+	ManuallyApprovesFollowers bool
+
+	Following string // nullable
+	Followers string // nullable
+	URL       string
+	ViewURL   string // nullable
+}
+
+func (a ApubUserData) ID() string {
+	return a.URL
+}
+
+func (a ApubUserData) PublicKey() crypto.PublicKey {
+	return a.PublicKey_
+}
+
+func (a ApubUserData) PrivateKey() crypto.PrivateKey {
+	return a.PrivateKey_
+}
+
+func (a ApubUserData) KeyID() string {
+	return a.KeyID_
+}
+
+func (a ApubUserData) PreferredInbox() string {
+	if a.SharedInbox != "" {
+		return a.SharedInbox
+	}
+	return a.Inbox
 }

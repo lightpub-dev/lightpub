@@ -22,3 +22,19 @@ generate-keys:
 .PHONY: dev
 dev: generate-keys dev-up migrate
 	air
+
+.PHONY: build
+build:
+	docker compose -f ./docker-compose.inc.yml build
+
+.PHONY: fed-up
+fed-up:
+	docker compose -f ./docker-compose.fed.yml --profile lightpub --profile misskey up -d --build
+
+.PHONY: fed-down
+fed-down:
+	docker compose -f ./docker-compose.fed.yml --profile lightpub --profile misskey down
+
+.PHONY: fed-down-volume
+fed-down-volume:
+	docker compose -f ./docker-compose.fed.yml --profile lightpub --profile misskey down -v

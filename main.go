@@ -89,12 +89,14 @@ func main() {
 	noteGroup.GET("/:id/edit", s.GetEditNotePage, authRequired)
 
 	userGroup := e.Group("/user")
+	userGroup.GET("/:id", s.ApubUser, web.CheckApubMiddleware)
 	userGroup.PATCH("/:id", s.ProfileUpdate, authRequired)
 	userGroup.GET("/:id/notes", s.GetUserNoteList, authOptional)
 	userGroup.GET("/:id/avatar", s.GetUserAvatar)
 	userGroup.GET("/:id/following", s.GetUserFollowings)
 	userGroup.GET("/:id/followers", s.GetUserFollowers)
 	userGroup.POST("/:id/interaction", s.UserInteraction, authRequired)
+	userGroup.POST("/:id/inbox", s.Inbox, web.CheckApubMiddleware)
 
 	notificationGroup := e.Group("/notification")
 	notificationGroup.GET("/unread-count", s.GetUnreadNotificationCount, authRequired)
@@ -105,6 +107,10 @@ func main() {
 	e.GET("/upload/:id", s.GetUpload)
 	e.GET("/timeline", s.GetTimeline, authOptional)
 	e.GET("/trends", s.GetTrends)
+
+	e.POST("/inbox", s.Inbox, web.CheckApubMiddleware)
+
+	e.GET("/.well-known/webfinger", s.WebFinger)
 
 	clientGroup := e.Group("/client")
 	clientGroup.GET("/register", s.ClientRegisterUser)

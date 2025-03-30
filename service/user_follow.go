@@ -20,9 +20,13 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"strconv"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/apub"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/service/notification"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
@@ -35,6 +39,71 @@ var (
 	ErrFollowerNotFound  = NewServiceError(404, "follower not found")
 	ErrFolloweeNotFound  = NewServiceError(404, "followee not found")
 )
+
+type followActivityData struct {
+	Activity any
+
+	Follower types.ApubUser
+	Followee types.ApubUser
+}
+
+func (s *State) createLocalFollowObject(ctx context.Context, followID int, followerID types.UserID, followeeID types.UserID) (followActivityData, error) {
+	followURL := s.BaseURL().JoinPath("follow", strconv.Itoa(followID)).String()
+
+	follower, err := s.FindApubUserByID(ctx, followerID)
+	if err != nil {
+		return followActivityData{}, err
+	}
+	if follower == nil {
+		return followActivityData{}, fmt.Errorf("follower user not found: %s", followerID)
+	}
+	followee, err := s.FindApubUserByID(ctx, followeeID)
+	if err != nil {
+		return followActivityData{}, err
+	}
+	if followee == nil {
+		return followActivityData{}, fmt.Errorf("followee user not found: %s", followeeID)
+	}
+
+	activity := apub.NewFollowActivity(
+		followURL,
+		follower.Apub.URL,
+		followee.Apub.URL,
+	)
+	return followActivityData{
+		Activity: activity,
+		Follower: *follower,
+		Followee: *followee,
+	}, nil
+}
+
+func (s *State) createRemoteFollowObject(ctx context.Context, followURL string, followerID types.UserID, followeeID types.UserID) (followActivityData, error) {
+	follower, err := s.FindApubUserByID(ctx, followerID)
+	if err != nil {
+		return followActivityData{}, err
+	}
+	if follower == nil {
+		return followActivityData{}, fmt.Errorf("follower user not found: %s", followerID)
+	}
+	followee, err := s.FindApubUserByID(ctx, followeeID)
+	if err != nil {
+		return followActivityData{}, err
+	}
+	if followee == nil {
+		return followActivityData{}, fmt.Errorf("followee user not found: %s", followeeID)
+	}
+
+	activity := apub.NewFollowActivity(
+		followURL,
+		follower.Apub.URL,
+		followee.Apub.URL,
+	)
+	return followActivityData{
+		Activity: activity,
+		Follower: *follower,
+		Followee: *followee,
+	}, nil
+}
 
 func (s *State) FollowUser(
 	ctx context.Context,
@@ -72,7 +141,7 @@ func (s *State) FollowUser(
 		return ErrCannotFollowBlock
 	}
 
-	follow := db.UserFollow{
+	follow := models.UserFollow{
 		FollowerID: followerID,
 		FollowedID: followeeID,
 		Pending:    !autoAcceptFollow,
@@ -108,13 +177,31 @@ func (s *State) FollowUser(
 	}
 
 	if followerUser.IsLocal() && followeeUser.Domain != types.EmptyDomain {
-		// TODO: send apub Follow
+		activity, err := s.createLocalFollowObject(ctx, follow.ID, followerID, followeeID)
+		if err != nil {
+			return fmt.Errorf("failed to create follow activity: %w", err)
+		}
+		if err := s.delivery.QueueActivity(ctx, activity.Activity, activity.Follower, []string{
+			activity.Followee.Apub.PreferredInbox(),
+		}); err != nil {
+			return fmt.Errorf("failed to queue follow activity: %w", err)
+		}
 	}
 
 	return nil
 }
 
 func (s *State) UnfollowUser(
+	ctx context.Context,
+	followerID types.UserID,
+	followeeID types.UserID,
+) error {
+	return s.WithTransaction(func(tx *State) error {
+		return tx.unfollowUserInTx(ctx, followerID, followeeID)
+	})
+}
+
+func (s *State) unfollowUserInTx(
 	ctx context.Context,
 	followerID types.UserID,
 	followeeID types.UserID,
@@ -139,26 +226,54 @@ func (s *State) UnfollowUser(
 		return ErrFolloweeNotFound
 	}
 
-	result := s.DB(ctx).Where(
+	// find follow
+	var follow models.UserFollow
+	if err := s.DB(ctx).Where(
 		"follower_id = ? AND followed_id = ?",
 		followerID, followeeID,
-	).Delete(&db.UserFollow{})
-	if result.Error != nil {
-		return NewInternalServerErrorWithCause("failed to delete follow", err)
+	).Clauses(
+		clause.Locking{Strength: clause.LockingStrengthUpdate},
+	).First(&follow).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// follow does not exist
+			return nil
+		}
+		return fmt.Errorf("failed to find follow: %w", err)
 	}
-	if result.RowsAffected == 0 {
-		// follow does not exist
-		return nil
+
+	// delete it
+	if err := s.DB(ctx).Unscoped().Delete(&follow).Error; err != nil {
+		return fmt.Errorf("failed to delete follow: %w", err)
 	}
 
 	if followerUser.IsLocal() && followeeUser.IsRemote() {
-		// TODO: send apub Undo(Follow)
+		// send apub Undo(Follow)
+		followActivity, err := s.createLocalFollowObject(ctx, follow.ID, followerID, followeeID)
+		if err != nil {
+			return fmt.Errorf("failed to create follow activity: %w", err)
+		}
+		undoActivity := apub.NewUndoActivity(followActivity.Follower.Apub.URL, followActivity.Activity.(apub.FollowActivity).AsUndoable())
+		if err := s.delivery.QueueActivity(ctx, undoActivity, followActivity.Follower, []string{
+			followActivity.Followee.Apub.PreferredInbox(),
+		}); err != nil {
+			return fmt.Errorf("failed to queue undo activity: %w", err)
+		}
 	}
 
 	return nil
 }
 
 func (s *State) RejectFollowUser(
+	ctx context.Context,
+	rejectorID types.UserID,
+	rejectedID types.UserID,
+) error {
+	return s.WithTransaction(func(tx *State) error {
+		return tx.rejectFollowUserInTx(ctx, rejectorID, rejectedID)
+	})
+}
+
+func (s *State) rejectFollowUserInTx(
 	ctx context.Context,
 	rejectorID types.UserID,
 	rejectedID types.UserID,
@@ -183,20 +298,37 @@ func (s *State) RejectFollowUser(
 		return ErrFollowerNotFound
 	}
 
-	result := s.DB(ctx).Where(
+	// get follow
+	var follow models.UserFollow
+	if err := s.DB(ctx).Where(
 		"follower_id = ? AND followed_id = ?",
 		rejectedID, rejectorID,
-	).Delete(&db.UserFollow{})
-	if result.Error != nil {
-		return NewInternalServerErrorWithCause("failed to reject follow", err)
+	).Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).First(&follow).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// follow does not exist
+			return nil
+		}
+		return fmt.Errorf("failed to find follow: %w", err)
 	}
-	if result.RowsAffected == 0 {
-		// follow does not exist
-		return nil
+
+	// delete it
+	if err := s.DB(ctx).Unscoped().Delete(&follow).Error; err != nil {
+		return fmt.Errorf("failed to delete follow: %w", err)
 	}
 
 	if rejectorUser.IsLocal() && rejectedUser.IsRemote() {
-		// TODO: send apub Reject(Follow)
+		// send apub Reject(Follow)
+		rejectID := s.urlForLocalFollowReject(follow.ID)
+		followActivity, err := s.createRemoteFollowObject(ctx, follow.URL.String, rejectedID, rejectorID)
+		if err != nil {
+			return fmt.Errorf("failed to create follow activity: %w", err)
+		}
+		rejectActivitty := apub.NewRejectActivityWithID(rejectID, followActivity.Follower.Apub.URL, followActivity.Activity.(apub.FollowActivity).AsRejectable())
+		if err := s.delivery.QueueActivity(ctx, rejectActivitty, followActivity.Followee, []string{
+			followActivity.Follower.Apub.PreferredInbox(),
+		}); err != nil {
+			return fmt.Errorf("failed to queue undo activity: %w", err)
+		}
 	}
 
 	return nil
@@ -236,16 +368,28 @@ func (s *State) AcceptFollow(
 		return ErrCannotFollowBlock
 	}
 
-	result := s.DB(ctx).Model(&db.UserFollow{}).Where(
-		"follower_id = ? AND followed_id = ? AND pending = true",
+	// get follow
+	var follow models.UserFollow
+	if err := s.DB(ctx).Where(
+		"follower_id = ? AND followed_id = ?",
 		accepteeID, acceptorID,
-	).Update("pending", false)
-	if result.Error != nil {
-		return NewInternalServerErrorWithCause("failed to accept follow", err)
+	).Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).First(&follow).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// follow does not exist
+			return nil
+		}
+		return fmt.Errorf("failed to find follow: %w", err)
 	}
-	if result.RowsAffected == 0 {
-		// follow does not exist or is not pending
+
+	// check if follow is pending
+	if !follow.Pending {
 		return nil
+	}
+
+	// update follow to accepted
+	follow.Pending = false
+	if err := s.DB(ctx).Save(&follow).Error; err != nil {
+		return fmt.Errorf("failed to update follow: %w", err)
 	}
 
 	// send notification if acceptee is local
@@ -260,6 +404,17 @@ func (s *State) AcceptFollow(
 
 	if acceptorUser.IsLocal() && accepteeUser.IsRemote() {
 		// TODO: send apub Accept(Follow)
+		followID := s.urlForLocalFollowAccept(follow.ID)
+		follow, err := s.createRemoteFollowObject(ctx, follow.URL.String, acceptorID, accepteeID)
+		if err != nil {
+			return fmt.Errorf("failed to create follow activity: %w", err)
+		}
+		acceptActivity := apub.NewAcceptActivityWithID(followID, follow.Followee.Apub.URL, follow.Activity.(apub.FollowActivity).AsAcceptable())
+		if err := s.delivery.QueueActivity(ctx, acceptActivity, follow.Followee, []string{
+			follow.Follower.Apub.PreferredInbox(),
+		}); err != nil {
+			return fmt.Errorf("failed to queue undo activity: %w", err)
+		}
 	}
 
 	return nil
@@ -273,7 +428,7 @@ func (s *State) GetFollowState(
 		return types.FollowStateNo, ErrCannotFollowSelf
 	}
 
-	var follow db.UserFollow
+	var follow models.UserFollow
 	if err := s.DB(ctx).Where(
 		"follower_id = ? AND followed_id = ?",
 		followerID, followeeID,
@@ -297,8 +452,8 @@ func (s *State) GetUserFollowingList(
 	limit int,
 	page int,
 ) ([]types.SimpleUser, error) {
-	var follows []db.ActualUserFollow
-	if err := s.DB(ctx).Model(&db.ActualUserFollow{}).Where(
+	var follows []models.ActualUserFollow
+	if err := s.DB(ctx).Model(&models.ActualUserFollow{}).Where(
 		"follower_id = ?", userID,
 	).Order("created_at DESC").Joins("Followed").Limit(limit).Offset(limit * page).Find(&follows).Error; err != nil {
 		return nil, err
@@ -318,8 +473,8 @@ func (s *State) GetUserFollowersList(
 	limit int,
 	page int,
 ) ([]types.SimpleUser, error) {
-	var follows []db.ActualUserFollow
-	if err := s.DB(ctx).Model(&db.ActualUserFollow{}).Where(
+	var follows []models.ActualUserFollow
+	if err := s.DB(ctx).Model(&models.ActualUserFollow{}).Where(
 		"followed_id = ?", userID,
 	).Order("created_at DESC").Joins("Follower").Limit(limit).Offset(limit * page).Find(&follows).Error; err != nil {
 		return nil, err

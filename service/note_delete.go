@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -36,7 +36,7 @@ var (
 
 func (s *State) DeleteNoteByID(ctx context.Context, userID types.UserID, noteID types.NoteID) error {
 	err := s.WithTransaction(func(tx *State) error {
-		var note db.Note
+		var note models.Note
 		if err := tx.DB(ctx).Where("id = ? AND author_id = ? AND deleted_at IS NULL", noteID, userID).Clauses(
 			clause.Locking{Strength: "UPDATE"},
 		).First(&note).Error; err != nil {
@@ -46,7 +46,7 @@ func (s *State) DeleteNoteByID(ctx context.Context, userID types.UserID, noteID 
 			return err
 		}
 
-		if err := tx.DB(ctx).Where("id = ?", note.ID).Model(&db.Note{}).Update("deleted_at", time.Now()).Error; err != nil {
+		if err := tx.DB(ctx).Where("id = ?", note.ID).Model(&models.Note{}).Update("deleted_at", time.Now()).Error; err != nil {
 			return err
 		}
 
@@ -63,7 +63,7 @@ func (s *State) DeleteNoteByID(ctx context.Context, userID types.UserID, noteID 
 
 func (s *State) DeleteRenote(ctx context.Context, userID types.UserID, renoteTargetID types.NoteID) error {
 	err := s.WithTransaction(func(tx *State) error {
-		var renote db.Note
+		var renote models.Note
 		if err := tx.DB(ctx).Where("renote_of_id = ? AND author_id = ? AND content IS NULL", renoteTargetID, userID).Clauses(
 			clause.Locking{Strength: "UPDATE"},
 		).First(&renote).Error; err != nil {

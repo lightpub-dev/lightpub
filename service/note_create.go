@@ -25,7 +25,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lightpub-dev/lightpub/db"
+	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/service/notification"
 	"github.com/lightpub-dev/lightpub/types"
 	"gorm.io/gorm"
@@ -107,7 +107,7 @@ func (s *State) UpsertNote(
 
 		if updatedNote == nil {
 			// new note (local or remote)
-			updatedNote = &db.Note{
+			updatedNote = &models.Note{
 				ID: types.NewNoteID(),
 			}
 			if upsertTarget != nil && upsertTarget.noteURL != nil {
@@ -151,7 +151,7 @@ func (s *State) UpsertNote(
 		}
 
 		// Update hashtags
-		if err := tx.DB(ctx).Where("note_id = ?", updatedNote.ID).Delete(&db.NoteTag{}).Error; err != nil {
+		if err := tx.DB(ctx).Where("note_id = ?", updatedNote.ID).Delete(&models.NoteTag{}).Error; err != nil {
 			return err
 		}
 		for _, hashtag := range hashtags {
@@ -159,7 +159,7 @@ func (s *State) UpsertNote(
 			if err != nil {
 				return err
 			}
-			if err := tx.DB(ctx).Create(&db.NoteTag{
+			if err := tx.DB(ctx).Create(&models.NoteTag{
 				NoteID: updatedNote.ID,
 				TagID:  tagID,
 			}).Error; err != nil {
@@ -168,11 +168,11 @@ func (s *State) UpsertNote(
 		}
 
 		// Update mentions
-		if err := tx.DB(ctx).Where("note_id = ?", updatedNote.ID).Delete(&db.NoteMention{}).Error; err != nil {
+		if err := tx.DB(ctx).Where("note_id = ?", updatedNote.ID).Delete(&models.NoteMention{}).Error; err != nil {
 			return err
 		}
 		for _, mention := range mentions {
-			if err := tx.DB(ctx).Create(&db.NoteMention{
+			if err := tx.DB(ctx).Create(&models.NoteMention{
 				NoteID:       updatedNote.ID,
 				TargetUserID: mention,
 			}).Error; err != nil {
@@ -183,7 +183,7 @@ func (s *State) UpsertNote(
 		// Insert uploads
 		if !isUpdate {
 			for _, uploadID := range params.Uploads {
-				if err := tx.DB(ctx).Create(&db.NoteUpload{
+				if err := tx.DB(ctx).Create(&models.NoteUpload{
 					NoteID:   updatedNote.ID,
 					UploadID: uploadID,
 				}).Error; err != nil {
@@ -244,7 +244,7 @@ func (s *State) UpsertNote(
 	return upsertedNoteID, nil
 }
 
-func setNoteModelForUpsert(model *db.Note, author types.UserID, url *string, params CreateNoteParams, isUpdate bool) {
+func setNoteModelForUpsert(model *models.Note, author types.UserID, url *string, params CreateNoteParams, isUpdate bool) {
 	model.URL = stringPtrToSql(url)
 	model.ViewURL = stringPtrToSql(params.ViewURL)
 	model.AuthorID = author
@@ -269,7 +269,7 @@ func setNoteModelForUpsert(model *db.Note, author types.UserID, url *string, par
 
 	if !isUpdate {
 		// Non-updatable fields
-		model.Visibility = string(*params.Visibility)
+		model.Visibility = *params.Visibility
 		model.ReplyToID = params.ReplyToID
 		model.Sensitive = params.Sensitive
 	}
@@ -281,11 +281,11 @@ func setNoteModelForUpsert(model *db.Note, author types.UserID, url *string, par
 }
 
 func (s *State) getOrCreateTagID(ctx context.Context, name string) (int, error) {
-	var tag db.Tag
+	var tag models.Tag
 	if err := s.DB(ctx).Where("name = ?", name).First(&tag).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// create new tag
-			tag = db.Tag{
+			tag = models.Tag{
 				Name: name,
 			}
 			if err := s.DB(ctx).Create(&tag).Error; err != nil {
@@ -325,7 +325,7 @@ func (s *State) findMentionsInNoteContent(ctx context.Context, content types.Not
 	}
 }
 
-func (s *State) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarget) (*db.Note, error) {
+func (s *State) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarget) (*models.Note, error) {
 	if upsertTarget == nil {
 		// new local note
 		return nil, nil
@@ -337,7 +337,7 @@ func (s *State) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarge
 	// 3. not a renote
 
 	if upsertTarget.noteID != nil {
-		var note db.Note
+		var note models.Note
 		if err := s.DB(ctx).WithContext(ctx).Where("id = ? AND deleted_at IS NULL AND renote_of_id IS NULL", upsertTarget.noteID).First(&note).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, ErrUpdateTargetNoteNotFound
@@ -349,7 +349,7 @@ func (s *State) findNoteForUpsert(ctx context.Context, upsertTarget *UpsertTarge
 	}
 
 	if upsertTarget.noteURL != nil {
-		var note db.Note
+		var note models.Note
 		if err := s.DB(ctx).WithContext(ctx).Where("url = ? AND deleted_at IS NULL AND renote_of_id IS NULL", upsertTarget.noteURL).First(&note).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// new remote note
@@ -380,7 +380,7 @@ func (s *State) CreateRenote(ctx context.Context, authorID types.UserID, targetN
 	}
 
 	// check if author has already renoted the target note
-	var existingRenote db.Note
+	var existingRenote models.Note
 	err = s.DB(ctx).Where("author_id = ? AND renote_of_id = ?", authorID, targetNoteID).First(&existingRenote).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return types.NoteID{}, err
@@ -405,11 +405,11 @@ func (s *State) CreateRenote(ctx context.Context, authorID types.UserID, targetN
 
 	renoteID := types.NewNoteID()
 	now := time.Now()
-	err = s.DB(ctx).Create(&db.Note{
+	err = s.DB(ctx).Create(&models.Note{
 		ID:         renoteID,
 		AuthorID:   authorID,
 		CreatedAt:  now,
-		Visibility: string(visibility),
+		Visibility: visibility,
 		RenoteOfID: &targetNoteID,
 	}).Error
 	if err != nil {
