@@ -65,9 +65,16 @@ type DatabaseConfig struct {
 
 func NewStateFromConfig(config Config) *State {
 	db := dbConnect(config.Database)
+
+	baseURL, err := url.Parse(config.BaseURL)
+	if err != nil {
+		panic(fmt.Errorf("failed to parse base URL: %w", err))
+	}
+
 	return &State{
 		db:                db,
 		uploadFetchClient: resty.New(),
+		delivery:          apub.NewRequester(baseURL, config.DevMode),
 		baseURL:           config.BaseURL,
 		uploadDir:         config.UploadDir,
 		devMode:           config.DevMode,

@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -126,7 +127,8 @@ func (s *Requester) FetchRemoteUserBySpecifier(ctx context.Context, specifier *t
 		// use webfinger to get URL
 		userURL, err := s.fetchUserURLByWebfinger(ctx, specifier.Username.Username, specifier.Username.Domain)
 		if err != nil {
-			return nil, failure.NewErrorWithCause(http.StatusNotFound, "failed to fetch remote user", err)
+			slog.DebugContext(ctx, "failed to fetch user URL by webfinger", "username", specifier.Username.Username, "domain", specifier.Username.Domain, "error", err)
+			return nil, failure.NewErrorWithCause(http.StatusNotFound, "webfinger error", err)
 		}
 		return s.fetchRemoteUser(ctx, userURL)
 	case types.UserSpecifierURL:

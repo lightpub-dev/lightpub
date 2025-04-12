@@ -71,6 +71,11 @@ func (s *State) upsertActorInTx(ctx context.Context, actor *apub.User) (types.Us
 		}
 	}
 
+	// assign a new user ID if not found
+	if !found {
+		user.ID = types.NewUserID()
+	}
+
 	// update user model
 	isUpdate := found
 	if err := setDBUserFromActor(actor, &user, isUpdate); err != nil {

@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -37,9 +38,14 @@ type Requester struct {
 	baseURL *url.URL
 }
 
-func NewRequester(baseURL *url.URL) *Requester {
+func NewRequester(baseURL *url.URL, devMode bool) *Requester {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: devMode},
+	}
+	client := &http.Client{Transport: tr}
+
 	return &Requester{
-		client:  http.DefaultClient,
+		client:  client,
 		baseURL: baseURL,
 	}
 }

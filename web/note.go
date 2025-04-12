@@ -216,7 +216,7 @@ func (s *State) CreateNote(c echo.Context) error {
 		if !ok {
 			return failure.NewError(http.StatusBadRequest, "bad mention: "+mention)
 		}
-		mentionUserID, err := s.service.FindLocalUserIDBySpecifier(c.Request().Context(), specifier)
+		mentionUserID, err := s.service.FindUserIDBySpecifierWithRemote(c.Request().Context(), specifier)
 		if err != nil {
 			return err
 		}

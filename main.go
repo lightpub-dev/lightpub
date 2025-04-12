@@ -38,10 +38,23 @@ var (
 func main() {
 	flag.Parse()
 
+	s, err := web.NewStateFromConfigFile(*configFileFlag)
+	if err != nil {
+		log.Fatalf("Failed to create state: %v", err)
+	}
+
+	var slogLevel slog.Level
+	if s.DevMode() {
+		slogLevel = slog.LevelDebug
+	} else {
+		slogLevel = slog.LevelInfo
+	}
 	slog.SetDefault(
 		slog.New(slog.NewTextHandler(
 			os.Stderr,
-			&slog.HandlerOptions{},
+			&slog.HandlerOptions{
+				Level: slogLevel,
+			},
 		)),
 	)
 
@@ -55,13 +68,14 @@ func main() {
 	e.Use(etag.Etag())
 
 	e.Renderer = web.TemplateRenderer
-	e.Logger.SetLevel(log.DEBUG)
 
-	s, err := web.NewStateFromConfigFile(*configFileFlag)
-	if err != nil {
-		e.Logger.Fatalf("Failed to create state: %v", err)
-	}
 	e.Debug = s.DevMode()
+
+	if s.DevMode() {
+		e.Logger.SetLevel(log.DEBUG)
+	} else {
+		e.Logger.SetLevel(log.INFO)
+	}
 
 	authRequired := s.MakeJwtAuthMiddleware(false)
 	authOptional := s.MakeJwtAuthMiddleware(true)
