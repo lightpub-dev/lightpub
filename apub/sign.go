@@ -35,7 +35,7 @@ func signRequest(privateKey crypto.PrivateKey, pubKeyId string, r *http.Request,
 	prefs := []httpsig.Algorithm{httpsig.RSA_SHA512, httpsig.RSA_SHA256}
 	digestAlgorithm := httpsig.DigestSha256
 	// The "Date" and "Digest" headers must already be set on r, as well as r.URL.
-	headersToSign := []string{httpsig.RequestTarget, "date", "digest"}
+	headersToSign := []string{httpsig.RequestTarget, "date", "digest", "host", "content-type"}
 	signer, _, err := httpsig.NewSigner(prefs, digestAlgorithm, headersToSign, httpsig.Signature, signatureExpiration)
 	if err != nil {
 		return err

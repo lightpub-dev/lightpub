@@ -239,7 +239,9 @@ func (s *State) UpsertNote(
 		}
 	}
 
-	// TODO: apub federation
+	if err := s.publishNoteToApub(ctx, upsertedNoteID); err != nil {
+		slog.WarnContext(ctx, "failed to publish note to apub", "noteID", upsertedNoteID, "err", err)
+	}
 
 	return upsertedNoteID, nil
 }

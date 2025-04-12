@@ -76,13 +76,13 @@ func (s *State) CreateNewLocalUser(ctx context.Context, user UserCreateParams) (
 
 	publicKeyPem := pem.EncodeToMemory(
 		&pem.Block{
-			Type:  "RSA PUBLIC KEY",
+			Type:  "PUBLIC KEY",
 			Bytes: publicKeyBin,
 		},
 	)
 	privateKeyPem := pem.EncodeToMemory(
 		&pem.Block{
-			Type:  "RSA PRIVATE KEY",
+			Type:  "PRIVATE KEY",
 			Bytes: privateKeyBin,
 		},
 	)

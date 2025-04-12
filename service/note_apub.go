@@ -38,7 +38,7 @@ type calculateToAndCcResult struct {
 func (s *State) calculateToAndCc(ctx context.Context, noteID types.NoteID, needInboxes bool) (calculateToAndCcResult, error) {
 	// Fetch info from DB
 	var note models.Note
-	if err := s.DB(ctx).Unscoped().Where("id = ? AND deleted_at IS NULL AND content IS NOT NULL", noteID).Joins("Author").First(&note).Error; err != nil {
+	if err := s.DB(ctx).Unscoped().Where("notes.id = ? AND notes.deleted_at IS NULL AND notes.content IS NOT NULL", noteID).Joins("Author").First(&note).Error; err != nil {
 		return calculateToAndCcResult{}, err
 	}
 
@@ -133,28 +133,40 @@ func (s *State) calculateToAndCc(ctx context.Context, noteID types.NoteID, needI
 }
 
 func (s *State) publishNoteToApub(ctx context.Context, noteID types.NoteID) error {
-	note, err := s.findApubNoteByID(ctx, noteID)
+	note, err := s.findApubNoteByIDWithDeleted(ctx, noteID)
 	if err != nil {
-		return fmt.Errorf("failed to find note: %w", err)
+		return fmt.Errorf("failed to fine note: %w", err)
 	}
 	if note == nil {
-		return fmt.Errorf("note not found or deleted: %s", noteID)
+		return fmt.Errorf("delivery target note not found")
 	}
 
-	noteObject := apub.NewNoteObject(note)
-	createActivity := apub.NewCreateActivity(noteObject.AsCreatableObject())
-
-	apubAuthor, err := s.FindApubUserByID(ctx, note.Basic.Author.ID)
+	noteAuthor, err := s.FindApubUserByID(ctx, note.Data.Basic.Author.ID)
 	if err != nil {
-		return fmt.Errorf("failed to find author: %w", err)
+		return fmt.Errorf("failed to find note author: %w", err)
 	}
-	if apubAuthor == nil {
-		return fmt.Errorf("author not found: %s", note.Basic.Author.ID)
-	}
-
-	if err := s.delivery.QueueActivity(ctx, createActivity, apubAuthor.Apub, note.Apub.Inboxes); err != nil {
-		return fmt.Errorf("failed to queue activity: %w", err)
+	if noteAuthor == nil {
+		return fmt.Errorf("note author not found for note: %s", note.Data.Basic.ID)
 	}
 
-	return nil
+	// check if deleted
+	if note.Deleted {
+		// TODO: deliver Tombstone
+		return nil
+	}
+
+	noteObject := apub.NewNoteObject(&note.Data)
+
+	// CREATE or UPDATE
+	var activity any
+	if noteObject.Updated == nil {
+		create := apub.NewCreateActivity(noteObject.AsCreatableObject())
+		activity = create
+	} else {
+		update := apub.NewUpdateActivity(noteObject.AsUpdatableObject())
+		activity = update
+	}
+
+	withContext := apub.WithContext(activity)
+	return s.delivery.QueueActivity(ctx, withContext, noteAuthor, note.Data.Apub.Inboxes)
 }

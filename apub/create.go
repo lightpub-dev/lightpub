@@ -222,3 +222,10 @@ func (n *NoteObject) AsCreatableObject() CreatableObject {
 		NoteObject: n,
 	}
 }
+
+func (n *NoteObject) AsUpdatableObject() UpdatableObject {
+	return UpdatableObject{
+		Kind:       UpdatableObjectTypeNote,
+		NoteObject: n,
+	}
+}

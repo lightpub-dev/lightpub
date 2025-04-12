@@ -31,7 +31,7 @@ func encodePublicKey(key crypto.PublicKey) (string, error) {
 		return "", fmt.Errorf("failed to marshal public key: %w", err)
 	}
 	encoded := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PUBLIC KEY",
+		Type:  "PUBLIC KEY",
 		Bytes: bin,
 	})
 	return string(encoded), nil

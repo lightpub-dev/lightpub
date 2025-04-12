@@ -30,6 +30,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 type Requester struct {
@@ -59,18 +60,27 @@ func (s *Requester) queueActivityInternal(ctx context.Context, q queuedActivity)
 	// TODO: execute immediately for now
 
 	send := func() error {
+		sendCtx := context.Background()
 		privateKey, err := q.Signer.PrivateKeyObject()
 		if err != nil {
 			return fmt.Errorf("failed to get private key object: %w", err)
 		}
 
+		targetURL, err := url.Parse(q.Inbox)
+		if err != nil {
+			return fmt.Errorf("failed to parse inbox URL: %w", err)
+		}
+		targetHost := targetURL.Host
+
 		body := bytes.NewBufferString(q.Activity)
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, q.Inbox, body)
+		req, err := http.NewRequestWithContext(sendCtx, http.MethodPost, q.Inbox, body)
 		if err != nil {
 			return fmt.Errorf("failed to construct request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/activity+json")
 		req.Header.Set("Accept", "application/activity+json")
+		req.Header.Set("Date", time.Now().Format(http.TimeFormat))
+		req.Header.Set("Host", targetHost)
 		signRequest(privateKey, q.Signer.KeyID, req, body.Bytes())
 
 		resp, err := s.client.Do(req)
@@ -82,6 +92,7 @@ func (s *Requester) queueActivityInternal(ctx context.Context, q queuedActivity)
 		if !success {
 			return fmt.Errorf("send activity returned error: (%d) %s", resp.StatusCode, resp.Status)
 		}
+		slog.DebugContext(sendCtx, "activity sent", "inbox", q.Inbox, "signer", q.Signer.ID)
 
 		return nil
 	}
@@ -132,7 +143,7 @@ func newMinimalSignerFromActor(actor Actor) (minimalSigner, error) {
 		return minimalSigner{}, fmt.Errorf("failed to serialize private key: %w", err)
 	}
 	privateKeyStr := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
+		Type:  "PRIVATE KEY",
 		Bytes: privateKeyPem,
 	})
 
@@ -145,7 +156,7 @@ func newMinimalSignerFromActor(actor Actor) (minimalSigner, error) {
 		return minimalSigner{}, fmt.Errorf("failed to serialize public key: %w", err)
 	}
 	publicKeyStr := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PUBLIC KEY",
+		Type:  "PUBLIC KEY",
 		Bytes: publicKeyPem,
 	})
 

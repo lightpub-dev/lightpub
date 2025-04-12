@@ -23,7 +23,6 @@ import (
 
 	"github.com/lightpub-dev/lightpub/models"
 	"github.com/lightpub-dev/lightpub/types"
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -195,14 +194,14 @@ func (s *State) NoteBookmarkRemove(
 }
 
 func (s *State) checkNoteReacted(ctx context.Context, noteID types.NoteID, userID types.UserID) (*string, error) {
-	var reaction models.NoteReaction
-	if err := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).First(&reaction).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
+	var reaction []models.NoteReaction
+	if err := s.DB(ctx).Where("note_id = ? AND user_id = ?", noteID, userID).Limit(1).Find(&reaction).Error; err != nil {
 		return nil, err
 	}
-	return &reaction.Reaction, nil
+	if len(reaction) == 0 {
+		return nil, nil
+	}
+	return &reaction[0].Reaction, nil
 }
 
 func (s *State) checkNoteBookmarked(ctx context.Context, noteID types.NoteID, userID types.UserID) (bool, error) {
