@@ -37,3 +37,11 @@ services:
     networks:
       - internal_network
       - external_network
+
+  lightpub_typesense:
+    container_name: lightpub_typesense
+    profiles:
+      - lightpub
+    networks:
+      - internal_network
+      - external_network
