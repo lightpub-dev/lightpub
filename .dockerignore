@@ -1,4 +1,11 @@
-/target
+.idea/
+.vscode/
+/coverage/
+/vendor/
+/logs/*
+!/logs/README.md
+.phpunit.result.cache
+
 /data
 /uploads
 /loader
