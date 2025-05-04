@@ -29,6 +29,7 @@ mod m20250225_173949_blocking;
 mod m20250310_160527_apub_error_report;
 mod m20250316_060953_timeline_procedure;
 mod m20250319_015119_push_notification;
+mod m20250504_005109_totp;
 
 pub struct Migrator;
 
@@ -64,6 +65,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250310_160527_apub_error_report::Migration),
             Box::new(m20250316_060953_timeline_procedure::Migration),
             Box::new(m20250319_015119_push_notification::Migration),
+            Box::new(m20250504_005109_totp::Migration),
         ]
     }
 }
