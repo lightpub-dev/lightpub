@@ -24,14 +24,15 @@
     "require": {
         "php": "^8.2",
         "ext-json": "*",
+        "doctrine/dbal": "^4",
+        "doctrine/orm": "^3",
         "landrok/activitypub": "^0.7.2",
         "monolog/monolog": "^2.8",
         "php-di/php-di": "^6.4",
         "slim/psr7": "^1.5",
         "slim/slim": "^4.10",
-        "doctrine/orm": "^3",
-        "doctrine/dbal": "^4",
-        "symfony/cache": "^7"
+        "symfony/cache": "^7",
+        "symfony/uid": "^7.2"
     },
     "require-dev": {
         "jangregor/phpstan-prophecy": "^1.0.0",
