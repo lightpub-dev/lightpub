@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/static/css/totp_setup.css" />
+    <title>TOTP Setup</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>TOTP Setup</h1>
+      <p>Scan the QR code with your TOTP app</p>
+      <div class="qr-code">
+        <!-- Replace with actual QR code image -->
+        <img src="data:image/svg+xml;base64,..." alt="QR Code" />
+      </div>
+      <p>Enter the code from your TOTP app to test:</p>
+      <input type="text" id="totp-code" placeholder="Enter TOTP code" />
+      <button onclick="verifyCode()">Verify Code</button>
+    </div>
+    <script src="/static/js/totp_setup.js"></script>
+  </body>
+</html>

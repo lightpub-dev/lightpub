@@ -48,6 +48,7 @@ mod block;
 mod follow;
 mod profile;
 mod specifier;
+mod totp;
 
 pub use apub::{
     ApubUserEndpointsModel, ApubUserIconModel, ApubUserKind, ApubUserModel, UserApubData,

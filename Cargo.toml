@@ -88,6 +88,7 @@ futures-util = { workspace = true }
 tokio-util = { workspace = true }
 web-push = { workspace = true }
 http = { workspace = true }
+totp-rs = { workspace = true }
 
 [workspace.dependencies]
 redis = { version = "0.28.2", features = [
@@ -101,3 +102,4 @@ futures-util = "0.3.31"
 tokio-util = "0.7.13"
 web-push = "0.11.0"
 http = "1.3.1"
+totp-rs = { version = "^5.0", features = ["gen_secret", "qr", "otpauth"] }

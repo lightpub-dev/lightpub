@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 use actix_web::{get, http::StatusCode, web, Responder};
 use url::Url;
 
+use crate::api::auth::middleware_auth_jwt_required;
 use crate::{
     api::auth::AuthedUser,
     template::{
@@ -174,19 +175,19 @@ pub async fn client_get_profile(
 #[get(
     "/user/{user_spec}/edit",
     wrap = "from_fn(middleware_redirect_login)",
-    wrap = "from_fn(middleware_auth_jwt_optional)"
+    wrap = "from_fn(middleware_auth_jwt_required)"
 )]
 pub async fn client_edit_profile_get(
     st: web::Data<AppState>,
     user_spec: web::Path<String>,
     auth: web::ReqData<AuthedUser>,
 ) -> ServiceResult<impl Responder> {
-    let viewer_id = auth.user_id();
+    let viewer_id = auth.user_id_unwrap();
     let data = st.request_data();
     let profile = get_user_profile(
         &st.maybe_conn(),
         &st.rconn(),
-        viewer_id,
+        Some(viewer_id),
         &st.my_domain(),
         &parse_user_spec(&user_spec.into_inner(), &st.my_domain())?,
         &data,
@@ -197,6 +198,10 @@ pub async fn client_edit_profile_get(
         Some(p) => p,
         None => return create_error_simple(StatusCode::NOT_FOUND, "user not found"),
     };
+
+    if profile.basic.id != viewer_id {
+        return create_error_simple(StatusCode::FORBIDDEN, "not your account");
+    }
 
     let edit_data = Template::ProfileEdit(ProfileEdit {
         user: ProfileEditUser {
@@ -259,4 +264,18 @@ pub async fn client_user_followers_list(
             url: format!("/user/{}/followers", user_id),
         }),
     )
+}
+
+#[get(
+    "/config/totp/setup",
+    wrap = "from_fn(middleware_redirect_login)",
+    wrap = "from_fn(middleware_auth_jwt_required)"
+)]
+pub async fn client_user_totp_setup(
+    st: web::Data<AppState>,
+    auth: web::ReqData<AuthedUser>,
+) -> ServiceResult<impl Responder> {
+    let viewer_id = auth.user_id_unwrap();
+
+    render_template(st.template(), &Template::TotpSetup(()))
 }

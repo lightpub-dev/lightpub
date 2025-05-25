@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the tools you specified
-RUN cargo install just sea-orm-cli
+RUN cargo install sea-orm-cli
 
 RUN rustup component add rustfmt clippy
 

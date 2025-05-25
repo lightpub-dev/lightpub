@@ -2,6 +2,6 @@
 
 ## Development
 
-Install necessary cli tools: cargo install just sea-orm-cli
+Install necessary cli tools: cargo install sea-orm-cli
 
-`just dev` to start the development server.
+`make dev` to start the development server.

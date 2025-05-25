@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TOTP Confirmation</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>TOTP Confirmation</h1>
+      <p>Enter the code from your TOTP app:</p>
+      <input type="text" id="totp-code" placeholder="Enter TOTP code" />
+      <button onclick="confirmCode()">Confirm Code</button>
+    </div>
+
+    <script>
+      function confirmCode() {
+        const code = document.getElementById("totp-code").value;
+        // Add confirmation logic here
+        alert(`Code entered: ${code}`);
+      }
+    </script>
+  </body>
+</html>

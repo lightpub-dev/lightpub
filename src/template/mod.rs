@@ -26,6 +26,9 @@ pub enum Template {
     Search(()),
     Timeline(Timeline),
     UserList(UserList),
+    TotpSetup(()),
+    TotpCompleted(()),
+    TotpConfirm(()),
 
     PartsCreateNote(PartsCreateNote),
     PartsEditNote(PartsEditNote),
@@ -59,6 +62,9 @@ impl Template {
             Search(_) => "search",
             Timeline(_) => "timeline",
             UserList(_) => "user_list",
+            TotpSetup(_) => "totp_setup",
+            TotpCompleted(_) => "totp_completed",
+            TotpConfirm(_) => "totp_confirm",
 
             PartsCreateNote(_) => "parts/create_note",
             PartsEditNote(_) => "parts/edit_note",
@@ -91,6 +97,9 @@ impl Template {
             Template::Search(s) => Self::process(s),
             Template::Timeline(s) => Self::process(s),
             Template::UserList(s) => Self::process(s),
+            Template::TotpSetup(s) => Self::process(s),
+            Template::TotpCompleted(s) => Self::process(s),
+            Template::TotpConfirm(s) => Self::process(s),
 
             Template::PartsCreateNote(s) => Self::process(s),
             Template::PartsEditNote(s) => Self::process(s),
