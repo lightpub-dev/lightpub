@@ -438,6 +438,14 @@ pub enum PartsNotifyListEntry {
     Replied(NotifyRepliedBody),
 }
 
+nest! {
+    #[derive(Debug, Clone, Serialize)]*
+    #[serde(rename_all = "camelCase")]*
+    pub struct TotpSetup {
+        pub qr_base64: String,
+    }
+}
+
 pub fn render_template(
     template: &Handlebars<'_>,
     template_target: &Template,

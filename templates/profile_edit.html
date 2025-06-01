@@ -102,6 +102,9 @@
     </form>
     <div>
       <h1>アカウント管理</h1>
+      <form action="/client/config/totp/setup" method="POST">
+        <button class="btn btn-secondary">TOTP設定</button>
+      </form>
       <button
         class="btn btn-danger"
         hx-post="/auth/logout?all=true"

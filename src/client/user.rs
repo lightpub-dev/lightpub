@@ -16,7 +16,9 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use actix_web::post;
 use actix_web::{get, http::StatusCode, web, Responder};
+use lightpub_service::services::user::setup_user_totp;
 use url::Url;
 
 use crate::api::auth::middleware_auth_jwt_required;
@@ -266,7 +268,7 @@ pub async fn client_user_followers_list(
     )
 }
 
-#[get(
+#[post(
     "/config/totp/setup",
     wrap = "from_fn(middleware_redirect_login)",
     wrap = "from_fn(middleware_auth_jwt_required)"
@@ -276,6 +278,8 @@ pub async fn client_user_totp_setup(
     auth: web::ReqData<AuthedUser>,
 ) -> ServiceResult<impl Responder> {
     let viewer_id = auth.user_id_unwrap();
+
+    let totp = setup_user_totp(&st.maybe_conn(), &st.rconn(), viewer_id, &st.my_domain()).await?;
 
     render_template(st.template(), &Template::TotpSetup(()))
 }
