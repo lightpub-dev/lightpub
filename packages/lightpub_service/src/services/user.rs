@@ -513,16 +513,6 @@ async fn get_follower_inboxes(conn: &MaybeTxConn, user_id: UserID) -> ServiceRes
     Ok(inboxes)
 }
 
-pub async fn get_total_users_count(tx: &MaybeTxConn) -> ServiceResult<u64> {
-    let count = entity::user::Entity::find()
-        .filter(entity::user::Column::Domain.eq(""))
-        .count(tx)
-        .await
-        .map_err_unknown()?;
-
-    Ok(count)
-}
-
 pub async fn is_admin(tx: &MaybeTxConn, user_id: UserID) -> ServiceResult<bool> {
     let user = entity::user::Entity::find_by_id(user_id.as_db())
         .one(tx)

@@ -8,6 +8,7 @@ use crate::{
 
 pub trait UserRepository {
     async fn get_user_by_id(&self, user_id: UserID) -> ServiceResult<Option<UserEntity>>;
+    async fn get_total_users_count(&self) -> ServiceResult<u64>;
 }
 
 pub trait ApubActorRepository {

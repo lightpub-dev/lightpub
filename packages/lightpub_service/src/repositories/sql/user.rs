@@ -1,5 +1,3 @@
-use sea_orm::EntityTrait;
-
 use crate::{
     ServiceResult,
     domain::models::{
@@ -7,8 +5,10 @@ use crate::{
         user::{Domain, Nickname, UserConfig, UserEntity, UserID, UserProfile, Username},
     },
     repositories::{sql::LpKvConn, user::UserRepository},
-    services::ServiceError,
+    services::{MapToUnknown, ServiceError},
 };
+use sea_orm::{ColumnTrait, PaginatorTrait};
+use sea_orm::{EntityTrait, QueryFilter};
 
 use super::LpDbConn;
 
@@ -50,11 +50,25 @@ impl UserRepository for SqlUserRepository {
                 user.fetched_at.map(|d| d.and_utc()),
                 user.created_at.map(|d| d.and_utc()),
             ),
-            UserConfig::new(user.is_bot != 0, user.auto_follow_accept != 0),
+            UserConfig::new(
+                user.is_bot != 0,
+                user.is_admin != 0,
+                user.auto_follow_accept != 0,
+            ),
         );
 
         self.kv.set(format!("user:{user_id}"), &model).await?;
 
         Ok(Some(model))
+    }
+
+    async fn get_total_users_count(&self) -> ServiceResult<u64> {
+        let count = entity::user::Entity::find()
+            .filter(entity::user::Column::Domain.eq(""))
+            .count(self.db.db())
+            .await
+            .map_err_unknown()?;
+
+        Ok(count)
     }
 }

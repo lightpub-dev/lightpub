@@ -64,6 +64,7 @@ pub struct UserProfile {
 #[derive(Debug, Getters, Serialize, Deserialize, Constructor)]
 pub struct UserConfig {
     is_bot: bool,
+    is_admin: bool,
     auto_follow_accept: bool,
 }
 
