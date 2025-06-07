@@ -25,6 +25,8 @@ use services::{
 };
 use url::Url;
 
+pub mod domain;
+pub mod repositories;
 pub mod services;
 pub mod utils;
 

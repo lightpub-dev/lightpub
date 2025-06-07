@@ -1,25 +1,59 @@
-use async_trait::async_trait;
+use redis::AsyncCommands;
+use sea_orm::DatabaseConnection;
 use serde::{Serialize, de::DeserializeOwned};
-use std::sync::Arc;
 use tracing::error;
 
-use super::{MapToUnknown, ServiceResult};
+use crate::{ServiceResult, services::MapToUnknown};
 
-pub type KVObject = Arc<dyn KV + Send + Sync>;
+pub mod user;
 
-#[async_trait]
-pub trait KV {
-    async fn get_raw(&self, key: &str) -> ServiceResult<Option<Vec<u8>>>;
+#[derive(Debug, Clone)]
+pub struct LpDbConn {
+    db: DatabaseConnection,
+}
+
+impl LpDbConn {
+    pub fn db(&self) -> &DatabaseConnection {
+        &self.db
+    }
+}
+
+#[derive(Clone)]
+pub struct LpKvConn {
+    conn: redis::aio::ConnectionManager,
+}
+
+impl std::fmt::Debug for LpKvConn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LpKvConn").finish_non_exhaustive()
+    }
+}
+
+impl LpKvConn {
+    async fn get_raw(&self, key: &str) -> ServiceResult<Option<Vec<u8>>> {
+        let mut c = self.conn.clone();
+        c.get(key).await.map_err_unknown()
+    }
+
     async fn set_raw(
         &self,
         key: &str,
         value: &[u8],
         ttl: Option<std::time::Duration>,
-    ) -> ServiceResult<()>;
-    async fn delete_(&self, key: &str) -> ServiceResult<()>;
-}
+    ) -> ServiceResult<()> {
+        let mut c = self.conn.clone();
+        if let Some(ttl) = ttl {
+            c.set_ex(key, value, ttl.as_secs()).await.map_err_unknown()
+        } else {
+            c.set(key, value).await.map_err_unknown()
+        }
+    }
 
-impl dyn KV + Send + Sync {
+    async fn delete_(&self, key: &str) -> ServiceResult<()> {
+        let mut c = self.conn.clone();
+        c.del(key).await.map_err_unknown()
+    }
+
     pub async fn get<V: DeserializeOwned>(&self, key: impl AsRef<str>) -> ServiceResult<Option<V>> {
         let key = key.as_ref();
         let bytes = self.get_raw(key).await?;

@@ -42,56 +42,12 @@ pub trait Identifier: Display + FromStr {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Display, Hash, Copy)]
-pub struct UserID(Ulid);
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Display, Hash, Copy)]
 pub struct NoteID(Ulid);
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq, Display, Hash, Copy)]
-pub struct UploadID(UuidSimple);
 
 /// 通知ID
 /// 連番なので、DB 内で生成する必要がある。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Display, Hash)]
 pub struct NotificationID(i32);
-
-impl<'de> Deserialize<'de> for UploadID {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s: uuid::Uuid = Deserialize::deserialize(deserializer)?;
-        Ok(Self(UuidSimple::from_uuid(s)))
-    }
-}
-
-#[derive(Debug, Clone, Error)]
-pub enum IdParseError {
-    #[error("parse error")]
-    ParseError,
-}
-
-impl FromStr for UserID {
-    type Err = IdParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ulid::from_str(s)
-            .map(UserID)
-            .map_err(|_| IdParseError::ParseError)
-    }
-}
-
-impl UserID {
-    pub fn new_random() -> Self {
-        Self(Ulid::new())
-    }
-}
-
-pub fn slice_to_bytes(s: &[u8]) -> [u8; 16] {
-    assert_eq!(s.len(), 16);
-    let mut bytes = [0; 16];
-    bytes.copy_from_slice(s);
-    bytes
-}
 
 impl Identifier for UserID {
     fn as_local_url(&self, base_url: &Url) -> Url {
@@ -130,47 +86,6 @@ impl Identifier for NoteID {
         base_url
             .join(&format!("/note/{}", self.to_string()))
             .unwrap()
-    }
-
-    type DBType = Vec<u8>;
-    fn as_db(&self) -> Self::DBType {
-        self.0.to_bytes().to_vec()
-    }
-    fn from_db_trusted(db: Self::DBType) -> Self {
-        // check fi
-        Self(Ulid::from_bytes(slice_to_bytes(&db)))
-    }
-}
-
-impl FromStr for UploadID {
-    type Err = IdParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        uuid::Uuid::parse_str(s)
-            .map(|u| UploadID(u.simple()))
-            .map_err(|_| IdParseError::ParseError)
-    }
-}
-
-impl UploadID {
-    pub fn new_random() -> Self {
-        Self(uuid::Uuid::new_v4().simple())
-    }
-}
-
-impl Identifier for UploadID {
-    fn as_local_url(&self, base_url: &Url) -> Url {
-        base_url
-            .join(&format!("/upload/{}", self.to_string()))
-            .unwrap()
-    }
-
-    type DBType = Vec<u8>;
-    fn as_db(&self) -> Self::DBType {
-        self.0.as_uuid().as_bytes().to_vec()
-    }
-
-    fn from_db_trusted(db: Self::DBType) -> Self {
-        Self(Uuid::from_bytes(slice_to_bytes(&db)).simple())
     }
 }
 

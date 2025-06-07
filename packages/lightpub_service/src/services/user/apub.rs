@@ -227,23 +227,6 @@ impl UserWithApubModel {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserApubData {
-    pub url: Url,
-    pub view_url: Option<Url>,
-    pub inbox: Url,
-    pub outbox: Url,
-    pub shared_inbox: Option<Url>,
-    pub followers: Option<Url>,
-    pub following: Option<Url>,
-    pub private_key: Option<String>,
-    pub public_key: String,
-    pub is_bot: bool,
-    pub auto_follow_accept: bool,
-    pub fetched_at: Option<DateTime<Utc>>,
-    pub created_at: Option<DateTime<Utc>>,
-}
-
 nest! {
     #[derive(Debug, Clone, Deserialize, Serialize)]*
     #[serde(rename_all = "camelCase")]*

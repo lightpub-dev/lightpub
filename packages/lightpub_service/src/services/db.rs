@@ -227,33 +227,6 @@ impl std::fmt::Debug for RedisConn {
     }
 }
 
-#[async_trait]
-impl KV for RedisConn {
-    async fn get_raw(&self, key: &str) -> ServiceResult<Option<Vec<u8>>> {
-        let mut c = self.cm.clone();
-        c.get(key).await.map_err_unknown()
-    }
-
-    async fn set_raw(
-        &self,
-        key: &str,
-        value: &[u8],
-        ttl: Option<std::time::Duration>,
-    ) -> ServiceResult<()> {
-        let mut c = self.cm.clone();
-        if let Some(ttl) = ttl {
-            c.set_ex(key, value, ttl.as_secs()).await.map_err_unknown()
-        } else {
-            c.set(key, value).await.map_err_unknown()
-        }
-    }
-
-    async fn delete_(&self, key: &str) -> ServiceResult<()> {
-        let mut c = self.cm.clone();
-        c.del(key).await.map_err_unknown()
-    }
-}
-
 /// Dummy KV store that does nothing.
 /// Always return None for get.
 #[derive(Debug, Clone, Default)]
