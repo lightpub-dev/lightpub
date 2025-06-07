@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use sea_orm::{ActiveValue::NotSet, Condition, EntityTrait, QueryFilter, Set};
 
 use crate::{
@@ -6,8 +7,8 @@ use crate::{
         follow::{FollowId, UserFollowEntity},
         user::UserID,
     },
+    domain::repositories::follow::UserFollowRepository,
     infrastructures::persistence::sql::LpDbConn,
-    repositories::follow::UserFollowRepository,
     services::MapToUnknown,
 };
 use sea_orm::ActiveModelTrait;
@@ -17,6 +18,7 @@ pub struct SqlUserFollowRepository {
     conn: LpDbConn,
 }
 
+#[async_trait]
 impl UserFollowRepository for SqlUserFollowRepository {
     async fn save(&self, follow: &mut UserFollowEntity) -> ServiceResult<()> {
         match *follow.id() {

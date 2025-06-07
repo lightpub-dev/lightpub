@@ -1,9 +1,11 @@
 use chrono::DateTime;
 use chrono::Utc;
-use derive_getters::Getters;
 use derive_more::Constructor;
+use getset::CopyGetters;
+use getset::Getters;
 use url::Url;
 
+use crate::ServiceResult;
 use crate::domain::models::apub::ActorID;
 use crate::domain::models::apub::ApubPrivateKey;
 use crate::domain::models::apub::ApubPublicKey;
@@ -43,22 +45,49 @@ impl UserID {
     }
 }
 
-#[derive(Debug, Getters, Serialize, Deserialize, Constructor)]
+#[derive(Debug, Getters, CopyGetters, Serialize, Deserialize, Constructor)]
 pub struct UserEntity {
+    #[getset(get_copy = "pub")]
     id: UserID,
+    #[getset(get = "pub")]
     username: Username,
+    #[getset(get = "pub")]
     domain: Domain,
+    #[getset(get = "pub")]
     nickname: Nickname,
+    #[getset(get = "pub")]
     profile: UserProfile,
+    #[getset(get = "pub")]
     config: UserConfig,
 
+    #[getset(get_copy = "pub")]
     is_dirty: bool,
+    #[getset(get_copy = "pub")]
     in_db: bool,
 }
 
 impl UserEntity {
+    pub fn create_new(username: Username, nickname: Nickname) -> Self {
+        Self {
+            id: UserID::new_random(),
+            username,
+            domain: Domain::local(),
+            nickname,
+            profile: UserProfile::default(),
+            config: UserConfig::default(),
+
+            is_dirty: true,
+            in_db: false,
+        }
+    }
+
     fn mark_dirty(&mut self) {
         self.is_dirty = true;
+    }
+
+    pub fn _set_saved(&mut self) {
+        self.is_dirty = false;
+        self.in_db = true;
     }
 
     pub fn set_nickname(&mut self, nickname: Nickname) {
@@ -97,20 +126,50 @@ impl UserEntity {
     }
 }
 
-#[derive(Debug, Getters, Serialize, Deserialize, Constructor)]
+#[derive(Debug, Getters, CopyGetters, Serialize, Deserialize, Constructor, Getters)]
 pub struct UserProfile {
+    #[getset(get = "pub")]
     bio: String,
+    #[getset(get_copy = "pub")]
     avatar: Option<UploadID>,
+    #[getset(get = "pub")]
     fetched_at: Option<DateTime<Utc>>,
+    #[getset(get = "pub")]
     created_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Getters, Serialize, Deserialize, Constructor)]
+impl Default for UserProfile {
+    fn default() -> Self {
+        Self {
+            bio: String::new(),
+            avatar: None,
+            fetched_at: None,
+            created_at: Some(Utc::now()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Constructor, CopyGetters)]
 pub struct UserConfig {
+    #[getset(get_copy = "pub")]
     is_bot: bool,
+    #[getset(get_copy = "pub")]
     is_admin: bool,
+    #[getset(get_copy = "pub")]
     auto_follow_accept: bool,
+    #[getset(get_copy = "pub")]
     hide_follows: bool,
+}
+
+impl Default for UserConfig {
+    fn default() -> Self {
+        Self {
+            is_bot: false,
+            is_admin: false,
+            auto_follow_accept: true,
+            hide_follows: false,
+        }
+    }
 }
 
 #[derive(Debug, Getters)]
@@ -139,6 +198,10 @@ impl Domain {
         } else {
             Domain(Some(s))
         }
+    }
+
+    pub fn local() -> Self {
+        Domain(None)
     }
 
     pub fn is_local(&self) -> bool {
@@ -180,5 +243,45 @@ impl Nickname {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+#[derive(Debug, Getters, Constructor)]
+pub struct UserAuthEntity {
+    user_id: UserID,
+    password_hash: HashedUserPassword,
+}
+
+impl UserAuthEntity {
+    pub fn set_password_hash(&mut self, password_hash: HashedUserPassword) {
+        self.password_hash = password_hash;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UserPassword {
+    password: String,
+}
+
+impl UserPassword {
+    pub fn new(password: String) -> Self {
+        Self { password }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HashedUserPassword(String);
+
+impl HashedUserPassword {
+    pub fn from_str(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0
     }
 }

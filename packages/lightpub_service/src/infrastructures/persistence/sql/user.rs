@@ -4,10 +4,11 @@ use crate::{
         upload::UploadID,
         user::{Domain, Nickname, UserConfig, UserEntity, UserID, UserProfile, Username},
     },
+    domain::repositories::user::UserRepository,
     infrastructures::persistence::sql::LpKvConn,
-    repositories::user::UserRepository,
     services::{MapToUnknown, ServiceError},
 };
+use async_trait::async_trait;
 use sea_orm::{ActiveModelTrait, Set};
 use sea_orm::{ColumnTrait, PaginatorTrait};
 use sea_orm::{EntityTrait, QueryFilter};
@@ -19,6 +20,7 @@ pub struct SqlUserRepository {
     kv: LpKvConn,
 }
 
+#[async_trait]
 impl UserRepository for SqlUserRepository {
     async fn get_user_by_id(&self, user_id: UserID) -> ServiceResult<Option<UserEntity>> {
         let cache = self.kv.get(format!("user:{user_id}")).await?;
@@ -77,12 +79,9 @@ impl UserRepository for SqlUserRepository {
         Ok(count)
     }
 
-    async fn update(&self, user: &mut UserEntity) -> ServiceResult<()> {
+    async fn save(&self, user: &mut UserEntity) -> ServiceResult<()> {
         if !*user.is_dirty() {
             return Ok(());
-        }
-        if !*user.in_db() {
-            return Err(ServiceError::ise("user must be in db to update"));
         }
 
         let model = entity::user::ActiveModel {
@@ -100,7 +99,13 @@ impl UserRepository for SqlUserRepository {
             ..Default::default()
         };
 
-        model.update(self.db.db()).await.map_err_unknown()?;
+        if *user.in_db() {
+            model.update(self.db.db()).await.map_err_unknown()?;
+        } else {
+            model.insert(self.db.db()).await.map_err_unknown()?;
+        }
+
+        user._set_saved();
 
         Ok(())
     }
