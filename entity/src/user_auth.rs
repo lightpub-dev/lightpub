@@ -3,27 +3,23 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "upload")]
+#[sea_orm(table_name = "user_auth")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, column_type = "Binary(16)")]
-    pub id: Vec<u8>,
-    pub filename: Option<String>,
-    pub url: Option<String>,
-    pub mime_type: String,
+    pub user_id: Vec<u8>,
+    pub password_hash: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::note_upload::Entity")]
-    NoteUpload,
-    #[sea_orm(has_many = "super::user::Entity")]
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::UserId",
+        to = "super::user::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
     User,
-}
-
-impl Related<super::note_upload::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::NoteUpload.def()
-    }
 }
 
 impl Related<super::user::Entity> for Entity {
