@@ -51,6 +51,50 @@ pub struct UserEntity {
     nickname: Nickname,
     profile: UserProfile,
     config: UserConfig,
+
+    is_dirty: bool,
+    in_db: bool,
+}
+
+impl UserEntity {
+    fn mark_dirty(&mut self) {
+        self.is_dirty = true;
+    }
+
+    pub fn set_nickname(&mut self, nickname: Nickname) {
+        self.nickname = nickname;
+        self.mark_dirty();
+    }
+
+    pub fn set_bio(&mut self, bio: String) {
+        self.profile.bio = bio;
+        self.mark_dirty();
+    }
+
+    pub fn set_avatar(&mut self, avatar: Option<UploadID>) {
+        self.profile.avatar = avatar;
+        self.mark_dirty();
+    }
+
+    pub fn set_is_bot(&mut self, is_bot: bool) {
+        self.config.is_bot = is_bot;
+        self.mark_dirty();
+    }
+
+    pub fn set_is_admin(&mut self, is_admin: bool) {
+        self.config.is_admin = is_admin;
+        self.mark_dirty();
+    }
+
+    pub fn set_auto_follow_accept(&mut self, auto_follow_accept: bool) {
+        self.config.auto_follow_accept = auto_follow_accept;
+        self.mark_dirty();
+    }
+
+    pub fn set_hide_follows(&mut self, hide_follows: bool) {
+        self.config.hide_follows = hide_follows;
+        self.mark_dirty();
+    }
 }
 
 #[derive(Debug, Getters, Serialize, Deserialize, Constructor)]
@@ -66,6 +110,7 @@ pub struct UserConfig {
     is_bot: bool,
     is_admin: bool,
     auto_follow_accept: bool,
+    hide_follows: bool,
 }
 
 #[derive(Debug, Getters)]
@@ -102,6 +147,13 @@ impl Domain {
 
     pub fn as_str(&self) -> Option<&str> {
         self.0.as_deref()
+    }
+
+    pub fn as_db(&self) -> &str {
+        match &self.0 {
+            Some(d) => d,
+            None => "",
+        }
     }
 }
 

@@ -71,11 +71,6 @@ pub enum UserGetError {
     BadURL,
 }
 
-async fn invalidate_user_cache(rconn: &KVObject, user_id: UserID) -> ServiceResult<()> {
-    rconn.delete(format!("user:{user_id}")).await?;
-    Ok(())
-}
-
 /// データベース上からユーザー情報を取得する。
 /// ローカルデータベースのみ探索する。
 pub async fn get_user_by_spec(
