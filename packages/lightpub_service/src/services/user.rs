@@ -61,7 +61,10 @@ pub use profile::{
     get_user_profile_by_id, update_user_profile,
 };
 pub use specifier::UserSpecifier;
-pub use totp::{TotpSetup, setup_user_totp};
+pub use totp::{
+    TotpSetup, TotpVerifyResult, TotpVerifyResultError, deactivate_user_totp, setup_user_totp,
+    user_totp_verify,
+};
 
 #[derive(Debug, Clone, Error, ExpectedError)]
 pub enum UserGetError {

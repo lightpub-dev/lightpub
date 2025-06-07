@@ -26,7 +26,7 @@ pub enum Template {
     Search(()),
     Timeline(Timeline),
     UserList(UserList),
-    TotpSetup(()),
+    TotpSetup(TotpSetup),
     TotpCompleted(()),
     TotpConfirm(()),
 
@@ -442,7 +442,8 @@ nest! {
     #[derive(Debug, Clone, Serialize)]*
     #[serde(rename_all = "camelCase")]*
     pub struct TotpSetup {
-        pub qr_base64: String,
+        pub qr_base64: Option<String>,
+        pub success: bool,
     }
 }
 

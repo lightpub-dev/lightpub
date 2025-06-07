@@ -59,7 +59,7 @@ pub enum Relation {
     Upload,
     #[sea_orm(has_one = "super::user_totp::Entity")]
     UserTotp,
-    #[sea_orm(has_one = "super::user_totp_backup::Entity")]
+    #[sea_orm(has_many = "super::user_totp_backup::Entity")]
     UserTotpBackup,
 }
 

@@ -5,8 +5,10 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "user_totp_backup")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false, column_type = "Binary(16)")]
-    pub id: Vec<u8>,
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    #[sea_orm(column_type = "Binary(16)")]
+    pub user_id: Vec<u8>,
     pub code: String,
     pub created_at: DateTime,
     pub used_at: Option<DateTime>,
@@ -16,7 +18,7 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(
         belongs_to = "super::user::Entity",
-        from = "Column::Id",
+        from = "Column::UserId",
         to = "super::user::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"

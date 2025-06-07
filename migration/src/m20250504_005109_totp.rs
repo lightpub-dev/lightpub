@@ -43,7 +43,8 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(UserTotpBackup::Table)
-                    .col(uuid(UserTotpBackup::Id).primary_key().not_null())
+                    .col(pk_auto(UserTotpBackup::Id).not_null())
+                    .col(uuid(UserTotpBackup::UserId).not_null())
                     .col(string_len(UserTotpBackup::Code, 128))
                     .col(datetime_6(UserTotpBackup::CreatedAt))
                     .col(datetime_6_null(UserTotpBackup::UsedAt))
@@ -54,7 +55,7 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKeyCreateStatement::new()
                     .name("fk_user_totp_backup_user_id")
-                    .from(UserTotpBackup::Table, UserTotpBackup::Id)
+                    .from(UserTotpBackup::Table, UserTotpBackup::UserId)
                     .to(User::Table, User::Id)
                     .on_delete(ForeignKeyAction::Cascade)
                     .on_update(ForeignKeyAction::Cascade)
@@ -118,6 +119,7 @@ pub enum TotpStatus {
 enum UserTotpBackup {
     Table,
     Id,
+    UserId,
     Code,
     CreatedAt,
     UsedAt,

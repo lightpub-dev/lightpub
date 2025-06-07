@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="/static/css/totp_setup.css" />
     <title>TOTP Setup</title>
+    {{> parts/global}}
   </head>
   <body>
     <div class="container">
       <h1>TOTP Setup</h1>
+      {{#if success}}
       <p>Scan the QR code with your TOTP app</p>
       <div class="qr-code">
         <!-- Replace with actual QR code image -->
@@ -17,7 +19,22 @@
       <p>Enter the code from your TOTP app to test:</p>
       <input type="text" id="totp-code" placeholder="Enter TOTP code" />
       <button onclick="verifyCode()">Verify Code</button>
+      {{else}}
+      <p>
+        TOTP is already setup up. If you want to change it, please disable the
+        current TOTP first.
+      </p>
+      <form action="/client/config/totp/setup" method="POST">
+        <input type="hidden" name="force" value="true" />
+        <button class="btn btn-secondary">TOTPを再設定する</button>
+      </form>
+      <form action="/client/config/totp/deactivate" method="POST">
+        <button class="btn btn-danger">TOTPを解除する</button>
+      </form>
+      {{/if}}
     </div>
+    {{#if success}}
     <script src="/static/js/totp_setup.js"></script>
+    {{/if}}
   </body>
 </html>

@@ -64,7 +64,7 @@ use lightpub_rs::{
         user::{
             client_change_password, client_edit_profile_get, client_get_profile, client_login_user,
             client_my_profile, client_register_user, client_user_followers_list,
-            client_user_followings_list, client_user_totp_setup,
+            client_user_followings_list, client_user_totp_deactivate, client_user_totp_setup,
         },
     },
     create_handlebars, create_http_client, create_http_client_with_cache, registeration_open,
@@ -399,7 +399,8 @@ async fn main() {
                     .service(client_note_mentions_list)
                     .service(client_notification_get)
                     .service(client_get_search)
-                    .service(client_user_totp_setup),
+                    .service(client_user_totp_setup)
+                    .service(client_user_totp_deactivate),
             )
             .route("/healthcheck", web::get().to(|| async { "OK" }))
             .service(api::federation::webfinger)

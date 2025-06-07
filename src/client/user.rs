@@ -16,12 +16,15 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use actix_web::post;
+use actix_web::http::header;
 use actix_web::{get, http::StatusCode, web, Responder};
-use lightpub_service::services::user::setup_user_totp;
+use actix_web::{post, HttpResponse};
+use lightpub_service::services::user::{deactivate_user_totp, setup_user_totp, TotpSetup};
+use serde::Deserialize;
 use url::Url;
 
 use crate::api::auth::middleware_auth_jwt_required;
+use crate::template::TotpSetup as TotpSetupTemplate;
 use crate::{
     api::auth::AuthedUser,
     template::{
@@ -268,6 +271,12 @@ pub async fn client_user_followers_list(
     )
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct TotpSetupConfig {
+    #[serde(default)]
+    pub force: bool,
+}
+
 #[post(
     "/config/totp/setup",
     wrap = "from_fn(middleware_redirect_login)",
@@ -275,11 +284,55 @@ pub async fn client_user_followers_list(
 )]
 pub async fn client_user_totp_setup(
     st: web::Data<AppState>,
+    config: web::Form<TotpSetupConfig>,
     auth: web::ReqData<AuthedUser>,
 ) -> ServiceResult<impl Responder> {
     let viewer_id = auth.user_id_unwrap();
 
-    let totp = setup_user_totp(&st.maybe_conn(), &st.rconn(), viewer_id, &st.my_domain()).await?;
+    let totp = setup_user_totp(
+        &st.conn(),
+        &st.rconn(),
+        viewer_id,
+        config.force,
+        &st.my_domain(),
+    )
+    .await?;
 
-    render_template(st.template(), &Template::TotpSetup(()))
+    match totp {
+        TotpSetup::Success {
+            qr_code_png_base64,
+            url: _,
+        } => render_template(
+            st.template(),
+            &Template::TotpSetup(TotpSetupTemplate {
+                qr_base64: Some(qr_code_png_base64),
+                success: true,
+            }),
+        ),
+        TotpSetup::AlreadySetup => render_template(
+            st.template(),
+            &Template::TotpSetup(TotpSetupTemplate {
+                qr_base64: None,
+                success: false,
+            }),
+        ),
+    }
+}
+
+#[post(
+    "/config/totp/deactivate",
+    wrap = "from_fn(middleware_redirect_login)",
+    wrap = "from_fn(middleware_auth_jwt_required)"
+)]
+pub async fn client_user_totp_deactivate(
+    st: web::Data<AppState>,
+    auth: web::ReqData<AuthedUser>,
+) -> ServiceResult<impl Responder> {
+    let viewer_id = auth.user_id_unwrap();
+
+    deactivate_user_totp(&st.conn(), &st.rconn(), viewer_id).await?;
+
+    Ok(HttpResponse::Found()
+        .insert_header((header::LOCATION, "/client/my"))
+        .finish())
 }
