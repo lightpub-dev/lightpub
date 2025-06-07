@@ -5,6 +5,7 @@ use tracing::error;
 
 use crate::{ServiceResult, services::MapToUnknown};
 
+pub mod follow;
 pub mod user;
 
 #[derive(Debug, Clone)]

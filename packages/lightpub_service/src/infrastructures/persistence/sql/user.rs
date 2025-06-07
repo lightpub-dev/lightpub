@@ -4,7 +4,8 @@ use crate::{
         upload::UploadID,
         user::{Domain, Nickname, UserConfig, UserEntity, UserID, UserProfile, Username},
     },
-    repositories::{sql::LpKvConn, user::UserRepository},
+    infrastructures::persistence::sql::LpKvConn,
+    repositories::user::UserRepository,
     services::{MapToUnknown, ServiceError},
 };
 use sea_orm::{ActiveModelTrait, Set};

@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 pub mod apub;
+pub mod follow;
 pub mod upload;
 pub mod user;
 

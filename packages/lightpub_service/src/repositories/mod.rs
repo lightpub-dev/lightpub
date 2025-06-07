@@ -1,2 +1,2 @@
-pub mod sql;
+pub mod follow;
 pub mod user;
